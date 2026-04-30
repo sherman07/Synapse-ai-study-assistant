@@ -3,93 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Synapse | AI Study Tutor</title>
+  <title>Synapse</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" href="/logos/synapse.pdf">
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-  <div class="app-layout">
+  <!-- MOBILE TOP BAR -->
+  <nav class="mobile-topbar" aria-label="Mobile navigation">
+    <button class="mobile-menu-btn" type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#mobileNav"
+            aria-controls="mobileNav"
+            aria-label="Open menu">
+      <i class="bi bi-list"></i>
+    </button>
 
-    <!-- LEFT NAV -->
-    <aside class="summary-nav">
+    <div class="mobile-brand">
+      <span class="brand-dot"><i class="bi bi-hourglass-split"></i></span>
+      <strong>Synapse</strong>
+    </div>
+
+    <div class="mobile-topbar-spacer"></div>
+  </nav>
+
+  <!-- MOBILE OFFCANVAS NAV -->
+  <div class="offcanvas offcanvas-top mobile-offcanvas"
+       tabindex="-1"
+       id="mobileNav"
+       aria-labelledby="mobileNavLabel">
+    <div class="offcanvas-header">
+      <div class="mobile-brand" id="mobileNavLabel">
+        <span class="brand-dot"><i class="bi bi-hourglass-split"></i></span>
+        <strong>Synapse</strong>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <p class="mobile-nav-caption">Generated headings will appear here after analysis.</p>
+      <div id="mobileSections" class="section-list"></div>
+    </div>
+  </div>
+
+  <div id="appLayout" class="app-layout initial-state">
+    <!-- LEFT NAVIGATION -->
+    <aside id="summaryNav" class="summary-nav hidden-before-analysis">
       <div class="nav-header">
         <div class="nav-logo">
-          <span class="nav-logo-icon"><i class="bi bi-stars"></i></span>
+          <span class="nav-logo-icon"><i class="bi bi-hourglass-split"></i></span>
           <span class="nav-logo-text">Synapse</span>
         </div>
-        <p>AI-generated section headings will appear here after upload.</p>
+        <p>Generated headings will appear here after analysis.</p>
       </div>
       <div id="sections" class="section-list"></div>
     </aside>
 
-    <!-- MAIN NOTES -->
+    <!-- MAIN CONTENT -->
     <main id="mainNotes" class="notes-area">
-      <section class="notes-header">
-        <h1>AI Study Tutor</h1>
-        <p>
-          Upload academic readings, generate structured AI notes, and study with contextual assistance.
-        </p>
-      </section>
-
-      <section class="upload-card">
-        <div class="row g-3 align-items-center">
-          <div class="col-12 col-md-8">
-            <input class="form-control form-control-lg" type="file" id="pdfUpload" accept="application/pdf">
+      <!-- UPLOAD STAGE -->
+      <section id="uploadStage" class="upload-stage">
+        <div class="hero-copy text-center">
+          <div class="brand-pill mx-auto mb-4">
+            <i class="bi bi-stars"></i>
+            AI Academic Tutor
           </div>
-          <div class="col-12 col-md-4">
-            <button class="btn btn-primary btn-lg w-100" onclick="uploadPDF()">
-              <i class="bi bi-stars me-2"></i>
-              Generate Notes
+          <h1>Study Smarter</h1>
+          <p>Your private tutor for readings, notes, images, and links.</p>
+        </div>
+
+        <section class="premium-upload-card">
+          <div id="dropZone" class="drop-zone" tabindex="0"
+               role="button" aria-label="Upload area — drop files or click to browse">
+            <input id="assetUpload" class="visually-hidden" type="file" multiple
+              accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg,.webp,image/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+
+            <div class="upload-icon-wrap">
+              <i class="bi bi-cloud-arrow-up"></i>
+            </div>
+            <h2>Upload your study material</h2>
+            <p>Drop PDFs, images, notes, or documents here. Add links below if your source is online.</p>
+            <button type="button" class="btn btn-primary btn-lg upload-browse-btn" onclick="openFilePicker()">
+              <i class="bi bi-plus-lg me-2"></i>Select files
             </button>
           </div>
-        </div>
+
+          <div id="filePreview" class="file-preview d-none"></div>
+
+          <div class="link-box">
+            <label for="linkInput" class="form-label">Add links</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+              <input id="linkInput" type="url" class="form-control"
+                     placeholder="Paste article, lecture page, or resource link"
+                     onkeydown="if(event.key==='Enter'){event.preventDefault();addLink();}">
+              <button class="btn btn-outline-primary" type="button" onclick="addLink()">Add</button>
+            </div>
+            <div id="linkPreview" class="link-preview d-none"></div>
+          </div>
+
+          <button id="generateBtn" class="btn btn-primary btn-lg w-100 generate-btn" onclick="analyzeMaterials()">
+            <i class="bi bi-stars me-2"></i>Analyze with Synapse
+          </button>
+        </section>
       </section>
 
-      <section class="notes-card">
-        <div class="d-flex justify-content-between align-items-center mb-3 gap-3">
-          <h2 id="sectionTitle">Generated Study Notes</h2>
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary btn-sm" onclick="showFullSummary()">
-              <i class="bi bi-journal-text me-1"></i>
-              Full Notes
-            </button>
+      <!-- ANALYSIS STAGE -->
+      <section id="analysisStage" class="analysis-stage d-none">
+        <section class="notes-header compact-header">
+          <div>
+            <h1>Generated Study Notes</h1>
+            <p>Synapse analysed your materials and built a guided study overview.</p>
           </div>
-        </div>
+          <button class="btn btn-outline-primary new-upload-btn" onclick="resetWorkspace()">
+            <i class="bi bi-plus-lg me-1"></i>New upload
+          </button>
+        </section>
 
         <div id="loadingBox" class="loading-box d-none">
-          <div class="synapse-spinner">
-            <div class="spinner-ring"></div>
-            <i class="bi bi-stars spinner-icon"></i>
+          <div class="synapse-ai-loader">
+            <svg class="hourglass-logo" viewBox="0 0 200 200" aria-label="Synapse loading animation">
+              <defs>
+                <linearGradient id="synapseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#FFF7E2"/>
+                  <stop offset="100%" stop-color="#4A7CFF"/>
+                </linearGradient>
+              </defs>
+              <g class="hourglass-flip">
+                <path d="M45 35 L155 35 L110 92"
+                      fill="none" stroke="url(#synapseGrad)"
+                      stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M90 108 L45 165 L155 165"
+                      fill="none" stroke="url(#synapseGrad)"
+                      stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+                <path class="spark" fill="#4A7CFF"
+                      d="M100 88 C104 98 104 98 114 100 C104 102 104 102 100 112 C96 102 96 102 86 100 C96 98 96 98 100 88Z"/>
+              </g>
+            </svg>
           </div>
-          <p class="mt-3">Generating structured academic notes...</p>
-          <p class="text-muted small">Synapse is reading and structuring your document</p>
+          <h3>Synapse is analysing your material...</h3>
+          <p>Reading, connecting ideas, and preparing your tutor-style summary.</p>
         </div>
 
-        <div id="summaryContent" class="summary-content">
-          <div class="empty-state">
-            <i class="bi bi-file-earmark-text"></i>
-            <h3>No notes generated yet</h3>
-            <p>Upload a PDF and click "Generate Notes".</p>
-          </div>
+        <div id="resultGrid" class="result-grid d-none">
+          <section class="notes-card">
+            <div class="d-flex justify-content-between align-items-center mb-3 gap-3">
+              <h2 id="sectionTitle">Summary</h2>
+              <button class="btn btn-outline-primary btn-sm" onclick="showFullSummary()">
+                <i class="bi bi-journal-text me-1"></i>Full Notes
+              </button>
+            </div>
+            <div id="summaryContent" class="summary-content"></div>
+          </section>
+
+          <section class="brainstorm-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h2>Brainstorm Map</h2>
+                <p>Key ideas connected into a visual thinking map.</p>
+              </div>
+              <i class="bi bi-diagram-3 brainstorm-icon"></i>
+            </div>
+            <div id="brainstormMap" class="brainstorm-map"></div>
+          </section>
         </div>
       </section>
     </main>
 
     <!-- RIGHT ASSISTANT -->
-    <aside id="assistant" class="assistant-panel">
+    <aside id="assistant" class="assistant-panel hidden-before-analysis">
       <div class="assistant-header">
         <button class="icon-btn" title="New Chat" onclick="clearChat()">
           <i class="bi bi-plus-lg"></i>
         </button>
-
         <div class="assistant-title">
           <span class="assistant-logo-dot"></span>
           <h4>Synapse Tutor</h4>
         </div>
-
         <div class="d-flex gap-2">
           <button class="icon-btn" title="Expand" onclick="expandAssistant()">
             <i class="bi bi-arrows-fullscreen"></i>
@@ -100,7 +192,6 @@
         </div>
       </div>
 
-      <!-- TABS -->
       <div class="assistant-tabs">
         <button class="asst-tab active" onclick="switchTab('chat', this)">
           <i class="bi bi-chat-dots me-1"></i>Chat
@@ -108,12 +199,8 @@
         <button class="asst-tab" onclick="switchTab('connections', this)">
           <i class="bi bi-diagram-3 me-1"></i>Connections
         </button>
-        <button class="asst-tab" onclick="switchTab('progress', this)">
-          <i class="bi bi-bar-chart me-1"></i>Progress
-        </button>
       </div>
 
-      <!-- TAB: CHAT -->
       <div id="tab-chat" class="tab-panel active">
         <div id="chatMessages" class="chat-area">
           <div class="assistant-empty">
@@ -121,88 +208,40 @@
             <p>Ask questions about your generated notes.</p>
           </div>
         </div>
-
         <div class="quick-actions">
-          <button class="btn btn-light quick-btn" onclick="quickAsk('Summarise my current notes clearly.')">
-            Summarise notes
-          </button>
-          <button class="btn btn-light quick-btn" onclick="quickAsk('Explain the key concept in this section.')">
-            Explain concept
-          </button>
-          <button class="btn btn-light quick-btn" onclick="quickAsk('What are likely exam questions from this material?')">
-            Exam questions
-          </button>
-          <button class="btn btn-light quick-btn" onclick="quickAsk('What connections exist between the main ideas here?')">
-            Find connections
-          </button>
+          <button class="btn btn-light quick-btn" onclick="quickAsk('Summarise my current notes clearly.')">Summarise</button>
+          <button class="btn btn-light quick-btn" onclick="quickAsk('Explain the most difficult idea like a tutor.')">Explain concept</button>
+          <button class="btn btn-light quick-btn" onclick="quickAsk('Challenge my understanding with tutorial questions.')">Challenge me</button>
         </div>
-
         <div class="assistant-input-card">
-          <textarea id="questionInput" class="form-control" placeholder="Ask anything about your reading..." rows="3"></textarea>
+          <textarea id="questionInput" class="form-control"
+                    placeholder="Ask anything about your material..." rows="3"></textarea>
           <div class="input-toolbar">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
-              <span class="context-pill">
-                <i class="bi bi-at"></i>
-                <span id="contextLabel">Current Notes</span>
-              </span>
-              <span class="model-pill">
-                <i class="bi bi-cpu"></i>
-                ChatGPT 4o Mini
-              </span>
-            </div>
-            <button class="send-btn" onclick="askAI()">
+            <span class="context-pill">
+              <i class="bi bi-at"></i>
+              <span id="contextLabel">Current Notes</span>
+            </span>
+            <button class="send-btn" onclick="askAI()" aria-label="Send message">
               <i class="bi bi-arrow-return-left"></i>
             </button>
           </div>
         </div>
       </div>
 
-      <!-- TAB: CONNECTIONS -->
       <div id="tab-connections" class="tab-panel">
         <div class="connections-panel">
           <div id="connectionsEmpty" class="assistant-empty">
             <i class="bi bi-diagram-3"></i>
-            <p>Upload a PDF to reveal concept connections across your reading.</p>
+            <p>Connections will appear after analysis.</p>
           </div>
           <div id="connectionsList" class="connections-list d-none"></div>
         </div>
       </div>
-
-      <!-- TAB: PROGRESS -->
-      <div id="tab-progress" class="tab-panel">
-        <div class="progress-panel">
-          <div class="progress-stat-grid">
-            <div class="progress-stat">
-              <span class="progress-stat-value" id="statSections">—</span>
-              <span class="progress-stat-label">Sections</span>
-            </div>
-            <div class="progress-stat">
-              <span class="progress-stat-value" id="statConnections">—</span>
-              <span class="progress-stat-label">Connections</span>
-            </div>
-            <div class="progress-stat">
-              <span class="progress-stat-value" id="statQuestions">—</span>
-              <span class="progress-stat-label">Questions asked</span>
-            </div>
-            <div class="progress-stat">
-              <span class="progress-stat-value" id="statWords">—</span>
-              <span class="progress-stat-label">Words generated</span>
-            </div>
-          </div>
-
-          <div class="progress-section-title">Sections explored</div>
-          <div id="sectionProgress" class="section-progress-list">
-            <p class="text-muted small px-2">No sections yet. Upload a PDF to begin.</p>
-          </div>
-        </div>
-      </div>
-
     </aside>
   </div>
 
-  <button id="openAssistant" class="btn btn-primary shadow-lg" onclick="openAssistant()">
-    <i class="bi bi-chat-left-text me-2"></i>
-    Open Assistant
+  <button id="openAssistant" class="open-assistant-fab" onclick="openAssistant()" aria-label="Open Tutor">
+    <i class="bi bi-chat-left-text me-2"></i>Open Tutor
   </button>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
