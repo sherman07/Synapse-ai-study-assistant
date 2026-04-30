@@ -75,7 +75,6 @@ body {
 
 .brand-dot,
 .nav-logo-icon {
-  background: var(--button-gradient);
   color: white;
   display: grid;
   place-items: center;
@@ -86,6 +85,19 @@ body {
   height: 32px;
   border-radius: 10px;
   font-size: 0.9rem;
+}
+
+.brand-logo-img,
+.nav-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.nav-logo-icon .nav-logo-img {
+  width: 74%;
+  height: 74%;
 }
 
 .mobile-offcanvas.offcanvas-top {
@@ -511,37 +523,177 @@ body {
 }
 
 .synapse-ai-loader {
-  width: 150px;
-  height: 150px;
-  border-radius: 32px;
+  width: 170px;
+  height: 170px;
+  border-radius: 36px;
+  position: relative;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 20px 60px rgba(74, 124, 255, 0.16);
-  backdrop-filter: blur(16px);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.96), rgba(255,255,255,.62) 56%, rgba(238,244,255,.46)),
+    linear-gradient(135deg, rgba(255,247,226,.72), rgba(219,234,255,.52));
+  box-shadow:
+    0 28px 70px rgba(74, 124, 255, 0.18),
+    inset 0 0 0 1px rgba(216,230,255,.95);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
-.hourglass-logo { width: 110px; height: 110px; overflow: visible; }
-
-.hourglass-flip {
-  transform-origin: 100px 100px;
-  animation: hourglassFlip 2.8s ease-in-out infinite;
+.refined-loader::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(74,124,255,.16) 55deg, transparent 120deg, rgba(255,247,226,.34) 210deg, transparent 300deg);
+  animation: loaderHaloSweep 2.8s linear infinite;
 }
 
-.spark {
-  transform-origin: 100px 100px;
-  animation: sparkPulse 1.4s ease-in-out infinite;
+.loader-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(74,124,255,.16);
+  pointer-events: none;
 }
 
-@keyframes hourglassFlip {
-  0%, 38% { transform: rotate(0deg); }
-  52%, 88% { transform: rotate(180deg); }
-  100% { transform: rotate(360deg); }
+.loader-orbit-one {
+  width: 132px;
+  height: 132px;
+  animation: orbitPulse 2.8s ease-in-out infinite;
 }
 
-@keyframes sparkPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.25); opacity: 0.6; }
+.loader-orbit-two {
+  width: 94px;
+  height: 94px;
+  border-color: rgba(255,247,226,.72);
+  animation: orbitPulse 2.8s ease-in-out infinite reverse;
+}
+
+.vector-logo-loader {
+  position: relative;
+  z-index: 2;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.rotating-vector-logo {
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  transform-origin: center;
+  animation: rotateVectorLogo 2.8s cubic-bezier(.72, 0, .28, 1) infinite;
+  filter: drop-shadow(0 16px 18px rgba(74,124,255,.16));
+}
+
+.loading-star {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  animation: synapseSparkBreath 2.8s ease-in-out infinite;
+}
+
+.loading-star::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74,124,255,.36) 0%, rgba(74,124,255,.16) 38%, transparent 72%);
+  filter: blur(3px);
+  animation: synapseSparkAura 2.8s ease-in-out infinite;
+}
+
+.synapse-spark {
+  position: relative;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  fill: #4A7CFF;
+  filter:
+    drop-shadow(0 0 4px rgba(74,124,255,.55))
+    drop-shadow(0 0 12px rgba(74,124,255,.32));
+  animation: synapseSparkTwinkle 2.8s ease-in-out infinite;
+}
+@keyframes rotateVectorLogo {
+  0%, 36% { transform: rotate(0deg) scale(1); }
+  50%, 86% { transform: rotate(180deg) scale(1.03); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes synapseSparkBreath {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(.92);
+    opacity: .86;
+  }
+  45% {
+    transform: translate(-50%, -50%) scale(1.18);
+    opacity: 1;
+  }
+  58% {
+    transform: translate(-50%, -50%) scale(1.08);
+    opacity: .96;
+  }
+}
+
+@keyframes synapseSparkTwinkle {
+  0%, 100% {
+    transform: scale(.88);
+    fill: #77A2FF;
+    filter:
+      drop-shadow(0 0 4px rgba(74,124,255,.45))
+      drop-shadow(0 0 10px rgba(74,124,255,.22));
+  }
+  45% {
+    transform: scale(1.22);
+    fill: #4A7CFF;
+    filter:
+      drop-shadow(0 0 8px rgba(74,124,255,.75))
+      drop-shadow(0 0 22px rgba(74,124,255,.56));
+  }
+  58% {
+    transform: scale(1.08);
+    fill: #9DBBFF;
+  }
+}
+
+@keyframes synapseSparkAura {
+  0%, 100% {
+    transform: scale(.72);
+    opacity: .18;
+  }
+  45% {
+    transform: scale(1.45);
+    opacity: .64;
+  }
+  58% {
+    transform: scale(1.08);
+    opacity: .38;
+  }
+}
+
+@keyframes loaderHaloSweep {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orbitPulse {
+  0%, 100% { transform: scale(.96); opacity: .46; }
+  50% { transform: scale(1.06); opacity: .95; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotating-vector-logo,
+  .loading-star,
+  .synapse-spark,
+  .loader-orbit,
+  .refined-loader::before {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* Assistant panel */

@@ -7,7 +7,7 @@
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="icon" href="/logos/synapse.pdf">
+  <link rel="icon" type="image/png" href="/logos/synapse.png">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -23,7 +23,7 @@
     </button>
 
     <div class="mobile-brand">
-      <span class="brand-dot"><i class="bi bi-hourglass-split"></i></span>
+      <span class="brand-dot"><img class="brand-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
       <strong>Synapse</strong>
     </div>
 
@@ -37,7 +37,7 @@
        aria-labelledby="mobileNavLabel">
     <div class="offcanvas-header">
       <div class="mobile-brand" id="mobileNavLabel">
-        <span class="brand-dot"><i class="bi bi-hourglass-split"></i></span>
+        <span class="brand-dot"><img class="brand-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
         <strong>Synapse</strong>
       </div>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -53,7 +53,7 @@
     <aside id="summaryNav" class="summary-nav hidden-before-analysis">
       <div class="nav-header">
         <div class="nav-logo">
-          <span class="nav-logo-icon"><i class="bi bi-hourglass-split"></i></span>
+          <span class="nav-logo-icon"><img class="nav-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
           <span class="nav-logo-text">Synapse</span>
         </div>
         <p>Generated headings will appear here after analysis.</p>
@@ -123,25 +123,18 @@
         </section>
 
         <div id="loadingBox" class="loading-box d-none">
-          <div class="synapse-ai-loader">
-            <svg class="hourglass-logo" viewBox="0 0 200 200" aria-label="Synapse loading animation">
-              <defs>
-                <linearGradient id="synapseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#FFF7E2"/>
-                  <stop offset="100%" stop-color="#4A7CFF"/>
-                </linearGradient>
-              </defs>
-              <g class="hourglass-flip">
-                <path d="M45 35 L155 35 L110 92"
-                      fill="none" stroke="url(#synapseGrad)"
-                      stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M90 108 L45 165 L155 165"
-                      fill="none" stroke="url(#synapseGrad)"
-                      stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-                <path class="spark" fill="#4A7CFF"
-                      d="M100 88 C104 98 104 98 114 100 C104 102 104 102 100 112 C96 102 96 102 86 100 C96 98 96 98 100 88Z"/>
-              </g>
-            </svg>
+          <div class="synapse-ai-loader refined-loader" aria-hidden="true">
+            <div class="loader-orbit loader-orbit-one"></div>
+            <div class="loader-orbit loader-orbit-two"></div>
+
+            <div class="vector-logo-loader">
+              <img class="rotating-vector-logo" src="/logos/synapse_no_spark.png" alt="Synapse loading logo">
+              <div class="loading-star">
+                <svg viewBox="0 0 24 24" class="synapse-spark" aria-hidden="true">
+                  <path d="M12 1.8C13.1 7.9 16.1 10.9 22.2 12C16.1 13.1 13.1 16.1 12 22.2C10.9 16.1 7.9 13.1 1.8 12C7.9 10.9 10.9 7.9 12 1.8Z"/>
+                </svg>
+              </div>
+            </div>
           </div>
           <h3>Synapse is analysing your material...</h3>
           <p>Reading, connecting ideas, and preparing your tutor-style summary.</p>
