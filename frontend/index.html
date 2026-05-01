@@ -12,6 +12,7 @@
 </head>
 
 <body>
+  
   <!-- MOBILE TOP BAR -->
   <nav class="mobile-topbar" aria-label="Mobile navigation">
     <button class="mobile-menu-btn" type="button"
@@ -78,7 +79,7 @@
           <div id="dropZone" class="drop-zone" tabindex="0"
                role="button" aria-label="Upload area — drop files or click to browse">
             <input id="assetUpload" class="visually-hidden" type="file" multiple
-              accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg,.webp,image/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+              accept=".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
 
             <div class="upload-icon-wrap">
               <i class="bi bi-cloud-arrow-up"></i>
@@ -92,16 +93,21 @@
 
           <div id="filePreview" class="file-preview d-none"></div>
 
-          <div class="link-box">
-            <label for="linkInput" class="form-label">Add links</label>
-            <div class="input-group input-group-lg">
-              <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
-              <input id="linkInput" type="url" class="form-control"
-                     placeholder="Paste article, lecture page, or resource link"
-                     onkeydown="if(event.key==='Enter'){event.preventDefault();addLink();}">
-              <button class="btn btn-outline-primary" type="button" onclick="addLink()">Add</button>
+          <div class="source-box">
+            <label for="sourceInput" class="form-label">Paste links, video links, or text</label>
+            <div class="source-input-wrap">
+              <div class="source-hints">
+                <span><i class="bi bi-youtube"></i> YouTube link</span>
+                <span>/</span>
+                <span><i class="bi bi-link-45deg"></i> Web URL</span>
+                <span>/</span>
+                <span><i class="bi bi-camera-video"></i> Video link</span>
+                <span>/</span>
+                <span><i class="bi bi-file-text"></i> Free text</span>
+              </div>
+              <textarea id="sourceInput" class="source-input" rows="5" placeholder="Paste a YouTube link, video link, webpage URL, or your own notes/text here..."></textarea>
             </div>
-            <div id="linkPreview" class="link-preview d-none"></div>
+            <p class="source-helper">Synapse will read accessible webpages and YouTube transcripts. If a video has no readable transcript, upload the video/audio or paste the transcript here.</p>
           </div>
 
           <button id="generateBtn" class="btn btn-primary btn-lg w-100 generate-btn" onclick="analyzeMaterials()">
@@ -130,8 +136,8 @@
             <div class="vector-logo-loader">
               <img class="rotating-vector-logo" src="/logos/synapse_no_spark.png" alt="Synapse loading logo">
               <div class="loading-star">
-                <svg viewBox="0 0 24 24" class="synapse-spark" aria-hidden="true">
-                  <path d="M12 1.8C13.1 7.9 16.1 10.9 22.2 12C16.1 13.1 13.1 16.1 12 22.2C10.9 16.1 7.9 13.1 1.8 12C7.9 10.9 10.9 7.9 12 1.8Z"/>
+                <svg viewBox="0 0 24 24" class="synapse-spark">
+                  <path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/>
                 </svg>
               </div>
             </div>
@@ -238,6 +244,20 @@
   </button>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

@@ -13,8 +13,7 @@ const appLayout = document.getElementById("appLayout");
 const assetUpload = document.getElementById("assetUpload");
 const dropZone = document.getElementById("dropZone");
 const filePreview = document.getElementById("filePreview");
-const linkInput = document.getElementById("linkInput");
-const linkPreview = document.getElementById("linkPreview");
+const sourceInput = document.getElementById("sourceInput");
 const uploadStage = document.getElementById("uploadStage");
 const analysisStage = document.getElementById("analysisStage");
 const resultGrid = document.getElementById("resultGrid");
@@ -99,49 +98,34 @@ function fileIcon(file) {
   return "bi-file-earmark-text";
 }
 
-function addLink() {
-  const value = linkInput.value.trim();
-  if (!value) return;
+function parseMixedSources(rawSource) {
+  const text = String(rawSource || "").trim();
+  const links = [];
 
-  try {
-    new URL(value);
-  } catch {
-    alert("Please enter a valid URL.");
-    return;
-  }
+  const urlRegex = /https?:\/\/[^\s<>()]+/g;
+  const matches = text.match(urlRegex) || [];
 
-  uploadedLinks.push(value);
-  linkInput.value = "";
-  renderLinkPreview();
-}
+  matches.forEach(match => {
+    const cleaned = match.replace(/[),.;!?]+$/g, "");
+    try {
+      const url = new URL(cleaned);
+      if (!links.includes(url.href)) links.push(url.href);
+    } catch {
+      // Ignore invalid URL-like text.
+    }
+  });
 
-function renderLinkPreview() {
-  if (uploadedLinks.length === 0) {
-    linkPreview.classList.add("d-none");
-    linkPreview.innerHTML = "";
-    return;
-  }
-
-  linkPreview.classList.remove("d-none");
-  linkPreview.innerHTML = uploadedLinks.map((link, index) => `
-    <div class="link-chip">
-      <i class="bi bi-link-45deg"></i>
-      <span title="${escapeAttr(link)}">${escapeHTML(shorten(link, 46))}</span>
-      <button type="button" onclick="removeLink(${index})" aria-label="Remove link">
-        <i class="bi bi-x"></i>
-      </button>
-    </div>
-  `).join("");
-}
-
-function removeLink(index) {
-  uploadedLinks.splice(index, 1);
-  renderLinkPreview();
+  return {
+    links,
+    freeText: text
+  };
 }
 
 async function analyzeMaterials() {
-  if (uploadedFiles.length === 0 && uploadedLinks.length === 0) {
-    alert("Upload at least one file or add one link first.");
+  const rawSource = sourceInput ? sourceInput.value.trim() : "";
+
+  if (uploadedFiles.length === 0 && !rawSource) {
+    alert("Upload at least one file, link, video link, or text first.");
     return;
   }
 
@@ -149,7 +133,10 @@ async function analyzeMaterials() {
 
   const formData = new FormData();
   uploadedFiles.forEach(file => formData.append("files", file));
-  formData.append("links", JSON.stringify(uploadedLinks));
+
+  const parsedSources = parseMixedSources(rawSource);
+  formData.append("links", JSON.stringify(parsedSources.links));
+  formData.append("free_text", parsedSources.freeText);
 
   try {
     const response = await fetch(`${API_BASE}/analyze`, {
@@ -180,6 +167,7 @@ async function analyzeMaterials() {
     openAssistantBtn.style.display = "none";
 
     summaryContent.innerHTML = markdownToHTML(fullSummary);
+    renderMath();
     renderSections();
     renderConnections();
     renderBrainstormMap(data.brainstorm || null);
@@ -255,6 +243,7 @@ function createSectionButton(title, isMobile = false) {
     });
 
     summaryContent.innerHTML = markdownToHTML(sections[title]);
+    renderMath();
 
     if (isMobile) {
       const mobileNav = document.getElementById("mobileNav");
@@ -272,11 +261,13 @@ function showFullSummary() {
   contextLabel.textContent = "Current Notes";
   document.querySelectorAll(".section-btn").forEach(button => button.classList.remove("active"));
   summaryContent.innerHTML = markdownToHTML(fullSummary);
+  renderMath();
 }
 
 function renderBrainstormMap(brainstorm) {
   const nodes = brainstorm?.nodes?.length ? brainstorm.nodes : Object.keys(sections).slice(0, 7);
   const center = brainstorm?.center || "Core Ideas";
+
   brainstormMap.innerHTML = `<div class="map-center">${escapeHTML(center)}</div>`;
 
   const positions = [
@@ -285,13 +276,52 @@ function renderBrainstormMap(brainstorm) {
 
   nodes.slice(0, 7).forEach((node, index) => {
     const [left, top] = positions[index % positions.length];
+    const label = typeof node === "string" ? node : (node?.label || "Idea");
+
     const nodeEl = document.createElement("div");
     nodeEl.className = "map-node";
     nodeEl.style.left = `${left}%`;
     nodeEl.style.top = `${top}%`;
-    nodeEl.textContent = typeof node === "string" ? node : (node?.label || "Idea");
+
+    // Important: use innerHTML so MathJax can render formulas.
+    nodeEl.innerHTML = formatBrainstormLabel(label);
+
     brainstormMap.appendChild(nodeEl);
   });
+
+  renderMath();
+}
+
+function formatBrainstormLabel(rawLabel) {
+  let label = String(rawLabel || "Idea").trim();
+
+  // Convert common plain-text math into LaTeX.
+  label = label
+    .replace(/sqrt\(([^()]+)\)/gi, "\\sqrt{$1}")
+    .replace(/\^(\d+)/g, "^{$1}")
+    .replace(/<([^<>]+)>/g, "\\langle $1 \\rangle")
+    .replace(/\s+x\s+/g, " \\times ");
+
+  const containsMath =
+    /\\sqrt|\\langle|\\times|\^|=|\/|\bk\b|\br'\(t\)|\br''\(t\)/.test(label);
+
+  // If the label has a title and a formula, split them nicely.
+  if (containsMath && label.includes(":")) {
+    const [title, ...rest] = label.split(":");
+    const formula = rest.join(":").trim();
+
+    return `
+      <span>${escapeHTML(title)}:</span>
+      <br>
+      <span class="node-formula">\\(${escapeHTML(formula)}\\)</span>
+    `;
+  }
+
+  if (containsMath) {
+    return `<span class="node-formula">\\(${escapeHTML(label)}\\)</span>`;
+  }
+
+  return escapeHTML(label);
 }
 
 function renderConnections() {
@@ -383,6 +413,7 @@ function addMessage(role, text) {
     <div>${markdownToHTML(text)}</div>`;
 
   chatMessages.appendChild(div);
+  renderMath();
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -445,37 +476,107 @@ function resetWorkspace() {
 function markdownToHTML(text) {
   if (!text) return "";
 
-  const lines = escapeHTML(text).split("\n");
+  let safe = escapeHTML(text);
+
+  // Protect display math blocks before markdown parsing
+  const mathBlocks = [];
+  safe = safe.replace(/\\\[[\s\S]*?\\\]/g, (match) => {
+    const id = `@@MATH_BLOCK_${mathBlocks.length}@@`;
+    mathBlocks.push(match);
+    return id;
+  });
+
+  // Protect inline math before markdown parsing
+  const inlineMath = [];
+  safe = safe.replace(/\\\([\s\S]*?\\\)/g, (match) => {
+    const id = `@@INLINE_MATH_${inlineMath.length}@@`;
+    inlineMath.push(match);
+    return id;
+  });
+
+  const lines = safe.split("\n");
   const output = [];
   let inList = false;
+  let inOrderedList = false;
+
+  function closeLists() {
+    if (inList) {
+      output.push("</ul>");
+      inList = false;
+    }
+    if (inOrderedList) {
+      output.push("</ol>");
+      inOrderedList = false;
+    }
+  }
 
   lines.forEach(line => {
-    if (/^###\s+/.test(line)) {
-      if (inList) { output.push("</ul>"); inList = false; }
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("@@MATH_BLOCK_")) {
+      closeLists();
+      output.push(`<div class="math-block">${trimmed}</div>`);
+    } else if (/^###\s+/.test(line)) {
+      closeLists();
       output.push(`<h3>${line.replace(/^###\s+/, "")}</h3>`);
     } else if (/^##\s+/.test(line)) {
-      if (inList) { output.push("</ul>"); inList = false; }
+      closeLists();
       output.push(`<h2>${line.replace(/^##\s+/, "")}</h2>`);
     } else if (/^#\s+/.test(line)) {
-      if (inList) { output.push("</ul>"); inList = false; }
+      closeLists();
       output.push(`<h1>${line.replace(/^#\s+/, "")}</h1>`);
     } else if (/^-\s+/.test(line)) {
-      if (!inList) { output.push("<ul>"); inList = true; }
+      if (inOrderedList) {
+        output.push("</ol>");
+        inOrderedList = false;
+      }
+      if (!inList) {
+        output.push("<ul>");
+        inList = true;
+      }
       output.push(`<li>${line.replace(/^-\s+/, "")}</li>`);
-    } else if (line.trim() === "") {
-      if (inList) { output.push("</ul>"); inList = false; }
-      output.push("<br>");
+    } else if (/^\d+\.\s+/.test(line)) {
+      if (inList) {
+        output.push("</ul>");
+        inList = false;
+      }
+      if (!inOrderedList) {
+        output.push("<ol>");
+        inOrderedList = true;
+      }
+      output.push(`<li>${line.replace(/^\d+\.\s+/, "")}</li>`);
+    } else if (trimmed === "") {
+      closeLists();
     } else {
-      if (inList) { output.push("</ul>"); inList = false; }
+      closeLists();
       output.push(`<p>${line}</p>`);
     }
   });
 
-  if (inList) output.push("</ul>");
+  closeLists();
 
-  return output.join("")
+  let html = output.join("");
+
+  // Restore math blocks
+  mathBlocks.forEach((block, index) => {
+    html = html.replace(`@@MATH_BLOCK_${index}@@`, block);
+  });
+
+  inlineMath.forEach((block, index) => {
+    html = html.replace(`@@INLINE_MATH_${index}@@`, block);
+  });
+
+  return html
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>");
+}
+
+function renderMath() {
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    window.MathJax.typesetPromise().catch(error => {
+      console.error("MathJax render error:", error);
+    });
+  }
 }
 
 function escapeHTML(str) {
