@@ -28,6 +28,14 @@ const questionInput = document.getElementById("questionInput");
 const contextLabel = document.getElementById("contextLabel");
 const brainstormMap = document.getElementById("brainstormMap");
 const generateBtn = document.getElementById("generateBtn");
+const preferredLanguage = document.getElementById("preferredLanguage");
+const historyNav = document.getElementById("historyNav");
+const historyList = document.getElementById("historyList");
+const historySearch = document.getElementById("historySearch");
+
+const HISTORY_STORAGE_KEY = "synapse.generated.history.v1";
+let currentTypingTimer = null;
+let currentSourceFingerprint = "";
 
 function openFilePicker() {
   assetUpload.click();
@@ -129,6 +137,14 @@ async function analyzeMaterials() {
     return;
   }
 
+  currentSourceFingerprint = await buildClientFingerprint(rawSource);
+
+  const existingEntry = findHistoryByFingerprint(currentSourceFingerprint);
+  if (existingEntry) {
+    loadHistoryEntry(existingEntry.id);
+    return;
+  }
+
   setGeneratingState(true);
 
   const formData = new FormData();
@@ -137,6 +153,8 @@ async function analyzeMaterials() {
   const parsedSources = parseMixedSources(rawSource);
   formData.append("links", JSON.stringify(parsedSources.links));
   formData.append("free_text", parsedSources.freeText);
+  formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
+  formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
     const response = await fetch(`${API_BASE}/analyze`, {
@@ -161,21 +179,31 @@ async function analyzeMaterials() {
 
     loadingBox.classList.add("d-none");
     resultGrid.classList.remove("d-none");
-    appLayout.classList.remove("initial-state", "assistant-closed");
-    appLayout.classList.add("analysis-ready");
-    assistant.classList.remove("hidden");
-    openAssistantBtn.style.display = "none";
+    appLayout.classList.remove("initial-state", "loading-state");
+    appLayout.classList.add("analysis-ready", "assistant-closed");
+    assistant.classList.add("hidden");
+    openAssistantBtn.style.display = "block";
 
-    summaryContent.innerHTML = markdownToHTML(fullSummary);
-    renderMath();
     renderSections();
     renderConnections();
     renderBrainstormMap(data.brainstorm || null);
+    saveHistoryEntry({
+      title: data.title || null,
+      summary: fullSummary,
+      sections,
+      connections: connectionsData,
+      brainstorm: data.brainstorm || null,
+      language: preferredLanguage ? preferredLanguage.value : "auto",
+      sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
+      clientFingerprint: currentSourceFingerprint,
+      cached: Boolean(data.cached)
+    });
+    typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
   } catch (error) {
     console.error(error);
     loadingBox.classList.add("d-none");
     resultGrid.classList.remove("d-none");
-    appLayout.classList.remove("initial-state");
+    appLayout.classList.remove("initial-state", "loading-state");
     appLayout.classList.add("analysis-ready", "assistant-closed");
     assistant.classList.add("hidden");
     openAssistantBtn.style.display = "block";
@@ -196,6 +224,10 @@ function setGeneratingState(isGenerating) {
     : `<i class="bi bi-stars me-2"></i>Analyze with Synapse`;
 
   if (isGenerating) {
+    appLayout.classList.add("loading-state");
+    appLayout.classList.add("assistant-closed");
+    assistant.classList.add("hidden");
+    openAssistantBtn.style.display = "none";
     uploadStage.classList.add("d-none");
     analysisStage.classList.remove("d-none");
     loadingBox.classList.remove("d-none");
@@ -242,8 +274,7 @@ function createSectionButton(title, isMobile = false) {
       button.classList.toggle("active", label === title);
     });
 
-    summaryContent.innerHTML = markdownToHTML(sections[title]);
-    renderMath();
+    typeInto(summaryContent, markdownToHTML(sections[title]), renderMath);
 
     if (isMobile) {
       const mobileNav = document.getElementById("mobileNav");
@@ -260,8 +291,7 @@ function showFullSummary() {
   sectionTitle.innerText = "Summary";
   contextLabel.textContent = "Current Notes";
   document.querySelectorAll(".section-btn").forEach(button => button.classList.remove("active"));
-  summaryContent.innerHTML = markdownToHTML(fullSummary);
-  renderMath();
+  typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
 }
 
 function renderBrainstormMap(brainstorm) {
@@ -408,12 +438,24 @@ function addMessage(role, text) {
 
   const div = document.createElement("div");
   div.className = `chat-message ${role}`;
+  const bodyId = `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   div.innerHTML = `
     <strong>${role === "user" ? "You" : "Synapse"}</strong>
-    <div>${markdownToHTML(text)}</div>`;
+    <div id="${bodyId}"></div>`;
 
   chatMessages.appendChild(div);
-  renderMath();
+  const body = document.getElementById(bodyId);
+
+  if (role === "assistant") {
+    typeInto(body, markdownToHTML(text), () => {
+      renderMath();
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, 8);
+  } else {
+    body.innerHTML = markdownToHTML(text);
+    renderMath();
+  }
+
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -516,6 +558,9 @@ function markdownToHTML(text) {
     if (trimmed.startsWith("@@MATH_BLOCK_")) {
       closeLists();
       output.push(`<div class="math-block">${trimmed}</div>`);
+    } else if (/^####\s+/.test(line)) {
+      closeLists();
+      output.push(`<h4>${line.replace(/^####\s+/, "")}</h4>`);
     } else if (/^###\s+/.test(line)) {
       closeLists();
       output.push(`<h3>${line.replace(/^###\s+/, "")}</h3>`);
@@ -599,7 +644,289 @@ function shorten(str, n) {
   return value.length > n ? value.slice(0, n) + "…" : value;
 }
 
-questionInput.addEventListener("keydown", (event) => {
+
+function typeInto(element, html, done = null, speed = 4) {
+  if (!element) return;
+  if (currentTypingTimer) {
+    clearInterval(currentTypingTimer);
+    currentTypingTimer = null;
+  }
+
+  const tokens = String(html || "").match(/<[^>]+>|&[^;]+;|\s+|[^\s<>&]+/g) || [];
+  let index = 0;
+  let output = "";
+  element.innerHTML = "";
+
+  currentTypingTimer = setInterval(() => {
+    let batch = 0;
+    while (index < tokens.length && batch < 5) {
+      output += tokens[index];
+      index += 1;
+      batch += 1;
+    }
+    element.innerHTML = output;
+
+    if (index >= tokens.length) {
+      clearInterval(currentTypingTimer);
+      currentTypingTimer = null;
+      if (typeof done === "function") done();
+    }
+  }, speed);
+}
+
+async function buildClientFingerprint(rawSource) {
+  const language = preferredLanguage ? preferredLanguage.value : "auto";
+  const hashParts = [`language:${language}`, `source:${String(rawSource || "").trim()}`];
+
+  for (const file of uploadedFiles) {
+    const buffer = await file.arrayBuffer();
+    const fileHash = await sha256Hex(buffer);
+    hashParts.push(`file:${file.name}:${file.size}:${file.type}:${fileHash}`);
+  }
+
+  return sha256Hex(hashParts.join("||"));
+}
+
+async function sha256Hex(input) {
+  const data = input instanceof ArrayBuffer
+    ? input
+    : new TextEncoder().encode(String(input));
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function setHistory(items) {
+  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(items.slice(0, 20)));
+}
+
+function makeHistoryTitle(source, fallback = "Generated Study Notes") {
+  const raw = typeof source === "object" && source !== null
+    ? (source.title || source.summary || source.fullSummary || "")
+    : String(source || "");
+
+  const text = normaliseTitleText(raw);
+  if (!text) return fallback;
+
+  const explicitTopicPatterns = [
+    /\b(FINEARTS\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})/i,
+    /\b(WTRENG\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})/i,
+    /\b([A-Z]{2,}\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})/,
+    /\b([A-Z][A-Za-z\s]+ Act\s+\d{4})\b/,
+    /\b(Zero Carbon Act|Privacy Act|Resource Management Act|GDPR|Legislation Act\s+\d{4})\b/i,
+    /\b(Pythagorean Theorem|Curvature of Vector Function|Cross Product|Infant Incubator|AI-powered|AI powered)[^.\n,;:]*/i
+  ];
+
+  for (const pattern of explicitTopicPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) return cleanTitle(match[1], fallback);
+  }
+
+  const topicPatterns = [
+    /(?:source material|material|document|lesson|video|workshop|case study)\s+(?:is|was|appears to be|focuses on|examines|explores|discusses|covers|teaches|is related to)\s+(?:a|an|the)?\s*([^.;\n]{10,110})/i,
+    /(?:focuses on|examines|explores|discusses|covers|teaches|demonstrates|shows)\s+(?:how to\s+)?(?:a|an|the)?\s*([^.;\n]{10,110})/i,
+    /(?:about|on)\s+(?:a|an|the)?\s*([^.;\n]{10,90})/i
+  ];
+
+  for (const pattern of topicPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) return cleanTitle(match[1], fallback);
+  }
+
+  const firstUseful = text
+    .split(/[.!?。！？]/)
+    .map(part => part.trim())
+    .find(part => part.length > 10 && !/^(synapse summary|summary|core argument|key ideas)$/i.test(part));
+
+  return cleanTitle(firstUseful || text, fallback);
+}
+
+function normaliseTitleText(value) {
+  return String(value || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+    .replace(/[#*_`]/g, "")
+    .replace(/\\\[|\\\]|\\\(|\\\)/g, " ")
+    .replace(/^\s*Synapse Summary[:\s-]*/i, "")
+    .replace(/^\s*Summary[:\s-]*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanTitle(title, fallback = "Generated Study Notes") {
+  let cleaned = normaliseTitleText(title)
+    .replace(/^(that|the|this|source material|material|document|lesson|video|workshop|case study)\s+/i, "")
+    .replace(/^(how to|understanding how to|understanding|to demonstrate how to|demonstrate how to)\s+/i, "")
+    .replace(/\s+(which|that|because|where|while|through|by|including|with)\s+.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return fallback;
+
+  const words = cleaned.split(" ");
+  let sliced = words.slice(0, 7).join(" ");
+
+  if (/^(to|how|appears|related|based|source|material|document)\b/i.test(sliced) && words.length > 7) {
+    sliced = words.slice(1, 8).join(" ");
+  }
+
+  sliced = sliced.replace(/[,:;\-–—]+$/g, "").trim();
+
+  if (sliced.split(" ").length <= 2 && words.length > 2 && !/[A-Z]{2,}|\d{4}/.test(sliced)) {
+    sliced = words.slice(0, 5).join(" ");
+  }
+
+  return shorten(sliced || fallback, 58);
+}
+
+function saveHistoryEntry(payload) {
+  const items = getHistory();
+  const sourceFingerprint = payload.sourceFingerprint || payload.clientFingerprint || currentSourceFingerprint || "";
+  const existingIndex = sourceFingerprint
+    ? items.findIndex(item => item.sourceFingerprint === sourceFingerprint || item.clientFingerprint === sourceFingerprint)
+    : -1;
+
+  const entry = {
+    ...payload,
+    id: existingIndex >= 0 ? items[existingIndex].id : Date.now().toString(),
+    title: makeHistoryTitle(payload.title || payload.summary),
+    createdAt: existingIndex >= 0 ? items[existingIndex].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    sourceFingerprint,
+    clientFingerprint: payload.clientFingerprint || sourceFingerprint,
+  };
+
+  const nextItems = existingIndex >= 0
+    ? [entry, ...items.filter((_, index) => index !== existingIndex)]
+    : [entry, ...items];
+
+  setHistory(nextItems);
+  renderHistory();
+}
+
+function findHistoryByFingerprint(fingerprint) {
+  if (!fingerprint) return null;
+  return getHistory().find(item =>
+    item.sourceFingerprint === fingerprint ||
+    item.clientFingerprint === fingerprint
+  ) || null;
+}
+
+function renderHistory(filter = "") {
+  if (!historyList) return;
+  const query = String(filter || "").toLowerCase().trim();
+  const items = getHistory().filter(item => {
+    const haystack = `${item.title || ""} ${item.summary || ""}`.toLowerCase();
+    return !query || haystack.includes(query);
+  });
+
+  if (!items.length) {
+    historyList.innerHTML = `<p class="history-empty">No matching generated notes yet.</p>`;
+    return;
+  }
+
+  historyList.innerHTML = items.map(item => `
+    <div class="history-item-wrap">
+      <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
+        <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
+        <div class="history-item-meta">${formatHistoryDate(item.createdAt)}</div>
+      </button>
+      <button class="history-delete-btn" type="button"
+              title="Delete this history item"
+              aria-label="Delete ${escapeAttr(makeHistoryTitle(item))}"
+              onclick="deleteHistoryEntry(event, '${escapeAttr(item.id)}')">
+        <i class="bi bi-trash3"></i>
+      </button>
+    </div>
+  `).join("");
+}
+
+function deleteHistoryEntry(event, id) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const items = getHistory();
+  const target = items.find(item => item.id === id);
+  const title = target ? makeHistoryTitle(target) : "this history item";
+
+  const confirmed = window.confirm(`Delete "${title}" from history?`);
+  if (!confirmed) return;
+
+  setHistory(items.filter(item => item.id !== id));
+  renderHistory(historySearch ? historySearch.value : "");
+}
+
+function loadHistoryEntry(id) {
+  const item = getHistory().find(entry => entry.id === id);
+  if (!item) return;
+
+  fullSummary = item.summary || "";
+  sections = item.sections || {};
+  connectionsData = item.connections || [];
+
+  uploadStage.classList.add("d-none");
+  analysisStage.classList.remove("d-none");
+  loadingBox.classList.add("d-none");
+  resultGrid.classList.remove("d-none");
+  appLayout.classList.remove("initial-state", "loading-state");
+  appLayout.classList.add("analysis-ready", "assistant-closed");
+  assistant.classList.add("hidden");
+  openAssistantBtn.style.display = "block";
+
+  sectionTitle.innerText = "Summary";
+  contextLabel.textContent = "Current Notes";
+  renderSections();
+  renderConnections();
+  renderBrainstormMap(item.brainstorm || null);
+  typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
+}
+
+function formatHistoryDate(value) {
+  if (!value) return "Saved notes";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(new Date(value));
+  } catch {
+    return "Saved notes";
+  }
+}
+
+function cleanExistingHistoryTitles() {
+  const items = getHistory();
+  if (!items.length) return;
+
+  let changed = false;
+  const cleaned = items.map(item => {
+    const cleanTitle = makeHistoryTitle(item);
+    if (cleanTitle !== item.title) changed = true;
+    return { ...item, title: cleanTitle };
+  });
+
+  if (changed) setHistory(cleaned);
+}
+
+if (historySearch) {
+  historySearch.addEventListener("input", event => renderHistory(event.target.value));
+}
+cleanExistingHistoryTitles();
+renderHistory();
+
+if (questionInput) questionInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     askAI();

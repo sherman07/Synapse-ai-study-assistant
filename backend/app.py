@@ -1,5 +1,7 @@
 import base64
 import json
+import hashlib
+import time
 import mimetypes
 import os
 import re
@@ -63,6 +65,8 @@ stored_summary = ""
 stored_sections = {}
 stored_connections = []
 stored_brainstorm = {}
+CACHE_PATH = Path(__file__).with_name("synapse_analysis_cache.json")
+ANALYSIS_CACHE_TTL_SECONDS = int(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 
 SYSTEM_PROMPT = """
 You are Synapse, an elite private academic tutor and source-faithful learning analyst.
@@ -600,22 +604,141 @@ def file_to_content_parts(name: str, content_type: str, data: bytes) -> List[dic
     return parts
 
 
+def sha256_text(value: str) -> str:
+    return hashlib.sha256((value or "").encode("utf-8", errors="ignore")).hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data or b"").hexdigest()
+
+
+def load_analysis_cache() -> dict:
+    try:
+        if CACHE_PATH.exists():
+            with open(CACHE_PATH, "r", encoding="utf-8") as file:
+                return json.load(file)
+    except Exception:
+        pass
+    return {}
+
+
+def save_analysis_cache(cache: dict) -> None:
+    try:
+        now = time.time()
+        cleaned = {
+            key: value for key, value in cache.items()
+            if now - float(value.get("created_at", now)) <= ANALYSIS_CACHE_TTL_SECONDS
+        }
+        with open(CACHE_PATH, "w", encoding="utf-8") as file:
+            json.dump(cleaned, file, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def cache_get(fingerprint: str):
+    if not fingerprint:
+        return None
+    cache = load_analysis_cache()
+    item = cache.get(fingerprint)
+    if not item:
+        return None
+    if time.time() - float(item.get("created_at", 0)) > ANALYSIS_CACHE_TTL_SECONDS:
+        cache.pop(fingerprint, None)
+        save_analysis_cache(cache)
+        return None
+    return item.get("result")
+
+
+def cache_set(fingerprint: str, result: dict) -> None:
+    if not fingerprint:
+        return
+    cache = load_analysis_cache()
+    cache[fingerprint] = {"created_at": time.time(), "result": result}
+    save_analysis_cache(cache)
+
+
+def make_source_fingerprint(parts: List[str]) -> str:
+    normalised = "||".join(str(part or "").strip() for part in parts)
+    return sha256_text(normalised)
+
+
+def normalise_title_text(value: str) -> str:
+    text = re.sub(r"```[\s\S]*?```", " ", value or "")
+    text = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", text)
+    text = re.sub(r"[#*_`]", "", text)
+    text = re.sub(r"\\\[|\\\]|\\\(|\\\)", " ", text)
+    text = re.sub(r"^\s*Synapse Summary[:\s-]*", "", text, flags=re.I)
+    text = re.sub(r"^\s*Summary[:\s-]*", "", text, flags=re.I)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def clean_title(title: str, fallback: str = "Generated Study Notes") -> str:
+    cleaned = normalise_title_text(title)
+    cleaned = re.sub(r"^(that|the|this|source material|material|document|lesson|video|workshop|case study)\s+", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"^(how to|understanding how to|understanding|to demonstrate how to|demonstrate how to)\s+", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s+(which|that|because|where|while|through|by|including|with)\s+.*$", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,:;–—-")
+    if not cleaned:
+        return fallback
+    words = cleaned.split()
+    title = " ".join(words[:7]).strip(" ,:;–—-")
+    if re.match(r"^(to|how|appears|related|based|source|material|document)\b", title, flags=re.I) and len(words) > 7:
+        title = " ".join(words[1:8]).strip(" ,:;–—-")
+    return title[:58].rstrip(" ,:;–—-") or fallback
+
+
+def make_notes_title(summary: str, source_names: List[str]) -> str:
+    source_text = " ".join(source_names or [])
+    combined = normalise_title_text(f"{source_text} {summary or ''}")
+
+    explicit_patterns = [
+        r"\b(FINEARTS\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})",
+        r"\b(WTRENG\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})",
+        r"\b([A-Z]{2,}\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})",
+        r"\b([A-Z][A-Za-z\s]+ Act\s+\d{4})\b",
+        r"\b(Zero Carbon Act|Privacy Act|Resource Management Act|GDPR|Legislation Act\s+\d{4})\b",
+        r"\b(Pythagorean Theorem|Curvature of Vector Function|Cross Product|Infant Incubator|AI-powered|AI powered)[^.\n,;:]*",
+    ]
+    for pattern in explicit_patterns:
+        match = re.search(pattern, combined, flags=re.I)
+        if match:
+            return clean_title(match.group(1))
+
+    topic_patterns = [
+        r"(?:source material|material|document|lesson|video|workshop|case study)\s+(?:is|was|appears to be|focuses on|examines|explores|discusses|covers|teaches|is related to)\s+(?:a|an|the)?\s*([^.;\n]{10,110})",
+        r"(?:focuses on|examines|explores|discusses|covers|teaches|demonstrates|shows)\s+(?:how to\s+)?(?:a|an|the)?\s*([^.;\n]{10,110})",
+        r"(?:about|on)\s+(?:a|an|the)?\s*([^.;\n]{10,90})",
+    ]
+    for pattern in topic_patterns:
+        match = re.search(pattern, combined, flags=re.I)
+        if match:
+            return clean_title(match.group(1))
+
+    first = next((part.strip() for part in re.split(r"[.!?。！？]", combined) if len(part.strip()) > 10), "")
+    return clean_title(first)
+
+
 @app.post("/analyze")
 async def analyze_materials(
     files: List[UploadFile] = File(default=[]),
     links: str = Form(default="[]"),
     free_text: str = Form(default=""),
+    preferred_language: str = Form(default="auto"),
+    client_fingerprint: str = Form(default=""),
 ):
     try:
         global stored_summary, stored_sections, stored_connections, stored_brainstorm
 
         content_parts: List[dict] = []
         source_names: List[str] = []
+        fingerprint_parts: List[str] = [f"language:{preferred_language or 'auto'}"]
 
         for uploaded in files:
             data = await uploaded.read()
             if not data:
                 continue
+
+            fingerprint_parts.append(f"file:{uploaded.filename}:{len(data)}:{sha256_bytes(data)}")
 
             content_type = (
                 uploaded.content_type
@@ -634,11 +757,13 @@ async def analyze_materials(
             if not isinstance(url, str) or not url.strip():
                 continue
             url = url.strip()
+            fingerprint_parts.append(f"link:{url}")
             source_names.append(url)
             content_parts.extend(link_to_content_parts(url))
 
         cleaned_free_text = remove_urls_from_text(free_text)
         if cleaned_free_text:
+            fingerprint_parts.append(f"text:{sha256_text(cleaned_free_text)}")
             source_names.append("pasted text")
             content_parts.append({
                 "type": "text",
@@ -648,8 +773,29 @@ async def analyze_materials(
         if not content_parts:
             return {"error": "No readable files, links, or text were provided."}
 
+        source_fingerprint = client_fingerprint.strip() or make_source_fingerprint(fingerprint_parts)
+        cached_result = cache_get(source_fingerprint)
+        if cached_result:
+            stored_summary = cached_result.get("summary", "")
+            stored_sections = cached_result.get("sections", {})
+            stored_connections = cached_result.get("connections", [])
+            stored_brainstorm = cached_result.get("brainstorm", {})
+            return {**cached_result, "cached": True, "source_fingerprint": source_fingerprint}
+
+        language_rule = {
+            "auto": "Use the source's main language.",
+            "english": "Write the final notes in English.",
+            "simplified_chinese": "Write the final notes in Simplified Chinese, keeping key academic terms in English brackets where useful.",
+            "traditional_chinese": "Write the final notes in Traditional Chinese, keeping key academic terms in English brackets where useful.",
+        }.get((preferred_language or "auto").strip(), "Use the source's main language.")
+
         task = f"""
 {ANALYSIS_INSTRUCTIONS}
+
+Output language preference: {language_rule}
+
+Consistency requirement:
+For the same source content, produce the same main topic, same title-worthy focus, and same structure. Do not randomly reinterpret the source as a different document.
 
 Sources: {', '.join(source_names)}
 """
@@ -662,19 +808,25 @@ Sources: {', '.join(source_names)}
         stored_summary = generate_chat(
             messages,
             model=ANALYSIS_MODEL,
-            temperature=0.18,
+            temperature=0,
             max_tokens=7000,
         )
         stored_sections = parse_sections(stored_summary)
         stored_connections = generate_connections(stored_sections)
         stored_brainstorm = generate_brainstorm(stored_summary)
+        notes_title = make_notes_title(stored_summary, source_names)
 
-        return {
+        result = {
+            "title": notes_title,
             "summary": stored_summary,
             "sections": stored_sections,
             "connections": stored_connections,
             "brainstorm": stored_brainstorm,
+            "source_fingerprint": source_fingerprint,
+            "cached": False,
         }
+        cache_set(source_fingerprint, result)
+        return result
 
     except Exception as error:
         return {"error": str(error)}
@@ -682,7 +834,7 @@ Sources: {', '.join(source_names)}
 
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    return await analyze_materials(files=[file], links="[]", free_text="")
+    return await analyze_materials(files=[file], links="[]", free_text="", preferred_language="auto", client_fingerprint="")
 
 
 def generate_connections(sections):
@@ -704,7 +856,7 @@ Sections:\n{overview}
     raw = generate_chat([
         {"role": "system", "content": "Return only valid JSON. No markdown."},
         {"role": "user", "content": prompt},
-    ], model=CHAT_MODEL, temperature=0.2, max_tokens=1200)
+    ], model=CHAT_MODEL, temperature=0, max_tokens=1200)
 
     try:
         return json.loads(raw).get("connections", [])
@@ -723,7 +875,7 @@ Summary:\n{summary[:6000]}
     raw = generate_chat([
         {"role": "system", "content": "Return only valid JSON. No markdown."},
         {"role": "user", "content": prompt},
-    ], model=CHAT_MODEL, temperature=0.2, max_tokens=700)
+    ], model=CHAT_MODEL, temperature=0, max_tokens=700)
 
     try:
         parsed = json.loads(raw)
@@ -788,6 +940,7 @@ def health():
         "opencv_loaded": cv2 is not None,
         "max_audio_mb": round(MAX_AUDIO_BYTES / (1024 * 1024), 1),
         "max_video_mb": round(MAX_VIDEO_BYTES / (1024 * 1024), 1),
+        "cache_enabled": True,
     }
 
 
