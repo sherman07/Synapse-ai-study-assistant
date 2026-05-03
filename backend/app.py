@@ -57,8 +57,23 @@ BACKEND_DIR = Path(__file__).resolve().parent
 load_dotenv(BACKEND_DIR / ".env")
 load_dotenv()
 
-OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
-client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
+OPENAI_ORG_ID = (os.getenv("OPENAI_ORG_ID") or os.getenv("OPENAI_ORGANIZATION") or "").strip().strip('"').strip("'")
+OPENAI_PROJECT_ID = (os.getenv("OPENAI_PROJECT_ID") or os.getenv("OPENAI_PROJECT") or "").strip().strip('"').strip("'")
+
+# Project keys normally work with only api_key. If you created multiple organisations/projects,
+# setting OPENAI_ORG_ID and OPENAI_PROJECT_ID makes the request target the correct place.
+def make_openai_client():
+    if not OPENAI_API_KEY:
+        return None
+    kwargs = {"api_key": OPENAI_API_KEY}
+    if OPENAI_ORG_ID:
+        kwargs["organization"] = OPENAI_ORG_ID
+    if OPENAI_PROJECT_ID:
+        kwargs["project"] = OPENAI_PROJECT_ID
+    return OpenAI(**kwargs)
+
+client = make_openai_client()
 
 ANALYSIS_MODEL = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-4o")
 CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
@@ -66,11 +81,11 @@ TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe"
 
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(24 * 1024 * 1024)))
 MAX_VIDEO_BYTES = int(os.getenv("MAX_VIDEO_BYTES", str(60 * 1024 * 1024)))
-MAX_SOURCE_CHARS = int(os.getenv("MAX_SOURCE_CHARS", "26000"))
+MAX_SOURCE_CHARS = int(os.getenv("MAX_SOURCE_CHARS", "90000"))
 MAX_VIDEO_FRAMES = int(os.getenv("MAX_VIDEO_FRAMES", "8"))
 ANALYSIS_CACHE_TTL_SECONDS = int(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 CACHE_PATH = BACKEND_DIR / "synapse_analysis_cache.json"
-CACHE_VERSION = "source_identity_mindmap_v16_brand_language_headings"
+CACHE_VERSION = "source_identity_mindmap_v17_deep_academic_detail"
 
 app = FastAPI(title="Synapse Backend")
 app.add_middleware(
@@ -80,6 +95,60 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "service": "Synapse Backend",
+        "health_url": "/health",
+    }
+
+
+@app.get("/health")
+def health():
+    """Simple backend + environment check. Does not call OpenAI."""
+    return {
+        "status": "ok",
+        "api_key_loaded": bool(OPENAI_API_KEY),
+        "api_key_prefix": OPENAI_API_KEY[:12] if OPENAI_API_KEY else "",
+        "org_id_loaded": bool(OPENAI_ORG_ID),
+        "org_id_prefix": OPENAI_ORG_ID[:10] if OPENAI_ORG_ID else "",
+        "project_id_loaded": bool(OPENAI_PROJECT_ID),
+        "project_id_prefix": OPENAI_PROJECT_ID[:12] if OPENAI_PROJECT_ID else "",
+        "analysis_model": ANALYSIS_MODEL,
+        "chat_model": CHAT_MODEL,
+        "transcribe_model": TRANSCRIBE_MODEL,
+        "env_file": str(BACKEND_DIR / ".env"),
+    }
+
+
+@app.get("/health/openai")
+def health_openai():
+    """Real OpenAI key check. Use this only when debugging key/org/project issues."""
+    try:
+        require_openai()
+        # Very small request to prove the key, org, project, and model are valid.
+        response = client.chat.completions.create(
+            model=CHAT_MODEL,
+            temperature=0,
+            max_tokens=5,
+            messages=[{"role": "user", "content": "Reply OK only."}],
+        )
+        return {
+            "status": "ok",
+            "openai_connection": True,
+            "model": CHAT_MODEL,
+            "response": response.choices[0].message.content,
+        }
+    except Exception as error:
+        return {
+            "status": "error",
+            "openai_connection": False,
+            "error": str(error),
+            "hint": "Check OPENAI_API_KEY, OPENAI_ORG_ID, OPENAI_PROJECT_ID, billing, and model access.",
+        }
 
 stored_summary = ""
 stored_sections: Dict[str, str] = {}
@@ -107,7 +176,9 @@ Strict source identity rules:
 - If the same source appears again, keep the same identity and overall interpretation.
 
 Teaching rules:
-- Be clear, concrete, and faithful to the source.
+- Be clear, concrete, detailed, and faithful to the source.
+- Do not produce a minimal answer when the source contains rich detail.
+- For laws, policies, reports, articles, slides, videos, and textbook material, preserve the actual structure and important subpoints.
 - For maths or technical material, explain formulas, definitions, worked steps, and likely mistakes.
 - If material is inaccessible or partial, say exactly what is missing.
 - Use the source's main language unless the user requested otherwise.
@@ -117,39 +188,51 @@ ANALYSIS_PROMPT = """
 Analyse the material as a private tutor and return markdown using EXACTLY this structure:
 
 # Overview
-A precise summary of what the source is actually teaching or saying.
+Write a detailed, source-faithful overview. Identify the exact source/topic, what it is for, and the main learning focus. Do not write a generic one-sentence summary.
 
 ## Core Argument
-Explain the central purpose or learning objective in 2-4 clear sentences.
+Explain the central purpose, logic, or learning objective in depth. Use 2-4 substantial paragraphs if needed. Include the source's actual scope, key mechanism, and why it matters.
 
 ## Key Ideas
-List the most important concepts from the source.
-For each concept, define it clearly and connect it to source evidence.
+Create a detailed concept-by-concept explanation. For each major idea:
+- name the concept clearly
+- define it in student-friendly language
+- connect it to the actual source wording, section, example, formula, image, transcript moment, or evidence when available
+- explain why it matters
+For legal, policy, historical, scientific, or business material, cover the main parts/subparts/sections in order when the source supports it.
+For maths/technical material, include formulas, variable meanings, conditions, and conceptual interpretation.
 
 ## Step-by-step Breakdown
-Reconstruct the process, explanation, or reasoning in a logical order.
-If the material is mathematical or procedural, show each step carefully.
+Reconstruct the source in a logical learning order. This must be detailed enough for a student who has not read the source.
+For laws/documents: break down the legal structure by part, subpart, section, definition, exception, duty, consequence, and transition rule when present.
+For maths/problems: show every calculation step, why each formula is used, what each line means, and how to check the result.
+For videos/transcripts: reconstruct the teaching sequence, including corrections, repeated calculations, or unclear moments.
 
 ## Worked Example / Evidence From Source
-Use the actual source example where possible.
-If the source contains an error or unclear working, say what happened and correct it.
+Use actual examples, quoted ideas, section numbers, calculations, table values, scenarios, or evidence from the uploaded/source material whenever available.
+If the source contains no explicit worked example, create a clearly labelled external real-world example that applies the source concept, and explain the connection step by step.
+If the source contains both source examples and external examples, include both under clear subheadings.
 
 ## Tutor Explanation
-Teach the material clearly as if the student is confused.
-Explain the why behind the steps.
+Teach it like a strong tutor. Explain the difficult parts slowly, including why the rule/formula/process works, how the ideas connect, and how to remember them. Use analogies only when they help accuracy.
 
 ## Common Mistakes
-List realistic mistakes based on the source and explain the correct approach.
+List realistic mistakes a learner could make. For each mistake:
+- explain the wrong assumption
+- explain the correct understanding
+- show how to avoid it
+Use source-specific mistakes, not generic filler.
 
 ## Critical Thinking
 Provide at least:
 - one conceptual question
 - one application question
 - one verification/checking question
+Then add brief guidance on what a strong answer should consider.
 
 Important quality rules:
 - Do not invent a different source.
-- If source evidence is insufficient, say so clearly.
+- If source evidence is insufficient, say exactly what is missing, but still explain what can be reliably learned from the available evidence.
 - Follow the requested output language for the ENTIRE response, including all headings, explanations, examples, mistakes, and questions.
 - Never translate the brand/product name Synapse. Use Synapse exactly.
 - If Simplified Chinese is requested, write the whole response in Simplified Chinese, while keeping short key English terms in brackets only when useful.
@@ -158,6 +241,8 @@ Important quality rules:
 - Do not replace the actual source with a generic textbook topic.
 - Keep the same source identity consistently throughout the whole answer.
 - Use concrete source details whenever available.
+- Be detailed. Avoid minimal summaries. The answer should feel like a high-quality study guide, not a short abstract.
+- Prefer 900-1800 words for complex sources, unless the source is genuinely very short.
 """
 
 # -------------------------
@@ -170,7 +255,7 @@ def has_openai() -> bool:
 def require_openai() -> None:
     if not has_openai():
         raise RuntimeError(
-            "OPENAI_API_KEY is missing. Create backend/.env and add OPENAI_API_KEY=your_key_here, then restart uvicorn."
+            "OPENAI_API_KEY is missing or empty. Create backend/.env, add OPENAI_API_KEY=your_key_here, then restart uvicorn. If you created a new organization/project, also add OPENAI_ORG_ID and OPENAI_PROJECT_ID when needed."
         )
 
 
@@ -1059,7 +1144,7 @@ def generate_ai_mind_map(title: str, sections: Dict[str, str], preferred_languag
 
     compact_sections = []
     for name, content in list(sections.items())[:7]:
-        compact_sections.append(f"SECTION: {name}\n{truncate_text(content, 1200)}")
+        compact_sections.append(f"SECTION: {name}\n{truncate_text(content, 2200)}")
 
     language_instruction = language_instruction_for(preferred_language)
 
@@ -1071,8 +1156,8 @@ Important design rules:
 - Do NOT copy long paragraphs directly.
 - Make the center title readable and specific.
 - Use 4 to 6 main branches only.
-- Each branch should have 3 to 5 short points.
-- Each point needs a short label and a useful detail sentence.
+- Each branch should have 4 to 6 short points when the notes contain enough detail.
+- Each point needs a short label and a useful detail sentence that contains the key substance, not just a title.
 - For math/technical content, DO NOT output Markdown bold, raw LaTeX, or escaped delimiters like \( ... \).
 - Convert formulas into readable plain text, for example: r'(t)=<1,2,6t>, √(180)=6√(5), curvature k = |r'×r''| / |r'|^3. Never write plain sqrt(180).
 - Point labels must be human-readable phrase titles in the selected language, not raw formulas. Put formulas in detail only when needed.
@@ -1105,7 +1190,7 @@ Notes:
         raw = generate_chat([
             {"role": "system", "content": "You create accurate, compact, visual study mind maps as strict JSON. Never use markdown bold or raw LaTeX in mind map labels. Never translate the brand name Synapse."},
             {"role": "user", "content": prompt},
-        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=2200)
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=3800)
         parsed = extract_json_object(raw)
         return normalise_ai_mind_map(parsed or {}, fallback)
     except Exception:
@@ -1458,7 +1543,8 @@ Strict requirements:
 - Translate/rewrite headings, explanations, examples, common mistakes, and critical-thinking questions into the selected language.
 - Never translate the product name Synapse. If a heading says "Synapse Summary", rewrite it as the selected-language equivalent of "Overview" instead of translating Synapse.
 - Do not add new facts.
-- Do not remove important facts.
+- Do not remove important facts, examples, subsections, section numbers, legal duties, calculations, exceptions, or caveats.
+- Keep the same level of detail as the original analysis; do not compress the notes during rewriting.
 - Keep official names, formulas, code, and short technical terms unchanged only when translation would reduce accuracy.
 - Keep mathematical notation readable: use √(x), (a)/(b), r'(t)=<1,2,6t>, and never raw escaped LaTeX like \\( ... \\).
 - Output only the rewritten notes.
@@ -1470,7 +1556,7 @@ NOTES TO REWRITE:
         rewritten = generate_chat([
             {"role": "system", "content": "You are a precise multilingual academic editor. You rewrite study notes into the user's selected language while preserving structure, meaning, source faithfulness, and the exact brand name Synapse."},
             {"role": "user", "content": prompt},
-        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=6800)
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=12000)
         return rewritten or summary
     except Exception:
         return summary
@@ -1582,6 +1668,14 @@ async def analyze_materials(
 MANDATORY output language for the entire notes: {language_rule}
 Do not answer in another language. The full Generated Content must obey this language choice: all headings, explanations, examples, real-world examples, common mistakes, tutor explanations, and critical-thinking questions.
 
+MANDATORY depth requirement:
+- Produce a detailed study guide, not a minimal summary.
+- If the source is a law or formal document, cover definitions, key sections, exceptions, duties, liabilities, procedures, and consequences.
+- If the source is a math/video lesson, reconstruct the full teaching sequence, formulas, calculations, verification steps, and common errors.
+- Use the source structure wherever visible: parts, sections, headings, tables, transcript sequence, examples, or diagrams.
+- If examples exist inside the source, include them. If no example exists, add a clearly labelled external real-world example and explain how it applies.
+- Avoid generic filler such as “this is important for understanding”. Every paragraph should teach a specific point.
+
 Most likely source title/topic from explicit evidence: {title_hint}
 
 Stable source identity list:
@@ -1598,7 +1692,7 @@ Consistency requirement:
             {"role": "user", "content": [{"type": "text", "text": analysis_task}] + content_parts},
         ]
 
-        stored_summary = generate_chat(messages, model=ANALYSIS_MODEL, temperature=0, max_tokens=6800)
+        stored_summary = generate_chat(messages, model=ANALYSIS_MODEL, temperature=0, max_tokens=12000)
         stored_summary = enforce_requested_language(stored_summary, preferred_language)
         stored_summary = protect_synapse_brand_and_first_heading(stored_summary, preferred_language)
         stored_summary = normalise_plain_sqrt_text(stored_summary)
