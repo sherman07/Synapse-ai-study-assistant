@@ -10,32 +10,19 @@
   <link rel="icon" type="image/png" href="/logos/synapse.png">
   <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-  
-  <!-- MOBILE TOP BAR -->
   <nav class="mobile-topbar" aria-label="Mobile navigation">
-    <button class="mobile-menu-btn" type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#mobileNav"
-            aria-controls="mobileNav"
-            aria-label="Open menu">
+    <button class="mobile-menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav" aria-controls="mobileNav" aria-label="Open menu">
       <i class="bi bi-list"></i>
     </button>
-
     <div class="mobile-brand">
       <span class="brand-dot"><img class="brand-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
       <strong>Synapse</strong>
     </div>
-
     <div class="mobile-topbar-spacer"></div>
   </nav>
 
-  <!-- MOBILE OFFCANVAS NAV -->
-  <div class="offcanvas offcanvas-top mobile-offcanvas"
-       tabindex="-1"
-       id="mobileNav"
-       aria-labelledby="mobileNavLabel">
+  <div class="offcanvas offcanvas-top mobile-offcanvas" tabindex="-1" id="mobileNav" aria-labelledby="mobileNavLabel">
     <div class="offcanvas-header">
       <div class="mobile-brand" id="mobileNavLabel">
         <span class="brand-dot"><img class="brand-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
@@ -50,7 +37,6 @@
   </div>
 
   <div id="appLayout" class="app-layout initial-state">
-    <!-- UPLOAD HISTORY NAVIGATION -->
     <aside id="historyNav" class="history-nav" aria-label="Generated notes history">
       <div class="history-header">
         <div class="nav-logo">
@@ -71,7 +57,6 @@
       </div>
     </aside>
 
-    <!-- LEFT NAVIGATION -->
     <aside id="summaryNav" class="summary-nav hidden-before-analysis">
       <div class="nav-header">
         <div class="nav-logo">
@@ -83,9 +68,7 @@
       <div id="sections" class="section-list"></div>
     </aside>
 
-    <!-- MAIN CONTENT -->
     <main id="mainNotes" class="notes-area">
-      <!-- UPLOAD STAGE -->
       <section id="uploadStage" class="upload-stage">
         <div class="hero-copy text-center">
           <div class="brand-pill mx-auto mb-4">
@@ -97,14 +80,10 @@
         </div>
 
         <section class="premium-upload-card">
-          <div id="dropZone" class="drop-zone" tabindex="0"
-               role="button" aria-label="Upload area — drop files or click to browse">
-            <input id="assetUpload" class="visually-hidden" type="file" multiple
-              accept=".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Upload area — drop files or click to browse">
+            <input id="assetUpload" class="visually-hidden" type="file" multiple accept=".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
 
-            <div class="upload-icon-wrap">
-              <i class="bi bi-cloud-arrow-up"></i>
-            </div>
+            <div class="upload-icon-wrap"><i class="bi bi-cloud-arrow-up"></i></div>
             <h2>Upload your study material</h2>
             <p>Drop PDFs, images, notes, or documents here. Add links below if your source is online.</p>
             <button type="button" class="btn btn-primary btn-lg upload-browse-btn" onclick="openFilePicker()">
@@ -126,30 +105,43 @@
                 <span>/</span>
                 <span><i class="bi bi-file-text"></i> Free text</span>
               </div>
-              <textarea id="sourceInput" class="source-input" rows="5" placeholder="Paste a YouTube link, video link, webpage URL, or your own notes/text here..."></textarea>
+              <textarea id="sourceInput" class="source-input" rows="5" placeholder="Paste a YouTube link, webpage URL, video link, or your own notes/text here..."></textarea>
             </div>
-            <p class="source-helper">Synapse will read accessible webpages and YouTube transcripts. If a video has no readable transcript, upload the video/audio or paste the transcript here.</p>
+            <p class="source-helper">Synapse now uses stricter source identity detection so the same document will stay the same document.</p>
           </div>
-
 
           <div class="language-box">
             <label for="preferredLanguage" class="form-label">Preferred output language</label>
+            <p class="language-note">Brand names such as Synapse stay unchanged in every language.</p>
             <select id="preferredLanguage" class="language-select" aria-label="Preferred output language">
               <option value="auto">Auto-detect source language</option>
-              <option value="English">English</option>
-              <option value="Simplified Chinese">简体中文</option>
-              <option value="Traditional Chinese">繁體中文</option>
-              <option value="Mixed Chinese and English">Chinese + English keywords</option>
+              <option value="english">English</option>
+              <option value="simplified_chinese">简体中文</option>
+              <option value="traditional_chinese">繁體中文</option>
+              <option value="mixed_chinese_english">中文 + English keywords</option>
+              <option value="japanese">日本語</option>
+              <option value="korean">한국어</option>
+              <option value="french">Français</option>
+              <option value="spanish">Español</option>
+              <option value="german">Deutsch</option>
+              <option value="italian">Italiano</option>
+              <option value="portuguese">Português</option>
+              <option value="arabic">العربية</option>
+              <option value="hindi">हिन्दी</option>
+              <option value="vietnamese">Tiếng Việt</option>
+              <option value="thai">ไทย</option>
+              <option value="indonesian">Bahasa Indonesia</option>
+              <option value="malay">Bahasa Melayu</option>
+              <option value="russian">Русский</option>
             </select>
           </div>
 
-          <button id="generateBtn" class="btn btn-primary btn-lg w-100 generate-btn" onclick="analyzeMaterials()">
+          <button id="generateBtn" type="button" class="btn btn-primary btn-lg w-100 generate-btn" onclick="analyzeMaterials()">
             <i class="bi bi-stars me-2"></i>Analyze with Synapse
           </button>
         </section>
       </section>
 
-      <!-- ANALYSIS STAGE -->
       <section id="analysisStage" class="analysis-stage d-none">
         <section class="notes-header compact-header">
           <div>
@@ -165,7 +157,6 @@
           <div class="synapse-ai-loader refined-loader" aria-hidden="true">
             <div class="loader-orbit loader-orbit-one"></div>
             <div class="loader-orbit loader-orbit-two"></div>
-
             <div class="vector-logo-loader">
               <img class="rotating-vector-logo" src="/logos/synapse_no_spark.png" alt="Synapse loading logo">
               <div class="loading-star">
@@ -190,47 +181,57 @@
             <div id="summaryContent" class="summary-content"></div>
           </section>
 
-          <section class="brainstorm-card">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+          <section class="brainstorm-card study-tools-card">
+            <div class="study-tools-head">
               <div>
-                <h2>Brainstorm Map</h2>
-                <p>Key ideas connected into a visual thinking map.</p>
+                <h2>Study Tools</h2>
+                <p>Open interactive tools generated from your notes. More tools can be added here later.</p>
               </div>
-              <i class="bi bi-diagram-3 brainstorm-icon"></i>
+              <i class="bi bi-grid-1x2 study-tools-icon"></i>
             </div>
-            <div id="brainstormMap" class="brainstorm-map"></div>
+
+            <div class="tool-switcher" role="tablist" aria-label="Study tools">
+              <button id="toolBtnMindMap" class="tool-switch-btn active" type="button" onclick="switchTool('mindmap', this)">
+                <i class="bi bi-diagram-3 me-1"></i>Mind Map
+              </button>
+              <button class="tool-switch-btn disabled" type="button" disabled>
+                <i class="bi bi-clock-history me-1"></i>Timeline
+              </button>
+              <button class="tool-switch-btn disabled" type="button" disabled>
+                <i class="bi bi-patch-question me-1"></i>Quiz
+              </button>
+            </div>
+
+            <div id="toolPanelMindMap" class="tool-panel active">
+              <div class="tool-panel-head">
+                <div>
+                  <h3>Mind Map</h3>
+                  <p>Click any branch or point to jump into the related note section. The mind map opens automatically after generation.</p>
+                </div>
+              </div>
+              <div id="mindMapCanvas" class="mindmap-canvas"></div>
+            </div>
           </section>
         </div>
       </section>
     </main>
 
-    <!-- RIGHT ASSISTANT -->
     <aside id="assistant" class="assistant-panel hidden-before-analysis">
       <div class="assistant-header">
-        <button class="icon-btn" title="New Chat" onclick="clearChat()">
-          <i class="bi bi-plus-lg"></i>
-        </button>
+        <button class="icon-btn" title="New Chat" onclick="clearChat()"><i class="bi bi-plus-lg"></i></button>
         <div class="assistant-title">
           <span class="assistant-logo-dot"></span>
           <h4>Synapse Tutor</h4>
         </div>
         <div class="d-flex gap-2">
-          <button class="icon-btn" title="Expand" onclick="expandAssistant()">
-            <i class="bi bi-arrows-fullscreen"></i>
-          </button>
-          <button class="icon-btn" title="Close" onclick="closeAssistant()">
-            <i class="bi bi-x-lg"></i>
-          </button>
+          <button class="icon-btn" title="Expand" onclick="expandAssistant()"><i class="bi bi-arrows-fullscreen"></i></button>
+          <button class="icon-btn" title="Close" onclick="closeAssistant()"><i class="bi bi-x-lg"></i></button>
         </div>
       </div>
 
       <div class="assistant-tabs">
-        <button class="asst-tab active" onclick="switchTab('chat', this)">
-          <i class="bi bi-chat-dots me-1"></i>Chat
-        </button>
-        <button class="asst-tab" onclick="switchTab('connections', this)">
-          <i class="bi bi-diagram-3 me-1"></i>Connections
-        </button>
+        <button class="asst-tab active" onclick="switchTab('chat', this)"><i class="bi bi-chat-dots me-1"></i>Chat</button>
+        <button class="asst-tab" onclick="switchTab('connections', this)"><i class="bi bi-diagram-3 me-1"></i>Connections</button>
       </div>
 
       <div id="tab-chat" class="tab-panel active">
@@ -246,16 +247,13 @@
           <button class="btn btn-light quick-btn" onclick="quickAsk('Challenge my understanding with tutorial questions.')">Challenge me</button>
         </div>
         <div class="assistant-input-card">
-          <textarea id="questionInput" class="form-control"
-                    placeholder="Ask anything about your material..." rows="3"></textarea>
+          <textarea id="questionInput" class="form-control" placeholder="Ask anything about your material..." rows="3"></textarea>
           <div class="input-toolbar">
             <span class="context-pill">
               <i class="bi bi-at"></i>
               <span id="contextLabel">Current Notes</span>
             </span>
-            <button class="send-btn" onclick="askAI()" aria-label="Send message">
-              <i class="bi bi-arrow-return-left"></i>
-            </button>
+            <button class="send-btn" onclick="askAI()" aria-label="Send message"><i class="bi bi-arrow-return-left"></i></button>
           </div>
         </div>
       </div>
@@ -277,19 +275,12 @@
   </button>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
   <script>
     window.MathJax = {
-      tex: {
-        inlineMath: [['\\(', '\\)'], ['$', '$']],
-        displayMath: [['\\[', '\\]'], ['$$', '$$']]
-      },
-      svg: {
-        fontCache: 'global'
-      }
+      tex: { inlineMath: [['\\(', '\\)'], ['$', '$']], displayMath: [['\\[', '\\]'], ['$$', '$$']] },
+      svg: { fontCache: 'global' }
     };
   </script>
-
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <script src="script.js"></script>
 </body>

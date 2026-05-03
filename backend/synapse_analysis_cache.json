@@ -1,63 +1,918 @@
 {
-  "acb053432cd303d1fed09370368b81d612701f5b452c53acc9d70fc274e8af90": {
-    "created_at": 1777674277.1788359,
+  "02f672d45c70c2dc04f6faf44c2fc6a1f315b7f0fa1315ee70c29058ddd02201": {
+    "created_at": 1777796518.955571,
     "result": {
-      "title": "LMS205982 Synapse Summary The source is a",
-      "summary": "# Synapse Summary\nThe source is a legal document, specifically the New Zealand Arms Legislation Act 2019. This document outlines the legal framework and regulations concerning firearms in New Zealand.\n\n## Core Argument\nThe central purpose of the Arms Legislation Act 2019 is to establish comprehensive regulations for the control and management of firearms, parts, and ammunition in New Zealand. The Act aims to enhance public safety by imposing stricter controls on the possession, use, and distribution of firearms.\n\n## Key Ideas\n1. **Firearms Licensing**: The Act introduces stringent requirements for obtaining and renewing firearms licenses. This is crucial for ensuring that only individuals who meet specific safety and responsibility criteria can legally possess firearms.\n   \n2. **Prohibited Firearms and Parts**: Certain types of firearms and firearm parts are classified as prohibited under the Act. This classification is important to prevent the circulation of particularly dangerous weapons.\n\n3. **Firearms Registry**: The establishment of a firearms registry is mandated to track the ownership and movement of firearms. This registry is vital for law enforcement and regulatory oversight.\n\n4. **Penalties and Enforcement**: The Act outlines penalties for violations of its provisions, emphasizing the importance of compliance and the consequences of illegal activities involving firearms.\n\n## Step-by-step Breakdown\n1. **Identify the Legal Requirements**: The Act specifies who can apply for a firearms license and the criteria they must meet.\n2. **Understand Prohibited Items**: It lists firearms and parts that are prohibited, requiring individuals to surrender these items.\n3. **Registry Implementation**: Details the process for establishing and maintaining a firearms registry.\n4. **Compliance and Penalties**: Explains the penalties for non-compliance, including fines and imprisonment.\n\n## Worked Example / Evidence From Source\nDue to the inability to access the specific content of the document, a detailed example cannot be provided. However, typically, such a document would include examples of prohibited firearms and the process for applying for a license.\n\n## Tutor Explanation\nThe Arms Legislation Act 2019 is designed to regulate firearms to ensure public safety. It requires individuals to obtain a license, which involves background checks and safety training. Prohibited firearms are those deemed too dangerous for civilian use, and the registry helps track all legal firearms to prevent illegal distribution.\n\n## Common Mistakes\n1. **Ignoring Licensing Requirements**: Some might assume they can possess firearms without a license, which is illegal.\n2. **Misunderstanding Prohibited Items**: Confusion about what constitutes a prohibited firearm can lead to unintentional legal violations.\n3. **Non-compliance with Registry**: Failing to register firearms can result in severe penalties.\n\n## Critical Thinking\n1. **Conceptual Question**: Why is it important to have a centralized firearms registry?\n2. **Application Question**: How might the Act impact the process of purchasing a firearm in New Zealand?\n3. **Verification Question**: What steps would you take to ensure compliance with the Act if you were a firearms dealer?",
+      "title": "2019年合伙法案",
+      "summary": "# 概述\n《合伙法2019》主要讲述了合伙关系的法律框架，包括合伙的定义、合伙人之间及与第三方的关系、财务报告要求以及合伙的解散等内容。\n\n## 核心论点\n该法案的核心目的是以现代化和易于访问的形式重新制定1908年的《合伙法》。它详细规定了合伙关系的性质、合伙人之间的权利和义务，以及合伙解散的程序。通过这些规定，法案旨在为合伙企业提供一个清晰的法律框架，以便更好地管理和解决合伙事务。\n\n## 关键概念\n1. **合伙的定义**：合伙是指两人或多人共同经营业务并以盈利为目的的关系（第8条）。\n2. **合伙人的代理权**：每个合伙人都是合伙企业及其他合伙人的代理人，负责合伙业务（第17条）。\n3. **合伙财产**：合伙财产的持有和使用规则，以及合伙人对合伙财产的权利和义务（第36条）。\n4. **合伙的解散**：合伙可以因期限届满、合伙人死亡或破产等原因解散（第66-72条）。\n\n## 步骤分解\n1. **确定合伙关系**：根据第11至15条，判断是否存在合伙关系需要考虑财产共有、利润分享等因素。\n2. **合伙人的权利和义务**：合伙人可以通过协议变更权利和义务，合伙财产的使用和管理需要遵循特定规则（第35-57条）。\n3. **合伙的解散程序**：合伙解散后，合伙人需完成清算和交易，资产分配需遵循特定规则（第74-84条）。\n\n## 示例/证据\n例如，第14条指出，如果一个人分享了业务的利润，除非有相反的证据，否则推定该人为合伙人。然而，仅仅因为分享利润并不自动使其成为合伙人。\n\n## 导师解释\n合伙关系的核心在于共同经营和利润分享。法律通过明确合伙人的代理权和责任，确保合伙企业的正常运作。合伙解散时，需遵循法律规定的程序，以确保各方权益得到合理保护。\n\n## 常见错误\n1. **误认为共有财产即为合伙**：仅仅因为共同拥有财产并不意味着存在合伙关系。\n2. **忽视合伙人的代理责任**：合伙人未能意识到其行为可能对整个合伙企业产生法律约束。\n\n## 批判性思考\n- 概念性问题：合伙关系与公司之间的主要区别是什么？\n- 应用问题：如果一个合伙人未经其他合伙人同意擅自签署合同，该合同是否对合伙企业有约束力？\n- 验证/检查问题：如何确认一个人是否为合伙企业的合伙人？",
       "sections": {
-        "Overview": "# Synapse Summary\nThe source is a legal document, specifically the New Zealand Arms Legislation Act 2019. This document outlines the legal framework and regulations concerning firearms in New Zealand.",
-        "Core Argument": "The central purpose of the Arms Legislation Act 2019 is to establish comprehensive regulations for the control and management of firearms, parts, and ammunition in New Zealand. The Act aims to enhance public safety by imposing stricter controls on the possession, use, and distribution of firearms.",
-        "Key Ideas": "1. **Firearms Licensing**: The Act introduces stringent requirements for obtaining and renewing firearms licenses. This is crucial for ensuring that only individuals who meet specific safety and responsibility criteria can legally possess firearms.\n   \n2. **Prohibited Firearms and Parts**: Certain types of firearms and firearm parts are classified as prohibited under the Act. This classification is important to prevent the circulation of particularly dangerous weapons.\n\n3. **Firearms Registry**: The establishment of a firearms registry is mandated to track the ownership and movement of firearms. This registry is vital for law enforcement and regulatory oversight.\n\n4. **Penalties and Enforcement**: The Act outlines penalties for violations of its provisions, emphasizing the importance of compliance and the consequences of illegal activities involving firearms.",
-        "Step-by-step Breakdown": "1. **Identify the Legal Requirements**: The Act specifies who can apply for a firearms license and the criteria they must meet.\n2. **Understand Prohibited Items**: It lists firearms and parts that are prohibited, requiring individuals to surrender these items.\n3. **Registry Implementation**: Details the process for establishing and maintaining a firearms registry.\n4. **Compliance and Penalties**: Explains the penalties for non-compliance, including fines and imprisonment.",
-        "Worked Example / Evidence From Source": "Due to the inability to access the specific content of the document, a detailed example cannot be provided. However, typically, such a document would include examples of prohibited firearms and the process for applying for a license.",
-        "Tutor Explanation": "The Arms Legislation Act 2019 is designed to regulate firearms to ensure public safety. It requires individuals to obtain a license, which involves background checks and safety training. Prohibited firearms are those deemed too dangerous for civilian use, and the registry helps track all legal firearms to prevent illegal distribution.",
-        "Common Mistakes": "1. **Ignoring Licensing Requirements**: Some might assume they can possess firearms without a license, which is illegal.\n2. **Misunderstanding Prohibited Items**: Confusion about what constitutes a prohibited firearm can lead to unintentional legal violations.\n3. **Non-compliance with Registry**: Failing to register firearms can result in severe penalties.",
-        "Critical Thinking": "1. **Conceptual Question**: Why is it important to have a centralized firearms registry?\n2. **Application Question**: How might the Act impact the process of purchasing a firearm in New Zealand?\n3. **Verification Question**: What steps would you take to ensure compliance with the Act if you were a firearms dealer?"
+        "概述": "《合伙法2019》主要讲述了合伙关系的法律框架，包括合伙的定义、合伙人之间及与第三方的关系、财务报告要求以及合伙的解散等内容。",
+        "核心论点": "该法案的核心目的是以现代化和易于访问的形式重新制定1908年的《合伙法》。它详细规定了合伙关系的性质、合伙人之间的权利和义务，以及合伙解散的程序。通过这些规定，法案旨在为合伙企业提供一个清晰的法律框架，以便更好地管理和解决合伙事务。",
+        "关键概念": "1. **合伙的定义**：合伙是指两人或多人共同经营业务并以盈利为目的的关系（第8条）。\n2. **合伙人的代理权**：每个合伙人都是合伙企业及其他合伙人的代理人，负责合伙业务（第17条）。\n3. **合伙财产**：合伙财产的持有和使用规则，以及合伙人对合伙财产的权利和义务（第36条）。\n4. **合伙的解散**：合伙可以因期限届满、合伙人死亡或破产等原因解散（第66-72条）。",
+        "步骤分解": "1. **确定合伙关系**：根据第11至15条，判断是否存在合伙关系需要考虑财产共有、利润分享等因素。\n2. **合伙人的权利和义务**：合伙人可以通过协议变更权利和义务，合伙财产的使用和管理需要遵循特定规则（第35-57条）。\n3. **合伙的解散程序**：合伙解散后，合伙人需完成清算和交易，资产分配需遵循特定规则（第74-84条）。",
+        "示例/证据": "例如，第14条指出，如果一个人分享了业务的利润，除非有相反的证据，否则推定该人为合伙人。然而，仅仅因为分享利润并不自动使其成为合伙人。",
+        "导师解释": "合伙关系的核心在于共同经营和利润分享。法律通过明确合伙人的代理权和责任，确保合伙企业的正常运作。合伙解散时，需遵循法律规定的程序，以确保各方权益得到合理保护。",
+        "常见错误": "1. **误认为共有财产即为合伙**：仅仅因为共同拥有财产并不意味着存在合伙关系。\n2. **忽视合伙人的代理责任**：合伙人未能意识到其行为可能对整个合伙企业产生法律约束。",
+        "批判性思考": "- 概念性问题：合伙关系与公司之间的主要区别是什么？\n- 应用问题：如果一个合伙人未经其他合伙人同意擅自签署合同，该合同是否对合伙企业有约束力？\n- 验证/检查问题：如何确认一个人是否为合伙企业的合伙人？"
       },
       "connections": [
         {
-          "from": "Arms Legislation Act 2019",
-          "to": "Firearms Licensing",
-          "label": "Regulatory Framework",
-          "description": "The Act establishes a regulatory framework that mandates stringent requirements for obtaining and renewing firearms licenses, ensuring that only qualified individuals can possess firearms."
+          "from": "概述",
+          "to": "核心论点",
+          "label": "connects to",
+          "description": "概述 connects to 核心论点 in the notes."
         },
         {
-          "from": "Firearms Licensing",
-          "to": "Public Safety",
-          "label": "Safety Enhancement",
-          "description": "By enforcing strict licensing requirements, the Act aims to enhance public safety by limiting firearm access to responsible individuals."
+          "from": "核心论点",
+          "to": "关键概念",
+          "label": "connects to",
+          "description": "核心论点 connects to 关键概念 in the notes."
         },
         {
-          "from": "Prohibited Firearms and Parts",
-          "to": "Public Safety",
-          "label": "Risk Mitigation",
-          "description": "The classification of certain firearms and parts as prohibited is a measure to mitigate risks associated with particularly dangerous weapons, thereby protecting the public."
+          "from": "关键概念",
+          "to": "步骤分解",
+          "label": "connects to",
+          "description": "关键概念 connects to 步骤分解 in the notes."
         },
         {
-          "from": "Firearms Registry",
-          "to": "Law Enforcement",
-          "label": "Tracking and Oversight",
-          "description": "The establishment of a firearms registry is crucial for law enforcement agencies to track ownership and movement of firearms, facilitating regulatory oversight."
+          "from": "步骤分解",
+          "to": "示例/证据",
+          "label": "connects to",
+          "description": "步骤分解 connects to 示例/证据 in the notes."
         },
         {
-          "from": "Penalties and Enforcement",
-          "to": "Compliance",
-          "label": "Legal Consequences",
-          "description": "The Act outlines penalties for non-compliance, which serve as a deterrent against violations of firearms regulations, ensuring adherence to the law."
+          "from": "示例/证据",
+          "to": "导师解释",
+          "label": "connects to",
+          "description": "示例/证据 connects to 导师解释 in the notes."
         }
       ],
-      "brainstorm": {
-        "center": "New Zealand Arms Legislation Act 2019",
-        "nodes": [
-          "Firearms Licensing Requirements",
-          "Prohibited Firearms and Parts",
-          "Establishment of Firearms Registry",
-          "Penalties for Non-compliance",
-          "Public Safety Enhancements",
-          "Impact on Firearm Purchasing Process"
+      "mind_map": {
+        "center": "2019年合伙法案",
+        "branches": [
+          {
+            "id": "9a377ae822",
+            "label": "概述",
+            "section": "概述",
+            "summary": "介绍合伙关系的法律框架。",
+            "points": [
+              {
+                "id": "54e2bd64e4",
+                "label": "合伙定义",
+                "detail": "合伙是指共同经营并以盈利为目的的关系。"
+              },
+              {
+                "id": "8e0d3c2ec7",
+                "label": "合伙人关系",
+                "detail": "涉及合伙人之间及与第三方的关系。"
+              },
+              {
+                "id": "bd5546014c",
+                "label": "财务报告",
+                "detail": "合伙企业需遵循特定的财务报告要求。"
+              },
+              {
+                "id": "45dbc4b60f",
+                "label": "合伙解散",
+                "detail": "合伙的解散包括多种原因和程序。"
+              }
+            ]
+          },
+          {
+            "id": "7b6da28400",
+            "label": "核心论点",
+            "section": "核心论点",
+            "summary": "法案旨在现代化1908年法律。",
+            "points": [
+              {
+                "id": "fe0a6f6c0a",
+                "label": "现代化目标",
+                "detail": "重新制定以便更好管理合伙事务。"
+              },
+              {
+                "id": "eafc938de4",
+                "label": "权利与义务",
+                "detail": "详细规定合伙人之间的权利和义务。"
+              },
+              {
+                "id": "6f09bc4c3b",
+                "label": "解散程序",
+                "detail": "明确合伙解散的程序和要求。"
+              }
+            ]
+          },
+          {
+            "id": "b85742cfd7",
+            "label": "关键概念",
+            "section": "关键概念",
+            "summary": "介绍合伙的基本概念和规则。",
+            "points": [
+              {
+                "id": "b8a9a3a15e",
+                "label": "合伙定义",
+                "detail": "第8条定义合伙为共同经营关系。"
+              },
+              {
+                "id": "2b5adbbfab",
+                "label": "代理权",
+                "detail": "第17条规定合伙人的代理权。"
+              },
+              {
+                "id": "7947a69af6",
+                "label": "合伙财产",
+                "detail": "第36条描述合伙财产的规则。"
+              },
+              {
+                "id": "b76944f01c",
+                "label": "解散原因",
+                "detail": "第66-72条列出合伙解散的原因。"
+              }
+            ]
+          },
+          {
+            "id": "80b4054aeb",
+            "label": "步骤分解",
+            "section": "步骤分解",
+            "summary": "合伙关系的建立和解散步骤。",
+            "points": [
+              {
+                "id": "d90328899b",
+                "label": "确定关系",
+                "detail": "第11-15条帮助判断合伙关系。"
+              },
+              {
+                "id": "4d2d286482",
+                "label": "权利变更",
+                "detail": "合伙人可通过协议变更权利。"
+              },
+              {
+                "id": "7babe54ffc",
+                "label": "解散后程序",
+                "detail": "第74-84条规定解散后的步骤。"
+              }
+            ]
+          },
+          {
+            "id": "5b17a229bb",
+            "label": "常见错误",
+            "section": "常见错误",
+            "summary": "识别和避免合伙中的常见错误。",
+            "points": [
+              {
+                "id": "11bee4ee95",
+                "label": "误解共有财产",
+                "detail": "共有财产不等于合伙关系。"
+              },
+              {
+                "id": "566b943f0b",
+                "label": "忽视代理责任",
+                "detail": "合伙人需意识到其代理责任。"
+              }
+            ]
+          }
         ]
       },
-      "source_fingerprint": "acb053432cd303d1fed09370368b81d612701f5b452c53acc9d70fc274e8af90",
+      "primary_source_identity": "nzl_act:2019:53:Partnership Law Act 2019",
+      "source_fingerprint": "02f672d45c70c2dc04f6faf44c2fc6a1f315b7f0fa1315ee70c29058ddd02201",
+      "cached": false
+    }
+  },
+  "76b2ac73012a5ea867c672c0bec4cff464fe4bb36461104224017c0a5655734d": {
+    "created_at": 1777796675.4954638,
+    "result": {
+      "title": "Partnership Law Act 2019",
+      "summary": "# Overview\nThe source is the \"Partnership Law Act 2019\" from New Zealand legislation, which provides a comprehensive legal framework for partnerships. It outlines the nature of partnerships, the relationships between partners and third parties, the rights and duties of partners, financial reporting requirements, and the dissolution of partnerships.\n\n## Core Argument\nThe central purpose of the Partnership Law Act 2019 is to modernize and clarify the legal provisions governing partnerships in New Zealand. It aims to provide an updated and accessible legal structure that defines what constitutes a partnership, the responsibilities and liabilities of partners, and the processes for financial reporting and dissolution. The Act re-enacts the Partnership Act 1908 with necessary revisions to reflect contemporary business practices.\n\n## Key Ideas\n1. **Definition of Partnership**: A partnership is defined as a relationship between persons carrying on a business in common with a view to profit. This excludes relationships like those between shareholders of a company.\n   \n2. **Determining Partnership Existence**: The Act provides criteria for determining whether a partnership exists, such as co-ownership of property and sharing of profits, but clarifies that these alone do not constitute a partnership.\n\n3. **Partner as Agent**: Each partner acts as an agent of the firm and other partners, meaning their actions can bind the partnership in business matters.\n\n4. **Liability**: Partners are jointly and severally liable for the debts and obligations of the partnership, and the firm is liable for wrongful acts or omissions by partners.\n\n5. **Financial Reporting**: Large partnerships have specific financial reporting and auditing requirements, although some may opt out under certain conditions.\n\n6. **Dissolution of Partnership**: The Act outlines various ways a partnership can be dissolved, including by notice, death, or bankruptcy of a partner, and provides rules for asset distribution.\n\n## Step-by-step Breakdown\n1. **Nature of Partnership**: The Act begins by defining what constitutes a partnership and what does not, focusing on the intention to carry on a business for profit.\n\n2. **Relationships and Liabilities**: It details the relationships between partners and third parties, emphasizing the agency role of partners and their joint liability.\n\n3. **Rights and Duties**: The Act specifies the rights and duties of partners towards each other, including management rights, profit sharing, and the duty to provide information.\n\n4. **Financial Reporting**: It mandates the preparation and auditing of financial statements for large partnerships, ensuring transparency and accountability.\n\n5. **Dissolution Procedures**: The Act provides procedures for dissolving a partnership, including the rights of outgoing partners and the distribution of assets.\n\n## Worked Example / Evidence From Source\nThe Act states that sharing profits alone does not automatically create a partnership. For example, if a person receives a share of profits as an employee, this does not make them a partner. This is explicitly mentioned in sections 14 and 15 of the Act.\n\n## Tutor Explanation\nThe Partnership Law Act 2019 is designed to ensure that partnerships operate under clear legal guidelines. It defines a partnership as a business relationship aimed at profit, distinguishing it from other business structures like corporations. Each partner can act on behalf of the partnership, which means their actions can legally bind the partnership. This is why understanding the liabilities and responsibilities outlined in the Act is crucial for anyone involved in a partnership.\n\n## Common Mistakes\n1. **Assuming Co-ownership Equals Partnership**: Simply owning property together does not create a partnership. The intention to run a business for profit is key.\n   \n2. **Misunderstanding Liability**: Partners may not realize they are jointly and severally liable for the partnership's obligations, meaning they can be held responsible for the full amount of any debts.\n\n3. **Ignoring Financial Reporting Requirements**: Large partnerships must adhere to specific financial reporting and auditing standards, which some may overlook.\n\n## Critical Thinking\n- **Conceptual Question**: Why does the Act distinguish between sharing profits and being a partner? What implications does this have for business relationships?\n- **Application Question**: How would the dissolution process differ if a partner dies versus if the partnership is dissolved by mutual agreement?\n- **Verification/Checking Question**: How can partners ensure they are compliant with the financial reporting requirements outlined in the Act?",
+      "sections": {
+        "Overview": "The source is the \"Partnership Law Act 2019\" from New Zealand legislation, which provides a comprehensive legal framework for partnerships. It outlines the nature of partnerships, the relationships between partners and third parties, the rights and duties of partners, financial reporting requirements, and the dissolution of partnerships.",
+        "Core Argument": "The central purpose of the Partnership Law Act 2019 is to modernize and clarify the legal provisions governing partnerships in New Zealand. It aims to provide an updated and accessible legal structure that defines what constitutes a partnership, the responsibilities and liabilities of partners, and the processes for financial reporting and dissolution. The Act re-enacts the Partnership Act 1908 with necessary revisions to reflect contemporary business practices.",
+        "Key Ideas": "1. **Definition of Partnership**: A partnership is defined as a relationship between persons carrying on a business in common with a view to profit. This excludes relationships like those between shareholders of a company.\n\n2. **Determining Partnership Existence**: The Act provides criteria for determining whether a partnership exists, such as co-ownership of property and sharing of profits, but clarifies that these alone do not constitute a partnership.\n\n3. **Partner as Agent**: Each partner acts as an agent of the firm and other partners, meaning their actions can bind the partnership in business matters.\n\n4. **Liability**: Partners are jointly and severally liable for the debts and obligations of the partnership, and the firm is liable for wrongful acts or omissions by partners.\n\n5. **Financial Reporting**: Large partnerships have specific financial reporting and auditing requirements, although some may opt out under certain conditions.\n\n6. **Dissolution of Partnership**: The Act outlines various ways a partnership can be dissolved, including by notice, death, or bankruptcy of a partner, and provides rules for asset distribution.",
+        "Step-by-step Breakdown": "1. **Nature of Partnership**: The Act begins by defining what constitutes a partnership and what does not, focusing on the intention to carry on a business for profit.\n\n2. **Relationships and Liabilities**: It details the relationships between partners and third parties, emphasizing the agency role of partners and their joint liability.\n\n3. **Rights and Duties**: The Act specifies the rights and duties of partners towards each other, including management rights, profit sharing, and the duty to provide information.\n\n4. **Financial Reporting**: It mandates the preparation and auditing of financial statements for large partnerships, ensuring transparency and accountability.\n\n5. **Dissolution Procedures**: The Act provides procedures for dissolving a partnership, including the rights of outgoing partners and the distribution of assets.",
+        "Worked Example / Evidence From Source": "The Act states that sharing profits alone does not automatically create a partnership. For example, if a person receives a share of profits as an employee, this does not make them a partner. This is explicitly mentioned in sections 14 and 15 of the Act.",
+        "Tutor Explanation": "The Partnership Law Act 2019 is designed to ensure that partnerships operate under clear legal guidelines. It defines a partnership as a business relationship aimed at profit, distinguishing it from other business structures like corporations. Each partner can act on behalf of the partnership, which means their actions can legally bind the partnership. This is why understanding the liabilities and responsibilities outlined in the Act is crucial for anyone involved in a partnership.",
+        "Common Mistakes": "1. **Assuming Co-ownership Equals Partnership**: Simply owning property together does not create a partnership. The intention to run a business for profit is key.\n\n2. **Misunderstanding Liability**: Partners may not realize they are jointly and severally liable for the partnership's obligations, meaning they can be held responsible for the full amount of any debts.\n\n3. **Ignoring Financial Reporting Requirements**: Large partnerships must adhere to specific financial reporting and auditing standards, which some may overlook.",
+        "Critical Thinking": "- **Conceptual Question**: Why does the Act distinguish between sharing profits and being a partner? What implications does this have for business relationships?\n- **Application Question**: How would the dissolution process differ if a partner dies versus if the partnership is dissolved by mutual agreement?\n- **Verification/Checking Question**: How can partners ensure they are compliant with the financial reporting requirements outlined in the Act?"
+      },
+      "connections": [
+        {
+          "from": "Overview",
+          "to": "Core Argument",
+          "label": "frames",
+          "description": "Overview naturally leads into Core Argument in the study flow."
+        },
+        {
+          "from": "Core Argument",
+          "to": "Key Ideas",
+          "label": "introduces concepts for",
+          "description": "Core Argument naturally leads into Key Ideas in the study flow."
+        },
+        {
+          "from": "Key Ideas",
+          "to": "Step-by-step Breakdown",
+          "label": "becomes the process in",
+          "description": "Key Ideas naturally leads into Step-by-step Breakdown in the study flow."
+        },
+        {
+          "from": "Step-by-step Breakdown",
+          "to": "Worked Example / Evidence From Source",
+          "label": "is applied in",
+          "description": "Step-by-step Breakdown naturally leads into Worked Example / Evidence From Source in the study flow."
+        },
+        {
+          "from": "Worked Example / Evidence From Source",
+          "to": "Common Mistakes",
+          "label": "highlights errors checked in",
+          "description": "Worked Example / Evidence From Source naturally leads into Common Mistakes in the study flow."
+        },
+        {
+          "from": "Common Mistakes",
+          "to": "Critical Thinking",
+          "label": "prepares the student for",
+          "description": "Common Mistakes naturally leads into Critical Thinking in the study flow."
+        }
+      ],
+      "mind_map": {
+        "center": "Partnership Law Act 2019",
+        "branches": [
+          {
+            "id": "d4b1ea5708",
+            "label": "Overview",
+            "section": "Overview",
+            "summary": "The Act provides a legal framework for partnerships in New Zealand.",
+            "points": [
+              {
+                "id": "6a83e21f5c",
+                "label": "Nature of Partnerships",
+                "detail": "Defines partnerships and their legal nature."
+              },
+              {
+                "id": "2e898c164e",
+                "label": "Partner Relationships",
+                "detail": "Outlines relationships between partners and third parties."
+              },
+              {
+                "id": "8e64de0e97",
+                "label": "Rights and Duties",
+                "detail": "Specifies partner rights and duties."
+              },
+              {
+                "id": "f344b7a188",
+                "label": "Financial Reporting",
+                "detail": "Details financial reporting requirements."
+              },
+              {
+                "id": "d021b6b701",
+                "label": "Dissolution",
+                "detail": "Explains how partnerships can be dissolved."
+              }
+            ]
+          },
+          {
+            "id": "cc1f619c22",
+            "label": "Core Argument",
+            "section": "Core Argument",
+            "summary": "The Act modernizes partnership laws in New Zealand.",
+            "points": [
+              {
+                "id": "b3f7cc0a7a",
+                "label": "Modernization",
+                "detail": "Updates legal provisions for partnerships."
+              },
+              {
+                "id": "4300748707",
+                "label": "Clarification",
+                "detail": "Clarifies responsibilities and liabilities of partners."
+              },
+              {
+                "id": "35e02e45a8",
+                "label": "Re-enactment",
+                "detail": "Re-enacts the Partnership Act 1908 with revisions."
+              }
+            ]
+          },
+          {
+            "id": "c0052bc559",
+            "label": "Key Ideas",
+            "section": "Key Ideas",
+            "summary": "Highlights important concepts within the Act.",
+            "points": [
+              {
+                "id": "7d8244014a",
+                "label": "Definition of Partnership",
+                "detail": "A business relationship aimed at profit."
+              },
+              {
+                "id": "db2f005e38",
+                "label": "Existence Criteria",
+                "detail": "Criteria for determining partnership existence."
+              },
+              {
+                "id": "86acda938d",
+                "label": "Partner as Agent",
+                "detail": "Partners act as agents of the firm."
+              },
+              {
+                "id": "71b37cf77c",
+                "label": "Liability",
+                "detail": "Joint and several liability for debts."
+              },
+              {
+                "id": "babd5c2153",
+                "label": "Financial Reporting",
+                "detail": "Requirements for large partnerships."
+              }
+            ]
+          },
+          {
+            "id": "53e2140757",
+            "label": "Step-by-step Breakdown",
+            "section": "Step-by-step Breakdown",
+            "summary": "Detailed breakdown of the Act's provisions.",
+            "points": [
+              {
+                "id": "06283b5a82",
+                "label": "Nature of Partnership",
+                "detail": "Defines what constitutes a partnership."
+              },
+              {
+                "id": "ccdffa2e9a",
+                "label": "Relationships and Liabilities",
+                "detail": "Details partner relationships and liabilities."
+              },
+              {
+                "id": "ef12008e18",
+                "label": "Rights and Duties",
+                "detail": "Specifies partner rights and duties."
+              },
+              {
+                "id": "5b70640de7",
+                "label": "Financial Reporting",
+                "detail": "Mandates financial statement preparation."
+              },
+              {
+                "id": "dde81fe69e",
+                "label": "Dissolution Procedures",
+                "detail": "Outlines procedures for dissolving partnerships."
+              }
+            ]
+          },
+          {
+            "id": "f80474f204",
+            "label": "Common Mistakes",
+            "section": "Common Mistakes",
+            "summary": "Common errors in understanding the Act.",
+            "points": [
+              {
+                "id": "6f779416d5",
+                "label": "Co-ownership Assumptions",
+                "detail": "Co-ownership does not equal partnership."
+              },
+              {
+                "id": "d607c84be2",
+                "label": "Liability Misunderstanding",
+                "detail": "Partners are jointly and severally liable."
+              },
+              {
+                "id": "f5c8fbc741",
+                "label": "Ignoring Reporting",
+                "detail": "Large partnerships must follow reporting standards."
+              }
+            ]
+          }
+        ]
+      },
+      "primary_source_identity": "nzl_act:2019:53:Partnership Law Act 2019",
+      "source_fingerprint": "76b2ac73012a5ea867c672c0bec4cff464fe4bb36461104224017c0a5655734d",
+      "cached": false
+    }
+  },
+  "29585eee7d3b639815bf24f30f5dfd8e729e06c7945eb989a3ee8a89b4c2d227": {
+    "created_at": 1777796718.341033,
+    "result": {
+      "title": "パートナーシップ法2019",
+      "summary": "# 概要\nこの資料は、ニュージーランドの「Partnership Law Act 2019」に関する法律を説明しています。この法律は、パートナーシップの定義、パートナー間および第三者との関係、財務報告、パートナーシップの解散など、パートナーシップに関連するさまざまな側面を網羅しています。\n\n## 中心的な目的\nこの法律の中心的な目的は、1908年の「Partnership Act」を最新かつアクセスしやすい形で再制定することです。法律は、パートナーシップの性質、パートナー間および第三者との関係、財務報告、パートナーシップの解散方法についての規定を提供します。\n\n## 重要な概念\n1. **パートナーシップの定義**: パートナーシップは、利益を目的として共通の事業を行う人々の関係を指します。\n2. **パートナーの代理権**: 各パートナーは、パートナーシップの事業の目的で、他のパートナーおよびパートナーシップの代理人として行動します。\n3. **利益の分配**: 事業の利益を受け取ることは、パートナーシップの存在を示唆しますが、単独ではパートナーシップを形成するものではありません。\n4. **パートナーシップの解散**: パートナーシップは、期間の終了、事業の終了、通知によって解散することができます。\n\n## ステップバイステップの説明\n1. **パートナーシップの存在の判断**: パートナーシップが存在するかどうかを判断するためには、利益の共有や共同所有などの要素を考慮します。\n2. **パートナーの代理権の行使**: パートナーが通常の方法で事業を行うために行った行為は、パートナーシップを拘束します。ただし、特定の事項で権限がない場合は例外です。\n3. **利益の受け取りの影響**: 利益を受け取ることは、パートナーシップの存在を示唆しますが、他の証拠がない限り、単独ではパートナーシップを形成しません。\n\n## 例 / 資料からの証拠\n資料には具体的な例が含まれていませんが、利益の分配やパートナーの代理権に関する規定が詳細に説明されています。\n\n## チューターの説明\nパートナーシップは、共通の目的を持つ人々が協力して事業を行う関係です。パートナーは、他のパートナーやパートナーシップ全体の代理人として行動することができ、通常の事業活動においてパートナーシップを拘束する権限を持ちます。しかし、特定の事項で権限がない場合や、他のパートナーがその権限を知らない場合は、拘束力がありません。\n\n## よくある間違い\n1. **利益の受け取りだけでパートナーシップが形成されると考えること**: 利益の受け取りはパートナーシップの存在を示唆しますが、他の要素も考慮する必要があります。\n2. **パートナーの権限を誤解すること**: パートナーがすべての状況でパートナーシップを拘束する権限を持っていると誤解することがあります。\n\n## 批判的思考\n- **概念的な質問**: パートナーシップの定義において、利益を目的とすることがなぜ重要なのでしょうか？\n- **応用的な質問**: あるパートナーが他のパートナーの同意なしに行動した場合、その行動はパートナーシップを拘束するでしょうか？\n- **検証/確認の質問**: パートナーシップが解散する際に、どのような手続きが必要ですか？",
+      "sections": {
+        "概要": "この資料は、ニュージーランドの「Partnership Law Act 2019」に関する法律を説明しています。この法律は、パートナーシップの定義、パートナー間および第三者との関係、財務報告、パートナーシップの解散など、パートナーシップに関連するさまざまな側面を網羅しています。",
+        "中心的な目的": "この法律の中心的な目的は、1908年の「Partnership Act」を最新かつアクセスしやすい形で再制定することです。法律は、パートナーシップの性質、パートナー間および第三者との関係、財務報告、パートナーシップの解散方法についての規定を提供します。",
+        "重要な概念": "1. **パートナーシップの定義**: パートナーシップは、利益を目的として共通の事業を行う人々の関係を指します。\n2. **パートナーの代理権**: 各パートナーは、パートナーシップの事業の目的で、他のパートナーおよびパートナーシップの代理人として行動します。\n3. **利益の分配**: 事業の利益を受け取ることは、パートナーシップの存在を示唆しますが、単独ではパートナーシップを形成するものではありません。\n4. **パートナーシップの解散**: パートナーシップは、期間の終了、事業の終了、通知によって解散することができます。",
+        "ステップバイステップの説明": "1. **パートナーシップの存在の判断**: パートナーシップが存在するかどうかを判断するためには、利益の共有や共同所有などの要素を考慮します。\n2. **パートナーの代理権の行使**: パートナーが通常の方法で事業を行うために行った行為は、パートナーシップを拘束します。ただし、特定の事項で権限がない場合は例外です。\n3. **利益の受け取りの影響**: 利益を受け取ることは、パートナーシップの存在を示唆しますが、他の証拠がない限り、単独ではパートナーシップを形成しません。",
+        "例 / 資料からの証拠": "資料には具体的な例が含まれていませんが、利益の分配やパートナーの代理権に関する規定が詳細に説明されています。",
+        "チューターの説明": "パートナーシップは、共通の目的を持つ人々が協力して事業を行う関係です。パートナーは、他のパートナーやパートナーシップ全体の代理人として行動することができ、通常の事業活動においてパートナーシップを拘束する権限を持ちます。しかし、特定の事項で権限がない場合や、他のパートナーがその権限を知らない場合は、拘束力がありません。",
+        "よくある間違い": "1. **利益の受け取りだけでパートナーシップが形成されると考えること**: 利益の受け取りはパートナーシップの存在を示唆しますが、他の要素も考慮する必要があります。\n2. **パートナーの権限を誤解すること**: パートナーがすべての状況でパートナーシップを拘束する権限を持っていると誤解することがあります。",
+        "批判的思考": "- **概念的な質問**: パートナーシップの定義において、利益を目的とすることがなぜ重要なのでしょうか？\n- **応用的な質問**: あるパートナーが他のパートナーの同意なしに行動した場合、その行動はパートナーシップを拘束するでしょうか？\n- **検証/確認の質問**: パートナーシップが解散する際に、どのような手続きが必要ですか？"
+      },
+      "connections": [
+        {
+          "from": "概要",
+          "to": "中心的な目的",
+          "label": "connects to",
+          "description": "概要 connects to 中心的な目的 in the notes."
+        },
+        {
+          "from": "中心的な目的",
+          "to": "重要な概念",
+          "label": "connects to",
+          "description": "中心的な目的 connects to 重要な概念 in the notes."
+        },
+        {
+          "from": "重要な概念",
+          "to": "ステップバイステップの説明",
+          "label": "connects to",
+          "description": "重要な概念 connects to ステップバイステップの説明 in the notes."
+        },
+        {
+          "from": "ステップバイステップの説明",
+          "to": "例 / 資料からの証拠",
+          "label": "connects to",
+          "description": "ステップバイステップの説明 connects to 例 / 資料からの証拠 in the notes."
+        },
+        {
+          "from": "例 / 資料からの証拠",
+          "to": "チューターの説明",
+          "label": "connects to",
+          "description": "例 / 資料からの証拠 connects to チューターの説明 in the notes."
+        }
+      ],
+      "mind_map": {
+        "center": "パートナーシップ法2019",
+        "branches": [
+          {
+            "id": "aaaf449bd4",
+            "label": "概要",
+            "section": "概要",
+            "summary": "ニュージーランドのパートナーシップ法の基本的な説明。",
+            "points": [
+              {
+                "id": "806403ec43",
+                "label": "法律の目的",
+                "detail": "パートナーシップの定義や関係を明確にします。"
+              },
+              {
+                "id": "39fada1e94",
+                "label": "対象範囲",
+                "detail": "パートナー間および第三者との関係を含みます。"
+              },
+              {
+                "id": "8fd7cef4fb",
+                "label": "財務報告",
+                "detail": "パートナーシップの財務報告に関する規定があります。"
+              }
+            ]
+          },
+          {
+            "id": "ea9ff12a88",
+            "label": "中心的な目的",
+            "section": "中心的な目的",
+            "summary": "法律の再制定とその目的について。",
+            "points": [
+              {
+                "id": "255ec3fc4a",
+                "label": "再制定の理由",
+                "detail": "1908年の法律を最新化するためです。"
+              },
+              {
+                "id": "e3df08b2e1",
+                "label": "アクセスの向上",
+                "detail": "法律をよりアクセスしやすくします。"
+              },
+              {
+                "id": "7e6d1b3099",
+                "label": "解散方法",
+                "detail": "パートナーシップの解散方法を規定します。"
+              }
+            ]
+          },
+          {
+            "id": "e254f99201",
+            "label": "重要な概念",
+            "section": "重要な概念",
+            "summary": "パートナーシップに関する基本的な概念。",
+            "points": [
+              {
+                "id": "4951881585",
+                "label": "パートナーシップの定義",
+                "detail": "共通の事業を行う人々の関係です。"
+              },
+              {
+                "id": "4710dbaf93",
+                "label": "代理権",
+                "detail": "パートナーは他のパートナーの代理人として行動します。"
+              },
+              {
+                "id": "a57e41a826",
+                "label": "利益の分配",
+                "detail": "利益の受け取りはパートナーシップを示唆します。"
+              }
+            ]
+          },
+          {
+            "id": "296138727e",
+            "label": "ステップバイステップの説明",
+            "section": "ステップバイステップの説明",
+            "summary": "パートナーシップの判断と行動についての手順。",
+            "points": [
+              {
+                "id": "96278642b9",
+                "label": "存在の判断",
+                "detail": "利益の共有などの要素を考慮します。"
+              },
+              {
+                "id": "6d12e0388e",
+                "label": "代理権の行使",
+                "detail": "通常の方法での行為は拘束力があります。"
+              },
+              {
+                "id": "55101db425",
+                "label": "利益の影響",
+                "detail": "利益の受け取りは単独では形成しません。"
+              }
+            ]
+          },
+          {
+            "id": "73315080c8",
+            "label": "よくある間違い",
+            "section": "よくある間違い",
+            "summary": "パートナーシップに関する誤解を解消します。",
+            "points": [
+              {
+                "id": "c81bba372b",
+                "label": "利益の誤解",
+                "detail": "利益の受け取りだけでは形成されません。"
+              },
+              {
+                "id": "15733ccade",
+                "label": "権限の誤解",
+                "detail": "すべての状況で拘束するわけではありません。"
+              }
+            ]
+          }
+        ]
+      },
+      "primary_source_identity": "nzl_act:2019:53:Partnership Law Act 2019",
+      "source_fingerprint": "29585eee7d3b639815bf24f30f5dfd8e729e06c7945eb989a3ee8a89b4c2d227",
+      "cached": false
+    }
+  },
+  "fd696af259bb7083170cfb1a7d9710fe2c368dfe2aa37a21e11d5cda225540d1": {
+    "created_at": 1777796934.9666612,
+    "result": {
+      "title": "Partnership Law Act 2019",
+      "summary": "# Overview\nThe source is the \"Partnership Law Act 2019\" from New Zealand legislation, which provides a comprehensive legal framework for partnerships. It outlines the nature of partnerships, the relationships between partners and third parties, and the dissolution of partnerships, among other provisions.\n\n## Core Argument\nThe central purpose of the Partnership Law Act 2019 is to modernize and clarify the legal principles governing partnerships in New Zealand. It aims to provide clear definitions and rules regarding the formation, operation, and dissolution of partnerships. The Act also seeks to ensure that the rights and obligations of partners, both among themselves and with third parties, are well-defined and legally enforceable.\n\n## Key Ideas\n1. **Definition of Partnership**: A partnership is defined as a relationship between persons carrying on a business in common with a view to profit. This excludes certain relationships, such as those between shareholders of a company.\n\n2. **Determining Partnership Existence**: The Act provides criteria for determining whether a partnership exists, emphasizing that co-ownership or sharing of gross returns alone does not constitute a partnership.\n\n3. **Partner as Agent**: Each partner acts as an agent of the firm and other partners, meaning their actions can bind the partnership in business matters.\n\n4. **Liability**: Partners are jointly and severally liable for the debts and obligations of the partnership, and the firm is liable for wrongful acts or omissions by partners.\n\n5. **Dissolution of Partnership**: The Act outlines various ways a partnership can be dissolved, including by notice, death, or bankruptcy of a partner, or if the partnership becomes unlawful.\n\n## Step-by-step Breakdown\n1. **Nature of Partnership**: The Act begins by defining what constitutes a partnership and what does not, providing clarity on the legal status of various business relationships.\n\n2. **Relationships and Liabilities**: It details the legal implications of the relationships between partners and third parties, including agency principles and liability for debts.\n\n3. **Internal Relations**: The Act specifies how partners should interact with each other, including rights to manage the business and share profits.\n\n4. **Financial Reporting**: For large partnerships, there are specific requirements for financial reporting and auditing.\n\n5. **Dissolution Procedures**: The Act provides detailed procedures for dissolving a partnership, including the distribution of assets and handling of debts.\n\n## Worked Example / Evidence From Source\nThe Act states that if a person receives a share of the profits of a business, it is presumed they are a partner unless evidence suggests otherwise. However, merely receiving profits does not automatically make someone a partner, especially if they are an employee or lender.\n\n## Tutor Explanation\nThe Partnership Law Act 2019 is designed to ensure that partnerships operate smoothly and legally. It clarifies what constitutes a partnership and the responsibilities of partners. Understanding these definitions and rules helps prevent disputes and ensures that all parties are aware of their rights and obligations.\n\n## Common Mistakes\n1. **Assuming Co-ownership Equals Partnership**: Simply owning property together does not create a partnership.\n2. **Misunderstanding Liability**: Partners may not realize they are jointly and severally liable for partnership debts.\n3. **Ignoring Formal Dissolution Procedures**: Failing to follow legal procedures for dissolving a partnership can lead to legal complications.\n\n## Critical Thinking\n- **Conceptual Question**: Why is it important to have a clear legal definition of a partnership?\n- **Application Question**: How would the dissolution process differ if a partner dies versus if the partnership term simply ends?\n- **Verification/Checking Question**: What steps should be taken to ensure that a new partner is legally recognized in the partnership?",
+      "sections": {
+        "Overview": "The source is the \"Partnership Law Act 2019\" from New Zealand legislation, which provides a comprehensive legal framework for partnerships. It outlines the nature of partnerships, the relationships between partners and third parties, and the dissolution of partnerships, among other provisions.",
+        "Core Argument": "The central purpose of the Partnership Law Act 2019 is to modernize and clarify the legal principles governing partnerships in New Zealand. It aims to provide clear definitions and rules regarding the formation, operation, and dissolution of partnerships. The Act also seeks to ensure that the rights and obligations of partners, both among themselves and with third parties, are well-defined and legally enforceable.",
+        "Key Ideas": "1. **Definition of Partnership**: A partnership is defined as a relationship between persons carrying on a business in common with a view to profit. This excludes certain relationships, such as those between shareholders of a company.\n\n2. **Determining Partnership Existence**: The Act provides criteria for determining whether a partnership exists, emphasizing that co-ownership or sharing of gross returns alone does not constitute a partnership.\n\n3. **Partner as Agent**: Each partner acts as an agent of the firm and other partners, meaning their actions can bind the partnership in business matters.\n\n4. **Liability**: Partners are jointly and severally liable for the debts and obligations of the partnership, and the firm is liable for wrongful acts or omissions by partners.\n\n5. **Dissolution of Partnership**: The Act outlines various ways a partnership can be dissolved, including by notice, death, or bankruptcy of a partner, or if the partnership becomes unlawful.",
+        "Step-by-step Breakdown": "1. **Nature of Partnership**: The Act begins by defining what constitutes a partnership and what does not, providing clarity on the legal status of various business relationships.\n\n2. **Relationships and Liabilities**: It details the legal implications of the relationships between partners and third parties, including agency principles and liability for debts.\n\n3. **Internal Relations**: The Act specifies how partners should interact with each other, including rights to manage the business and share profits.\n\n4. **Financial Reporting**: For large partnerships, there are specific requirements for financial reporting and auditing.\n\n5. **Dissolution Procedures**: The Act provides detailed procedures for dissolving a partnership, including the distribution of assets and handling of debts.",
+        "Worked Example / Evidence From Source": "The Act states that if a person receives a share of the profits of a business, it is presumed they are a partner unless evidence suggests otherwise. However, merely receiving profits does not automatically make someone a partner, especially if they are an employee or lender.",
+        "Tutor Explanation": "The Partnership Law Act 2019 is designed to ensure that partnerships operate smoothly and legally. It clarifies what constitutes a partnership and the responsibilities of partners. Understanding these definitions and rules helps prevent disputes and ensures that all parties are aware of their rights and obligations.",
+        "Common Mistakes": "1. **Assuming Co-ownership Equals Partnership**: Simply owning property together does not create a partnership.\n2. **Misunderstanding Liability**: Partners may not realize they are jointly and severally liable for partnership debts.\n3. **Ignoring Formal Dissolution Procedures**: Failing to follow legal procedures for dissolving a partnership can lead to legal complications.",
+        "Critical Thinking": "- **Conceptual Question**: Why is it important to have a clear legal definition of a partnership?\n- **Application Question**: How would the dissolution process differ if a partner dies versus if the partnership term simply ends?\n- **Verification/Checking Question**: What steps should be taken to ensure that a new partner is legally recognized in the partnership?"
+      },
+      "connections": [
+        {
+          "from": "Overview",
+          "to": "Core Argument",
+          "label": "frames",
+          "description": "Overview naturally leads into Core Argument in the study flow."
+        },
+        {
+          "from": "Core Argument",
+          "to": "Key Ideas",
+          "label": "introduces concepts for",
+          "description": "Core Argument naturally leads into Key Ideas in the study flow."
+        },
+        {
+          "from": "Key Ideas",
+          "to": "Step-by-step Breakdown",
+          "label": "becomes the process in",
+          "description": "Key Ideas naturally leads into Step-by-step Breakdown in the study flow."
+        },
+        {
+          "from": "Step-by-step Breakdown",
+          "to": "Worked Example / Evidence From Source",
+          "label": "is applied in",
+          "description": "Step-by-step Breakdown naturally leads into Worked Example / Evidence From Source in the study flow."
+        },
+        {
+          "from": "Worked Example / Evidence From Source",
+          "to": "Common Mistakes",
+          "label": "highlights errors checked in",
+          "description": "Worked Example / Evidence From Source naturally leads into Common Mistakes in the study flow."
+        },
+        {
+          "from": "Common Mistakes",
+          "to": "Critical Thinking",
+          "label": "prepares the student for",
+          "description": "Common Mistakes naturally leads into Critical Thinking in the study flow."
+        }
+      ],
+      "mind_map": {
+        "center": "Partnership Law Act 2019",
+        "branches": [
+          {
+            "id": "d4b1ea5708",
+            "label": "Overview",
+            "section": "Overview",
+            "summary": "Provides a legal framework for partnerships in New Zealand.",
+            "points": [
+              {
+                "id": "92741886a8",
+                "label": "Nature of Partnerships",
+                "detail": "Defines partnerships and their legal status."
+              },
+              {
+                "id": "2e898c164e",
+                "label": "Partner Relationships",
+                "detail": "Outlines relationships between partners and third parties."
+              },
+              {
+                "id": "86bbd560be",
+                "label": "Dissolution",
+                "detail": "Describes how partnerships can be dissolved."
+              }
+            ]
+          },
+          {
+            "id": "cc1f619c22",
+            "label": "Core Argument",
+            "section": "Core Argument",
+            "summary": "Modernizes and clarifies partnership laws.",
+            "points": [
+              {
+                "id": "985d24f230",
+                "label": "Clear Definitions",
+                "detail": "Provides clear rules for partnership formation and operation."
+              },
+              {
+                "id": "7426fe3e1b",
+                "label": "Rights and Obligations",
+                "detail": "Ensures rights and obligations are enforceable."
+              },
+              {
+                "id": "ef828c811c",
+                "label": "Legal Principles",
+                "detail": "Updates legal principles for partnerships."
+              }
+            ]
+          },
+          {
+            "id": "c0052bc559",
+            "label": "Key Ideas",
+            "section": "Key Ideas",
+            "summary": "Highlights essential concepts of the Act.",
+            "points": [
+              {
+                "id": "7d8244014a",
+                "label": "Definition of Partnership",
+                "detail": "A business relationship aimed at profit."
+              },
+              {
+                "id": "db2f005e38",
+                "label": "Existence Criteria",
+                "detail": "Criteria for determining partnership existence."
+              },
+              {
+                "id": "b9328deb94",
+                "label": "Partner as Agent",
+                "detail": "Partners can bind the firm in business matters."
+              },
+              {
+                "id": "66e2932097",
+                "label": "Liability",
+                "detail": "Partners are jointly and severally liable for debts."
+              },
+              {
+                "id": "dbd8868462",
+                "label": "Dissolution Methods",
+                "detail": "Ways a partnership can be dissolved."
+              }
+            ]
+          },
+          {
+            "id": "53e2140757",
+            "label": "Step-by-step Breakdown",
+            "section": "Step-by-step Breakdown",
+            "summary": "Detailed explanation of partnership operations.",
+            "points": [
+              {
+                "id": "06283b5a82",
+                "label": "Nature of Partnership",
+                "detail": "Defines what constitutes a partnership."
+              },
+              {
+                "id": "02f5058af2",
+                "label": "Relationships and Liabilities",
+                "detail": "Details legal implications of partner relationships."
+              },
+              {
+                "id": "cf0952c28e",
+                "label": "Internal Relations",
+                "detail": "Specifies partner interactions and profit sharing."
+              },
+              {
+                "id": "34f56b2857",
+                "label": "Financial Reporting",
+                "detail": "Requirements for large partnerships."
+              },
+              {
+                "id": "6ca4785fc8",
+                "label": "Dissolution Procedures",
+                "detail": "Procedures for dissolving a partnership."
+              }
+            ]
+          },
+          {
+            "id": "f80474f204",
+            "label": "Common Mistakes",
+            "section": "Common Mistakes",
+            "summary": "Identifies frequent errors in understanding the Act.",
+            "points": [
+              {
+                "id": "e066cbd274",
+                "label": "Co-ownership Assumptions",
+                "detail": "Owning property together doesn't create a partnership."
+              },
+              {
+                "id": "aabc603b63",
+                "label": "Liability Misunderstanding",
+                "detail": "Partners are liable for partnership debts."
+              },
+              {
+                "id": "c38617bb19",
+                "label": "Ignoring Dissolution Procedures",
+                "detail": "Legal procedures must be followed for dissolution."
+              }
+            ]
+          }
+        ]
+      },
+      "primary_source_identity": "nzl_act:2019:53:Partnership Law Act 2019",
+      "source_fingerprint": "fd696af259bb7083170cfb1a7d9710fe2c368dfe2aa37a21e11d5cda225540d1",
+      "cached": false
+    }
+  },
+  "310b78a9381b59c8662c24a18fb12ffef8322382681f89fb7918e8fe70103152": {
+    "created_at": 1777797070.866675,
+    "result": {
+      "title": "साझेदारी कानून अधिनियम 2019",
+      "summary": "# अवलोकन\nयह स्रोत \"Partnership Law Act 2019\" के बारे में है, जो न्यूज़ीलैंड में साझेदारी कानून को अद्यतन और सुलभ रूप में पुनः अधिनियमित करता है। यह अधिनियम साझेदारी की प्रकृति, साझेदारों के बीच संबंध, वित्तीय रिपोर्टिंग, और साझेदारी के अंत के बारे में विस्तृत प्रावधान करता है।\n\n## मुख्य तर्क\nइस अधिनियम का मुख्य उद्देश्य साझेदारी अधिनियम 1908 को एक आधुनिक और सुलभ रूप में पुनः अधिनियमित करना है। यह साझेदारी की परिभाषा, साझेदारी के अस्तित्व का निर्धारण, साझेदारों के बीच और तीसरे पक्ष के साथ संबंध, और साझेदारी के अंत के प्रावधानों को स्पष्ट करता है। यह अधिनियम साझेदारी के वित्तीय रिपोर्टिंग और अन्य प्रासंगिक प्रावधानों को भी शामिल करता है।\n\n## प्रमुख विचार\n1. **साझेदारी की परिभाषा**: साझेदारी उन व्यक्तियों के बीच का संबंध है जो लाभ की दृष्टि से एक सामान्य व्यवसाय चला रहे हैं।\n2. **साझेदारी का अस्तित्व**: साझेदारी के अस्तित्व का निर्धारण करने के लिए कुछ विशेष नियम हैं, जैसे कि संपत्ति का सह-स्वामित्व और लाभ का साझा करना।\n3. **साझेदारों के बीच संबंध**: साझेदारों के बीच संबंधों को सहमति से बदला जा सकता है, और साझेदारी संपत्ति का उपयोग और प्रबंधन कैसे किया जाए, इसके लिए नियम हैं।\n4. **वित्तीय रिपोर्टिंग**: बड़े साझेदारी के लिए वित्तीय रिपोर्टिंग के प्रावधान हैं, जिसमें लेखा रिकॉर्ड और वित्तीय विवरण तैयार करना शामिल है।\n\n## चरण-दर-चरण विश्लेषण\n1. **साझेदारी की परिभाषा**: यह अधिनियम साझेदारी को उन व्यक्तियों के बीच के संबंध के रूप में परिभाषित करता है जो लाभ की दृष्टि से एक सामान्य व्यवसाय चला रहे हैं।\n2. **साझेदारी का अस्तित्व**: साझेदारी के अस्तित्व का निर्धारण करने के लिए संपत्ति का सह-स्वामित्व और लाभ का साझा करना जैसे कारकों पर विचार किया जाता है।\n3. **साझेदारों के बीच संबंध**: साझेदारों के बीच संबंधों को सहमति से बदला जा सकता है, और साझेदारी संपत्ति का उपयोग और प्रबंधन कैसे किया जाए, इसके लिए नियम हैं।\n4. **वित्तीय रिपोर्टिंग**: बड़े साझेदारी के लिए वित्तीय रिपोर्टिंग के प्रावधान हैं, जिसमें लेखा रिकॉर्ड और वित्तीय विवरण तैयार करना शामिल है।\n\n## उदाहरण / स्रोत से साक्ष्य\nस्रोत में साझेदारी की परिभाषा दी गई है: \"साझेदारी उन व्यक्तियों के बीच का संबंध है जो लाभ की दृष्टि से एक सामान्य व्यवसाय चला रहे हैं।\" यह परिभाषा साझेदारी के मूलभूत तत्वों को स्पष्ट करती है।\n\n## ट्यूटर व्याख्या\nसाझेदारी कानून का उद्देश्य साझेदारी के विभिन्न पहलुओं को स्पष्ट करना है, जैसे कि साझेदारी की परिभाषा, साझेदारी का अस्तित्व, और साझेदारों के बीच संबंध। यह अधिनियम साझेदारी के वित्तीय रिपोर्टिंग और अन्य प्रासंगिक प्रावधानों को भी शामिल करता है।\n\n## सामान्य गलतियाँ\n1. **साझेदारी की गलत परिभाषा**: साझेदारी को केवल लाभ साझा करने के रूप में समझना गलत है; यह एक सामान्य व्यवसाय चलाने के संबंध में है।\n2. **संपत्ति के सह-स्वामित्व को साझेदारी मान लेना**: केवल संपत्ति का सह-स्वामित्व साझेदारी नहीं बनाता।\n\n## आलोचनात्मक सोच\n- **संकल्पनात्मक प्रश्न**: साझेदारी और कंपनी के बीच मुख्य अंतर क्या हैं?\n- **अनुप्रयोग प्रश्न**: यदि दो व्यक्ति एक व्यवसाय में लाभ साझा करते हैं, तो क्या वे साझेदार माने जाएंगे?\n- **सत्यापन/जाँच प्रश्न**: क्या साझेदारी का अस्तित्व केवल लाभ साझा करने से निर्धारित होता है?",
+      "sections": {
+        "अवलोकन": "यह स्रोत \"Partnership Law Act 2019\" के बारे में है, जो न्यूज़ीलैंड में साझेदारी कानून को अद्यतन और सुलभ रूप में पुनः अधिनियमित करता है। यह अधिनियम साझेदारी की प्रकृति, साझेदारों के बीच संबंध, वित्तीय रिपोर्टिंग, और साझेदारी के अंत के बारे में विस्तृत प्रावधान करता है।",
+        "मुख्य तर्क": "इस अधिनियम का मुख्य उद्देश्य साझेदारी अधिनियम 1908 को एक आधुनिक और सुलभ रूप में पुनः अधिनियमित करना है। यह साझेदारी की परिभाषा, साझेदारी के अस्तित्व का निर्धारण, साझेदारों के बीच और तीसरे पक्ष के साथ संबंध, और साझेदारी के अंत के प्रावधानों को स्पष्ट करता है। यह अधिनियम साझेदारी के वित्तीय रिपोर्टिंग और अन्य प्रासंगिक प्रावधानों को भी शामिल करता है।",
+        "प्रमुख विचार": "1. **साझेदारी की परिभाषा**: साझेदारी उन व्यक्तियों के बीच का संबंध है जो लाभ की दृष्टि से एक सामान्य व्यवसाय चला रहे हैं।\n2. **साझेदारी का अस्तित्व**: साझेदारी के अस्तित्व का निर्धारण करने के लिए कुछ विशेष नियम हैं, जैसे कि संपत्ति का सह-स्वामित्व और लाभ का साझा करना।\n3. **साझेदारों के बीच संबंध**: साझेदारों के बीच संबंधों को सहमति से बदला जा सकता है, और साझेदारी संपत्ति का उपयोग और प्रबंधन कैसे किया जाए, इसके लिए नियम हैं।\n4. **वित्तीय रिपोर्टिंग**: बड़े साझेदारी के लिए वित्तीय रिपोर्टिंग के प्रावधान हैं, जिसमें लेखा रिकॉर्ड और वित्तीय विवरण तैयार करना शामिल है।",
+        "चरण-दर-चरण विश्लेषण": "1. **साझेदारी की परिभाषा**: यह अधिनियम साझेदारी को उन व्यक्तियों के बीच के संबंध के रूप में परिभाषित करता है जो लाभ की दृष्टि से एक सामान्य व्यवसाय चला रहे हैं।\n2. **साझेदारी का अस्तित्व**: साझेदारी के अस्तित्व का निर्धारण करने के लिए संपत्ति का सह-स्वामित्व और लाभ का साझा करना जैसे कारकों पर विचार किया जाता है।\n3. **साझेदारों के बीच संबंध**: साझेदारों के बीच संबंधों को सहमति से बदला जा सकता है, और साझेदारी संपत्ति का उपयोग और प्रबंधन कैसे किया जाए, इसके लिए नियम हैं।\n4. **वित्तीय रिपोर्टिंग**: बड़े साझेदारी के लिए वित्तीय रिपोर्टिंग के प्रावधान हैं, जिसमें लेखा रिकॉर्ड और वित्तीय विवरण तैयार करना शामिल है।",
+        "उदाहरण / स्रोत से साक्ष्य": "स्रोत में साझेदारी की परिभाषा दी गई है: \"साझेदारी उन व्यक्तियों के बीच का संबंध है जो लाभ की दृष्टि से एक सामान्य व्यवसाय चला रहे हैं।\" यह परिभाषा साझेदारी के मूलभूत तत्वों को स्पष्ट करती है।",
+        "ट्यूटर व्याख्या": "साझेदारी कानून का उद्देश्य साझेदारी के विभिन्न पहलुओं को स्पष्ट करना है, जैसे कि साझेदारी की परिभाषा, साझेदारी का अस्तित्व, और साझेदारों के बीच संबंध। यह अधिनियम साझेदारी के वित्तीय रिपोर्टिंग और अन्य प्रासंगिक प्रावधानों को भी शामिल करता है।",
+        "सामान्य गलतियाँ": "1. **साझेदारी की गलत परिभाषा**: साझेदारी को केवल लाभ साझा करने के रूप में समझना गलत है; यह एक सामान्य व्यवसाय चलाने के संबंध में है।\n2. **संपत्ति के सह-स्वामित्व को साझेदारी मान लेना**: केवल संपत्ति का सह-स्वामित्व साझेदारी नहीं बनाता।",
+        "आलोचनात्मक सोच": "- **संकल्पनात्मक प्रश्न**: साझेदारी और कंपनी के बीच मुख्य अंतर क्या हैं?\n- **अनुप्रयोग प्रश्न**: यदि दो व्यक्ति एक व्यवसाय में लाभ साझा करते हैं, तो क्या वे साझेदार माने जाएंगे?\n- **सत्यापन/जाँच प्रश्न**: क्या साझेदारी का अस्तित्व केवल लाभ साझा करने से निर्धारित होता है?"
+      },
+      "connections": [
+        {
+          "from": "अवलोकन",
+          "to": "मुख्य तर्क",
+          "label": "connects to",
+          "description": "अवलोकन connects to मुख्य तर्क in the notes."
+        },
+        {
+          "from": "मुख्य तर्क",
+          "to": "प्रमुख विचार",
+          "label": "connects to",
+          "description": "मुख्य तर्क connects to प्रमुख विचार in the notes."
+        },
+        {
+          "from": "प्रमुख विचार",
+          "to": "चरण-दर-चरण विश्लेषण",
+          "label": "connects to",
+          "description": "प्रमुख विचार connects to चरण-दर-चरण विश्लेषण in the notes."
+        },
+        {
+          "from": "चरण-दर-चरण विश्लेषण",
+          "to": "उदाहरण / स्रोत से साक्ष्य",
+          "label": "connects to",
+          "description": "चरण-दर-चरण विश्लेषण connects to उदाहरण / स्रोत से साक्ष्य in the notes."
+        },
+        {
+          "from": "उदाहरण / स्रोत से साक्ष्य",
+          "to": "ट्यूटर व्याख्या",
+          "label": "connects to",
+          "description": "उदाहरण / स्रोत से साक्ष्य connects to ट्यूटर व्याख्या in the notes."
+        }
+      ],
+      "mind_map": {
+        "center": "साझेदारी कानून अधिनियम 2019",
+        "branches": [
+          {
+            "id": "a1779d120b",
+            "label": "अवलोकन",
+            "section": "अवलोकन",
+            "summary": "यह अधिनियम न्यूज़ीलैंड में साझेदारी कानून को अद्यतन करता है।",
+            "points": [
+              {
+                "id": "94ad3d5fa6",
+                "label": "प्राकृतिकता",
+                "detail": "साझेदारी की प्रकृति और साझेदारों के बीच संबंध।"
+              },
+              {
+                "id": "e3197ab3fd",
+                "label": "वित्तीय प्रावधान",
+                "detail": "वित्तीय रिपोर्टिंग और प्रबंधन के नियम।"
+              },
+              {
+                "id": "a089777135",
+                "label": "अंत प्रावधान",
+                "detail": "साझेदारी के अंत के लिए विस्तृत प्रावधान।"
+              }
+            ]
+          },
+          {
+            "id": "880769ffea",
+            "label": "मुख्य तर्क",
+            "section": "मुख्य तर्क",
+            "summary": "अधिनियम का उद्देश्य 1908 के कानून को आधुनिक रूप में प्रस्तुत करना है।",
+            "points": [
+              {
+                "id": "c9eaafa36b",
+                "label": "परिभाषा स्पष्टता",
+                "detail": "साझेदारी की परिभाषा को स्पष्ट करता है।"
+              },
+              {
+                "id": "0ff4217529",
+                "label": "संबंध निर्धारण",
+                "detail": "साझेदारों और तीसरे पक्ष के संबंधों को स्पष्ट करता है।"
+              },
+              {
+                "id": "cfb7c4e6dc",
+                "label": "वित्तीय समावेशन",
+                "detail": "वित्तीय रिपोर्टिंग के प्रावधान शामिल करता है।"
+              }
+            ]
+          },
+          {
+            "id": "1556f3db71",
+            "label": "प्रमुख विचार",
+            "section": "प्रमुख विचार",
+            "summary": "साझेदारी की परिभाषा और अस्तित्व के नियम।",
+            "points": [
+              {
+                "id": "fb3bb2a767",
+                "label": "साझेदारी की परिभाषा",
+                "detail": "लाभ की दृष्टि से सामान्य व्यवसाय का संबंध।"
+              },
+              {
+                "id": "ca92c8d504",
+                "label": "अस्तित्व निर्धारण",
+                "detail": "संपत्ति का सह-स्वामित्व और लाभ का साझा करना।"
+              },
+              {
+                "id": "71657e26ef",
+                "label": "संबंध परिवर्तन",
+                "detail": "सहमति से संबंधों में बदलाव संभव।"
+              }
+            ]
+          },
+          {
+            "id": "fa24779cce",
+            "label": "चरण-दर-चरण विश्लेषण",
+            "section": "चरण-दर-चरण विश्लेषण",
+            "summary": "साझेदारी के विभिन्न पहलुओं का विश्लेषण।",
+            "points": [
+              {
+                "id": "8812e26853",
+                "label": "परिभाषा",
+                "detail": "लाभ की दृष्टि से सामान्य व्यवसाय का संबंध।"
+              },
+              {
+                "id": "fcb2caa26f",
+                "label": "अस्तित्व",
+                "detail": "संपत्ति का सह-स्वामित्व और लाभ का साझा करना।"
+              },
+              {
+                "id": "10cde4f88b",
+                "label": "संबंध",
+                "detail": "सहमति से संबंधों में बदलाव संभव।"
+              }
+            ]
+          },
+          {
+            "id": "235aaa038e",
+            "label": "सामान्य गलतियाँ",
+            "section": "सामान्य गलतियाँ",
+            "summary": "साझेदारी की गलतफहमियों को दूर करता है।",
+            "points": [
+              {
+                "id": "2df9bf2200",
+                "label": "गलत परिभाषा",
+                "detail": "सिर्फ लाभ साझा करना साझेदारी नहीं है।"
+              },
+              {
+                "id": "78b7b4acf5",
+                "label": "संपत्ति सह-स्वामित्व",
+                "detail": "सिर्फ सह-स्वामित्व साझेदारी नहीं बनाता।"
+              }
+            ]
+          }
+        ]
+      },
+      "primary_source_identity": "nzl_act:2019:53:Partnership Law Act 2019",
+      "source_fingerprint": "310b78a9381b59c8662c24a18fb12ffef8322382681f89fb7918e8fe70103152",
       "cached": false
     }
   }

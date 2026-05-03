@@ -1,8 +1,13 @@
 fastapi
-uvicorn
+uvicorn[standard]
+python-multipart
+openai>=1.30.0
 python-dotenv
-openai
 pypdf
 python-docx
-python-multipart
+beautifulsoup4
 youtube-transcript-api
+yt-dlp
+opencv-python
+certifi
+requests

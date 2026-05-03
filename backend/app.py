@@ -1,22 +1,34 @@
 import base64
-import json
 import hashlib
-import time
+import json
 import mimetypes
+import ssl
 import os
 import re
 import tempfile
+import time
 import urllib.request
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional, Tuple
-from urllib.parse import parse_qs, urlparse
+from typing import Dict, List, Optional, Tuple
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pypdf import PdfReader
+
+
+try:
+    import certifi
+except Exception:
+    certifi = None
+
+try:
+    from bs4 import BeautifulSoup
+except Exception:
+    BeautifulSoup = None
 
 try:
     from docx import Document
@@ -38,21 +50,29 @@ try:
 except Exception:
     cv2 = None
 
+# -------------------------
+# Environment + app setup
+# -------------------------
+BACKEND_DIR = Path(__file__).resolve().parent
+load_dotenv(BACKEND_DIR / ".env")
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-# Use the stronger model for actual note generation. You can override these in .env.
 ANALYSIS_MODEL = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-4o")
 CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
 
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(24 * 1024 * 1024)))
 MAX_VIDEO_BYTES = int(os.getenv("MAX_VIDEO_BYTES", str(60 * 1024 * 1024)))
-MAX_SOURCE_CHARS = int(os.getenv("MAX_SOURCE_CHARS", "24000"))
+MAX_SOURCE_CHARS = int(os.getenv("MAX_SOURCE_CHARS", "26000"))
 MAX_VIDEO_FRAMES = int(os.getenv("MAX_VIDEO_FRAMES", "8"))
+ANALYSIS_CACHE_TTL_SECONDS = int(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
+CACHE_PATH = BACKEND_DIR / "synapse_analysis_cache.json"
+CACHE_VERSION = "source_identity_mindmap_v16_brand_language_headings"
 
-app = FastAPI()
+app = FastAPI(title="Synapse Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -62,215 +82,125 @@ app.add_middleware(
 )
 
 stored_summary = ""
-stored_sections = {}
-stored_connections = []
-stored_brainstorm = {}
-CACHE_PATH = Path(__file__).with_name("synapse_analysis_cache.json")
-ANALYSIS_CACHE_TTL_SECONDS = int(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
+stored_sections: Dict[str, str] = {}
+stored_connections: List[dict] = []
+stored_mind_map: dict = {}
+stored_title = "Generated Study Notes"
+stored_source_identity = ""
 
+# -------------------------
+# Core prompts
+# -------------------------
 SYSTEM_PROMPT = """
-You are Synapse, an elite private academic tutor and source-faithful learning analyst.
+You are Synapse, a source-faithful academic tutor.
 
-You are not a generic summariser.
-Your job is to reconstruct the actual learning content from messy materials: uploaded files, pasted notes, webpage text, YouTube captions, audio transcripts, and sampled video frames.
+Brand rule: Synapse is a product name. Never translate Synapse into another language, including Chinese. Do not write 突触, 突觸, synapse-as-a-body-part, or any translated version when referring to the product name.
 
-Core behaviour:
-- Think like a careful human tutor who watched/read the material and is preparing revision notes for a student.
-- Prioritise accuracy to the source over sounding impressive.
-- Teach the student how to understand, calculate, verify, and avoid mistakes.
-- Use the source evidence: visible formulas, numbers, diagrams, examples, spoken corrections, repeated attempts, and screen/board content.
+You must reconstruct what the provided material ACTUALLY contains.
+You are not allowed to guess a different document, lesson, law, or topic.
 
-Strict source rules:
-- Never invent a topic, formula, example, or conclusion that is not supported by the source.
-- If the source is inaccessible, incomplete, visually unclear, or the transcript is weak, say exactly what is missing.
-- If evidence conflicts between transcript/audio and video frames, explain the uncertainty and prefer the clearer source evidence.
-- Do not replace a source example with a generic textbook example unless the source example cannot be read.
+Strict source identity rules:
+- First identify the source from explicit evidence only: title, heading, URL metadata, file name, visible text, transcript, or extracted content.
+- If the source is a webpage and metadata says a specific title, use that exact title.
+- If the source is a New Zealand legislation page, never substitute a different Act just because the year or act number looks familiar.
+- If the source identity is uncertain, say it is uncertain. Do not hallucinate.
+- If the same source appears again, keep the same identity and overall interpretation.
 
-Language rules:
-- Use the main language of the source.
-- If the source is Chinese or mixed Chinese-English, write mainly in Simplified Chinese and keep key terms in English in brackets.
-- If the source is English, write in English.
-
-Math / technical rules:
-- Use proper LaTeX notation.
-- Use \\( ... \\) for inline equations.
-- Use \\[ ... \\] for displayed equations.
-- Explain every formula in plain language after showing it.
-- Define variables before using them.
-- Show substitution, calculation, simplification, and verification.
-- Identify common student errors and explain how to prevent them.
-
-Quality standard:
-The final notes should feel like they were written by a strong private tutor after carefully watching the lesson, not like an AI guessing from a title.
+Teaching rules:
+- Be clear, concrete, and faithful to the source.
+- For maths or technical material, explain formulas, definitions, worked steps, and likely mistakes.
+- If material is inaccessible or partial, say exactly what is missing.
+- Use the source's main language unless the user requested otherwise.
 """
 
-ANALYSIS_INSTRUCTIONS = """
-Analyse the provided study materials as a private academic tutor.
+ANALYSIS_PROMPT = """
+Analyse the material as a private tutor and return markdown using EXACTLY this structure:
 
-Your task is NOT to produce a generic summary.
-Your task is to reconstruct the actual lesson/content from all available evidence:
-- transcript / captions
-- audio transcription
-- webpage text
-- uploaded files
-- images
-- sampled video frames
-
-Before writing the final notes, internally identify:
-1. What exact topic is being taught?
-2. What specific formulas, definitions, examples, diagrams, or numbers appear?
-3. What steps does the teacher/speaker follow?
-4. Are there mistakes, repeated calculations, corrections, or verification attempts?
-5. What would a confused student need explained?
-
-Do not mention this internal checklist in the final answer.
-
-Return markdown using this exact structure:
-
-# Synapse Summary
-Give a precise summary of what the source is actually teaching.
-Mention the exact concept, not just the subject area.
-If the source is a lesson/tutorial, state what skill the student is meant to learn.
+# Overview
+A precise summary of what the source is actually teaching or saying.
 
 ## Core Argument
-Explain the central purpose of the material in 2-4 clear sentences.
-For a lesson, explain the learning objective.
-For an argument-based text, explain the thesis.
-For a worked example, explain what problem is being solved.
+Explain the central purpose or learning objective in 2-4 clear sentences.
 
 ## Key Ideas
 List the most important concepts from the source.
-For each concept:
-- define it clearly
-- explain why it matters
-- connect it directly to source evidence
+For each concept, define it clearly and connect it to source evidence.
 
 ## Step-by-step Breakdown
-Reconstruct the teaching process from the source.
-If it is mathematical, show each step using correct notation.
-Do not skip intermediate steps.
-Use this style when relevant:
-1. Identify the given information.
-2. Select the formula.
-3. Substitute the values.
-4. Calculate carefully.
-5. Simplify the answer.
-6. Verify the result.
+Reconstruct the process, explanation, or reasoning in a logical order.
+If the material is mathematical or procedural, show each step carefully.
 
 ## Worked Example / Evidence From Source
-Use the actual example from the material.
-Include, where available:
-- given values
-- formula used
-- substitution
-- calculation
-- final answer
-- verification
-- visual/diagram evidence from frames
-- spoken correction or repeated attempt
-
-If the source contains an error, repeated calculation, or unclear working:
-- state what happened in the source
-- show the correct calculation
-- explain how to avoid the mistake
+Use the actual source example where possible.
+If the source contains an error or unclear working, say what happened and correct it.
 
 ## Tutor Explanation
-Teach the material as if the student is confused.
-Start simply, then deepen the explanation.
-Explain the "why" behind each step, not only the procedure.
-Use analogies only if they clarify the actual source content.
+Teach the material clearly as if the student is confused.
+Explain the why behind the steps.
 
 ## Common Mistakes
-List likely mistakes based on the material.
-For each mistake:
-- describe the mistake
-- explain why it is wrong
-- show the correct approach
+List realistic mistakes based on the source and explain the correct approach.
 
 ## Critical Thinking
-Give questions that push the student beyond memorisation.
-Include at least:
+Provide at least:
 - one conceptual question
 - one application question
 - one verification/checking question
 
-Mathematical formatting rules:
-- Use \\( ... \\) for inline formulas.
-- Use \\[ ... \\] for important equations or worked calculations.
-- After each displayed equation, explain in plain language what it means.
-- Avoid raw LaTeX that would be unreadable without rendering.
-
-Source reliability rules:
-- If video/audio/transcript/frame information is insufficient, say so clearly.
-- Never pretend inaccessible material was analysed.
-- Never produce a broad textbook summary unless the source itself is broad.
-- Prefer concrete source detail over polished generalisation.
-
-Output language:
-- If the source is mainly Chinese or mixed Chinese-English, write mainly in Simplified Chinese with key English academic terms in brackets.
-- Otherwise write in English.
+Important quality rules:
+- Do not invent a different source.
+- If source evidence is insufficient, say so clearly.
+- Follow the requested output language for the ENTIRE response, including all headings, explanations, examples, mistakes, and questions.
+- Never translate the brand/product name Synapse. Use Synapse exactly.
+- If Simplified Chinese is requested, write the whole response in Simplified Chinese, while keeping short key English terms in brackets only when useful.
+- If Traditional Chinese is requested, write the whole response in Traditional Chinese, while keeping short key English terms in brackets only when useful.
+- For mathematical notation in the main notes, use readable mathematical notation. Prefer MathJax-friendly LaTeX wrapped in \( ... \), e.g. \(\sqrt{76}\), \(\frac{a}{b}\), \(r'(t)=\langle 1,2,6t\rangle\). Do not write plain sqrt(76) in the main notes.
+- Do not replace the actual source with a generic textbook topic.
+- Keep the same source identity consistently throughout the whole answer.
+- Use concrete source details whenever available.
 """
 
+# -------------------------
+# Small helpers
+# -------------------------
+def has_openai() -> bool:
+    return bool(OPENAI_API_KEY and client is not None)
 
-def generate_chat(messages, model=CHAT_MODEL, temperature=0.45, max_tokens=4500):
-    if not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is missing. Add it to your .env file.")
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            messages=messages,
+def require_openai() -> None:
+    if not has_openai():
+        raise RuntimeError(
+            "OPENAI_API_KEY is missing. Create backend/.env and add OPENAI_API_KEY=your_key_here, then restart uvicorn."
         )
-    except Exception:
-        # If the user does not have access to the stronger model, fallback gracefully.
-        if model != "gpt-4o-mini":
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=temperature,
-                max_tokens=max_tokens,
-                messages=messages,
-            )
-        else:
-            raise
-
-    return response.choices[0].message.content or ""
 
 
-def extract_pdf(data: bytes) -> str:
-    reader = PdfReader(BytesIO(data))
-    text = ""
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
-    return text.strip()
+def sha256_text(value: str) -> str:
+    return hashlib.sha256((value or "").encode("utf-8", errors="ignore")).hexdigest()
 
 
-def extract_docx(data: bytes) -> str:
-    if Document is None:
-        return "DOCX support is not installed. Run: pip install python-docx"
-    document = Document(BytesIO(data))
-    paragraphs = [p.text for p in document.paragraphs if p.text.strip()]
-    return "\n".join(paragraphs).strip()
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data or b"").hexdigest()
 
 
-def extract_text_file(data: bytes) -> str:
-    return data.decode("utf-8", errors="ignore").strip()
+def normalise_space(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def truncate_text(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
+    text = text or ""
+    return text[:limit].strip()
 
 
 def clean_html(raw: str) -> str:
     raw = re.sub(r"<script[\s\S]*?</script>", " ", raw, flags=re.I)
     raw = re.sub(r"<style[\s\S]*?</style>", " ", raw, flags=re.I)
     raw = re.sub(r"<[^>]+>", " ", raw)
-    raw = re.sub(r"\s+", " ", raw)
-    return raw.strip()
+    return normalise_space(raw)
 
 
 def remove_urls_from_text(text: str) -> str:
     text = re.sub(r"https?://[^\s<>()]+", " ", text or "")
-    return re.sub(r"\s+", " ", text).strip()
+    return normalise_space(text)
 
 
 def image_part_from_bytes(data: bytes, content_type: str = "image/jpeg"):
@@ -279,6 +209,279 @@ def image_part_from_bytes(data: bytes, content_type: str = "image/jpeg"):
         "type": "image_url",
         "image_url": {"url": f"data:{content_type};base64,{encoded}"},
     }
+
+
+def extract_pdf(data: bytes) -> str:
+    reader = PdfReader(BytesIO(data))
+    pages = []
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        if page_text.strip():
+            pages.append(page_text.strip())
+    return "\n\n".join(pages).strip()
+
+
+def extract_docx(data: bytes) -> str:
+    if Document is None:
+        return "DOCX support is not installed. Run: pip install python-docx"
+    document = Document(BytesIO(data))
+    paragraphs = [p.text.strip() for p in document.paragraphs if p.text and p.text.strip()]
+    return "\n".join(paragraphs).strip()
+
+
+def extract_text_file(data: bytes) -> str:
+    return data.decode("utf-8", errors="ignore").strip()
+
+
+def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: float = 0, max_tokens: int = 4500) -> str:
+    require_openai()
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            messages=messages,
+        )
+    except Exception:
+        fallback_model = "gpt-4o-mini"
+        if model != fallback_model:
+            response = client.chat.completions.create(
+                model=fallback_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                messages=messages,
+            )
+        else:
+            raise
+    return response.choices[0].message.content or ""
+
+
+# -------------------------
+# URL / source identity helpers
+# -------------------------
+def canonicalize_url(url: str) -> Tuple[str, str]:
+    parsed = urlparse((url or "").strip())
+    scheme = parsed.scheme or "https"
+    netloc = parsed.netloc.lower()
+    path = re.sub(r"/+", "/", parsed.path or "/")
+
+    query_pairs = parse_qs(parsed.query, keep_blank_values=False)
+    drop_keys = {
+        "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+        "fbclid", "gclid", "active_tab", "spm", "igshid"
+    }
+    filtered_query = []
+    for key in sorted(query_pairs):
+        if key.lower() in drop_keys:
+            continue
+        for value in query_pairs[key]:
+            filtered_query.append((key, value))
+    query = urlencode(filtered_query)
+
+    canonical = urlunparse((scheme, netloc, path.rstrip("/") or "/", "", query, ""))
+
+    identity = canonical
+    if netloc.endswith("legislation.govt.nz"):
+        match = re.search(r"/act/public/(\d{4})/(\d+)", path)
+        if match:
+            identity = f"nzl_act:{match.group(1)}:{match.group(2)}"
+    return canonical, identity
+
+
+def detect_legislation_title(text: str) -> Optional[str]:
+    patterns = [
+        r"([A-Z][A-Za-z0-9'’(),/&\- ]+ Act \d{4})",
+        r"([A-Z][A-Za-z0-9'’(),/&\- ]+ Amendment Act \d{4})",
+        r"([A-Z][A-Za-z0-9'’(),/&\- ]+ Order \d{4})",
+        r"([A-Z][A-Za-z0-9'’(),/&\- ]+ Regulations \d{4})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text or "")
+        if match:
+            return normalise_space(match.group(1))
+    return None
+
+
+def detect_course_or_topic_title(text: str) -> Optional[str]:
+    patterns = [
+        r"\b(FINEARTS\s*\d{3,4}[A-Z]?(?:\s*[-–—:]\s*[^\n.,;:]{1,60})?)",
+        r"\b(WTRENG\s*\d{3,4}[A-Z]?(?:\s*[-–—:]\s*[^\n.,;:]{1,60})?)",
+        r"\b([A-Z]{2,}\s*\d{3,4}[A-Z]?(?:\s*[-–—:]\s*[^\n.,;:]{1,60})?)",
+        r"\b(Pythagorean Theorem)\b",
+        r"\b(Cross Product)\b",
+        r"\b(Curvature of Vector Function)\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text or "", flags=re.I)
+        if match:
+            return normalise_space(match.group(1))
+    return None
+
+
+def choose_best_source_title(candidates: List[str]) -> str:
+    cleaned = [normalise_space(c) for c in candidates if c and normalise_space(c)]
+    cleaned = [c for c in cleaned if len(c) >= 3]
+    if not cleaned:
+        return "Generated Study Notes"
+
+    for candidate in cleaned:
+        law = detect_legislation_title(candidate)
+        if law:
+            return law
+    for candidate in cleaned:
+        topic = detect_course_or_topic_title(candidate)
+        if topic:
+            return topic
+    for candidate in cleaned:
+        if len(candidate) <= 72:
+            return candidate
+    return cleaned[0][:72].strip()
+
+
+def extract_title_candidates_from_html(raw_html: str) -> List[str]:
+    results: List[str] = []
+    if BeautifulSoup is None:
+        title_match = re.search(r"<title>(.*?)</title>", raw_html or "", flags=re.I | re.S)
+        if title_match:
+            results.append(clean_html(title_match.group(1)))
+        h1_match = re.search(r"<h1[^>]*>(.*?)</h1>", raw_html or "", flags=re.I | re.S)
+        if h1_match:
+            results.append(clean_html(h1_match.group(1)))
+        return [r for r in results if r]
+
+    soup = BeautifulSoup(raw_html or "", "html.parser")
+    metas = [
+        soup.find("meta", attrs={"property": "og:title"}),
+        soup.find("meta", attrs={"name": "title"}),
+        soup.find("meta", attrs={"name": "dc.title"}),
+        soup.find("meta", attrs={"name": "DC.Title"}),
+    ]
+    for meta in metas:
+        if meta and meta.get("content"):
+            results.append(normalise_space(meta.get("content")))
+
+    if soup.title and soup.title.string:
+        results.append(normalise_space(soup.title.string))
+
+    for tag in soup.find_all(["h1", "h2"], limit=5):
+        text = normalise_space(tag.get_text(" ", strip=True))
+        if text:
+            results.append(text)
+    return [r for r in results if r]
+
+
+def extract_main_html_text(raw_html: str) -> str:
+    if BeautifulSoup is None:
+        return clean_html(raw_html)
+
+    soup = BeautifulSoup(raw_html or "", "html.parser")
+
+    for tag in soup(["script", "style", "noscript", "svg", "form"]):
+        tag.decompose()
+
+    for selector in [
+        "nav", "header", "footer", "aside", ".sidebar", ".breadcrumb", ".search", ".toolbar", ".menu", ".related",
+    ]:
+        for tag in soup.select(selector):
+            tag.decompose()
+
+    selectors = [
+        "#legislation-content",
+        ".legislation-content",
+        "main",
+        "article",
+        "[role='main']",
+        "#content",
+        ".content",
+        ".main-content",
+        ".article-content",
+        ".entry-content",
+    ]
+
+    chunks = []
+    for selector in selectors:
+        for tag in soup.select(selector):
+            text = normalise_space(tag.get_text(" ", strip=True))
+            if len(text) > 300:
+                chunks.append(text)
+        if chunks:
+            break
+
+    if not chunks:
+        body = soup.body or soup
+        body_text = normalise_space(body.get_text(" ", strip=True))
+        if body_text:
+            chunks.append(body_text)
+
+    seen = set()
+    unique_chunks = []
+    for chunk in chunks:
+        key = chunk[:500]
+        if key not in seen:
+            seen.add(key)
+            unique_chunks.append(chunk)
+
+    text = "\n\n".join(unique_chunks)
+    return text.strip()
+
+
+
+def urlopen_bytes(request_or_url, timeout: int = 20, max_bytes: Optional[int] = None) -> bytes:
+    """Fetch URL bytes with certifi SSL support and a clear fallback.
+    This fixes macOS/Python CERTIFICATE_VERIFY_FAILED issues while still trying
+    normal certificate verification first.
+    """
+    contexts = []
+    if certifi is not None:
+        try:
+            contexts.append(ssl.create_default_context(cafile=certifi.where()))
+        except Exception:
+            pass
+    try:
+        contexts.append(ssl.create_default_context())
+    except Exception:
+        pass
+
+    last_error = None
+    for context in contexts or [None]:
+        try:
+            kwargs = {"timeout": timeout}
+            if context is not None:
+                kwargs["context"] = context
+            with urllib.request.urlopen(request_or_url, **kwargs) as response:
+                return response.read(max_bytes) if max_bytes else response.read()
+        except Exception as error:
+            last_error = error
+
+    raise last_error or RuntimeError("Failed to fetch URL")
+
+
+def fetch_webpage(url: str) -> Tuple[str, dict]:
+    canonical_url, base_identity = canonicalize_url(url)
+    req = urllib.request.Request(canonical_url, headers={"User-Agent": "Mozilla/5.0"})
+    raw_bytes = urlopen_bytes(req, timeout=20, max_bytes=900000)
+    raw_html = raw_bytes.decode("utf-8", errors="ignore")
+
+    title_candidates = extract_title_candidates_from_html(raw_html)
+    main_text = extract_main_html_text(raw_html)
+    combined_title_text = " | ".join(title_candidates)
+
+    detected_title = detect_legislation_title(combined_title_text) or detect_legislation_title(main_text[:5000])
+    if not detected_title:
+        detected_title = choose_best_source_title(title_candidates)
+
+    source_identity = base_identity
+    if base_identity.startswith("nzl_act:") and detected_title and detected_title != "Generated Study Notes":
+        source_identity = f"{base_identity}:{detected_title}"
+
+    metadata = {
+        "url": canonical_url,
+        "source_identity": source_identity,
+        "detected_title": detected_title,
+        "title_candidates": title_candidates[:6],
+        "content_hash": sha256_text(main_text[:40000]),
+    }
+    return main_text, metadata
 
 
 def get_youtube_video_id(url: str) -> Optional[str]:
@@ -299,7 +502,6 @@ def get_youtube_video_id(url: str) -> Optional[str]:
 
 
 def transcript_item_text(item) -> str:
-    """youtube-transcript-api returns dicts in some versions and objects in others."""
     if isinstance(item, dict):
         return item.get("text", "") or ""
     return getattr(item, "text", "") or ""
@@ -307,10 +509,7 @@ def transcript_item_text(item) -> str:
 
 def fetch_youtube_caption_transcript(url: str) -> str:
     video_id = get_youtube_video_id(url)
-    if not video_id:
-        return ""
-
-    if YouTubeTranscriptApi is None:
+    if not video_id or YouTubeTranscriptApi is None:
         return ""
 
     preferred_languages = [
@@ -320,7 +519,6 @@ def fetch_youtube_caption_transcript(url: str) -> str:
 
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-
         transcript = None
         for finder in (
             lambda: transcript_list.find_transcript(preferred_languages),
@@ -331,13 +529,8 @@ def fetch_youtube_caption_transcript(url: str) -> str:
                 break
             except Exception:
                 pass
-
         if transcript is None:
-            try:
-                transcript = next(iter(transcript_list))
-            except Exception:
-                return ""
-
+            transcript = next(iter(transcript_list))
         fetched = transcript.fetch()
         lines = [transcript_item_text(item).strip() for item in fetched]
         return "\n".join(line for line in lines if line)
@@ -346,42 +539,35 @@ def fetch_youtube_caption_transcript(url: str) -> str:
 
 
 def transcribe_media_bytes(filename: str, data: bytes) -> str:
+    require_openai()
     if not data:
         return "No audio/video data was provided."
-
     if len(data) > MAX_AUDIO_BYTES:
         size_mb = len(data) / (1024 * 1024)
         limit_mb = MAX_AUDIO_BYTES / (1024 * 1024)
         return (
             f"The audio/video file is too large to transcribe directly ({size_mb:.1f}MB). "
-            f"The current limit is about {limit_mb:.0f}MB. Upload a shorter clip, compressed audio, or paste the transcript."
+            f"The current limit is about {limit_mb:.0f}MB. Upload a shorter clip or paste the transcript."
         )
 
     suffix = Path(filename or "audio.webm").suffix or ".webm"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
         temp_file.write(data)
         temp_path = temp_file.name
-
     try:
         with open(temp_path, "rb") as audio_file:
             try:
                 result = client.audio.transcriptions.create(
                     model=TRANSCRIBE_MODEL,
                     file=audio_file,
-                    prompt=(
-                        "This is an academic lecture/tutorial. Preserve numbers, formulas, "
-                        "math terms, Chinese/English mixed speech, corrections, and calculation steps."
-                    ),
+                    prompt="Academic tutorial or lecture. Preserve formulas, numbers, mixed Chinese-English, and correction steps.",
                 )
             except Exception:
                 audio_file.seek(0)
                 result = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    prompt=(
-                        "Academic lecture/tutorial with possible Chinese and English. "
-                        "Preserve numbers, formulas, and calculation steps."
-                    ),
+                    prompt="Academic lecture/tutorial. Preserve formulas and numbers.",
                 )
         return getattr(result, "text", str(result)).strip()
     finally:
@@ -394,23 +580,20 @@ def transcribe_media_bytes(filename: str, data: bytes) -> str:
 def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_FRAMES) -> List[dict]:
     if cv2 is None:
         return []
-
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         return []
-
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     if frame_count <= 0:
         cap.release()
         return []
 
-    # Skip the first/last few frames because they are often intro/outro.
     if max_frames <= 1:
         indices = [frame_count // 2]
     else:
-        start = int(frame_count * 0.08)
-        end = int(frame_count * 0.92)
-        step = max(1, (end - start) // (max_frames - 1))
+        start = int(frame_count * 0.1)
+        end = int(frame_count * 0.9)
+        step = max(1, (end - start) // max(1, max_frames - 1))
         indices = [min(frame_count - 1, start + i * step) for i in range(max_frames)]
 
     parts = []
@@ -419,18 +602,14 @@ def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_
         ok, frame = cap.read()
         if not ok or frame is None:
             continue
-
-        # Resize large frames to reduce request size while keeping equations readable.
         height, width = frame.shape[:2]
         max_side = 1200
         scale = min(1.0, max_side / max(width, height))
         if scale < 1.0:
             frame = cv2.resize(frame, (int(width * scale), int(height * scale)))
-
         ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
         if ok:
             parts.append(image_part_from_bytes(buffer.tobytes(), "image/jpeg"))
-
     cap.release()
     return parts
 
@@ -438,10 +617,8 @@ def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_
 def download_youtube_media(url: str) -> Optional[str]:
     if yt_dlp is None:
         return None
-
     temp_dir = tempfile.mkdtemp(prefix="synapse_yt_")
     output_template = os.path.join(temp_dir, "%(id)s.%(ext)s")
-
     ydl_opts = {
         "format": "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best",
         "outtmpl": output_template,
@@ -451,35 +628,26 @@ def download_youtube_media(url: str) -> Optional[str]:
         "max_filesize": MAX_VIDEO_BYTES,
         "merge_output_format": "mp4",
     }
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             downloaded = ydl.prepare_filename(info)
     except Exception:
         return None
-
     candidates = [downloaded]
     candidates.extend(str(path) for path in Path(temp_dir).glob("*"))
-    media_path = next((path for path in candidates if os.path.exists(path) and os.path.getsize(path) > 0), None)
-    return media_path
+    return next((path for path in candidates if os.path.exists(path) and os.path.getsize(path) > 0), None)
 
 
-def analyse_youtube_url(url: str) -> Tuple[str, List[dict]]:
-    """Return transcript text plus sampled video frame image parts."""
+def analyse_youtube_url(url: str) -> Tuple[str, List[dict], dict]:
     transcript = fetch_youtube_caption_transcript(url)
     frame_parts: List[dict] = []
-
     media_path = None
-    # Even if captions exist, frames help with equations/diagrams that are not spoken aloud.
     if yt_dlp is not None or not transcript:
         media_path = download_youtube_media(url)
-
     if media_path:
         frame_parts = extract_video_frames_from_file(media_path)
-
-        # If captions are missing or too thin, transcribe audio from the downloaded media.
-        if len(transcript.strip()) < 500:
+        if len(transcript.strip()) < 500 and has_openai():
             try:
                 with open(media_path, "rb") as media_file:
                     media_bytes = media_file.read(MAX_AUDIO_BYTES + 1)
@@ -488,135 +656,25 @@ def analyse_youtube_url(url: str) -> Tuple[str, List[dict]]:
                     transcript = transcribed
             except Exception:
                 pass
-
     if not transcript:
-        transcript = (
-            "No readable YouTube captions/transcript could be accessed, and audio fallback did not produce a transcript. "
-            "Use the sampled video frames if available; otherwise ask the user to upload the video/audio or paste the transcript."
-        )
-
-    return transcript, frame_parts
-
-
-def looks_like_direct_media_url(url: str) -> bool:
-    lower_url = url.lower().split("?")[0]
-    return lower_url.endswith((".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv", ".mp3", ".m4a", ".wav"))
+        transcript = "No readable YouTube transcript could be accessed."
+    video_id = get_youtube_video_id(url) or "unknown"
+    meta = {
+        "url": url,
+        "source_identity": f"youtube:{video_id}",
+        "detected_title": f"YouTube video {video_id}",
+        "content_hash": sha256_text(transcript),
+    }
+    return transcript, frame_parts, meta
 
 
-def download_direct_media(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=20) as response:
-        return response.read(MAX_VIDEO_BYTES + 1)
-
-
-def link_to_content_parts(url: str) -> List[dict]:
-    parts: List[dict] = []
-
-    if get_youtube_video_id(url):
-        transcript, frame_parts = analyse_youtube_url(url)
-        parts.append({
-            "type": "text",
-            "text": (
-                f"\n\nSOURCE YOUTUBE VIDEO: {url}\n"
-                f"TRANSCRIPT / AUDIO NOTES:\n{transcript[:MAX_SOURCE_CHARS]}\n\n"
-                f"VIDEO FRAME NOTE: {len(frame_parts)} sampled frames are attached after this text. Use them to read visual equations/diagrams."
-            ),
-        })
-        parts.extend(frame_parts)
-        return parts
-
-    if looks_like_direct_media_url(url):
-        try:
-            data = download_direct_media(url)
-            transcript = transcribe_media_bytes(Path(urlparse(url).path).name or "linked-media", data)
-            parts.append({
-                "type": "text",
-                "text": f"\n\nSOURCE AUDIO/VIDEO LINK: {url}\nTRANSCRIPT:\n{transcript[:MAX_SOURCE_CHARS]}",
-            })
-            return parts
-        except Exception as error:
-            return [{
-                "type": "text",
-                "text": (
-                    f"\n\nSOURCE MEDIA LINK: {url}\n"
-                    f"Synapse could not download/transcribe this direct media link: {error}. "
-                    "Ask the user to upload the video/audio file or paste the transcript."
-                ),
-            }]
-
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            raw = response.read(100000).decode("utf-8", errors="ignore")
-        text = clean_html(raw)[:12000]
-        if not text:
-            text = "No readable text was found on this webpage."
-        return [{"type": "text", "text": f"\n\nSOURCE WEBPAGE: {url}\n{text}"}]
-    except Exception as error:
-        return [{"type": "text", "text": f"\n\nSOURCE WEBPAGE: {url}\nCould not fetch link: {error}"}]
-
-
-def file_to_content_parts(name: str, content_type: str, data: bytes) -> List[dict]:
-    lower_name = (name or "").lower()
-
-    if content_type and content_type.startswith("image/"):
-        return [image_part_from_bytes(data, content_type)]
-
-    is_audio_video = (
-        (content_type and (content_type.startswith("audio/") or content_type.startswith("video/")))
-        or lower_name.endswith((".mp3", ".m4a", ".wav", ".webm", ".mp4", ".mov", ".m4v"))
-    )
-
-    source_label = "SOURCE FILE"
-    frame_parts: List[dict] = []
-
-    if is_audio_video:
-        text = transcribe_media_bytes(name, data)
-        source_label = "SOURCE AUDIO/VIDEO FILE"
-
-        # For uploaded videos, also sample frames so visible formulas/diagrams are not lost.
-        if lower_name.endswith((".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv")):
-            suffix = Path(name or "video.mp4").suffix or ".mp4"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-                temp_file.write(data)
-                temp_path = temp_file.name
-            try:
-                frame_parts = extract_video_frames_from_file(temp_path)
-            finally:
-                try:
-                    os.remove(temp_path)
-                except OSError:
-                    pass
-    elif lower_name.endswith(".pdf") or content_type == "application/pdf":
-        text = extract_pdf(data)
-    elif lower_name.endswith(".docx"):
-        text = extract_docx(data)
-    else:
-        text = extract_text_file(data)
-
-    if not text:
-        text = "No readable text was extracted from this file."
-
-    parts = [{"type": "text", "text": f"\n\n{source_label}: {name}\n{text[:MAX_SOURCE_CHARS]}"}]
-    if frame_parts:
-        parts.append({"type": "text", "text": f"\n\nVIDEO FRAME NOTE: {len(frame_parts)} sampled frames are attached. Use them to read visual equations/diagrams."})
-        parts.extend(frame_parts)
-    return parts
-
-
-def sha256_text(value: str) -> str:
-    return hashlib.sha256((value or "").encode("utf-8", errors="ignore")).hexdigest()
-
-
-def sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data or b"").hexdigest()
-
-
+# -------------------------
+# Cache helpers
+# -------------------------
 def load_analysis_cache() -> dict:
     try:
         if CACHE_PATH.exists():
-            with open(CACHE_PATH, "r", encoding="utf-8") as file:
-                return json.load(file)
+            return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
     except Exception:
         pass
     return {}
@@ -629,8 +687,7 @@ def save_analysis_cache(cache: dict) -> None:
             key: value for key, value in cache.items()
             if now - float(value.get("created_at", now)) <= ANALYSIS_CACHE_TTL_SECONDS
         }
-        with open(CACHE_PATH, "w", encoding="utf-8") as file:
-            json.dump(cleaned, file, ensure_ascii=False, indent=2)
+        CACHE_PATH.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         pass
 
@@ -657,65 +714,782 @@ def cache_set(fingerprint: str, result: dict) -> None:
     save_analysis_cache(cache)
 
 
-def make_source_fingerprint(parts: List[str]) -> str:
-    normalised = "||".join(str(part or "").strip() for part in parts)
-    return sha256_text(normalised)
+# -------------------------
+# Parsing / title / mind map helpers
+# -------------------------
+def parse_sections(summary: str) -> Dict[str, str]:
+    """
+    Parse both # and ## headings so the first heading can be localised.
+    This fixes the old issue where the first navigation item stayed as English "Overview"
+    when the selected output language was not English.
+    """
+    sections: Dict[str, str] = {}
+    current_heading = "Overview"
+    current_content: List[str] = []
+    heading_seen = False
+
+    for raw_line in (summary or "").split("\n"):
+        line = raw_line.rstrip()
+        heading_match = re.match(r"^#{1,3}\s+(.+?)\s*$", line)
+
+        if heading_match:
+            heading = normalise_space(heading_match.group(1))
+            heading = heading.strip("# ").strip()
+            # Ignore empty headings and accidental markdown titles that are too long.
+            if heading and len(heading) <= 90:
+                if current_content:
+                    sections[current_heading] = "\n".join(current_content).strip()
+                elif heading_seen and current_heading not in sections:
+                    sections[current_heading] = ""
+                current_heading = heading
+                current_content = []
+                heading_seen = True
+                continue
+
+        current_content.append(line)
+
+    if current_content:
+        sections[current_heading] = "\n".join(current_content).strip()
+
+    return {key: value for key, value in sections.items() if value.strip()}
 
 
-def normalise_title_text(value: str) -> str:
-    text = re.sub(r"```[\s\S]*?```", " ", value or "")
-    text = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", text)
-    text = re.sub(r"[#*_`]", "", text)
-    text = re.sub(r"\\\[|\\\]|\\\(|\\\)", " ", text)
-    text = re.sub(r"^\s*Synapse Summary[:\s-]*", "", text, flags=re.I)
-    text = re.sub(r"^\s*Summary[:\s-]*", "", text, flags=re.I)
-    return re.sub(r"\s+", " ", text).strip()
+
+def clean_mindmap_text(text: str) -> str:
+    """Clean markdown / LaTeX-ish text so the visual mind map stays readable."""
+    if not text:
+        return ""
+    value = str(text)
+
+    # Remove markdown wrappers first.
+    value = re.sub(r"```[\s\S]*?```", " ", value)
+    value = re.sub(r"`([^`]*)`", r"\1", value)
+    value = re.sub(r"\*\*([^*]+)\*\*", r"\1", value)
+    value = re.sub(r"__([^_]+)__", r"\1", value)
+    value = re.sub(r"\*([^*]+)\*", r"\1", value)
+
+    # Remove common LaTeX math delimiters.
+    value = re.sub(r"\$\$([\s\S]*?)\$\$", r"\1", value)
+    value = re.sub(r"\$([^$]+)\$", r"\1", value)
+    value = value.replace(r"\(", "").replace(r"\)", "")
+    value = value.replace(r"\[", "").replace(r"\]", "")
+
+    # Convert readable LaTeX constructs before stripping slashes.
+    value = re.sub(r"\\(?:mathbf|mathrm|mathbb|mathit|textbf|textit)\{([^{}]*)\}", r"\1", value)
+    value = re.sub(r"\\sqrt\{([^{}]+)\}", r"√(\1)", value)
+    value = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", value)
+    value = re.sub(r"([A-Za-z0-9\)])\^\{([^{}]+)\}", r"\1^\2", value)
+    value = re.sub(r"([A-Za-z0-9\)])\^([A-Za-z0-9])", r"\1^\2", value)
+
+    replacements = {
+        r"\left": "",
+        r"\right": "",
+        r"\langle": "<",
+        r"\rangle": ">",
+        r"\times": "×",
+        r"\cdot": "·",
+        r"\to": "→",
+        r"\le": "≤",
+        r"\ge": "≥",
+        r"\neq": "≠",
+        r"\approx": "≈",
+        r"\infty": "∞",
+        r"\theta": "θ",
+        r"\alpha": "α",
+        r"\beta": "β",
+        r"\gamma": "γ",
+        r"\Delta": "Δ",
+        r"\nabla": "∇",
+    }
+    for old, new in replacements.items():
+        value = value.replace(old, new)
+
+    # Remove remaining LaTeX command words, but preserve the content around them.
+    value = re.sub(r"\\[a-zA-Z]+", "", value)
+    value = value.replace("{", "").replace("}", "")
+    value = value.replace("\\", "")
+
+    value = re.sub(r"\s+", " ", value)
+    value = value.strip(" -•*\t\n")
+    value = value.replace(" **", "").replace("**", "")
+    return value.strip()
 
 
-def clean_title(title: str, fallback: str = "Generated Study Notes") -> str:
-    cleaned = normalise_title_text(title)
-    cleaned = re.sub(r"^(that|the|this|source material|material|document|lesson|video|workshop|case study)\s+", "", cleaned, flags=re.I)
-    cleaned = re.sub(r"^(how to|understanding how to|understanding|to demonstrate how to|demonstrate how to)\s+", "", cleaned, flags=re.I)
-    cleaned = re.sub(r"\s+(which|that|because|where|while|through|by|including|with)\s+.*$", "", cleaned, flags=re.I)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,:;–—-")
-    if not cleaned:
-        return fallback
-    words = cleaned.split()
-    title = " ".join(words[:7]).strip(" ,:;–—-")
-    if re.match(r"^(to|how|appears|related|based|source|material|document)\b", title, flags=re.I) and len(words) > 7:
-        title = " ".join(words[1:8]).strip(" ,:;–—-")
-    return title[:58].rstrip(" ,:;–—-") or fallback
+def short_mindmap_text(text: str, limit: int = 70) -> str:
+    value = clean_mindmap_text(text)
+    if len(value) <= limit:
+        return value
+    return value[: limit - 1].rstrip(" ,;:") + "…"
 
 
-def make_notes_title(summary: str, source_names: List[str]) -> str:
-    source_text = " ".join(source_names or [])
-    combined = normalise_title_text(f"{source_text} {summary or ''}")
+def first_good_sentence(text: str, limit: int = 190) -> str:
+    value = clean_mindmap_text(text)
+    sentences = re.split(r"(?<=[.!?。！？])\s+", value)
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) >= 12:
+            return short_mindmap_text(sentence, limit)
+    return short_mindmap_text(value, limit)
 
-    explicit_patterns = [
-        r"\b(FINEARTS\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})",
-        r"\b(WTRENG\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})",
-        r"\b([A-Z]{2,}\s*\d{3,4}[A-Z]?\s*[-–—:]?\s*[^.\n,;:]{0,55})",
-        r"\b([A-Z][A-Za-z\s]+ Act\s+\d{4})\b",
-        r"\b(Zero Carbon Act|Privacy Act|Resource Management Act|GDPR|Legislation Act\s+\d{4})\b",
-        r"\b(Pythagorean Theorem|Curvature of Vector Function|Cross Product|Infant Incubator|AI-powered|AI powered)[^.\n,;:]*",
+
+def extract_branch_items(section_text: str, max_points: int = 5) -> List[dict]:
+    """
+    Fallback structured mind-map point extractor.
+    Returns point objects instead of raw strings so the frontend can display clean labels + details.
+    """
+    if not section_text:
+        return []
+
+    lines = [line.strip() for line in str(section_text).splitlines() if line.strip()]
+    items: List[dict] = []
+    current: Optional[dict] = None
+
+    def push_current() -> None:
+        nonlocal current
+        if not current:
+            return
+        label = short_mindmap_text(current.get("label") or current.get("detail") or "", 58)
+        detail = short_mindmap_text(current.get("detail") or current.get("label") or "", 260)
+        if label:
+            items.append({
+                "id": sha256_text(label + detail)[:10],
+                "label": label,
+                "detail": detail,
+            })
+        current = None
+
+    for raw in lines:
+        line = clean_mindmap_text(raw)
+        if not line or line.startswith("#"):
+            continue
+
+        line = re.sub(r"^[\-•*]\s*", "", line).strip()
+        numbered = re.match(r"^\d+[.)]\s*(.+)$", line)
+        heading_like = line.endswith((":", "：")) and len(line) < 95
+        formula_like = any(token in raw for token in ["\\", "=", "^", "_", "sqrt", "frac", "√"])
+
+        if numbered:
+            push_current()
+            content = numbered.group(1).strip()
+            current = {"label": content, "detail": content}
+            continue
+
+        if heading_like:
+            push_current()
+            content = line[:-1].strip()
+            current = {"label": content, "detail": content}
+            continue
+
+        if current:
+            if formula_like or len(line) < 130:
+                current["detail"] = (current.get("detail", "") + " " + line).strip()
+            else:
+                push_current()
+                current = {"label": line, "detail": line}
+        else:
+            current = {"label": line, "detail": line}
+
+        if len(items) >= max_points:
+            break
+
+    push_current()
+
+    if not items:
+        value = clean_mindmap_text(section_text)
+        for sentence in re.split(r"(?<=[.!?。！？])\s+", value):
+            sentence = sentence.strip()
+            if len(sentence) < 10:
+                continue
+            items.append({
+                "id": sha256_text(sentence)[:10],
+                "label": short_mindmap_text(sentence, 58),
+                "detail": short_mindmap_text(sentence, 260),
+            })
+            if len(items) >= max_points:
+                break
+
+    return items[:max_points]
+
+
+def generate_connections_from_sections(sections: Dict[str, str]) -> List[dict]:
+    order = [
+        ("Overview", "Core Argument", "frames"),
+        ("Core Argument", "Key Ideas", "introduces concepts for"),
+        ("Key Ideas", "Step-by-step Breakdown", "becomes the process in"),
+        ("Step-by-step Breakdown", "Worked Example / Evidence From Source", "is applied in"),
+        ("Worked Example / Evidence From Source", "Common Mistakes", "highlights errors checked in"),
+        ("Common Mistakes", "Critical Thinking", "prepares the student for"),
     ]
-    for pattern in explicit_patterns:
-        match = re.search(pattern, combined, flags=re.I)
-        if match:
-            return clean_title(match.group(1))
+    results = []
+    for source, target, label in order:
+        if source in sections and target in sections:
+            results.append({
+                "from": source,
+                "to": target,
+                "label": label,
+                "description": f"{source} naturally leads into {target} in the study flow.",
+            })
+    if results:
+        return results
 
-    topic_patterns = [
+    keys = list(sections.keys())
+    for i in range(min(len(keys) - 1, 5)):
+        results.append({
+            "from": keys[i],
+            "to": keys[i + 1],
+            "label": "connects to",
+            "description": f"{keys[i]} connects to {keys[i + 1]} in the notes.",
+        })
+    return results
+
+
+def generate_mind_map(title: str, sections: Dict[str, str]) -> dict:
+    """Rule-based fallback mind map; AI map generator can refine this."""
+    preferred_order = [
+        "Overview",
+        "Core Argument",
+        "Key Ideas",
+        "Step-by-step Breakdown",
+        "Worked Example / Evidence From Source",
+        "Common Mistakes",
+        "Critical Thinking",
+    ]
+    ordered_names = [name for name in preferred_order if name in sections]
+    ordered_names += [name for name in sections.keys() if name not in ordered_names]
+
+    branches = []
+    for section_name in ordered_names[:6]:
+        section_text = sections.get(section_name, "")
+        label = "Summary" if section_name == "Overview" else section_name
+        branches.append({
+            "id": sha256_text(section_name)[:10],
+            "label": short_mindmap_text(label, 48),
+            "section": section_name,
+            "summary": first_good_sentence(section_text, 190),
+            "points": extract_branch_items(section_text, max_points=5),
+        })
+
+    center_title = short_mindmap_text(title or "Study Notes", 80) or "Study Notes"
+    return {"center": center_title, "branches": branches}
+
+
+def extract_json_object(text: str) -> Optional[dict]:
+    if not text:
+        return None
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        parsed = json.loads(cleaned)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        pass
+
+    match = re.search(r"\{[\s\S]*\}", cleaned)
+    if match:
+        try:
+            parsed = json.loads(match.group(0))
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+    return None
+
+
+def normalise_ai_mind_map(raw_map: dict, fallback_map: dict) -> dict:
+    if not isinstance(raw_map, dict):
+        return fallback_map
+
+    center = short_mindmap_text(raw_map.get("center") or fallback_map.get("center") or "Study Notes", 80)
+    raw_branches = raw_map.get("branches") if isinstance(raw_map.get("branches"), list) else []
+    fallback_branches = fallback_map.get("branches", []) or []
+    fallback_by_section = {b.get("section"): b for b in fallback_branches}
+
+    branches: List[dict] = []
+    for index, branch in enumerate(raw_branches[:6]):
+        if not isinstance(branch, dict):
+            continue
+        section = clean_mindmap_text(branch.get("section") or branch.get("label") or "")
+        fallback_branch = fallback_by_section.get(section) or (fallback_branches[min(index, len(fallback_branches) - 1)] if fallback_branches else {})
+        label = short_mindmap_text(branch.get("label") or fallback_branch.get("label") or section or f"Branch {index + 1}", 48)
+        summary = short_mindmap_text(branch.get("summary") or fallback_branch.get("summary") or "", 190)
+
+        raw_points = branch.get("points") if isinstance(branch.get("points"), list) else []
+        points: List[dict] = []
+        for point in raw_points[:5]:
+            if isinstance(point, str):
+                label_text = point
+                detail_text = point
+            elif isinstance(point, dict):
+                label_text = point.get("label") or point.get("title") or point.get("text") or point.get("detail") or ""
+                detail_text = point.get("detail") or point.get("explanation") or point.get("text") or label_text
+            else:
+                continue
+            label_clean = short_mindmap_text(label_text, 58)
+            detail_clean = short_mindmap_text(detail_text, 260)
+            if label_clean:
+                points.append({
+                    "id": sha256_text(section + label_clean + detail_clean)[:10],
+                    "label": label_clean,
+                    "detail": detail_clean or label_clean,
+                })
+        if not points:
+            points = fallback_branch.get("points", [])[:5]
+
+        branches.append({
+            "id": sha256_text(section or label)[:10],
+            "label": label,
+            "section": section or fallback_branch.get("section") or label,
+            "summary": summary,
+            "points": points,
+        })
+
+    if not branches:
+        return fallback_map
+    return {"center": center, "branches": branches}
+
+
+def generate_ai_mind_map(title: str, sections: Dict[str, str], preferred_language: str = "auto") -> dict:
+    """
+    Ask the model to design a visual mind map specifically.
+    Falls back to a deterministic rule-based map if the model output is invalid.
+    """
+    fallback = generate_mind_map(title, sections)
+    if not sections:
+        return fallback
+
+    compact_sections = []
+    for name, content in list(sections.items())[:7]:
+        compact_sections.append(f"SECTION: {name}\n{truncate_text(content, 1200)}")
+
+    language_instruction = language_instruction_for(preferred_language)
+
+    prompt = f"""
+Create a visual mind map JSON for a study app.
+{language_instruction}
+
+Important design rules:
+- Do NOT copy long paragraphs directly.
+- Make the center title readable and specific.
+- Use 4 to 6 main branches only.
+- Each branch should have 3 to 5 short points.
+- Each point needs a short label and a useful detail sentence.
+- For math/technical content, DO NOT output Markdown bold, raw LaTeX, or escaped delimiters like \( ... \).
+- Convert formulas into readable plain text, for example: r'(t)=<1,2,6t>, √(180)=6√(5), curvature k = |r'×r''| / |r'|^3. Never write plain sqrt(180).
+- Point labels must be human-readable phrase titles in the selected language, not raw formulas. Put formulas in detail only when needed.
+- Branch labels, point labels, summaries, and details must follow the selected language.
+- Never translate the brand name Synapse. If you need a summary branch, use the selected-language equivalent of Overview/Summary, not a translation of Synapse.
+- The map should be simple first, then expandable by clicking points.
+- Return JSON only. No markdown.
+
+JSON schema:
+{{
+  "center": "specific readable topic title",
+  "branches": [
+    {{
+      "label": "short branch title",
+      "section": "matching section name from notes",
+      "summary": "one sentence branch summary",
+      "points": [
+        {{"label": "short point", "detail": "more detail shown after clicking"}}
+      ]
+    }}
+  ]
+}}
+
+Current note title: {title}
+
+Notes:
+{chr(10).join(compact_sections)}
+"""
+    try:
+        raw = generate_chat([
+            {"role": "system", "content": "You create accurate, compact, visual study mind maps as strict JSON. Never use markdown bold or raw LaTeX in mind map labels. Never translate the brand name Synapse."},
+            {"role": "user", "content": prompt},
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=2200)
+        parsed = extract_json_object(raw)
+        return normalise_ai_mind_map(parsed or {}, fallback)
+    except Exception:
+        return fallback
+
+
+def make_notes_title(summary: str, source_title_candidates: List[str]) -> str:
+    picked = choose_best_source_title(source_title_candidates)
+    if picked != "Generated Study Notes":
+        return picked
+
+    text = normalise_space(summary)
+    for pattern in [
         r"(?:source material|material|document|lesson|video|workshop|case study)\s+(?:is|was|appears to be|focuses on|examines|explores|discusses|covers|teaches|is related to)\s+(?:a|an|the)?\s*([^.;\n]{10,110})",
         r"(?:focuses on|examines|explores|discusses|covers|teaches|demonstrates|shows)\s+(?:how to\s+)?(?:a|an|the)?\s*([^.;\n]{10,110})",
-        r"(?:about|on)\s+(?:a|an|the)?\s*([^.;\n]{10,90})",
-    ]
-    for pattern in topic_patterns:
-        match = re.search(pattern, combined, flags=re.I)
+    ]:
+        match = re.search(pattern, text, flags=re.I)
         if match:
-            return clean_title(match.group(1))
+            return match.group(1).strip()[:72]
+    first_sentence = next((part.strip() for part in re.split(r"[.!?。！？]", text) if len(part.strip()) > 8), "")
+    return first_sentence[:72] if first_sentence else "Generated Study Notes"
 
-    first = next((part.strip() for part in re.split(r"[.!?。！？]", combined) if len(part.strip()) > 10), "")
-    return clean_title(first)
+
+# -------------------------
+# Source-unit builders
+# -------------------------
+def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List[dict], dict]:
+    lower_name = (name or "").lower()
+    parts: List[dict] = []
+    source_meta = {
+        "display_name": name or "uploaded file",
+        "source_identity": f"file:{sha256_bytes(data)}",
+        "title_candidate": name or "uploaded file",
+        "content_hash": sha256_bytes(data),
+    }
+
+    if content_type and content_type.startswith("image/"):
+        parts.append({
+            "type": "text",
+            "text": f"\n\nSOURCE FILE: {name}\nThis is an uploaded image. Use the attached image as primary evidence.",
+        })
+        parts.append(image_part_from_bytes(data, content_type))
+        return parts, source_meta
+
+    is_audio_video = (
+        (content_type and (content_type.startswith("audio/") or content_type.startswith("video/")))
+        or lower_name.endswith((".mp3", ".m4a", ".wav", ".webm", ".mp4", ".mov", ".m4v", ".avi", ".mkv"))
+    )
+
+    frame_parts: List[dict] = []
+    if is_audio_video:
+        transcript = transcribe_media_bytes(name, data) if has_openai() else "Audio/video transcription requires a valid OPENAI_API_KEY."
+        text = transcript
+        if lower_name.endswith((".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv")):
+            suffix = Path(name or "video.mp4").suffix or ".mp4"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                temp_file.write(data)
+                temp_path = temp_file.name
+            try:
+                frame_parts = extract_video_frames_from_file(temp_path)
+            finally:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+    elif lower_name.endswith(".pdf") or content_type == "application/pdf":
+        text = extract_pdf(data)
+    elif lower_name.endswith(".docx"):
+        text = extract_docx(data)
+    else:
+        text = extract_text_file(data)
+
+    detected_title = detect_legislation_title(text[:4000]) or detect_course_or_topic_title(text[:2500]) or (name or "uploaded file")
+    source_meta["title_candidate"] = detected_title
+    source_meta["content_hash"] = sha256_text(text[:50000])
+    source_meta["source_identity"] = f"file_text:{source_meta['content_hash']}"
+
+    parts.append({
+        "type": "text",
+        "text": (
+            f"\n\nSOURCE FILE: {name}\n"
+            f"Detected title/topic: {detected_title}\n"
+            f"Extracted content:\n{truncate_text(text)}"
+        ),
+    })
+    parts.extend(frame_parts)
+    return parts, source_meta
+
+
+def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
+    if get_youtube_video_id(url):
+        transcript, frame_parts, meta = analyse_youtube_url(url)
+        parts = [{
+            "type": "text",
+            "text": (
+                f"\n\nSOURCE YOUTUBE VIDEO: {url}\n"
+                f"Stable identity: {meta['source_identity']}\n"
+                f"Transcript:\n{truncate_text(transcript)}"
+            ),
+        }]
+        parts.extend(frame_parts)
+        return parts, {
+            "display_name": url,
+            "source_identity": meta["source_identity"],
+            "title_candidate": meta["detected_title"],
+            "content_hash": meta["content_hash"],
+        }
+
+    parsed = urlparse(url)
+    lower_path = parsed.path.lower()
+    if lower_path.endswith((".mp3", ".m4a", ".wav", ".mp4", ".webm", ".mov", ".avi", ".mkv")):
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        data = urlopen_bytes(req, timeout=20, max_bytes=MAX_VIDEO_BYTES + 1)
+        transcript = transcribe_media_bytes(Path(parsed.path).name or "linked-media", data) if has_openai() else "Media transcription requires a valid OPENAI_API_KEY."
+        return [{"type": "text", "text": f"\n\nSOURCE MEDIA LINK: {url}\nTranscript:\n{truncate_text(transcript)}"}], {
+            "display_name": url,
+            "source_identity": canonicalize_url(url)[1],
+            "title_candidate": Path(parsed.path).name or "linked media",
+            "content_hash": sha256_text(transcript),
+        }
+
+    try:
+        webpage_text, meta = fetch_webpage(url)
+        detected_title = meta.get("detected_title") or url
+        parts = [{
+            "type": "text",
+            "text": (
+                f"\n\nSOURCE WEBPAGE: {meta['url']}\n"
+                f"Stable identity: {meta['source_identity']}\n"
+                f"Detected title: {detected_title}\n"
+                f"Main webpage text:\n{truncate_text(webpage_text)}"
+            ),
+        }]
+        return parts, {
+            "display_name": meta["url"],
+            "source_identity": meta["source_identity"],
+            "title_candidate": detected_title,
+            "content_hash": meta["content_hash"],
+        }
+    except Exception as error:
+        canonical_url, stable_identity = canonicalize_url(url)
+        message = (
+            f"\n\nSOURCE WEBPAGE: {canonical_url}\n"
+            f"Stable identity: {stable_identity}\n"
+            f"The webpage could not be accessed by the backend. Error: {str(error)}\n"
+            "Do not guess the content of this webpage. Analyse only this access failure and any other uploaded sources."
+        )
+        return [{"type": "text", "text": message}], {
+            "display_name": canonical_url,
+            "source_identity": f"inaccessible:{stable_identity}",
+            "title_candidate": canonical_url,
+            "content_hash": sha256_text(str(error)),
+        }
+
+
+def build_analysis_fingerprint(preferred_language: str, units: List[dict]) -> str:
+    identity_bits = [f"cache:{globals().get('CACHE_VERSION', 'v0')}", f"lang:{preferred_language or 'auto'}"]
+    for unit in units:
+        source_identity = unit.get("source_identity") or ""
+        content_hash = unit.get("content_hash") or ""
+        if source_identity.startswith("nzl_act:"):
+            identity_bits.append(f"id:{source_identity}")
+        else:
+            identity_bits.append(f"id:{source_identity}|hash:{content_hash}")
+    return sha256_text("||".join(identity_bits))
+
+
+
+
+def normalise_plain_sqrt_text(text: str) -> str:
+    """Make plain sqrt(...) readable when a model returns non-LaTeX math."""
+    if not text:
+        return ""
+    value = str(text)
+    value = re.sub(r"(?i)sqrt\s*\(\s*([^()\n]+?)\s*\)", r"√(\1)", value)
+    value = re.sub(r"(?i)sqrt\s*([0-9A-Za-z]+)", r"√(\1)", value)
+    value = re.sub(r"\(\s*√\(([^()]+)\)\s*\)\s*\^\s*([0-9]+)", r"(√(\1))^\2", value)
+    value = re.sub(r"\s+", " ", value) if "\n" not in value else value
+    return value
+
+
+
+LANGUAGE_POLICIES = {
+    "auto": {
+        "name": "the source's main language",
+        "instruction": "Use the source's dominant language. If the source is mixed-language, use the language that best helps the learner.",
+        "rewrite": False,
+    },
+    "english": {
+        "name": "English",
+        "instruction": "Write everything in English.",
+        "rewrite": True,
+    },
+    "simplified_chinese": {
+        "name": "Simplified Chinese",
+        "instruction": "Write everything in Simplified Chinese. Keep short key English technical terms in brackets only when helpful.",
+        "rewrite": True,
+    },
+    "traditional_chinese": {
+        "name": "Traditional Chinese",
+        "instruction": "Write everything in Traditional Chinese. Keep short key English technical terms in brackets only when helpful.",
+        "rewrite": True,
+    },
+    "mixed_chinese_english": {
+        "name": "mainly Chinese with key English academic terms in brackets",
+        "instruction": "Write mainly in Chinese and keep important academic or technical terms in English brackets when useful.",
+        "rewrite": True,
+    },
+    "japanese": {"name": "Japanese", "instruction": "Write everything in Japanese.", "rewrite": True},
+    "korean": {"name": "Korean", "instruction": "Write everything in Korean.", "rewrite": True},
+    "french": {"name": "French", "instruction": "Write everything in French.", "rewrite": True},
+    "spanish": {"name": "Spanish", "instruction": "Write everything in Spanish.", "rewrite": True},
+    "german": {"name": "German", "instruction": "Write everything in German.", "rewrite": True},
+    "italian": {"name": "Italian", "instruction": "Write everything in Italian.", "rewrite": True},
+    "portuguese": {"name": "Portuguese", "instruction": "Write everything in Portuguese.", "rewrite": True},
+    "arabic": {"name": "Arabic", "instruction": "Write everything in Arabic.", "rewrite": True},
+    "hindi": {"name": "Hindi", "instruction": "Write everything in Hindi.", "rewrite": True},
+    "vietnamese": {"name": "Vietnamese", "instruction": "Write everything in Vietnamese.", "rewrite": True},
+    "thai": {"name": "Thai", "instruction": "Write everything in Thai.", "rewrite": True},
+    "indonesian": {"name": "Indonesian", "instruction": "Write everything in Indonesian.", "rewrite": True},
+    "malay": {"name": "Malay", "instruction": "Write everything in Malay.", "rewrite": True},
+    "russian": {"name": "Russian", "instruction": "Write everything in Russian.", "rewrite": True},
+}
+
+
+def normalise_language_key(preferred_language: str) -> str:
+    key = (preferred_language or "auto").strip().lower().replace("-", "_")
+    aliases = {
+        "en": "english",
+        "eng": "english",
+        "zh": "simplified_chinese",
+        "zh_cn": "simplified_chinese",
+        "zh_hans": "simplified_chinese",
+        "simplified": "simplified_chinese",
+        "zh_tw": "traditional_chinese",
+        "zh_hant": "traditional_chinese",
+        "traditional": "traditional_chinese",
+        "ja": "japanese",
+        "jp": "japanese",
+        "ko": "korean",
+        "kr": "korean",
+        "fr": "french",
+        "es": "spanish",
+        "de": "german",
+        "it": "italian",
+        "pt": "portuguese",
+        "ar": "arabic",
+        "hi": "hindi",
+        "vi": "vietnamese",
+        "th": "thai",
+        "id": "indonesian",
+        "ms": "malay",
+        "ru": "russian",
+    }
+    key = aliases.get(key, key)
+    return key if key in LANGUAGE_POLICIES else "auto"
+
+
+def target_language_name(preferred_language: str) -> str:
+    key = normalise_language_key(preferred_language)
+    return LANGUAGE_POLICIES[key]["name"]
+
+
+def language_instruction_for(preferred_language: str) -> str:
+    key = normalise_language_key(preferred_language)
+    return LANGUAGE_POLICIES[key]["instruction"]
+
+def localized_overview_heading(preferred_language: str) -> str:
+    key = normalise_language_key(preferred_language)
+    mapping = {
+        "english": "Overview",
+        "simplified_chinese": "概述",
+        "traditional_chinese": "概覽",
+        "mixed_chinese_english": "概述",
+        "japanese": "概要",
+        "korean": "개요",
+        "french": "Vue d’ensemble",
+        "spanish": "Resumen general",
+        "german": "Überblick",
+        "italian": "Panoramica",
+        "portuguese": "Visão geral",
+        "arabic": "نظرة عامة",
+        "hindi": "अवलोकन",
+        "vietnamese": "Tổng quan",
+        "thai": "ภาพรวม",
+        "indonesian": "Gambaran Umum",
+        "malay": "Gambaran Keseluruhan",
+        "russian": "Обзор",
+    }
+    return mapping.get(key, "Overview")
+
+
+def protect_synapse_brand_and_first_heading(summary: str, preferred_language: str) -> str:
+    """Protect the Synapse brand and remove the awkward translated heading 突触总结."""
+    if not summary:
+        return summary
+    overview = localized_overview_heading(preferred_language)
+    value = summary
+
+    # Specific heading fixes first.
+    value = re.sub(r"(?im)^\s*#{1,3}\s*(突触总结|突觸總結|突触概要|突觸概要)\s*$", f"# {overview}", value)
+    value = re.sub(r"(?im)^\s*#{1,3}\s*Synapse\s+Summary\s*$", f"# {overview}", value)
+
+    # Protect brand references elsewhere. Do not translate the product name.
+    value = value.replace("突触", "Synapse")
+    value = value.replace("突觸", "Synapse")
+
+    # If the model produced notes without a first heading, add a localised overview heading.
+    stripped = value.lstrip()
+    if stripped and not stripped.startswith("#"):
+        value = f"# {overview}\n" + value
+
+    return value
+
+
+def should_rewrite_for_language(preferred_language: str) -> bool:
+    key = normalise_language_key(preferred_language)
+    return bool(LANGUAGE_POLICIES[key].get("rewrite"))
+
+
+def contains_enough_chinese(text: str) -> bool:
+    if not text:
+        return False
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", text))
+    latin_words = len(re.findall(r"\b[A-Za-z]{3,}\b", text))
+    return cjk >= 80 or cjk >= latin_words * 0.35
+
+
+def enforce_requested_language(summary: str, preferred_language: str) -> str:
+    """
+    Universal language enforcement.
+    If the user selects any specific output language, rewrite the whole notes into that language.
+    This keeps Generated Content, headings, examples, common mistakes, and critical-thinking questions consistent.
+    """
+    key = normalise_language_key(preferred_language)
+    if key == "auto" or not summary:
+        return summary
+
+    language_name = target_language_name(key)
+    language_rule = language_instruction_for(key)
+    prompt = f"""
+Rewrite the following study notes so they fully follow the selected output language.
+
+Selected language: {language_name}
+Language rule: {language_rule}
+
+Strict requirements:
+- Preserve the same study meaning and source facts.
+- Preserve the same markdown structure using headings with # or ##.
+- Translate/rewrite headings, explanations, examples, common mistakes, and critical-thinking questions into the selected language.
+- Never translate the product name Synapse. If a heading says "Synapse Summary", rewrite it as the selected-language equivalent of "Overview" instead of translating Synapse.
+- Do not add new facts.
+- Do not remove important facts.
+- Keep official names, formulas, code, and short technical terms unchanged only when translation would reduce accuracy.
+- Keep mathematical notation readable: use √(x), (a)/(b), r'(t)=<1,2,6t>, and never raw escaped LaTeX like \\( ... \\).
+- Output only the rewritten notes.
+
+NOTES TO REWRITE:
+{summary}
+"""
+    try:
+        rewritten = generate_chat([
+            {"role": "system", "content": "You are a precise multilingual academic editor. You rewrite study notes into the user's selected language while preserving structure, meaning, source faithfulness, and the exact brand name Synapse."},
+            {"role": "user", "content": prompt},
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=6800)
+        return rewritten or summary
+    except Exception:
+        return summary
+
+
+def localise_title_if_needed(title: str, preferred_language: str) -> str:
+    key = normalise_language_key(preferred_language)
+    if key in {"auto", "english"} or not title:
+        return title
+    language_name = target_language_name(key)
+    try:
+        result = generate_chat([
+            {"role": "system", "content": "Translate or localise a short study-note title. Return only the title, no punctuation around it."},
+            {"role": "user", "content": f"Translate/localise this title into {language_name}. Keep official legal act names understandable and concise. Never translate the brand name Synapse. Title: {title}"},
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=80)
+        return normalise_space(result)[:90] or title
+    except Exception:
+        return title
+
 
 
 @app.post("/analyze")
@@ -726,27 +1500,25 @@ async def analyze_materials(
     preferred_language: str = Form(default="auto"),
     client_fingerprint: str = Form(default=""),
 ):
+    del client_fingerprint  # server now uses stable source identity instead
+    global stored_summary, stored_sections, stored_connections, stored_mind_map, stored_title, stored_source_identity
+
     try:
-        global stored_summary, stored_sections, stored_connections, stored_brainstorm
+        require_openai()
 
         content_parts: List[dict] = []
-        source_names: List[str] = []
-        fingerprint_parts: List[str] = [f"language:{preferred_language or 'auto'}"]
+        source_units: List[dict] = []
+        title_candidates: List[str] = []
 
         for uploaded in files:
             data = await uploaded.read()
             if not data:
                 continue
-
-            fingerprint_parts.append(f"file:{uploaded.filename}:{len(data)}:{sha256_bytes(data)}")
-
-            content_type = (
-                uploaded.content_type
-                or mimetypes.guess_type(uploaded.filename or "")[0]
-                or "application/octet-stream"
-            )
-            source_names.append(uploaded.filename or "uploaded file")
-            content_parts.extend(file_to_content_parts(uploaded.filename or "uploaded file", content_type, data))
+            content_type = uploaded.content_type or mimetypes.guess_type(uploaded.filename or "")[0] or "application/octet-stream"
+            parts, meta = file_to_source_unit(uploaded.filename or "uploaded file", content_type, data)
+            content_parts.extend(parts)
+            source_units.append(meta)
+            title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
 
         try:
             parsed_links = json.loads(links) if links else []
@@ -756,72 +1528,94 @@ async def analyze_materials(
         for url in parsed_links:
             if not isinstance(url, str) or not url.strip():
                 continue
-            url = url.strip()
-            fingerprint_parts.append(f"link:{url}")
-            source_names.append(url)
-            content_parts.extend(link_to_content_parts(url))
+            parts, meta = link_to_source_unit(url.strip())
+            content_parts.extend(parts)
+            source_units.append(meta)
+            title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
 
         cleaned_free_text = remove_urls_from_text(free_text)
         if cleaned_free_text:
-            fingerprint_parts.append(f"text:{sha256_text(cleaned_free_text)}")
-            source_names.append("pasted text")
+            inferred_title = detect_legislation_title(cleaned_free_text[:4000]) or detect_course_or_topic_title(cleaned_free_text[:2500]) or "Pasted text"
+            content_hash = sha256_text(cleaned_free_text)
             content_parts.append({
                 "type": "text",
-                "text": f"\n\nUSER PROVIDED TEXT:\n{cleaned_free_text[:MAX_SOURCE_CHARS]}",
+                "text": (
+                    f"\n\nUSER PROVIDED TEXT\n"
+                    f"Detected title/topic: {inferred_title}\n"
+                    f"Content:\n{truncate_text(cleaned_free_text)}"
+                ),
             })
+            source_units.append({
+                "display_name": "pasted text",
+                "source_identity": f"text:{content_hash}",
+                "title_candidate": inferred_title,
+                "content_hash": content_hash,
+            })
+            title_candidates.append(inferred_title)
 
         if not content_parts:
             return {"error": "No readable files, links, or text were provided."}
 
-        source_fingerprint = client_fingerprint.strip() or make_source_fingerprint(fingerprint_parts)
+        source_fingerprint = build_analysis_fingerprint(preferred_language, source_units)
         cached_result = cache_get(source_fingerprint)
         if cached_result:
             stored_summary = cached_result.get("summary", "")
             stored_sections = cached_result.get("sections", {})
             stored_connections = cached_result.get("connections", [])
-            stored_brainstorm = cached_result.get("brainstorm", {})
+            stored_mind_map = cached_result.get("mind_map", {})
+            stored_title = cached_result.get("title", "Generated Study Notes")
+            stored_source_identity = cached_result.get("primary_source_identity", "")
             return {**cached_result, "cached": True, "source_fingerprint": source_fingerprint}
 
-        language_rule = {
-            "auto": "Use the source's main language.",
-            "english": "Write the final notes in English.",
-            "simplified_chinese": "Write the final notes in Simplified Chinese, keeping key academic terms in English brackets where useful.",
-            "traditional_chinese": "Write the final notes in Traditional Chinese, keeping key academic terms in English brackets where useful.",
-        }.get((preferred_language or "auto").strip(), "Use the source's main language.")
+        language_rule = language_instruction_for(preferred_language)
 
-        task = f"""
-{ANALYSIS_INSTRUCTIONS}
+        source_identity_lines = []
+        for index, unit in enumerate(source_units, start=1):
+            source_identity_lines.append(
+                f"Source {index}: display_name={unit.get('display_name')} | stable_identity={unit.get('source_identity')} | title_candidate={unit.get('title_candidate')}"
+            )
 
-Output language preference: {language_rule}
+        title_hint = choose_best_source_title(title_candidates)
+        analysis_task = f"""
+{ANALYSIS_PROMPT}
+
+MANDATORY output language for the entire notes: {language_rule}
+Do not answer in another language. The full Generated Content must obey this language choice: all headings, explanations, examples, real-world examples, common mistakes, tutor explanations, and critical-thinking questions.
+
+Most likely source title/topic from explicit evidence: {title_hint}
+
+Stable source identity list:
+{chr(10).join(source_identity_lines)}
 
 Consistency requirement:
-For the same source content, produce the same main topic, same title-worthy focus, and same structure. Do not randomly reinterpret the source as a different document.
-
-Sources: {', '.join(source_names)}
+- The same source must not become two different documents.
+- If the source is a legislation page, preserve the exact act identity.
+- If the source title says Partnership Law Act 2019, do NOT change it to Arms Legislation Act 2019 or any other act.
 """
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": [{"type": "text", "text": task}] + content_parts},
+            {"role": "user", "content": [{"type": "text", "text": analysis_task}] + content_parts},
         ]
 
-        stored_summary = generate_chat(
-            messages,
-            model=ANALYSIS_MODEL,
-            temperature=0,
-            max_tokens=7000,
-        )
+        stored_summary = generate_chat(messages, model=ANALYSIS_MODEL, temperature=0, max_tokens=6800)
+        stored_summary = enforce_requested_language(stored_summary, preferred_language)
+        stored_summary = protect_synapse_brand_and_first_heading(stored_summary, preferred_language)
+        stored_summary = normalise_plain_sqrt_text(stored_summary)
         stored_sections = parse_sections(stored_summary)
-        stored_connections = generate_connections(stored_sections)
-        stored_brainstorm = generate_brainstorm(stored_summary)
-        notes_title = make_notes_title(stored_summary, source_names)
+        stored_title = make_notes_title(stored_summary, title_candidates)
+        stored_title = localise_title_if_needed(stored_title, preferred_language)
+        stored_connections = generate_connections_from_sections(stored_sections)
+        stored_mind_map = generate_ai_mind_map(stored_title, stored_sections, preferred_language)
+        stored_source_identity = source_units[0].get("source_identity", "") if source_units else ""
 
         result = {
-            "title": notes_title,
+            "title": stored_title,
             "summary": stored_summary,
             "sections": stored_sections,
             "connections": stored_connections,
-            "brainstorm": stored_brainstorm,
+            "mind_map": stored_mind_map,
+            "primary_source_identity": stored_source_identity,
             "source_fingerprint": source_fingerprint,
             "cached": False,
         }
@@ -837,58 +1631,10 @@ async def upload_pdf(file: UploadFile = File(...)):
     return await analyze_materials(files=[file], links="[]", free_text="", preferred_language="auto", client_fingerprint="")
 
 
-def generate_connections(sections):
-    if len(sections) < 2:
-        return []
-
-    overview = "\n".join([
-        f"{title}: {content[:700]}"
-        for title, content in list(sections.items())[:8]
-    ])
-
-    prompt = f"""
-Return only valid JSON with 4-6 conceptual connections:
-{{"connections":[{{"from":"...","to":"...","label":"...","description":"..."}}]}}
-Make the connections specific, not generic.
-Sections:\n{overview}
-"""
-
-    raw = generate_chat([
-        {"role": "system", "content": "Return only valid JSON. No markdown."},
-        {"role": "user", "content": prompt},
-    ], model=CHAT_MODEL, temperature=0, max_tokens=1200)
-
-    try:
-        return json.loads(raw).get("connections", [])
-    except Exception:
-        return []
-
-
-def generate_brainstorm(summary):
-    prompt = f"""
-Return only valid JSON for a brainstorm map:
-{{"center":"Specific Main Topic","nodes":["node 1","node 2","node 3","node 4","node 5","node 6"]}}
-The center and nodes must be specific to the actual material, not generic.
-Summary:\n{summary[:6000]}
-"""
-
-    raw = generate_chat([
-        {"role": "system", "content": "Return only valid JSON. No markdown."},
-        {"role": "user", "content": prompt},
-    ], model=CHAT_MODEL, temperature=0, max_tokens=700)
-
-    try:
-        parsed = json.loads(raw)
-        if not isinstance(parsed.get("nodes"), list):
-            raise ValueError("Invalid brainstorm JSON")
-        return parsed
-    except Exception:
-        return {"center": "Core Ideas", "nodes": list(stored_sections.keys())[:6]}
-
-
 @app.post("/ask")
 async def ask_question(data: dict):
     try:
+        require_openai()
         question = data.get("question", "")
         selected_section = data.get("selected_section", "")
         chat_history = data.get("chat_history", [])
@@ -896,15 +1642,22 @@ async def ask_question(data: dict):
 
         context = f"""
 Current study context:
+Title: {stored_title}
+Primary source identity: {stored_source_identity}
 Selected section: {selected_section if selected_section else 'Full document'}
 Section content: {section_context[:3500]}
 Full summary: {stored_summary[:9000]}
+
+Tutor rules:
+- Stay consistent with the already generated notes.
+- Do not switch to a different source.
+- If the notes say the source is a specific act or lesson, keep that identity.
 """
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": context},
-            {"role": "assistant", "content": "I will tutor the student using this material."},
+            {"role": "assistant", "content": "I will answer as a source-faithful tutor."},
         ]
 
         for message in chat_history[-8:]:
@@ -914,51 +1667,7 @@ Full summary: {stored_summary[:9000]}
             messages.append({"role": role, "content": message.get("content", "")})
 
         messages.append({"role": "user", "content": question})
-
-        answer = generate_chat(
-            messages,
-            model=CHAT_MODEL,
-            temperature=0.5,
-            max_tokens=1800,
-        )
+        answer = generate_chat(messages, model=CHAT_MODEL, temperature=0.2, max_tokens=1800)
         return {"answer": answer}
-
     except Exception as error:
         return {"error": str(error)}
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "analysis_model": ANALYSIS_MODEL,
-        "chat_model": CHAT_MODEL,
-        "transcribe_model": TRANSCRIBE_MODEL,
-        "api_key_loaded": bool(os.getenv("OPENAI_API_KEY")),
-        "youtube_transcript_api_loaded": YouTubeTranscriptApi is not None,
-        "yt_dlp_loaded": yt_dlp is not None,
-        "opencv_loaded": cv2 is not None,
-        "max_audio_mb": round(MAX_AUDIO_BYTES / (1024 * 1024), 1),
-        "max_video_mb": round(MAX_VIDEO_BYTES / (1024 * 1024), 1),
-        "cache_enabled": True,
-    }
-
-
-def parse_sections(summary: str):
-    sections = {}
-    current_heading = "Overview"
-    current_content = []
-
-    for line in summary.split("\n"):
-        if line.startswith("## "):
-            if current_content:
-                sections[current_heading] = "\n".join(current_content).strip()
-            current_heading = line.replace("## ", "", 1).strip()
-            current_content = []
-        else:
-            current_content.append(line)
-
-    if current_content:
-        sections[current_heading] = "\n".join(current_content).strip()
-
-    return {key: value for key, value in sections.items() if value.strip()}

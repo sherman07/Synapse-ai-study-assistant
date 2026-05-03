@@ -26,16 +26,22 @@ const openAssistantBtn = document.getElementById("openAssistant");
 const chatMessages = document.getElementById("chatMessages");
 const questionInput = document.getElementById("questionInput");
 const contextLabel = document.getElementById("contextLabel");
-const brainstormMap = document.getElementById("brainstormMap");
+const mindMapCanvas = document.getElementById("mindMapCanvas");
 const generateBtn = document.getElementById("generateBtn");
 const preferredLanguage = document.getElementById("preferredLanguage");
 const historyNav = document.getElementById("historyNav");
 const historyList = document.getElementById("historyList");
 const historySearch = document.getElementById("historySearch");
 
-const HISTORY_STORAGE_KEY = "synapse.generated.history.v1";
+const HISTORY_STORAGE_KEY = "synapse.generated.history.v6";
+const ACTIVE_HISTORY_KEY = "synapse.active.generated.v6";
 let currentTypingTimer = null;
 let currentSourceFingerprint = "";
+let currentMindMap = null;
+let storedTitle = "Study Notes";
+let activeTool = "mindmap";
+let activeMindBranchIndex = 0;
+let activeMindPointIndex = 0;
 
 function openFilePicker() {
   assetUpload.click();
@@ -139,11 +145,6 @@ async function analyzeMaterials() {
 
   currentSourceFingerprint = await buildClientFingerprint(rawSource);
 
-  const existingEntry = findHistoryByFingerprint(currentSourceFingerprint);
-  if (existingEntry) {
-    loadHistoryEntry(existingEntry.id);
-    return;
-  }
 
   setGeneratingState(true);
 
@@ -174,39 +175,39 @@ async function analyzeMaterials() {
     }
 
     fullSummary = data.summary || "";
+    storedTitle = data.title || makeHistoryTitle(fullSummary) || "Study Notes";
     sections = data.sections || {};
     connectionsData = data.connections || [];
+    currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
+    activeMindBranchIndex = 0;
+    activeMindPointIndex = 0;
+    currentSourceFingerprint = data.source_fingerprint || currentSourceFingerprint;
 
-    loadingBox.classList.add("d-none");
-    resultGrid.classList.remove("d-none");
-    appLayout.classList.remove("initial-state", "loading-state");
-    appLayout.classList.add("analysis-ready", "assistant-closed");
-    assistant.classList.add("hidden");
-    openAssistantBtn.style.display = "block";
+    showAnalysisView({ scrollToTop: true });
 
     renderSections();
     renderConnections();
-    renderBrainstormMap(data.brainstorm || null);
-    saveHistoryEntry({
+    switchTool("mindmap");
+    renderMindMap(currentMindMap);
+    const savedEntry = saveHistoryEntry({
       title: data.title || null,
       summary: fullSummary,
       sections,
       connections: connectionsData,
-      brainstorm: data.brainstorm || null,
+      mindMap: currentMindMap,
       language: preferredLanguage ? preferredLanguage.value : "auto",
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
       cached: Boolean(data.cached)
     });
+    if (savedEntry && savedEntry.id) {
+      localStorage.setItem(ACTIVE_HISTORY_KEY, savedEntry.id);
+    }
     typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
+    requestAnimationFrame(() => renderMindMap(currentMindMap));
   } catch (error) {
     console.error(error);
-    loadingBox.classList.add("d-none");
-    resultGrid.classList.remove("d-none");
-    appLayout.classList.remove("initial-state", "loading-state");
-    appLayout.classList.add("analysis-ready", "assistant-closed");
-    assistant.classList.add("hidden");
-    openAssistantBtn.style.display = "block";
+    showAnalysisView({ scrollToTop: true });
     summaryContent.innerHTML = `
       <div class="alert alert-danger">
         <strong>Analysis failed.</strong><br>
@@ -232,6 +233,30 @@ function setGeneratingState(isGenerating) {
     analysisStage.classList.remove("d-none");
     loadingBox.classList.remove("d-none");
     resultGrid.classList.add("d-none");
+  }
+}
+
+
+
+function showAnalysisView({ scrollToTop = false } = {}) {
+  if (uploadStage) uploadStage.classList.add("d-none");
+  if (analysisStage) analysisStage.classList.remove("d-none");
+  if (loadingBox) loadingBox.classList.add("d-none");
+  if (resultGrid) resultGrid.classList.remove("d-none");
+
+  appLayout.classList.remove("initial-state", "loading-state");
+  appLayout.classList.add("analysis-ready", "assistant-closed");
+  if (assistant) assistant.classList.add("hidden");
+  if (openAssistantBtn) openAssistantBtn.style.display = "block";
+
+  if (scrollToTop) {
+    requestAnimationFrame(() => {
+      const header = document.querySelector(".notes-header") || analysisStage || mainNotes;
+      if (header && typeof header.scrollIntoView === "function") {
+        header.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      if (mainNotes) mainNotes.scrollTop = 0;
+    });
   }
 }
 
@@ -294,65 +319,319 @@ function showFullSummary() {
   typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
 }
 
-function renderBrainstormMap(brainstorm) {
-  const nodes = brainstorm?.nodes?.length ? brainstorm.nodes : Object.keys(sections).slice(0, 7);
-  const center = brainstorm?.center || "Core Ideas";
+function getToolPanelId(toolName) {
+  const ids = {
+    mindmap: "toolPanelMindMap",
+    timeline: "toolPanelTimeline",
+    quiz: "toolPanelQuiz"
+  };
+  return ids[toolName] || `toolPanel${toolName.charAt(0).toUpperCase()}${toolName.slice(1)}`;
+}
 
-  brainstormMap.innerHTML = `<div class="map-center">${escapeHTML(center)}</div>`;
-
-  const positions = [
-    [12, 14], [62, 12], [73, 38], [62, 72], [18, 72], [8, 42], [38, 8]
-  ];
-
-  nodes.slice(0, 7).forEach((node, index) => {
-    const [left, top] = positions[index % positions.length];
-    const label = typeof node === "string" ? node : (node?.label || "Idea");
-
-    const nodeEl = document.createElement("div");
-    nodeEl.className = "map-node";
-    nodeEl.style.left = `${left}%`;
-    nodeEl.style.top = `${top}%`;
-
-    // Important: use innerHTML so MathJax can render formulas.
-    nodeEl.innerHTML = formatBrainstormLabel(label);
-
-    brainstormMap.appendChild(nodeEl);
+function switchTool(toolName, clickedBtn = null) {
+  activeTool = toolName;
+  document.querySelectorAll(".tool-panel").forEach(panel => panel.classList.remove("active"));
+  document.querySelectorAll(".tool-switch-btn").forEach(button => {
+    if (!button.disabled) button.classList.remove("active");
   });
 
-  renderMath();
+  const panel = document.getElementById(getToolPanelId(toolName));
+  if (panel) panel.classList.add("active");
+
+  if (clickedBtn && !clickedBtn.disabled) {
+    clickedBtn.classList.add("active");
+  } else if (toolName === "mindmap") {
+    document.getElementById("toolBtnMindMap")?.classList.add("active");
+  }
+
+  if (toolName === "mindmap") {
+    requestAnimationFrame(() => renderMindMap(currentMindMap));
+  }
 }
 
-function formatBrainstormLabel(rawLabel) {
-  let label = String(rawLabel || "Idea").trim();
 
-  // Convert common plain-text math into LaTeX.
-  label = label
-    .replace(/sqrt\(([^()]+)\)/gi, "\\sqrt{$1}")
-    .replace(/\^(\d+)/g, "^{$1}")
-    .replace(/<([^<>]+)>/g, "\\langle $1 \\rangle")
-    .replace(/\s+x\s+/g, " \\times ");
+function cleanMindText(text) {
+  if (!text) return "";
+  let value = String(text);
 
-  const containsMath =
-    /\\sqrt|\\langle|\\times|\^|=|\/|\bk\b|\br'\(t\)|\br''\(t\)/.test(label);
+  // Markdown cleanup
+  value = value.replace(/```[\s\S]*?```/g, " ");
+  value = value.replace(/`([^`]*)`/g, "$1");
+  value = value.replace(/\*\*([^*]+)\*\*/g, "$1");
+  value = value.replace(/__([^_]+)__/g, "$1");
+  value = value.replace(/\*([^*]+)\*/g, "$1");
 
-  // If the label has a title and a formula, split them nicely.
-  if (containsMath && label.includes(":")) {
-    const [title, ...rest] = label.split(":");
-    const formula = rest.join(":").trim();
+  // Math wrappers
+  value = value.replace(/\$\$([\s\S]*?)\$\$/g, "$1");
+  value = value.replace(/\$([^$]+)\$/g, "$1");
+  value = value.replace(/\\\(/g, "").replace(/\\\)/g, "");
+  value = value.replace(/\\\[/g, "").replace(/\\\]/g, "");
 
+  // Common LaTeX commands converted to readable text.
+  value = value.replace(/\\(?:mathbf|mathrm|mathbb|mathit|textbf|textit)\{([^{}]*)\}/g, "$1");
+  value = value.replace(/\\sqrt\{([^{}]+)\}/g, "√($1)");
+  value = value.replace(/sqrt\s*\(\s*([^()]+?)\s*\)/gi, "√($1)");
+  value = value.replace(/sqrt\s*([0-9A-Za-z]+)/gi, "√($1)");
+  value = value.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "($1)/($2)");
+  value = value.replace(/([A-Za-z0-9\)])\^\{([^{}]+)\}/g, "$1^$2");
+
+  const replacements = [
+    [/\\left/g, ""], [/\\right/g, ""],
+    [/\\langle/g, "<"], [/\\rangle/g, ">"],
+    [/\\times/g, "×"], [/\\cdot/g, "·"],
+    [/\\to/g, "→"], [/\\le/g, "≤"], [/\\ge/g, "≥"], [/\\neq/g, "≠"], [/\\approx/g, "≈"],
+    [/\\infty/g, "∞"], [/\\theta/g, "θ"], [/\\alpha/g, "α"], [/\\beta/g, "β"], [/\\gamma/g, "γ"], [/\\Delta/g, "Δ"], [/\\nabla/g, "∇"]
+  ];
+  replacements.forEach(([pattern, replacement]) => {
+    value = value.replace(pattern, replacement);
+  });
+
+  // Remove remaining command names and braces.
+  value = value.replace(/\\[a-zA-Z]+/g, "");
+  value = value.replace(/[{}]/g, "");
+  value = value.replace(/\\/g, "");
+  value = value.replace(/\s+/g, " ").trim();
+  return value;
+}
+
+
+
+function makeReadableMindLabel(label, detail = "", fallback = "Key point") {
+  const cleaned = cleanMindText(label || detail || fallback);
+  const formulaScore = (cleaned.match(/[=<>√×^]|\d/g) || []).length;
+  const alphaScore = (cleaned.match(/[A-Za-z\u4e00-\u9fff]/g) || []).length;
+  if (cleaned.length > 70 || (formulaScore > 8 && formulaScore >= alphaScore / 2)) {
+    const detailText = cleanMindText(detail || cleaned);
+    const beforeColon = detailText.split(":")[0].trim();
+    if (beforeColon && beforeColon.length >= 4 && beforeColon.length <= 42 && !/[=<>√×^]/.test(beforeColon)) {
+      return beforeColon;
+    }
+    if (/derivative/i.test(detailText)) return "Derivative calculation";
+    if (/cross product/i.test(detailText)) return "Cross product";
+    if (/curvature/i.test(detailText)) return "Curvature formula";
+    if (/vector function/i.test(detailText)) return "Vector function";
+    if (/square root|sqrt/i.test(detailText)) return "Square root step";
+    if (/sum of squares/i.test(detailText)) return "Sum of squares";
+    return fallback;
+  }
+  return cleaned || fallback;
+}
+
+function shortMindText(text, limit = 60) {
+  const cleaned = cleanMindText(text);
+  return shorten(cleaned || "Untitled", limit);
+}
+
+function normaliseMindPoints(points = []) {
+  return (points || []).slice(0, 5).map((point, index) => {
+    if (typeof point === "string") {
+      const cleaned = cleanMindText(point);
+      return {
+        id: `point-${index}`,
+        label: shortMindText(makeReadableMindLabel(cleaned, cleaned, `Point ${index + 1}`), 58),
+        detail: cleaned || "Open the related notes for more detail."
+      };
+    }
+
+    const rawLabel = point?.label || point?.title || point?.text || point?.detail || `Point ${index + 1}`;
+    const detail = cleanMindText(point?.detail || point?.explanation || point?.text || rawLabel);
+    const label = makeReadableMindLabel(rawLabel, detail, `Point ${index + 1}`);
+    return {
+      id: point?.id || `point-${index}`,
+      label: shortMindText(label, 58),
+      detail: detail || label || "Open the related notes for more detail."
+    };
+  }).filter(point => point.label);
+}
+
+function getMindMapData(mindMap) {
+  if (mindMap && Array.isArray(mindMap.branches) && mindMap.branches.length) {
+    return {
+      center: shortMindText(mindMap.center || storedTitle || "Study Notes", 86),
+      branches: mindMap.branches.slice(0, 6).map((branch, index) => ({
+        id: branch.id || `branch-${index}`,
+        label: shortMindText(branch.label || branch.section || `Branch ${index + 1}`, 52),
+        section: branch.section || branch.label || `Section ${index + 1}`,
+        summary: cleanMindText(branch.summary || ""),
+        points: normaliseMindPoints(branch.points || [])
+      }))
+    };
+  }
+
+  const fallbackBranches = Object.keys(sections).slice(0, 6).map((sectionName, index) => {
+    const rawLines = String(sections[sectionName] || "")
+      .split(/\n+/)
+      .map(line => cleanMindText(line.replace(/^[\-•*]\s*/, "").replace(/^\d+[.)]\s*/, "")))
+      .filter(Boolean);
+
+    const points = rawLines.slice(0, 5).map((line, pointIndex) => ({
+      id: `fallback-${index}-${pointIndex}`,
+      label: shortMindText(line, 58),
+      detail: line
+    }));
+
+    return {
+      id: `fallback-${index}`,
+      label: sectionName === "Overview" ? "Summary" : sectionName,
+      section: sectionName,
+      summary: rawLines[0] || "Open this section for more detail.",
+      points: points.length ? points : [{ id: `fallback-${index}-0`, label: "Open related notes", detail: "Open this section for more detail." }]
+    };
+  });
+
+  return {
+    center: shortMindText(storedTitle || "Study Notes", 86),
+    branches: fallbackBranches
+  };
+}
+
+function renderMindMap(mindMap) {
+  const panel = document.getElementById("toolPanelMindMap");
+  if (panel) panel.classList.add("active");
+  document.getElementById("toolBtnMindMap")?.classList.add("active");
+
+  const data = getMindMapData(mindMap);
+  currentMindMap = data;
+
+  if (!mindMapCanvas) return;
+  if (!data.branches.length) {
+    mindMapCanvas.innerHTML = `<div class="mindmap-empty">Mind map will appear after analysis.</div>`;
+    return;
+  }
+
+  if (activeMindBranchIndex >= data.branches.length) activeMindBranchIndex = 0;
+  const activeBranch = data.branches[activeMindBranchIndex] || data.branches[0];
+  if (activeMindPointIndex >= activeBranch.points.length) activeMindPointIndex = 0;
+  const activePoint = activeBranch.points[activeMindPointIndex] || null;
+
+  const colors = ["#ff7a45", "#19a65a", "#22b8cf", "#8f5fe8", "#f6c343", "#ef4444"];
+  const activeColor = colors[activeMindBranchIndex % colors.length];
+
+  const branchHTML = data.branches.map((branch, index) => {
+    const color = colors[index % colors.length];
     return `
-      <span>${escapeHTML(title)}:</span>
-      <br>
-      <span class="node-formula">\\(${escapeHTML(formula)}\\)</span>
+      <button class="mm-branch-node ${index === activeMindBranchIndex ? "active" : ""}"
+              type="button"
+              style="--branch-color:${color};"
+              onclick="selectMindBranch(${index})">
+        <span class="mm-node-dot"></span>
+        <span class="mm-node-label">${escapeHTML(shortMindText(branch.label, 52))}</span>
+      </button>
     `;
-  }
+  }).join("");
 
-  if (containsMath) {
-    return `<span class="node-formula">\\(${escapeHTML(label)}\\)</span>`;
-  }
+  const pointsHTML = activeBranch.points.map((point, index) => `
+    <button class="mm-point-node ${index === activeMindPointIndex ? "active" : ""}"
+            type="button"
+            style="--branch-color:${activeColor};"
+            onclick="selectMindPoint(${activeMindBranchIndex}, ${index})">
+      <span class="mm-point-index">${index + 1}</span>
+      <span class="mm-node-label">${escapeHTML(shortMindText(point.label, 62))}</span>
+    </button>
+  `).join("");
 
-  return escapeHTML(label);
+  const detailTitle = cleanMindText(activePoint ? activePoint.label : activeBranch.label);
+  const detailBody = cleanMindText(activePoint ? activePoint.detail : activeBranch.summary || "Open this branch for more detail.");
+
+  mindMapCanvas.innerHTML = `
+    <div class="mm-layout">
+      <div class="mm-root-zone">
+        <button class="mm-root-node" type="button" onclick="showFullSummary()">
+          <span class="mm-root-dot"></span>
+          <span class="mm-root-label">${escapeHTML(shortMindText(data.center || "Study Notes", 86))}</span>
+        </button>
+      </div>
+
+      <div class="mm-branch-zone">
+        <div class="mm-zone-title">Main branches</div>
+        <div class="mm-branch-list">${branchHTML}</div>
+      </div>
+
+      <div class="mm-point-zone">
+        <div class="mm-zone-title">${escapeHTML(shortMindText(activeBranch.label, 64))}</div>
+        <div class="mm-points-list">${pointsHTML || `<div class="mindmap-empty-small">No sub-points yet.</div>`}</div>
+      </div>
+
+      <div class="mm-detail-zone">
+        <div class="mm-detail-card" style="--branch-color:${activeColor};">
+          <div class="mm-detail-head">
+            <span>${escapeHTML(shortMindText(activeBranch.label, 58))}</span>
+            <button type="button" onclick="openActiveMindMapSection()">Open notes</button>
+          </div>
+          <div class="mm-detail-title">${escapeHTML(detailTitle)}</div>
+          <div class="mm-detail-body">${escapeHTML(detailBody)}</div>
+          <div class="mm-detail-actions">
+            <button class="mm-action-btn" type="button" onclick="openActiveMindMapSection()">Go to notes</button>
+            <button class="mm-action-btn primary" type="button" onclick="askSelectedMindPoint()">Ask tutor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
+
+function selectMindBranch(index) {
+  activeMindBranchIndex = index;
+  activeMindPointIndex = 0;
+  renderMindMap(currentMindMap);
+}
+
+function selectMindPoint(branchIndex, pointIndex) {
+  activeMindBranchIndex = branchIndex;
+  activeMindPointIndex = pointIndex;
+  renderMindMap(currentMindMap);
+}
+
+function openActiveMindMapSection() {
+  const data = getMindMapData(currentMindMap);
+  const branch = data.branches[activeMindBranchIndex];
+  if (!branch) return;
+  activateSectionFromMap(branch.section || branch.label);
+}
+
+function askSelectedMindPoint() {
+  const data = getMindMapData(currentMindMap);
+  const branch = data.branches[activeMindBranchIndex];
+  if (!branch) return;
+  const point = branch.points[activeMindPointIndex];
+  const prompt = point
+    ? `Explain this point from "${branch.label}": ${point.detail}`
+    : `Explain the key ideas in "${branch.label}".`;
+  switchTab("chat", document.querySelector('.asst-tab[onclick*="chat"]'));
+  openAssistant();
+  if (questionInput) {
+    questionInput.value = prompt;
+    questionInput.focus();
+  }
+}
+
+function activateSectionFromMap(sectionName) {
+  const exact = Object.keys(sections).find(key => key === sectionName || key.toLowerCase() === String(sectionName).toLowerCase());
+  if (!exact) return;
+  const buttons = [...document.querySelectorAll(".section-btn")];
+  const target = buttons.find(button => (button.querySelector("span")?.textContent?.trim() || "") === exact);
+  if (target) {
+    target.click();
+  } else {
+    selectedSection = exact;
+    sectionTitle.innerText = exact;
+    contextLabel.textContent = shorten(exact, 22);
+    typeInto(summaryContent, markdownToHTML(sections[exact]), renderMath);
+  }
+  document.getElementById("summaryContent")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function focusMindMapPoint(sectionName, pointText) {
+  activateSectionFromMap(sectionName);
+  if (questionInput) {
+    questionInput.value = `Explain this point from "${sectionName}": ${pointText}`;
+  }
+}
+
+window.selectMindBranch = selectMindBranch;
+window.selectMindPoint = selectMindPoint;
+window.openActiveMindMapSection = openActiveMindMapSection;
+window.askSelectedMindPoint = askSelectedMindPoint;
 
 function renderConnections() {
   const emptyEl = document.getElementById("connectionsEmpty");
@@ -512,12 +791,20 @@ function expandAssistant() {
 }
 
 function resetWorkspace() {
+  localStorage.removeItem(ACTIVE_HISTORY_KEY);
   location.reload();
+}
+
+function normalizePlainMathText(text) {
+  return String(text || "")
+    .replace(/sqrt\s*\(\s*([^()\n]+?)\s*\)/gi, "√($1)")
+    .replace(/sqrt\s*([0-9A-Za-z]+)/gi, "√($1)");
 }
 
 function markdownToHTML(text) {
   if (!text) return "";
 
+  text = normalizePlainMathText(text);
   let safe = escapeHTML(text);
 
   // Protect display math blocks before markdown parsing
@@ -811,6 +1098,7 @@ function saveHistoryEntry(payload) {
 
   setHistory(nextItems);
   renderHistory();
+  return entry;
 }
 
 function findHistoryByFingerprint(fingerprint) {
@@ -867,28 +1155,28 @@ function deleteHistoryEntry(event, id) {
   renderHistory(historySearch ? historySearch.value : "");
 }
 
-function loadHistoryEntry(id) {
+function loadHistoryEntry(id, options = {}) {
   const item = getHistory().find(entry => entry.id === id);
   if (!item) return;
 
   fullSummary = item.summary || "";
+  storedTitle = item.title || makeHistoryTitle(fullSummary) || "Study Notes";
   sections = item.sections || {};
   connectionsData = item.connections || [];
+  currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
 
-  uploadStage.classList.add("d-none");
-  analysisStage.classList.remove("d-none");
-  loadingBox.classList.add("d-none");
-  resultGrid.classList.remove("d-none");
-  appLayout.classList.remove("initial-state", "loading-state");
-  appLayout.classList.add("analysis-ready", "assistant-closed");
-  assistant.classList.add("hidden");
-  openAssistantBtn.style.display = "block";
+  localStorage.setItem(ACTIVE_HISTORY_KEY, id);
+  showAnalysisView({ scrollToTop: !options.preserveScroll });
 
   sectionTitle.innerText = "Summary";
   contextLabel.textContent = "Current Notes";
   renderSections();
   renderConnections();
-  renderBrainstormMap(item.brainstorm || null);
+  currentMindMap = item.mindMap || item.mind_map || item.brainstorm || null;
+  activeMindBranchIndex = 0;
+  activeMindPointIndex = 0;
+  switchTool("mindmap");
+  renderMindMap(currentMindMap);
   typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
 }
 
@@ -925,6 +1213,11 @@ if (historySearch) {
 }
 cleanExistingHistoryTitles();
 renderHistory();
+
+const activeHistoryId = localStorage.getItem(ACTIVE_HISTORY_KEY);
+if (activeHistoryId && getHistory().some(item => item.id === activeHistoryId)) {
+  loadHistoryEntry(activeHistoryId, { preserveScroll: true });
+}
 
 if (questionInput) questionInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
