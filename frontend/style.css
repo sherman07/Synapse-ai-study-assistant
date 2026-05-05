@@ -1798,9 +1798,223 @@ body {
 }
 
 
-.language-note { 
-  margin: -4px 0 8px; 
-  color: var(--text-muted); 
-  font-size: 0.82rem; 
-  line-height: 1.35; 
+.language-note { margin: -4px 0 8px; color: var(--text-muted); font-size: 0.82rem; line-height: 1.35; }
+
+
+/* Adaptive depth info card */
+.auto-depth-box {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid #dce7ff;
+  background: linear-gradient(135deg, rgba(238, 244, 255, 0.96), rgba(255, 255, 255, 0.96));
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.auto-depth-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f68ff;
+  background: #eef3ff;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(79, 104, 255, 0.13);
+}
+
+
+.markdown-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1.1rem 0;
+  border: 1px solid rgba(99, 125, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 45px rgba(41, 76, 130, 0.08);
+}
+
+.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.markdown-table th {
+  text-align: left;
+  padding: 14px 16px;
+  color: var(--text-main);
+  background: linear-gradient(180deg, rgba(232, 239, 255, 0.98), rgba(246, 249, 255, 0.98));
+  font-weight: 900;
+  border-bottom: 1px solid rgba(99, 125, 255, 0.18);
+  white-space: nowrap;
+}
+
+.markdown-table td {
+  padding: 13px 16px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(99, 125, 255, 0.12);
+  color: var(--text-soft);
+}
+
+.markdown-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown-table td strong {
+  color: var(--text-main);
+}
+
+/* v18: source visual evidence gallery */
+.visual-gallery {
+  margin-top: 2rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid rgba(114, 139, 186, 0.18);
+}
+
+.visual-gallery-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.visual-gallery-head h3 {
+  margin: 0 0 .25rem;
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.visual-gallery-head p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: .95rem;
+}
+
+.visual-gallery-head span {
+  flex: 0 0 auto;
+  font-size: .78rem;
+  font-weight: 900;
+  color: #4f68ff;
+  background: #eef3ff;
+  border: 1px solid rgba(79, 104, 255, 0.18);
+  padding: .38rem .68rem;
+  border-radius: 999px;
+}
+
+.visual-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.visual-card {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(114, 139, 186, 0.22);
+  border-radius: 1.1rem;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(37, 63, 106, .08);
+  cursor: zoom-in;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.visual-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 48px rgba(37, 63, 106, .14);
+  border-color: rgba(79, 104, 255, 0.35);
+}
+
+.visual-card img {
+  width: 100%;
+  height: 170px;
+  object-fit: contain;
+  background: linear-gradient(135deg, #f8fbff, #eef4ff);
+  display: block;
+}
+
+.visual-card figcaption {
+  padding: .85rem .95rem 1rem;
+  display: grid;
+  gap: .2rem;
+}
+
+.visual-card figcaption strong {
+  font-size: .78rem;
+  color: #4f68ff;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.visual-card figcaption span {
+  font-weight: 850;
+  color: var(--text-main);
+  line-height: 1.25;
+}
+
+.visual-card figcaption small {
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.visual-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(7, 13, 28, .72);
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.visual-modal-content {
+  position: relative;
+  width: min(1100px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow: 0 28px 90px rgba(0,0,0,.28);
+}
+
+.visual-modal-content img {
+  width: 100%;
+  max-height: 74vh;
+  object-fit: contain;
+  background: #f8fafc;
+  display: block;
+}
+
+.visual-modal-close {
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 0;
+  border-radius: 999px;
+  color: #0f172a;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 8px 24px rgba(0,0,0,.16);
+}
+
+.visual-modal-caption {
+  padding: 1rem 1.25rem 1.2rem;
+}
+
+.visual-modal-caption strong {
+  display: block;
+  font-weight: 900;
+  color: var(--text-main);
+  margin-bottom: .35rem;
+}
+
+.visual-modal-caption p {
+  margin: 0;
+  color: var(--text-muted);
 }

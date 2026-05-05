@@ -20,6 +20,7 @@ const resultGrid = document.getElementById("resultGrid");
 const loadingBox = document.getElementById("loadingBox");
 const sectionsContainer = document.getElementById("sections");
 const summaryContent = document.getElementById("summaryContent");
+const visualGallery = document.getElementById("visualGallery");
 const sectionTitle = document.getElementById("sectionTitle");
 const assistant = document.getElementById("assistant");
 const openAssistantBtn = document.getElementById("openAssistant");
@@ -29,6 +30,7 @@ const contextLabel = document.getElementById("contextLabel");
 const mindMapCanvas = document.getElementById("mindMapCanvas");
 const generateBtn = document.getElementById("generateBtn");
 const preferredLanguage = document.getElementById("preferredLanguage");
+const detailLevel = document.getElementById("detailLevel");
 const historyNav = document.getElementById("historyNav");
 const historyList = document.getElementById("historyList");
 const historySearch = document.getElementById("historySearch");
@@ -42,6 +44,7 @@ let storedTitle = "Study Notes";
 let activeTool = "mindmap";
 let activeMindBranchIndex = 0;
 let activeMindPointIndex = 0;
+let visualGalleryData = [];
 
 function openFilePicker() {
   assetUpload.click();
@@ -155,6 +158,7 @@ async function analyzeMaterials() {
   formData.append("links", JSON.stringify(parsedSources.links));
   formData.append("free_text", parsedSources.freeText);
   formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
+  formData.append("detail_level", "auto");
   formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
@@ -179,9 +183,16 @@ async function analyzeMaterials() {
     sections = data.sections || {};
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
+    visualGalleryData = Array.isArray(data.visual_gallery) ? data.visual_gallery : [];
     activeMindBranchIndex = 0;
     activeMindPointIndex = 0;
     currentSourceFingerprint = data.source_fingerprint || currentSourceFingerprint;
+    console.info("Synapse adaptive depth", {
+      depth: data.generation_depth || data.detail_level,
+      label: data.depth_label,
+      reason: data.depth_reason,
+      cached: Boolean(data.cached)
+    });
 
     showAnalysisView({ scrollToTop: true });
 
@@ -189,13 +200,19 @@ async function analyzeMaterials() {
     renderConnections();
     switchTool("mindmap");
     renderMindMap(currentMindMap);
+    renderVisualGallery();
     const savedEntry = saveHistoryEntry({
       title: data.title || null,
       summary: fullSummary,
       sections,
       connections: connectionsData,
       mindMap: currentMindMap,
+      // Do not store base64 slide images in localStorage; they can exceed browser quota.
+      visualGallery: [],
       language: preferredLanguage ? preferredLanguage.value : "auto",
+      detailLevel: data.detail_level || data.generation_depth || "auto",
+      depthLabel: data.depth_label || data.generation_depth || data.detail_level || "Auto",
+      depthReason: data.depth_reason || "",
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
       cached: Boolean(data.cached)
@@ -208,6 +225,8 @@ async function analyzeMaterials() {
   } catch (error) {
     console.error(error);
     showAnalysisView({ scrollToTop: true });
+    visualGalleryData = [];
+    renderVisualGallery();
     summaryContent.innerHTML = `
       <div class="alert alert-danger">
         <strong>Analysis failed.</strong><br>
@@ -258,6 +277,62 @@ function showAnalysisView({ scrollToTop = false } = {}) {
       if (mainNotes) mainNotes.scrollTop = 0;
     });
   }
+}
+
+
+function renderVisualGallery() {
+  if (!visualGallery) return;
+  const items = Array.isArray(visualGalleryData) ? visualGalleryData : [];
+  if (!items.length) {
+    visualGallery.classList.add("d-none");
+    visualGallery.innerHTML = "";
+    return;
+  }
+
+  visualGallery.classList.remove("d-none");
+  const limited = items.slice(0, 24);
+  visualGallery.innerHTML = `
+    <div class="visual-gallery-head">
+      <div>
+        <h3><i class="bi bi-images me-2"></i>Source visuals</h3>
+        <p>Slides, PDF pages, and diagrams extracted from the uploaded material. Use these beside the professor notes.</p>
+      </div>
+      <span>${limited.length} visuals</span>
+    </div>
+    <div class="visual-gallery-grid">
+      ${limited.map((item, index) => `
+        <figure class="visual-card" onclick="openVisualModal(${index})">
+          <img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.caption || 'Source visual')}" loading="lazy">
+          <figcaption>
+            <strong>Source ${escapeHTML(String(item.source_index || ''))}</strong>
+            <span>${escapeHTML(shorten(item.source_title || '', 44))}</span>
+            <small>${escapeHTML(shorten(item.caption || '', 110))}</small>
+          </figcaption>
+        </figure>
+      `).join("")}
+    </div>
+  `;
+}
+
+function openVisualModal(index) {
+  const item = (visualGalleryData || [])[index];
+  if (!item || !item.url) return;
+  const overlay = document.createElement("div");
+  overlay.className = "visual-modal";
+  overlay.innerHTML = `
+    <div class="visual-modal-content">
+      <button class="visual-modal-close" type="button" aria-label="Close visual"><i class="bi bi-x-lg"></i></button>
+      <img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.caption || 'Source visual')}">
+      <div class="visual-modal-caption">
+        <strong>${escapeHTML(item.source_title || `Source ${item.source_index || ''}`)}</strong>
+        <p>${escapeHTML(item.caption || '')}</p>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay || event.target.closest(".visual-modal-close")) overlay.remove();
+  });
+  document.body.appendChild(overlay);
 }
 
 function renderSections() {
@@ -350,9 +425,49 @@ function switchTool(toolName, clickedBtn = null) {
 }
 
 
+
+const SUBSCRIPT_MAP = {
+  "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄",
+  "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉",
+  "i": "ᵢ", "j": "ⱼ", "k": "ₖ", "m": "ₘ", "n": "ₙ"
+};
+
+function readableSubscripts(value) {
+  return String(value || "")
+    .replace(/_\{([0-9ijkmn]+)\}/g, (_, chars) => chars.split("").map(ch => SUBSCRIPT_MAP[ch] || ch).join(""))
+    .replace(/_([0-9ijkmn])\b/g, (_, ch) => SUBSCRIPT_MAP[ch] || ch);
+}
+
+function matrixLatexToReadable(value) {
+  return String(value || "").replace(
+    /\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\}([\s\S]*?)\\end\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\}/g,
+    (_, body) => {
+      const rows = String(body || "")
+        .replace(/\\(?:ldots|dots|cdots)/g, "…")
+        .split(/\\\\|\\cr/g)
+        .map(row => row.split("&").map(cell => readableSubscripts(cleanMindText(cell))).filter(Boolean).join(", "))
+        .filter(Boolean);
+      if (!rows.length) return "[]";
+      return `[${rows.join("; ")}]`;
+    }
+  );
+}
+
+function plainMatrixWordsToReadable(value) {
+  return readableSubscripts(String(value || "")
+    .replace(/\b(?:begin|end)?\s*bmatrix\b/gi, " ")
+    .replace(/\b(?:begin|end)?\s*pmatrix\b/gi, " ")
+    .replace(/\b(?:begin|end)?\s*matrix\b/gi, " ")
+    .replace(/\\\\/g, "; ")
+    .replace(/&/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim());
+}
+
 function cleanMindText(text) {
   if (!text) return "";
   let value = String(text);
+  value = matrixLatexToReadable(value);
 
   // Markdown cleanup
   value = value.replace(/```[\s\S]*?```/g, " ");
@@ -678,6 +793,7 @@ async function askAI() {
       body: JSON.stringify({
         question,
         selected_section: selectedSection,
+        preferred_language: preferredLanguage ? preferredLanguage.value : "auto",
         chat_history: chatHistory.slice(-6).map(message => ({
           role: message.role,
           content: message.text
@@ -827,6 +943,31 @@ function markdownToHTML(text) {
   const output = [];
   let inList = false;
   let inOrderedList = false;
+  let inTable = false;
+
+  function isTableLine(value) {
+    return /^\s*\|.*\|\s*$/.test(value || "");
+  }
+
+  function isTableSeparator(value) {
+    return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(value || "");
+  }
+
+  function splitTableCells(value) {
+    return String(value || "")
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map(cell => cell.trim());
+  }
+
+  function closeTable() {
+    if (inTable) {
+      output.push("</tbody></table></div>");
+      inTable = false;
+    }
+  }
 
   function closeLists() {
     if (inList) {
@@ -839,8 +980,32 @@ function markdownToHTML(text) {
     }
   }
 
-  lines.forEach(line => {
+  lines.forEach((line, index) => {
     const trimmed = line.trim();
+    const nextLine = lines[index + 1] || "";
+
+    if (isTableLine(line) && isTableSeparator(nextLine)) {
+      closeLists();
+      closeTable();
+      const headers = splitTableCells(line);
+      output.push('<div class="markdown-table-wrap"><table class="markdown-table"><thead><tr>' + headers.map(cell => `<th>${cell}</th>`).join("") + '</tr></thead><tbody>');
+      inTable = true;
+      return;
+    }
+
+    if (isTableSeparator(line)) {
+      return;
+    }
+
+    if (inTable && isTableLine(line)) {
+      const cells = splitTableCells(line);
+      output.push('<tr>' + cells.map(cell => `<td>${cell}</td>`).join("") + '</tr>');
+      return;
+    }
+
+    if (inTable && !isTableLine(line)) {
+      closeTable();
+    }
 
     if (trimmed.startsWith("@@MATH_BLOCK_")) {
       closeLists();
@@ -886,6 +1051,7 @@ function markdownToHTML(text) {
   });
 
   closeLists();
+  closeTable();
 
   let html = output.join("");
 
@@ -1163,6 +1329,7 @@ function loadHistoryEntry(id, options = {}) {
   storedTitle = item.title || makeHistoryTitle(fullSummary) || "Study Notes";
   sections = item.sections || {};
   connectionsData = item.connections || [];
+  visualGalleryData = Array.isArray(item.visualGallery) ? item.visualGallery : [];
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
 
   localStorage.setItem(ACTIVE_HISTORY_KEY, id);
@@ -1177,6 +1344,7 @@ function loadHistoryEntry(id, options = {}) {
   activeMindPointIndex = 0;
   switchTool("mindmap");
   renderMindMap(currentMindMap);
+  renderVisualGallery();
   typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
 }
 
