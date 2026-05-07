@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
 
 let uploadedFiles = [];
 let uploadedLinks = [];
@@ -306,7 +306,7 @@ function renderVisualGallery() {
           <figcaption>
             <strong>Source ${escapeHTML(String(item.source_index || ''))}</strong>
             <span>${escapeHTML(shorten(item.source_title || '', 44))}</span>
-            <small>${escapeHTML(shorten(item.caption || '', 110))}</small>
+            <small>${escapeHTML(shorten(item.title || item.caption || '', 110))}</small>
           </figcaption>
         </figure>
       `).join("")}
@@ -325,7 +325,13 @@ function openVisualModal(index) {
       <img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.caption || 'Source visual')}">
       <div class="visual-modal-caption">
         <strong>${escapeHTML(item.source_title || `Source ${item.source_index || ''}`)}</strong>
-        <p>${escapeHTML(item.caption || '')}</p>
+        ${item.location ? `<p><em>${escapeHTML(item.location)}</em></p>` : ""}
+        ${item.title ? `<h4>${escapeHTML(item.title)}</h4>` : ""}
+        <p>${escapeHTML(item.what_shows || item.caption || '')}</p>
+        ${item.argument_supported ? `<p><strong>Argument:</strong> ${escapeHTML(item.argument_supported)}</p>` : ""}
+        ${item.cross_source_connection ? `<p><strong>Connection:</strong> ${escapeHTML(item.cross_source_connection)}</p>` : ""}
+        ${item.how_to_read ? `<p><strong>How to read:</strong> ${escapeHTML(item.how_to_read)}</p>` : ""}
+        ${item.exam_use ? `<p><strong>Exam use:</strong> ${escapeHTML(item.exam_use)}</p>` : ""}
       </div>
     </div>
   `;
@@ -333,6 +339,33 @@ function openVisualModal(index) {
     if (event.target === overlay || event.target.closest(".visual-modal-close")) overlay.remove();
   });
   document.body.appendChild(overlay);
+}
+
+
+function renderInlineVisualCard(index) {
+  const item = (visualGalleryData || [])[Number(index)];
+  if (!item || !item.url) {
+    return `<div class="inline-visual-card missing">Visual ${Number(index) + 1} is unavailable in this cached view. Regenerate from the source files to restore source screenshots.</div>`;
+  }
+  const title = item.title || item.caption || `Source visual ${Number(index) + 1}`;
+  const source = item.source_title || `Source ${item.source_index || ""}`;
+  const location = item.location ? ` · ${escapeHTML(item.location)}` : "";
+  return `
+    <figure class="inline-visual-card" onclick="openVisualModal(${Number(index)})">
+      <div class="inline-visual-image-wrap">
+        <img src="${escapeAttr(item.url)}" alt="${escapeAttr(title)}" loading="lazy">
+      </div>
+      <figcaption>
+        <div class="inline-visual-kicker">Visual evidence · Source ${escapeHTML(String(item.source_index || ""))}${location}</div>
+        <h4>${escapeHTML(title)}</h4>
+        <p><strong>${escapeHTML(source)}</strong></p>
+        ${item.what_shows ? `<p><span>What it shows:</span> ${escapeHTML(item.what_shows)}</p>` : ""}
+        ${item.argument_supported ? `<p><span>Argument:</span> ${escapeHTML(item.argument_supported)}</p>` : ""}
+        ${item.cross_source_connection ? `<p><span>Connection:</span> ${escapeHTML(item.cross_source_connection)}</p>` : ""}
+        ${item.exam_use ? `<p><span>Exam use:</span> ${escapeHTML(item.exam_use)}</p>` : ""}
+      </figcaption>
+    </figure>
+  `;
 }
 
 function renderSections() {
@@ -983,6 +1016,14 @@ function markdownToHTML(text) {
   lines.forEach((line, index) => {
     const trimmed = line.trim();
     const nextLine = lines[index + 1] || "";
+
+    const visualMarker = trimmed.match(/^\[\[VISUAL:(\d+)\]\]$/);
+    if (visualMarker) {
+      closeLists();
+      closeTable();
+      output.push(renderInlineVisualCard(Number(visualMarker[1])));
+      return;
+    }
 
     if (isTableLine(line) && isTableSeparator(nextLine)) {
       closeLists();

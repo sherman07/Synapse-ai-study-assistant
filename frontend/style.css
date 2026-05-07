@@ -2018,3 +2018,85 @@ body {
   margin: 0;
   color: var(--text-muted);
 }
+
+
+/* v19 inline visual argument cards */
+.inline-visual-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 42%) 1fr;
+  gap: 1.1rem;
+  align-items: stretch;
+  margin: 1.35rem 0 1.7rem;
+  padding: 1rem;
+  border: 1px solid rgba(96, 125, 255, 0.22);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,248,255,0.96));
+  box-shadow: 0 18px 48px rgba(65, 83, 140, 0.12);
+  cursor: zoom-in;
+}
+.inline-visual-card.missing {
+  display: block;
+  color: #8a4b00;
+  background: #fff7e6;
+  border-color: #ffd591;
+  cursor: default;
+}
+.inline-visual-image-wrap {
+  min-height: 220px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f6f8ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+.inline-visual-image-wrap img {
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  display: block;
+}
+.inline-visual-card figcaption {
+  padding: 0.35rem 0.35rem 0.35rem 0;
+}
+.inline-visual-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.62rem;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #5570ff;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.65rem;
+}
+.inline-visual-card h4 {
+  margin: 0 0 0.55rem;
+  font-size: 1.12rem;
+  line-height: 1.28;
+  color: #111827;
+}
+.inline-visual-card p {
+  margin: 0.45rem 0;
+  color: #334155;
+  line-height: 1.6;
+}
+.inline-visual-card p span {
+  color: #0f172a;
+  font-weight: 900;
+}
+.visual-modal-caption h4 {
+  font-size: 1.05rem;
+  font-weight: 900;
+  margin: 0.35rem 0;
+}
+@media (max-width: 980px) {
+  .inline-visual-card {
+    grid-template-columns: 1fr;
+  }
+}

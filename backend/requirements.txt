@@ -11,3 +11,7 @@ yt-dlp
 opencv-python
 certifi
 requests
+
+pymupdf
+
+python-pptx

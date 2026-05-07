@@ -94,13 +94,18 @@ MAX_VIDEO_FRAMES = int(os.getenv("MAX_VIDEO_FRAMES", "8"))
 MAX_VISUAL_IMAGES_PER_SOURCE = int(os.getenv("MAX_VISUAL_IMAGES_PER_SOURCE", "10"))
 MAX_MULTI_SOURCE_VISUAL_IMAGES = int(os.getenv("MAX_MULTI_SOURCE_VISUAL_IMAGES", "64"))
 MULTISOURCE_VISUAL_GALLERY_LIMIT = int(os.getenv("MULTISOURCE_VISUAL_GALLERY_LIMIT", "36"))
-MULTISOURCE_SYNTHESIS_PART_TOKENS = int(os.getenv("MULTISOURCE_SYNTHESIS_PART_TOKENS", "6500"))
+MULTISOURCE_SYNTHESIS_PART_TOKENS = int(os.getenv("MULTISOURCE_SYNTHESIS_PART_TOKENS", "9000"))
+MULTISOURCE_CONNECTION_TOKENS = int(os.getenv("MULTISOURCE_CONNECTION_TOKENS", "14000"))
+VISUAL_ARGUMENT_CARD_LIMIT = int(os.getenv("VISUAL_ARGUMENT_CARD_LIMIT", "18"))
+VISUAL_ARGUMENT_TOKENS = int(os.getenv("VISUAL_ARGUMENT_TOKENS", "1100"))
+VISUAL_RENDER_DPI = int(os.getenv("VISUAL_RENDER_DPI", "170"))
+ENABLE_PPTX_SLIDE_RENDER = os.getenv("ENABLE_PPTX_SLIDE_RENDER", "true").lower() not in {"0", "false", "no"}
 ENABLE_MULTI_SOURCE_DIGESTS = os.getenv("ENABLE_MULTI_SOURCE_DIGESTS", "true").lower() not in {"0", "false", "no"}
 MULTISOURCE_SOURCE_DIGEST_TOKENS = int(os.getenv("MULTISOURCE_SOURCE_DIGEST_TOKENS", "9000"))
 MULTISOURCE_SOURCE_CHARS = int(os.getenv("MULTISOURCE_SOURCE_CHARS", "500000"))
 ANALYSIS_CACHE_TTL_SECONDS = int(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 CACHE_PATH = BACKEND_DIR / "synapse_analysis_cache.json"
-CACHE_VERSION = "source_identity_mindmap_v27_worldclass_multisource_visual_professor"
+CACHE_VERSION = "source_identity_mindmap_v28_multisource_visual_argument_engine"
 
 app = FastAPI(title="Synapse Backend")
 app.add_middleware(
@@ -130,6 +135,10 @@ def health():
         "max_multi_source_visual_images": MAX_MULTI_SOURCE_VISUAL_IMAGES,
         "multi_source_visual_gallery_limit": MULTISOURCE_VISUAL_GALLERY_LIMIT,
         "multi_source_synthesis_part_tokens": MULTISOURCE_SYNTHESIS_PART_TOKENS,
+        "multi_source_connection_tokens": MULTISOURCE_CONNECTION_TOKENS,
+        "visual_argument_card_limit": VISUAL_ARGUMENT_CARD_LIMIT,
+        "visual_render_dpi": VISUAL_RENDER_DPI,
+        "pptx_slide_render_enabled": ENABLE_PPTX_SLIDE_RENDER,
     }
 
 
@@ -2836,7 +2845,12 @@ async def analyze_materials(
         source_fingerprint = build_analysis_fingerprint(preferred_language, source_units, depth)
         cached_result = cache_get(source_fingerprint)
         if cached_result:
-            stored_summary = cached_result.get("summary", "")
+            # Rebuild live visual cards from the freshly uploaded files. The cache
+            # intentionally does not store large base64 images, but the current
+            # request still has the source_units needed to recreate them.
+            cached_summary = attach_visual_argument_section(cached_result.get("summary", ""), source_units, preferred_language)
+            cached_result = {**cached_result, "summary": cached_summary, "visual_gallery": build_visual_gallery(source_units)}
+            stored_summary = cached_summary
             stored_sections = cached_result.get("sections", {})
             stored_connections = cached_result.get("connections", [])
             stored_mind_map = cached_result.get("mind_map", {})
@@ -2917,6 +2931,10 @@ Consistency requirement:
         stored_summary = enforce_requested_language(stored_summary, preferred_language)
         stored_summary = protect_synapse_brand_and_first_heading(stored_summary, preferred_language)
         stored_summary = normalise_plain_sqrt_text(stored_summary)
+        # Add source screenshots / slide visuals directly into the generated notes.
+        # This is not decorative: each visual is converted into an argument card
+        # that explains what it shows and how it supports a cross-source idea.
+        stored_summary = attach_visual_argument_section(stored_summary, source_units, preferred_language)
         stored_sections = parse_sections(stored_summary)
         stored_title = make_notes_title(stored_summary, title_candidates)
         if len(source_units) >= 2:
@@ -3215,3 +3233,1378 @@ Requirements:
         }
     except Exception as error:
         return {"error": str(error)}
+
+
+# -----------------------------------------------------------------------------
+# v19 Multisource Visual Professor Engine overrides
+# -----------------------------------------------------------------------------
+# These definitions intentionally appear late in the module. Python resolves the
+# global function names at request time, so these replace the earlier v18 helpers
+# without requiring a full rewrite of the existing app. The goal is to turn the
+# app from a summary generator into a source-grounded, visual, cross-source
+# teaching engine.
+
+
+def env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
+def worldclass_language_labels(preferred_language: str) -> dict:
+    key = normalise_language_key(preferred_language)
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        return {
+            "guide_title": "# 🧠 综合学习指南",
+            "intro": "这份学习指南先逐项深入讲解每个 source，再明确整理 source 之间的 connection points、图像证据、差异争论和考试应用。",
+            "source_heading": "## 1. 逐项资源精讲",
+            "connection_heading": "## 2. 跨资源 Connection Points",
+            "visual_heading": "## 3. 图像证据与论证卡",
+            "synthesis_heading": "## 4. 教授式综合讲解",
+            "visual_intro": "下面的图像来自你上传的 slides / PDF / 图片。每张图都不是装饰，而是用来支持、解释或挑战某个概念论点。",
+            "connection_intro": "下面不是告诉你“如何找共同点”，而是直接把这组资料之间真正的共同 ideas、互相补充关系、差异和证据整理出来。",
+            "visual_card_title": "图像证据",
+            "source_label": "来源",
+            "what_shows": "图中显示",
+            "argument": "支持的论点",
+            "connection": "连接到其他 source",
+            "how_to_read": "阅读方法",
+            "exam_use": "考试/复习用途",
+        }
+    if key == "traditional_chinese":
+        return {
+            "guide_title": "# 🧠 綜合學習指南",
+            "intro": "這份學習指南先逐項深入講解每個 source，再明確整理 source 之間的 connection points、圖像證據、差異爭論和考試應用。",
+            "source_heading": "## 1. 逐項資源精講",
+            "connection_heading": "## 2. 跨資源 Connection Points",
+            "visual_heading": "## 3. 圖像證據與論證卡",
+            "synthesis_heading": "## 4. 教授式綜合講解",
+            "visual_intro": "下面的圖像來自你上傳的 slides / PDF / 圖片。每張圖都不是裝飾，而是用來支持、解釋或挑戰某個概念論點。",
+            "connection_intro": "下面不是告訴你「如何找共同點」，而是直接把這組資料之間真正的共同 ideas、互相補充關係、差異和證據整理出來。",
+            "visual_card_title": "圖像證據",
+            "source_label": "來源",
+            "what_shows": "圖中顯示",
+            "argument": "支持的論點",
+            "connection": "連接到其他 source",
+            "how_to_read": "閱讀方法",
+            "exam_use": "考試/複習用途",
+        }
+    return {
+        "guide_title": "# 🧠 Integrated Study Guide",
+        "intro": "This guide first teaches each source in detail, then explicitly maps connection points, visual evidence, debates, and exam use across the source set.",
+        "source_heading": "## 1. Source-by-Source Professor Notes",
+        "connection_heading": "## 2. Cross-Source Connection Points",
+        "visual_heading": "## 3. Visual Evidence and Argument Cards",
+        "synthesis_heading": "## 4. Professor-Style Synthesis",
+        "visual_intro": "The visuals below come directly from the uploaded slides, PDFs, or images. They are not decoration: each visual is used to support, explain, or complicate an argument from the notes.",
+        "connection_intro": "This section does not tell you how to find connections; it directly maps the real shared ideas, extensions, differences, and evidence across the sources.",
+        "visual_card_title": "Visual evidence",
+        "source_label": "Source",
+        "what_shows": "What the visual shows",
+        "argument": "Argument it supports",
+        "connection": "Connection to other sources",
+        "how_to_read": "How to read it",
+        "exam_use": "Exam / revision use",
+    }
+
+
+def image_url_from_part(part: dict) -> str:
+    if not isinstance(part, dict):
+        return ""
+    return ((part.get("image_url") or {}).get("url") or "").strip()
+
+
+def image_part_from_url(url: str) -> dict:
+    return {"type": "image_url", "image_url": {"url": url}}
+
+
+def visual_source_location_from_label(label: str) -> Tuple[str, str]:
+    label = normalise_space(label or "")
+    source = ""
+    location = ""
+    m = re.search(r"FROM\s+(.+?)\s+—\s+(.+?)(?:\.|$)", label, flags=re.I)
+    if m:
+        source = m.group(1).strip()
+        location = m.group(2).strip()
+    else:
+        page = re.search(r"PDF page\s*(\d+)", label, flags=re.I)
+        slide = re.search(r"PPT slide\s*(\d+)", label, flags=re.I)
+        if page:
+            location = f"PDF page {page.group(1)}"
+        elif slide:
+            location = f"PPT slide {slide.group(1)}"
+    return source, location
+
+
+def score_visual_text(text: str, index: int = 0) -> int:
+    """Rank pages/slides that are likely to contain useful teaching visuals."""
+    value = normalise_space(text or "").lower()
+    score = 0
+    high_value = [
+        "figure", "fig.", "table", "graph", "diagram", "model", "experiment", "method", "results", "data",
+        "comparison", "compare", "versus", "vs", "effect", "mechanism", "process", "steps", "study",
+        "case", "example", "formula", "calculation", "matrix", "chart", "scatter", "boxplot", "bar graph",
+        "brain", "neuron", "action potential", "heritability", "chimpanzee", "bonobo", "ultimatum", "dictator",
+        "图", "表", "模型", "实验", "研究", "结果", "对比", "比較", "机制", "機制", "步骤", "步驟", "案例", "公式",
+    ]
+    for kw in high_value:
+        if kw in value:
+            score += 3
+    # Title and early overview slides are useful, but not more useful than actual diagrams.
+    if index <= 2:
+        score += 2
+    # Dense text can still be valuable, but pure title slides should not dominate.
+    if len(value) > 350:
+        score += 2
+    if len(value) < 30:
+        score -= 2
+    return score
+
+
+def selected_indices_by_score(texts: List[str], limit: int) -> List[int]:
+    if not texts or limit <= 0:
+        return []
+    scored = [(score_visual_text(text, i), i) for i, text in enumerate(texts)]
+    # Always retain the first slide/page if there is room, because it often gives context/title.
+    selected = []
+    if texts:
+        selected.append(0)
+    for _, idx in sorted(scored, key=lambda x: (-x[0], x[1])):
+        if idx not in selected:
+            selected.append(idx)
+        if len(selected) >= limit:
+            break
+    return sorted(selected)
+
+
+def render_pdf_visual_parts(data: bytes, source_name: str, max_pages: Optional[int] = None) -> List[dict]:
+    """Render high-value PDF pages as screenshots for visual reasoning and inline notes."""
+    if fitz is None:
+        return []
+    max_pages = int(max_pages or MAX_VISUAL_IMAGES_PER_SOURCE)
+    if max_pages <= 0:
+        return []
+    parts: List[dict] = []
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+        page_texts = []
+        for page in doc:
+            try:
+                page_texts.append(page.get_text("text") or "")
+            except Exception:
+                page_texts.append("")
+        selected = selected_indices_by_score(page_texts, max_pages)
+        matrix = fitz.Matrix(max(1.0, VISUAL_RENDER_DPI / 72), max(1.0, VISUAL_RENDER_DPI / 72))
+        for idx in selected:
+            page = doc.load_page(idx)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            img_bytes = pix.tobytes("jpeg")
+            preview = truncate_text(normalise_space(page_texts[idx]), 420)
+            label = (
+                f"VISUAL EVIDENCE FROM {source_name} — PDF page {idx + 1}. "
+                f"This is an actual screenshot from the source. Page text preview: {preview}"
+            )
+            parts.append({"type": "text", "text": label})
+            parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+        doc.close()
+    except Exception:
+        return []
+    return parts
+
+
+def find_libreoffice_binary() -> Optional[str]:
+    candidates = [
+        os.getenv("LIBREOFFICE_PATH", ""),
+        "libreoffice", "soffice",
+        "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        "/usr/bin/libreoffice", "/usr/local/bin/libreoffice", "/opt/homebrew/bin/libreoffice",
+    ]
+    import shutil
+    for candidate in candidates:
+        if not candidate:
+            continue
+        resolved = shutil.which(candidate) if not candidate.startswith("/") else candidate
+        if resolved and Path(resolved).exists():
+            return resolved
+    return None
+
+
+def render_pptx_slide_screenshots(data: bytes, source_name: str, slide_texts: List[str], max_slides: int) -> List[dict]:
+    """Convert PPTX to PDF with LibreOffice and render selected slides.
+
+    python-pptx can extract embedded pictures but cannot render a whole slide.
+    This method creates actual slide screenshots, which is what users expect from
+    a visual study guide. If LibreOffice is unavailable, callers fall back to
+    embedded-image extraction.
+    """
+    if not ENABLE_PPTX_SLIDE_RENDER or fitz is None:
+        return []
+    soffice = find_libreoffice_binary()
+    if not soffice:
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+        pptx_path = tmpdir / "input.pptx"
+        pptx_path.write_bytes(data)
+        try:
+            import subprocess
+            subprocess.run(
+                [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(tmpdir), str(pptx_path)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=60,
+            )
+        except Exception:
+            return []
+        pdf_candidates = list(tmpdir.glob("*.pdf"))
+        if not pdf_candidates:
+            return []
+        try:
+            doc = fitz.open(str(pdf_candidates[0]))
+            if len(doc) <= 0:
+                return []
+            selected = selected_indices_by_score(slide_texts or ["" for _ in range(len(doc))], max_slides)
+            selected = [i for i in selected if i < len(doc)] or list(range(min(max_slides, len(doc))))
+            matrix = fitz.Matrix(max(1.0, VISUAL_RENDER_DPI / 72), max(1.0, VISUAL_RENDER_DPI / 72))
+            parts: List[dict] = []
+            for idx in selected:
+                page = doc.load_page(idx)
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
+                img_bytes = pix.tobytes("jpeg")
+                preview = truncate_text(normalise_space(slide_texts[idx] if idx < len(slide_texts) else ""), 420)
+                label = (
+                    f"VISUAL EVIDENCE FROM {source_name} — PPT slide {idx + 1}. "
+                    f"This is an actual rendered screenshot of the slide. Slide text preview: {preview}"
+                )
+                parts.append({"type": "text", "text": label})
+                parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+            doc.close()
+            return parts
+        except Exception:
+            return []
+
+
+def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, List[dict]]:
+    """Extract PPTX text and, when possible, actual slide screenshots."""
+    if Presentation is None:
+        return "PPTX support is not installed. Run: pip install python-pptx", []
+    prs = Presentation(BytesIO(data))
+    slide_texts: List[str] = []
+    embedded_parts: List[dict] = []
+    embedded_count = 0
+    for slide_index, slide in enumerate(prs.slides, start=1):
+        lines: List[str] = []
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text and shape.text.strip():
+                lines.append(shape.text.strip())
+            if embedded_count < max(2, MAX_VISUAL_IMAGES_PER_SOURCE // 2) and hasattr(shape, "image"):
+                try:
+                    blob = shape.image.blob
+                    content_type = shape.image.content_type or "image/png"
+                    embedded_count += 1
+                    embedded_parts.append({
+                        "type": "text",
+                        "text": f"VISUAL EVIDENCE FROM {source_name} — embedded image on PPT slide {slide_index}. This is an image extracted from the slide, not the full slide screenshot.",
+                    })
+                    embedded_parts.append(image_part_from_bytes(blob, content_type))
+                except Exception:
+                    pass
+        slide_texts.append(f"[PPT SLIDE {slide_index}]\n" + "\n".join(lines))
+    full_slide_parts = render_pptx_slide_screenshots(data, source_name, slide_texts, MAX_VISUAL_IMAGES_PER_SOURCE)
+    visual_parts = full_slide_parts if full_slide_parts else embedded_parts
+    return "\n\n".join(slide_texts).strip(), visual_parts
+
+
+def iter_visual_candidates(source_units: List[dict]) -> List[dict]:
+    candidates: List[dict] = []
+    for source_index, unit in enumerate(source_units or [], start=1):
+        title = unit.get("title_candidate") or unit.get("display_name") or f"Source {source_index}"
+        label = ""
+        visual_number = 0
+        for part in unit.get("visual_parts") or []:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text":
+                label = normalise_space(part.get("text") or "")
+                continue
+            if part.get("type") == "image_url":
+                url = image_url_from_part(part)
+                if not url:
+                    continue
+                visual_number += 1
+                _, location = visual_source_location_from_label(label)
+                candidates.append({
+                    "source_index": source_index,
+                    "source_title": title,
+                    "display_name": unit.get("display_name", title),
+                    "caption": label[:420] if label else f"Visual evidence from Source {source_index}",
+                    "location": location or f"visual {visual_number}",
+                    "url": url,
+                    "score": score_visual_text(label + " " + title, visual_number),
+                })
+    return candidates
+
+
+def select_visual_candidates_for_argument(source_units: List[dict], limit: Optional[int] = None) -> List[dict]:
+    limit = int(limit or VISUAL_ARGUMENT_CARD_LIMIT)
+    candidates = iter_visual_candidates(source_units)
+    if not candidates:
+        return []
+    # Keep coverage across sources first, then fill remaining slots by score.
+    by_source = {}
+    for cand in sorted(candidates, key=lambda c: (-c.get("score", 0), c.get("source_index", 0))):
+        by_source.setdefault(cand["source_index"], cand)
+    selected = list(by_source.values())
+    for cand in sorted(candidates, key=lambda c: (-c.get("score", 0), c.get("source_index", 0))):
+        if cand not in selected:
+            selected.append(cand)
+        if len(selected) >= limit:
+            break
+    return selected[:limit]
+
+
+def extract_json_object(text: str) -> dict:
+    text = (text or "").strip()
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # Pull JSON from fenced code or mixed prose.
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, flags=re.I)
+    if m:
+        try:
+            return json.loads(m.group(1).strip())
+        except Exception:
+            pass
+    start = text.find("{")
+    end = text.rfind("}")
+    if 0 <= start < end:
+        try:
+            return json.loads(text[start:end + 1])
+        except Exception:
+            return {}
+    return {}
+
+
+def fallback_visual_card(candidate: dict, index: int, labels: dict) -> dict:
+    return {
+        "index": index,
+        "source_index": candidate.get("source_index"),
+        "source_title": candidate.get("source_title", ""),
+        "location": candidate.get("location", ""),
+        "caption": candidate.get("caption", ""),
+        "url": candidate.get("url", ""),
+        "title": f"{labels['visual_card_title']} {index + 1}",
+        "what_shows": candidate.get("caption", "This visual comes from the uploaded source."),
+        "argument_supported": "Use this image as direct visual evidence from the source. Read it alongside the related source card and cross-source theme.",
+        "cross_source_connection": "This visual should be connected to the source's main concept and compared with related concepts from the other uploaded materials.",
+        "how_to_read": "Start with the title/labels, then identify what is being compared, measured, sequenced, or illustrated.",
+        "exam_use": "Refer to this visual when explaining evidence, interpreting a diagram, or comparing sources in an exam answer.",
+    }
+
+
+def generate_visual_argument_cards(source_units: List[dict], source_digest_block: str, preferred_language: str) -> List[dict]:
+    """Create source-grounded visual cards that can be embedded in the notes.
+
+    Each card is built from an actual screenshot/image from the uploaded source and
+    asks the model to explain the visual as evidence for a concept/argument. The
+    output stays structured so the front end can render image + argument together.
+    """
+    existing = []
+    for unit in source_units or []:
+        existing.extend(unit.get("visual_argument_cards") or [])
+    if existing:
+        return existing
+
+    labels = worldclass_language_labels(preferred_language)
+    candidates = select_visual_candidates_for_argument(source_units, VISUAL_ARGUMENT_CARD_LIMIT)
+    if not candidates:
+        return []
+
+    language_rule = language_instruction_for(preferred_language)
+    context = truncate_text(source_digest_block or "\n\n".join(u.get("text_excerpt", "") for u in source_units or []), env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 50000))
+    cards: List[dict] = []
+    for idx, cand in enumerate(candidates):
+        prompt = f"""
+You are creating a visual evidence card for a world-class study guide.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+You must inspect the attached source screenshot/image and explain how it teaches or supports an argument. Do not describe it generically.
+
+Source visual metadata:
+- Source number: {cand.get('source_index')}
+- Source title: {cand.get('source_title')}
+- Location: {cand.get('location')}
+- Existing caption/context: {cand.get('caption')}
+
+Relevant source-card context:
+{context}
+
+Return JSON only with these fields:
+{{
+  "title": "short title for this visual",
+  "what_shows": "what is visibly shown in the image; mention table/graph/diagram/experiment/slide if applicable",
+  "argument_supported": "the specific concept or argument this visual supports",
+  "cross_source_connection": "how this visual connects to at least one other source or broader course theme",
+  "how_to_read": "how a student should read the image step by step",
+  "exam_use": "how to use this visual in an exam/assignment answer"
+}}
+"""
+        try:
+            raw = generate_chat([
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": [{"type": "text", "text": prompt}, image_part_from_url(cand["url"])]},
+            ], model=model_for_depth("comprehensive"), temperature=0, max_tokens=VISUAL_ARGUMENT_TOKENS)
+            parsed = extract_json_object(raw)
+            if not parsed:
+                card = fallback_visual_card(cand, idx, labels)
+            else:
+                card = {
+                    "index": idx,
+                    "source_index": cand.get("source_index"),
+                    "source_title": cand.get("source_title", ""),
+                    "location": cand.get("location", ""),
+                    "caption": cand.get("caption", ""),
+                    "url": cand.get("url", ""),
+                    "title": parsed.get("title") or f"{labels['visual_card_title']} {idx + 1}",
+                    "what_shows": parsed.get("what_shows") or cand.get("caption", ""),
+                    "argument_supported": parsed.get("argument_supported") or "",
+                    "cross_source_connection": parsed.get("cross_source_connection") or "",
+                    "how_to_read": parsed.get("how_to_read") or "",
+                    "exam_use": parsed.get("exam_use") or "",
+                }
+        except Exception:
+            card = fallback_visual_card(cand, idx, labels)
+        cards.append(card)
+
+    # Store on the first source unit so build_visual_gallery can return the same order.
+    if source_units:
+        source_units[0]["visual_argument_cards"] = cards
+    return cards
+
+
+def visual_argument_markdown(cards: List[dict], preferred_language: str) -> str:
+    labels = worldclass_language_labels(preferred_language)
+    if not cards:
+        return ""
+    chunks = [f"{labels['visual_heading']}\n\n{labels['visual_intro']}"]
+    for i, card in enumerate(cards):
+        chunks.append(
+            f"### {labels['visual_card_title']} {i + 1}: {card.get('title', '')}\n\n"
+            f"[[VISUAL:{i}]]\n\n"
+            f"**{labels['source_label']}:** Source {card.get('source_index', '')} — {card.get('source_title', '')} ({card.get('location', '')})\n\n"
+            f"**{labels['what_shows']}:** {card.get('what_shows', '')}\n\n"
+            f"**{labels['argument']}:** {card.get('argument_supported', '')}\n\n"
+            f"**{labels['connection']}:** {card.get('cross_source_connection', '')}\n\n"
+            f"**{labels['how_to_read']}:** {card.get('how_to_read', '')}\n\n"
+            f"**{labels['exam_use']}:** {card.get('exam_use', '')}"
+        )
+    return "\n\n".join(chunks).strip()
+
+
+def build_visual_gallery(source_units: List[dict]) -> List[dict]:
+    """Return visual argument cards first; fall back to raw screenshot gallery."""
+    argument_cards = []
+    for unit in source_units or []:
+        argument_cards.extend(unit.get("visual_argument_cards") or [])
+    if argument_cards:
+        return argument_cards[:MULTISOURCE_VISUAL_GALLERY_LIMIT]
+
+    # Fallback raw gallery for cases where notes were not generated yet.
+    gallery: List[dict] = []
+    max_items = MULTISOURCE_VISUAL_GALLERY_LIMIT
+    for cand in iter_visual_candidates(source_units):
+        gallery.append({
+            "source_index": cand.get("source_index"),
+            "source_title": cand.get("source_title", ""),
+            "caption": cand.get("caption", ""),
+            "location": cand.get("location", ""),
+            "url": cand.get("url", ""),
+            "title": cand.get("location") or "Source visual",
+            "what_shows": cand.get("caption", ""),
+            "argument_supported": "",
+            "cross_source_connection": "",
+            "how_to_read": "",
+            "exam_use": "",
+        })
+        if len(gallery) >= max_items:
+            break
+    return gallery
+
+
+def generate_connection_points_block(source_digest_block: str, source_units: List[dict], preferred_language: str, visual_cards: Optional[List[dict]] = None) -> str:
+    if len(source_units or []) < 2 or not source_digest_block:
+        return ""
+    labels = worldclass_language_labels(preferred_language)
+    language_rule = language_instruction_for(preferred_language)
+    source_list = "\n".join(f"Source {i}: {u.get('title_candidate') or u.get('display_name')}" for i, u in enumerate(source_units, start=1))
+    visual_context = "\n".join(
+        f"Visual {i+1}: Source {c.get('source_index')} {c.get('location')} — {c.get('title')} — {c.get('argument_supported')}"
+        for i, c in enumerate(visual_cards or [])
+    )
+    prompt = f"""
+You are writing the most important section of Synapse: explicit cross-source connection points.
+
+Language requirement: {language_rule}
+Never translate Synapse.
+
+Sources:
+{source_list}
+
+Detailed source cards:
+{truncate_text(source_digest_block, env_int('MULTISOURCE_DIGEST_CONTEXT_CHARS', 300000))}
+
+Visual evidence cards available:
+{visual_context if visual_context else 'No visual cards available.'}
+
+Task:
+Write a deep, concrete connection map. Do NOT write advice such as "look for repeated terms". Actually identify the real connections.
+
+For each connection point, include:
+1. Connection point title
+2. Core question this connection answers
+3. Shared idea
+4. Source-by-source contribution table with columns: Source, What it contributes, How it connects, Specific evidence, Visual evidence if relevant
+5. Agreement / extension / tension
+6. Why this connection matters for learning
+7. How to use it in an exam or assignment
+
+Quality rules:
+- Produce at least 6 connection points when the source pack is large enough.
+- Every connection must mention at least two sources.
+- Use specific names, theories, studies, figures, slides, tables, laws, formulas, cases, or examples from the source cards.
+- Use visual cards as evidence where relevant.
+- If a source has limited readable text, connect it through its title, visible slide/page evidence, or visual card, but label uncertainty clearly.
+- Write in a professor-style teaching voice: concept → evidence → comparison → implication.
+"""
+    try:
+        result = generate_chat([
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ], model=model_for_depth("comprehensive"), temperature=0, max_tokens=MULTISOURCE_CONNECTION_TOKENS).strip()
+        if result and not is_refusal_or_useless_response(result) and count_readable_units(result) >= env_int("MULTISOURCE_CONNECTION_MIN_UNITS", 3500):
+            result = re.sub(r"(?m)^#{1,4}\s*" + re.escape(labels["connection_heading"].lstrip("# ")) + r"\s*$", "", result).strip()
+            return f"{labels['connection_heading']}\n\n{labels['connection_intro']}\n\n{result}"
+    except Exception:
+        return ""
+    return ""
+
+
+def assemble_worldclass_multisource_output(source_digest_block: str, connection_block: str, visual_block: str, synthesis: str, preferred_language: str) -> str:
+    labels = worldclass_language_labels(preferred_language)
+    parts = [
+        labels["guide_title"],
+        labels["intro"],
+        labels["source_heading"],
+        source_digest_block.strip(),
+    ]
+    if connection_block:
+        parts.append(connection_block.strip())
+    if visual_block:
+        parts.append(visual_block.strip())
+    clean_synthesis = synthesis.strip()
+    clean_synthesis = re.sub(r"(?m)^#\s+.*Integrated Study Guide.*$", "", clean_synthesis).strip()
+    if clean_synthesis:
+        parts.append(f"{labels['synthesis_heading']}\n\n{clean_synthesis}")
+    return "\n\n".join(part for part in parts if part).strip()
+
+
+def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict) -> str:
+    """v19 world-class multi-source + visual professor pipeline.
+
+    Stage 1: Build deep source cards, with screenshots/images visible to the model.
+    Stage 2: Generate visual argument cards from actual source screenshots.
+    Stage 3: Generate explicit source-to-source connection points.
+    Stage 4: Generate broader professor synthesis sections.
+    Stage 5: Assemble into one study guide without compressing away details.
+    """
+    language_rule = language_instruction_for(preferred_language)
+    source_digest_block = generate_source_digests_for_multisource(source_units, language_rule)
+    if not source_digest_block or count_readable_units(source_digest_block) < 900:
+        cards = []
+        for idx, unit in enumerate(source_units or [], start=1):
+            title = unit.get("title_candidate") or unit.get("display_name") or f"Source {idx}"
+            excerpt = truncate_text(unit.get("text_excerpt") or "", env_int("MULTISOURCE_FALLBACK_EXCERPT_CHARS", 16000))
+            cards.append(f"### Source {idx}: {title}\n\n#### Learning focus\n{excerpt if excerpt else 'Readable text was limited for this source. Use visual evidence where available.'}")
+        source_digest_block = "\n\n".join(cards)
+
+    visual_cards = generate_visual_argument_cards(source_units, source_digest_block, preferred_language)
+    visual_block = visual_argument_markdown(visual_cards, preferred_language)
+    connection_block = generate_connection_points_block(source_digest_block, source_units, preferred_language, visual_cards)
+    synthesis = generate_multisource_synthesis_from_digests(source_digest_block, source_units, preferred_language, depth_plan)
+    return assemble_worldclass_multisource_output(source_digest_block, connection_block, visual_block, synthesis, preferred_language)
+
+
+def attach_visual_argument_section(summary: str, source_units: List[dict], preferred_language: str) -> str:
+    """Ensure generated content itself contains source screenshots/visual cards.
+
+    The visual gallery alone is not enough. This function appends inline visual
+    markers and explanations into the notes, and stores card data on source_units
+    for the front end to render the actual image at each marker.
+    """
+    summary = summary or ""
+    source_digest_context = summary[:env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 50000)]
+    cards = generate_visual_argument_cards(source_units, source_digest_context, preferred_language)
+    if not cards:
+        return summary
+    # If markers already exist from cached notes, only rebuild card data.
+    if "[[VISUAL:" in summary:
+        return summary
+    visual_block = visual_argument_markdown(cards, preferred_language)
+    if not visual_block:
+        return summary
+    return (summary.rstrip() + "\n\n" + visual_block).strip()
+
+# v19 compatibility override: supports newer chat models that may prefer
+# max_completion_tokens or reject explicit temperature. This keeps the existing
+# app code stable while allowing stronger models to be used in .env.
+def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: float = 0, max_tokens: int = 4500) -> str:
+    require_openai()
+    models_to_try = [model]
+    fallback_model = os.getenv("OPENAI_FALLBACK_MODEL", "gpt-4o-mini")
+    if fallback_model and fallback_model not in models_to_try:
+        models_to_try.append(fallback_model)
+
+    last_error = None
+    for model_name in models_to_try:
+        attempts = [
+            {"model": model_name, "messages": messages, "temperature": temperature, "max_tokens": max_tokens},
+            {"model": model_name, "messages": messages, "max_tokens": max_tokens},
+            {"model": model_name, "messages": messages, "temperature": temperature, "max_completion_tokens": max_tokens},
+            {"model": model_name, "messages": messages, "max_completion_tokens": max_tokens},
+        ]
+        for kwargs in attempts:
+            try:
+                response = client.chat.completions.create(**kwargs)
+                return response.choices[0].message.content or ""
+            except Exception as error:
+                last_error = error
+                continue
+    raise last_error if last_error else RuntimeError("OpenAI chat request failed")
+
+# -----------------------------------------------------------------------------
+# v20 WORLD-CLASS SOURCE-GROUNDED VISUAL PROFESSOR OVERRIDES
+# -----------------------------------------------------------------------------
+# These late definitions intentionally override earlier helper functions.
+# Goal: multi-source analysis must not become a generic summary. It must:
+# 1) deep-read every source, even visual-heavy PPT/PDF sources;
+# 2) build explicit source-to-source connection points;
+# 3) embed actual source screenshots/slides into the generated notes;
+# 4) use the screenshots as evidence for arguments, not decoration.
+CACHE_VERSION = "source_identity_mindmap_v30_worldclass_source_grounded_visual_connections"
+
+
+def v20_visual_parts_count(unit: dict) -> int:
+    count = 0
+    for part in unit.get("visual_parts") or []:
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            count += 1
+    return count
+
+
+def v20_source_has_visuals(unit: dict) -> bool:
+    return v20_visual_parts_count(unit) > 0
+
+
+def source_card_min_units(unit: dict) -> int:
+    """v20: demand deeper source cards, especially for multi-source packs.
+
+    Previous versions allowed slide-heavy sources to collapse into the sentence
+    'Readable text was limited'. That is no longer acceptable when screenshots or
+    embedded images are available: the model must inspect visuals and teach them.
+    """
+    text_len = len(unit.get("text_excerpt") or "")
+    visual_bonus = v20_visual_parts_count(unit)
+    if text_len >= 90000:
+        return env_int("MULTISOURCE_LONG_CARD_MIN_UNITS", 3600)
+    if text_len >= 35000:
+        return env_int("MULTISOURCE_MEDIUM_CARD_MIN_UNITS", 2800)
+    if text_len >= 8000:
+        return env_int("MULTISOURCE_SHORT_CARD_MIN_UNITS", 1900)
+    if visual_bonus:
+        return env_int("MULTISOURCE_VISUAL_ONLY_CARD_MIN_UNITS", 1400)
+    return env_int("MULTISOURCE_TINY_CARD_MIN_UNITS", 950)
+
+
+def v20_source_visual_brief(unit: dict, limit: int = 8) -> str:
+    rows = []
+    for cand in iter_visual_candidates([unit])[:limit]:
+        rows.append(f"- {cand.get('location')}: {cand.get('caption')}")
+    return "\n".join(rows) if rows else "No visual candidates extracted."
+
+
+def generate_individual_source_digest(index: int, unit: dict, language_rule: str) -> str:
+    """v20: create a deep source card from text AND screenshots.
+
+    Important change: if text extraction is weak but visuals exist, we still send
+    the screenshots to the model and require a visual-led source card. This fixes
+    PPT/PDF sources that previously appeared as 'Readable text was limited'.
+    """
+    excerpt_limit = env_int("MULTISOURCE_SOURCE_CARD_CHARS", 180000)
+    excerpt = source_unit_text_excerpt(unit, limit=excerpt_limit)
+    title = unit.get("title_candidate") or unit.get("display_name") or f"Source {index}"
+    min_units = source_card_min_units(unit)
+    visual_parts = source_unit_visual_parts(unit, MAX_VISUAL_IMAGES_PER_SOURCE)
+    has_visuals = bool(visual_parts)
+
+    if (not excerpt or len(excerpt) < 120) and not has_visuals:
+        safe_title = title or f"Source {index}"
+        return (
+            f"### Source {index}: {safe_title}\n\n"
+            f"#### Extraction status\nReadable text and usable visuals were limited for this source. "
+            f"Use the filename/title cautiously and regenerate after providing a text-readable PDF/PPT export if possible.\n\n"
+            f"#### Revision use\nTreat this source as low-confidence evidence until more text or visuals are available."
+        )
+
+    prompt = f"""
+You are generating a DEEP professor-style source card for Source {index}.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+This source card will be placed into a multi-source study guide. It must be detailed enough that a student can revise this source without reopening the original file.
+
+Source identity:
+- Source number: {index}
+- Display name: {unit.get('display_name')}
+- Title/topic: {title}
+- Extracted text length: {len(excerpt)} characters
+- Screenshot / image evidence count available to you: {v20_visual_parts_count(unit)}
+
+Visual candidates extracted from this source:
+{v20_source_visual_brief(unit)}
+
+Reference style to imitate structurally:
+{REFERENCE_STYLE_PROFILE}
+
+Return markdown using this architecture. Localise headings into the selected language, but keep the academic depth:
+
+### Source {index}: specific readable lecture/source title
+
+#### Opening frame / central question
+Identify the main question/problem this source is teaching. Make it specific, not generic.
+
+#### Source structure / lecture flow
+Walk through the source in order. Use actual slide/page titles, sections, cases, diagrams, tables, formulas, examples, or study sequence. If the source is a lecture, write it like detailed lecture notes.
+
+#### Key concepts and definitions
+Create a concept table. For each concept: definition, simple explanation, where it appears in this source, why it matters.
+
+#### Important studies / examples / cases / calculations
+For every important study/example/case/calculation, use:
+- **Question:**
+- **Method / process:**
+- **Result / answer:**
+- **Meaning:**
+- **Exam use:**
+
+#### Visual / diagram / table explanation from this source
+This section is mandatory when screenshots/images are attached.
+For each important visual you can inspect:
+- name the visible diagram/table/graph/slide
+- explain what is visually shown
+- explain what argument/concept it supports
+- explain how a student should read it step by step
+- explain how it could connect to other sources
+Do not write 'visuals are not detailed' if screenshots are attached. Inspect the screenshots.
+
+#### What this source uniquely contributes
+Explain the distinctive role of this source in the whole source pack: theory, evidence, method, case, mechanism, counterpoint, application, visual explanation, etc.
+
+#### Connections to other sources in the pack
+Predict explicit links to other sources. Use connection verbs: supports, extends, contrasts, complicates, applies, provides mechanism for, provides evidence for.
+
+#### Common misunderstandings
+Name realistic student mistakes and correct them. Make them source-specific.
+
+#### Exam / revision use
+Give revision priorities, likely question types, and what a high-scoring answer should include.
+
+Depth rules:
+- Do not output a basic summary.
+- Use named researchers, theories, studies, examples, diagrams, slide titles, data tables, formulas, cases, and page/slide flow whenever visible.
+- If the source is visual-heavy, use the screenshots as primary evidence.
+- Minimum expected richness: {min_units} readable units.
+
+Extracted text excerpt:
+{truncate_text(excerpt, excerpt_limit) if excerpt else '[Text extraction was limited. Use the attached screenshots/images as the main evidence.]'}
+"""
+
+    def call(prompt_text: str, tokens: int) -> str:
+        user_content = [{"type": "text", "text": prompt_text}] + visual_parts if visual_parts else prompt_text
+        return generate_chat([
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ], model=model_for_depth("comprehensive"), temperature=0, max_tokens=tokens).strip()
+
+    try:
+        digest = call(prompt, MULTISOURCE_SOURCE_DIGEST_TOKENS)
+        if digest and not is_refusal_or_useless_response(digest) and count_readable_units(digest) >= min_units:
+            return digest
+
+        repair_prompt = prompt + f"""
+
+The previous source card was too short or too generic.
+Rewrite it as a substantially deeper professor note.
+Repair requirements:
+- Keep the selected output language.
+- If screenshots are attached, explain at least 3 visible slides/pages/images where possible.
+- Add specific connection predictions to other sources.
+- Add source-specific exam/revision guidance.
+- Do not apologise and do not say the source is inaccessible if screenshots or text are present.
+- Minimum readable units: {min_units}.
+"""
+        repaired = call(repair_prompt, max(MULTISOURCE_SOURCE_DIGEST_TOKENS, env_int("MULTISOURCE_SOURCE_REPAIR_TOKENS", 11000)))
+        if repaired and not is_refusal_or_useless_response(repaired):
+            # Return repaired even if slightly below threshold. A concrete but shorter card
+            # is better than hiding source evidence behind a generic fallback.
+            if count_readable_units(repaired) >= max(800, int(min_units * 0.55)):
+                return repaired
+        raise RuntimeError("source card was too short")
+    except Exception:
+        safe_excerpt = truncate_text(excerpt or "", env_int("MULTISOURCE_FALLBACK_EXCERPT_CHARS", 16000))
+        visual_note = v20_source_visual_brief(unit, 10)
+        return (
+            f"### Source {index}: {title}\n\n"
+            f"#### Preserved source evidence\n{safe_excerpt if safe_excerpt else 'Text extraction was limited.'}\n\n"
+            f"#### Extracted visual evidence available\n{visual_note}\n\n"
+            f"#### Revision use\nUse this preserved evidence and visual list when connecting this source to the rest of the uploaded pack."
+        )
+
+
+def generate_visual_argument_cards(source_units: List[dict], source_digest_block: str, preferred_language: str) -> List[dict]:
+    """v20: create visual cards from real PDF/PPT screenshots and images.
+
+    The card must explain: what the image shows, what argument it supports, and
+    which other sources it connects to. This turns source screenshots into visual
+    evidence inside the generated content.
+    """
+    existing = []
+    for unit in source_units or []:
+        existing.extend(unit.get("visual_argument_cards") or [])
+    if existing:
+        return existing
+
+    labels = worldclass_language_labels(preferred_language)
+    candidates = select_visual_candidates_for_argument(source_units, VISUAL_ARGUMENT_CARD_LIMIT)
+    if not candidates:
+        return []
+
+    language_rule = language_instruction_for(preferred_language)
+    context = truncate_text(source_digest_block or "\n\n".join(u.get("text_excerpt", "") for u in source_units or []), env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 90000))
+    source_titles = "\n".join(
+        f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
+        for i, u in enumerate(source_units or [], start=1)
+    )
+
+    cards: List[dict] = []
+    for idx, cand in enumerate(candidates):
+        prompt = f"""
+You are creating a visual evidence card for a world-class multi-source study guide.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+You MUST inspect the attached screenshot/image from the uploaded source. Do not answer generically.
+
+All sources in the pack:
+{source_titles}
+
+Current visual metadata:
+- Visual number: {idx + 1}
+- Source number: {cand.get('source_index')}
+- Source title: {cand.get('source_title')}
+- Location: {cand.get('location')}
+- Caption/context extracted by system: {cand.get('caption')}
+
+Relevant source-card context:
+{context}
+
+Return JSON only:
+{{
+  "title": "short, specific title for this visual",
+  "what_shows": "describe exactly what is visible: labels, table columns, graph axes, diagram parts, experimental layout, comparison, formula, or slide structure",
+  "argument_supported": "state the exact concept/claim/argument this visual supports inside its own source",
+  "cross_source_connection": "connect this visual to at least one other source by source number/title and explain whether it supports, extends, contrasts, or provides mechanism/evidence",
+  "how_to_read": "give step-by-step guidance for reading the visual",
+  "exam_use": "explain how to use this visual as evidence in an exam/assignment answer"
+}}
+"""
+        try:
+            raw = generate_chat([
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": [{"type": "text", "text": prompt}, image_part_from_url(cand["url"])]},
+            ], model=model_for_depth("comprehensive"), temperature=0, max_tokens=max(VISUAL_ARGUMENT_TOKENS, env_int("VISUAL_ARGUMENT_TOKENS", 1600)))
+            parsed = extract_json_object(raw)
+            if not parsed:
+                card = fallback_visual_card(cand, idx, labels)
+            else:
+                card = {
+                    "index": idx,
+                    "source_index": cand.get("source_index"),
+                    "source_title": cand.get("source_title", ""),
+                    "location": cand.get("location", ""),
+                    "caption": cand.get("caption", ""),
+                    "url": cand.get("url", ""),
+                    "title": parsed.get("title") or f"{labels['visual_card_title']} {idx + 1}",
+                    "what_shows": parsed.get("what_shows") or cand.get("caption", ""),
+                    "argument_supported": parsed.get("argument_supported") or "",
+                    "cross_source_connection": parsed.get("cross_source_connection") or "",
+                    "how_to_read": parsed.get("how_to_read") or "",
+                    "exam_use": parsed.get("exam_use") or "",
+                }
+        except Exception:
+            card = fallback_visual_card(cand, idx, labels)
+        cards.append(card)
+
+    # Store on first source unit so /analyze can return them to the frontend.
+    if source_units:
+        source_units[0]["visual_argument_cards"] = cards
+    return cards
+
+
+def visual_argument_markdown(cards: List[dict], preferred_language: str) -> str:
+    labels = worldclass_language_labels(preferred_language)
+    if not cards:
+        return ""
+    chunks = [f"{labels['visual_heading']}\n\n{labels['visual_intro']}"]
+    for i, card in enumerate(cards):
+        chunks.append(
+            f"### {labels['visual_card_title']} {i + 1}: {card.get('title', '')}\n\n"
+            f"[[VISUAL:{i}]]\n\n"
+            f"**{labels['source_label']}:** Source {card.get('source_index', '')} — {card.get('source_title', '')} ({card.get('location', '')})\n\n"
+            f"**{labels['what_shows']}:** {card.get('what_shows', '')}\n\n"
+            f"**{labels['argument']}:** {card.get('argument_supported', '')}\n\n"
+            f"**{labels['connection']}:** {card.get('cross_source_connection', '')}\n\n"
+            f"**{labels['how_to_read']}:** {card.get('how_to_read', '')}\n\n"
+            f"**{labels['exam_use']}:** {card.get('exam_use', '')}"
+        )
+    return "\n\n".join(chunks).strip()
+
+
+def generate_connection_points_block(source_digest_block: str, source_units: List[dict], preferred_language: str, visual_cards: Optional[List[dict]] = None) -> str:
+    """v20: produce actual source-to-source connection points, not advice.
+
+    Earlier outputs said things like 'look for repeated terms'. This function now
+    forces concrete source roles, evidence, visual argument links, and source-by-
+    source contribution tables.
+    """
+    if len(source_units or []) < 2 or not source_digest_block:
+        return ""
+    labels = worldclass_language_labels(preferred_language)
+    language_rule = language_instruction_for(preferred_language)
+    source_list = "\n".join(
+        f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
+        for i, u in enumerate(source_units, start=1)
+    )
+    visual_context = "\n".join(
+        f"Visual {i+1}: Source {c.get('source_index')} {c.get('location')} — {c.get('title')} — argument: {c.get('argument_supported')} — connection: {c.get('cross_source_connection')}"
+        for i, c in enumerate(visual_cards or [])
+    )
+
+    prompt = f"""
+You are writing the CENTRAL section of Synapse: explicit cross-source connection points.
+
+Language requirement: {language_rule}
+Never translate Synapse.
+
+Sources:
+{source_list}
+
+Detailed source cards:
+{truncate_text(source_digest_block, env_int('MULTISOURCE_DIGEST_CONTEXT_CHARS', 420000))}
+
+Visual evidence cards available:
+{visual_context if visual_context else 'No visual cards available.'}
+
+Your task is NOT to give advice about finding connections. Your task is to actually identify and explain the real connections.
+
+Write a deep connection map with at least {env_int('MULTISOURCE_REQUIRED_CONNECTION_POINTS', 7)} major connection points if the source pack supports it.
+
+For EACH connection point, use this exact architecture:
+
+### Connection Point X: specific conceptual title
+
+**Core question:** What bigger course question does this connection answer?
+
+**Shared idea:** Explain the idea in professor-level detail.
+
+**Source-by-source contribution table:**
+| Source | What it contributes | How it connects | Specific evidence | Visual evidence |
+|---|---|---|---|---|
+
+**Agreement / extension / tension:** Explain whether sources agree, extend one another, contrast, or complicate the topic.
+
+**Visual argument:** If visual evidence is available, explain how one or more source screenshots/slides/tables/diagrams support this connection. If visual evidence is not directly available, say so briefly and rely on text evidence.
+
+**Why it matters:** Explain why this connection changes the student's understanding.
+
+**Exam / assignment use:** Give a sentence frame or answer strategy using multiple sources.
+
+Quality rules:
+- Every connection point must mention at least two sources.
+- Across the section, every uploaded source should appear at least once unless it has no readable or visual evidence.
+- Use names, theories, studies, cases, formulas, page/slide visuals, tables, diagrams, examples, or sections from the source cards.
+- Do not write generic lines such as 'these sources all discuss psychology'.
+- Prefer specific relationships: Source A provides mechanism; Source B provides evolutionary explanation; Source C provides developmental evidence; Source D provides method/measurement; Source E provides visual proof.
+- If a source has limited readable text, connect it through visible screenshots, slide titles, or filename/title, and label uncertainty.
+"""
+
+    def call_connection(p: str, tokens: int) -> str:
+        return generate_chat([
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": p},
+        ], model=model_for_depth("comprehensive"), temperature=0, max_tokens=tokens).strip()
+
+    try:
+        result = call_connection(prompt, max(MULTISOURCE_CONNECTION_TOKENS, env_int("MULTISOURCE_CONNECTION_TOKENS", 16000)))
+        if result and not is_refusal_or_useless_response(result):
+            units = count_readable_units(result)
+            has_tables = result.count("|") >= 20
+            has_connections = len(re.findall(r"Connection Point|连接点|連接點|共同|connection", result, flags=re.I)) >= 3
+            if units >= env_int("MULTISOURCE_CONNECTION_MIN_UNITS", 3200) and (has_tables or has_connections):
+                result = re.sub(r"(?m)^#{1,4}\s*" + re.escape(labels["connection_heading"].lstrip("# ")) + r"\s*$", "", result).strip()
+                return f"{labels['connection_heading']}\n\n{labels['connection_intro']}\n\n{result}"
+
+            repair_prompt = prompt + f"""
+
+The previous connection map was too shallow or too short.
+Rewrite with MORE SPECIFIC SOURCE-TO-SOURCE CONNECTIONS.
+Mandatory repair:
+- Do not explain how to find connections; write the connections themselves.
+- Add source-by-source contribution tables.
+- Use visual evidence cards where relevant.
+- Mention every usable source at least once.
+- Add at least 7 concrete connection points if possible.
+"""
+            repaired = call_connection(repair_prompt, max(MULTISOURCE_CONNECTION_TOKENS, env_int("MULTISOURCE_CONNECTION_REPAIR_TOKENS", 18000)))
+            if repaired and not is_refusal_or_useless_response(repaired):
+                repaired = re.sub(r"(?m)^#{1,4}\s*" + re.escape(labels["connection_heading"].lstrip("# ")) + r"\s*$", "", repaired).strip()
+                return f"{labels['connection_heading']}\n\n{labels['connection_intro']}\n\n{repaired}"
+    except Exception:
+        pass
+
+    # Deterministic but concrete fallback: source list + visual evidence list. This
+    # is not as strong as the LLM connection map, but it avoids generic empty prose.
+    visual_rows = "\n".join(
+        f"| Visual {i+1} | Source {c.get('source_index')} | {c.get('location')} | {c.get('title')} | {c.get('argument_supported')} |"
+        for i, c in enumerate(visual_cards or [])
+    ) or "| No visual card | - | - | - | - |"
+    fallback = f"""
+### Connection Point 1: Source roles across the uploaded pack
+
+**Core question:** What does each source contribute to the larger learning problem?
+
+| Source | Likely role | How to connect it | Evidence basis |
+|---|---|---|---|
+"""
+    for i, u in enumerate(source_units or [], start=1):
+        title = u.get('title_candidate') or u.get('display_name') or f'Source {i}'
+        visual_status = f"{v20_visual_parts_count(u)} extracted visuals" if v20_source_has_visuals(u) else "text/title evidence only"
+        fallback += f"| Source {i} | {title} | Connect this source to repeated concepts, methods, examples, and visuals identified in the source card. | {visual_status} |\n"
+    fallback += f"""
+
+### Extracted visual evidence that should be used for arguments
+
+| Visual | Source | Location | Visual title | Argument supported |
+|---|---|---|---|---|
+{visual_rows}
+"""
+    return f"{labels['connection_heading']}\n\n{labels['connection_intro']}\n\n{fallback.strip()}"
+
+
+def assemble_worldclass_multisource_output(source_digest_block: str, connection_block: str, visual_block: str, synthesis: str, preferred_language: str) -> str:
+    """v20 order: source notes -> visual evidence -> connection points -> synthesis."""
+    labels = worldclass_language_labels(preferred_language)
+    parts = [
+        labels["guide_title"],
+        labels["intro"],
+        labels["source_heading"],
+        source_digest_block.strip(),
+    ]
+    if visual_block:
+        parts.append(visual_block.strip())
+    if connection_block:
+        parts.append(connection_block.strip())
+    clean_synthesis = synthesis.strip()
+    clean_synthesis = re.sub(r"(?m)^#\s+.*Integrated Study Guide.*$", "", clean_synthesis).strip()
+    if clean_synthesis:
+        parts.append(f"{labels['synthesis_heading']}\n\n{clean_synthesis}")
+    return "\n\n".join(part for part in parts if part).strip()
+
+
+def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict) -> str:
+    """v20 source-grounded visual professor pipeline.
+
+    Stage 1: Deep card for each source, using text + screenshots.
+    Stage 2: Visual argument cards from actual PDF/PPT/page screenshots.
+    Stage 3: Explicit source-to-source connection points.
+    Stage 4: Broader professor synthesis.
+    Stage 5: Assemble without compressing or removing visual evidence.
+    """
+    language_rule = language_instruction_for(preferred_language)
+    source_digest_block = generate_source_digests_for_multisource(source_units, language_rule)
+    if not source_digest_block or count_readable_units(source_digest_block) < 900:
+        cards = []
+        for idx, unit in enumerate(source_units or [], start=1):
+            title = unit.get("title_candidate") or unit.get("display_name") or f"Source {idx}"
+            excerpt = truncate_text(unit.get("text_excerpt") or "", env_int("MULTISOURCE_FALLBACK_EXCERPT_CHARS", 22000))
+            visuals = v20_source_visual_brief(unit, 10)
+            cards.append(
+                f"### Source {idx}: {title}\n\n"
+                f"#### Preserved text evidence\n{excerpt if excerpt else 'Readable text was limited.'}\n\n"
+                f"#### Extracted visual evidence\n{visuals}"
+            )
+        source_digest_block = "\n\n".join(cards)
+
+    visual_cards = generate_visual_argument_cards(source_units, source_digest_block, preferred_language)
+    visual_block = visual_argument_markdown(visual_cards, preferred_language)
+    connection_block = generate_connection_points_block(source_digest_block, source_units, preferred_language, visual_cards)
+    synthesis = generate_multisource_synthesis_from_digests(source_digest_block, source_units, preferred_language, depth_plan)
+    return assemble_worldclass_multisource_output(source_digest_block, connection_block, visual_block, synthesis, preferred_language)
+
+
+def attach_visual_argument_section(summary: str, source_units: List[dict], preferred_language: str) -> str:
+    """v20: guarantee inline visual evidence markers in generated content.
+
+    If a multi-source answer was generated before v20 or returned without visual
+    cards, this appends a visual evidence section with [[VISUAL:n]] markers that
+    the frontend renders as actual screenshots/slides.
+    """
+    summary = summary or ""
+    source_digest_context = summary[:env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 90000)]
+    cards = generate_visual_argument_cards(source_units, source_digest_context, preferred_language)
+    if not cards:
+        return summary
+    if "[[VISUAL:" in summary:
+        return summary
+    visual_block = visual_argument_markdown(cards, preferred_language)
+    if not visual_block:
+        return summary
+    return (summary.rstrip() + "\n\n" + visual_block).strip()
+
+
+# -----------------------------------------------------------------------------
+# v21 Token Optimisation Layer
+# -----------------------------------------------------------------------------
+# This layer reduces unnecessary API cost WITHOUT reducing study-guide depth.
+# It does not minify the final user-facing notes. It only optimises:
+#   1) internal model prompts, especially stable system prompts;
+#   2) internal JSON outputs such as mind-map JSON and visual-card JSON;
+#   3) cache storage / network payload size;
+#   4) observability of token usage.
+# Final generated content remains readable and detailed.
+
+TOKEN_OPTIMIZATION_ENABLED = (os.getenv("ENABLE_TOKEN_OPTIMIZATION", "true").lower() not in {"0", "false", "no"})
+COMPACT_SYSTEM_PROMPTS = (os.getenv("COMPACT_SYSTEM_PROMPTS", "true").lower() not in {"0", "false", "no"})
+MINIFY_MODEL_JSON = (os.getenv("MINIFY_MODEL_JSON", "true").lower() not in {"0", "false", "no"})
+MINIFY_CACHE_JSON = (os.getenv("MINIFY_CACHE_JSON", "true").lower() not in {"0", "false", "no"})
+LOG_TOKEN_USAGE = (os.getenv("LOG_TOKEN_USAGE", "true").lower() not in {"0", "false", "no"})
+ADD_JSON_MINIFY_HINT = (os.getenv("ADD_JSON_MINIFY_HINT", "true").lower() not in {"0", "false", "no"})
+
+TOKEN_USAGE_WINDOW: List[dict] = []
+TOKEN_USAGE_WINDOW_LIMIT = env_int("TOKEN_USAGE_WINDOW_LIMIT", 60)
+
+_JSON_MINIFY_RULE = (
+    "When the required output is JSON, return ONLY valid minified JSON on one line: "
+    "no markdown fences, no comments, no indentation, no unnecessary whitespace. "
+    "Use compact keys only when the schema already allows them."
+)
+
+
+def _v21_is_json_task(messages: List[dict]) -> bool:
+    """Detect internal JSON-generation tasks so we can add a minified-JSON rule.
+
+    We intentionally do not apply this to normal study-guide generation because
+    user-facing content must remain readable.
+    """
+    try:
+        combined = "\n".join(str(m.get("content", "")) for m in messages if isinstance(m, dict))
+    except Exception:
+        return False
+    lowered = combined.lower()
+    return (
+        "strict json" in lowered
+        or "valid json" in lowered
+        or "json object" in lowered
+        or "return json" in lowered
+        or "mind map json" in lowered
+        or "visual evidence card" in lowered and '"title"' in combined
+    )
+
+
+def _v21_compact_instruction_text(text: str) -> str:
+    """Compact only instruction text, not source excerpts.
+
+    This removes repeated blank lines and extra spaces from stable instructions,
+    which helps exact-prefix prompt caching and reduces input tokens. It avoids
+    rewriting mathematical/source content by applying mostly to system messages.
+    """
+    if not text or not TOKEN_OPTIMIZATION_ENABLED or not COMPACT_SYSTEM_PROMPTS:
+        return text
+    text = str(text).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _v21_compact_message_content(content):
+    """Compact system strings and text parts while preserving images.
+
+    Multimodal image parts are passed through unchanged. User text containing
+    long source excerpts is preserved more carefully; only excessive blank lines
+    are trimmed to avoid damaging slide structure.
+    """
+    if isinstance(content, str):
+        return _v21_compact_instruction_text(content)
+    if isinstance(content, list):
+        new_parts = []
+        for part in content:
+            if not isinstance(part, dict):
+                new_parts.append(part)
+                continue
+            if part.get("type") == "text":
+                value = str(part.get("text", ""))
+                value = value.replace("\r\n", "\n").replace("\r", "\n")
+                # Preserve source/slide line breaks, but remove very excessive gaps.
+                value = re.sub(r"\n{4,}", "\n\n", value).strip()
+                new_part = {**part, "text": value}
+                new_parts.append(new_part)
+            else:
+                new_parts.append(part)
+        return new_parts
+    return content
+
+
+def _v21_optimise_messages(messages: List[dict]) -> List[dict]:
+    if not TOKEN_OPTIMIZATION_ENABLED:
+        return messages
+    optimised = []
+    for message in messages:
+        if not isinstance(message, dict):
+            optimised.append(message)
+            continue
+        role = message.get("role")
+        content = message.get("content")
+        # Compact system/developer prompts aggressively. Preserve user sources more.
+        if role in {"system", "developer"}:
+            content = _v21_compact_message_content(content)
+        elif isinstance(content, list):
+            content = _v21_compact_message_content(content)
+        elif isinstance(content, str):
+            content = re.sub(r"\n{4,}", "\n\n", content).strip()
+        optimised.append({**message, "content": content})
+
+    if MINIFY_MODEL_JSON and ADD_JSON_MINIFY_HINT and _v21_is_json_task(optimised):
+        # Put the rule at the beginning so it can benefit from prompt caching.
+        optimised = [{"role": "system", "content": _JSON_MINIFY_RULE}] + optimised
+    return optimised
+
+
+def _v21_record_usage(response, model_name: str, purpose: str = "chat") -> None:
+    if not LOG_TOKEN_USAGE:
+        return
+    try:
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+        item = {
+            "ts": int(time.time()),
+            "purpose": purpose,
+            "model": model_name,
+            "prompt_tokens": getattr(usage, "prompt_tokens", None),
+            "completion_tokens": getattr(usage, "completion_tokens", None),
+            "total_tokens": getattr(usage, "total_tokens", None),
+        }
+        TOKEN_USAGE_WINDOW.append(item)
+        del TOKEN_USAGE_WINDOW[:-TOKEN_USAGE_WINDOW_LIMIT]
+        print(
+            f"[token-usage] model={model_name} prompt={item['prompt_tokens']} "
+            f"completion={item['completion_tokens']} total={item['total_tokens']}",
+            flush=True,
+        )
+    except Exception:
+        return
+
+
+# Override existing helper. Keeps backwards compatibility with old calls.
+def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: float = 0, max_tokens: int = 4500) -> str:
+    if client is None:
+        raise RuntimeError("OPENAI_API_KEY is not configured. Add it to backend/.env and restart the backend.")
+
+    model_name = model or CHAT_MODEL
+    optimised_messages = _v21_optimise_messages(messages)
+
+    # Some newer models may reject temperature or prefer max_completion_tokens.
+    # Try several compatible payload shapes, preserving the previous robustness.
+    payloads = [
+        {"model": model_name, "messages": optimised_messages, "temperature": temperature, "max_tokens": max_tokens},
+        {"model": model_name, "messages": optimised_messages, "max_tokens": max_tokens},
+        {"model": model_name, "messages": optimised_messages, "temperature": temperature, "max_completion_tokens": max_tokens},
+        {"model": model_name, "messages": optimised_messages, "max_completion_tokens": max_tokens},
+    ]
+    last_error = None
+    for kwargs in payloads:
+        try:
+            response = client.chat.completions.create(**kwargs)
+            _v21_record_usage(response, model_name)
+            content = response.choices[0].message.content or ""
+            # If the task is JSON and the model still pretty-printed JSON, compact it.
+            if MINIFY_MODEL_JSON and _v21_is_json_task(optimised_messages):
+                try:
+                    parsed = extract_json_object(content)
+                    if isinstance(parsed, dict):
+                        return json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+                except Exception:
+                    pass
+            return content
+        except Exception as exc:
+            last_error = exc
+            msg = str(exc).lower()
+            if "temperature" in msg or "max_tokens" in msg or "max_completion_tokens" in msg or "unsupported" in msg:
+                continue
+            raise
+    raise last_error if last_error else RuntimeError("OpenAI request failed.")
+
+
+# Override cache writer to avoid bloated indent whitespace in stored JSON.
+def save_analysis_cache(cache: dict) -> None:
+    try:
+        now = time.time()
+        cleaned = {}
+        for key, value in (cache or {}).items():
+            if not isinstance(value, dict):
+                continue
+            ts = float(value.get("created_at", now))
+            if now - ts <= ANALYSIS_CACHE_TTL_SECONDS:
+                cleaned[key] = value
+        if MINIFY_CACHE_JSON:
+            CACHE_PATH.write_text(json.dumps(cleaned, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        else:
+            CACHE_PATH.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+@app.get("/health/token-optimization")
+def health_token_optimization():
+    """Quick dashboard for checking whether token optimisation is active."""
+    return {
+        "status": "ok",
+        "enabled": TOKEN_OPTIMIZATION_ENABLED,
+        "compact_system_prompts": COMPACT_SYSTEM_PROMPTS,
+        "minify_model_json": MINIFY_MODEL_JSON,
+        "minify_cache_json": MINIFY_CACHE_JSON,
+        "json_minify_hint": ADD_JSON_MINIFY_HINT,
+        "log_token_usage": LOG_TOKEN_USAGE,
+        "recent_usage": TOKEN_USAGE_WINDOW[-10:],
+        "cache_file": str(CACHE_PATH),
+        "cache_version": CACHE_VERSION,
+        "note": "Final user-facing study guides are not minified; only internal JSON/prompts/cache are optimised.",
+    }
