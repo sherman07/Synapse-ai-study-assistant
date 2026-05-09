@@ -8,6 +8,7 @@ import re
 import tempfile
 import time
 import urllib.request
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -229,16 +230,6 @@ For laws/documents: break down the legal structure by part, subpart, section, de
 For maths/problems: show every calculation step, why each formula is used, what each line means, and how to check the result.
 For videos/transcripts: reconstruct the teaching sequence, including corrections, repeated calculations, or unclear moments.
 
-## Visual / Diagram-Based Explanation
-If slides, PDFs, screenshots, figures, tables, or diagrams are provided, explain them directly.
-For each important visual/table/diagram:
-- identify the page/slide/source if visible
-- describe what the visual shows
-- explain what concept it is teaching
-- connect it to the surrounding text
-- explain what a student should notice
-If no visual information is available, say that the extracted material did not provide usable visuals.
-
 ## Worked Example / Evidence From Source
 Use actual examples, studies, page/slide references, section numbers, calculations, table values, scenarios, or evidence from the uploaded/source material whenever available.
 If the source contains both source examples and external examples, include both under clear subheadings.
@@ -278,13 +269,13 @@ Reference-style target for high-quality multi-source notes:
 - The output should feel like the user paid for a complete study pack: detailed, organized, source-faithful, and useful for exam revision.
 - Imitate the supplied reference style at the STRUCTURAL level: title + framing idea, lecture blocks, concept definitions, comparison tables, study/case breakdowns, visual explanations, and final revision focus.
 - Do not imitate by using generic filler. The value must come from the uploaded sources.
-- For each lecture/source, use a deep teaching pattern: what the source is about -> what problem/question it answers -> key concepts -> examples/studies/cases/calculations -> visual/table explanation -> what students often misunderstand -> how it connects to the wider course.
+- For each lecture/source, use a deep teaching pattern: what the source is about -> what problem/question it answers -> key concepts -> examples/studies/cases/calculations with any relevant source screenshots embedded in the same flow -> what students often misunderstand -> how it connects to the wider course.
 - When a study/case/experiment appears, explain it using: research question, method/procedure, result/finding, interpretation, limitation, exam use.
 - When a formula/calculation appears, reconstruct the teaching sequence: given information, formula, substitution, working, answer, verification, common error.
 - When a law/policy source appears, reconstruct the legal logic: purpose, definitions, sections/parts, duties/powers, exceptions, tests, consequences, practical example.
 - When a design/art/literature/history source appears, explain context, formal features, evidence/examples, interpretation, tensions, and assessment use.
 - Use structured comparison tables whenever the source compares theories, methods, groups, technologies, experiments, cases, time periods, artists, or concepts.
-- Explain visuals as teaching devices: what the picture/table/diagram is showing, why it is placed there, and what the student should learn from it.
+- When the uploaded source contains a useful picture/table/diagram, integrate it directly beside the concept it teaches rather than creating a separate visual section.
 - For multiple resources, first preserve detailed source-by-source learning, then build a course-level synthesis: shared concepts, repeated tensions, methodological patterns, cross-source evidence, differences, and revision priorities.
 - Maintain the selected output language throughout. Keep short English academic terms in brackets when useful.
 - The final answer should be long enough that a student can revise from it without reopening every file.
@@ -326,16 +317,13 @@ Explain how the lectures/sources build on each other. Use progressions such as b
 ## 5. Differences, Tensions, and Debates
 Show where sources disagree or emphasise different sides, such as nature vs nurture, mechanism vs application, theory vs evidence, qualitative vs quantitative change, biological vs social explanation, structure vs function, source text vs external example.
 
-## 6. Visual and Diagram-Based Explanation
-Explain key diagrams/images/tables from the uploaded slides/pages. Use page or slide markers when visible. If screenshots/visual evidence are limited, explain the extracted visual/textual cues instead.
-
-## 7. Cross-Source Evidence Table
+## 6. Cross-Source Evidence Table
 Use markdown tables. Include columns such as Theme, Sources, Evidence/Example, What it proves, Exam/Application use.
 
-## 8. Deep Revision Guide
+## 7. Deep Revision Guide
 Give likely exam questions, what a strong answer should include, and common traps. Include “how to compare sources” prompts.
 
-## 9. Memory Hooks / Learning Strategy
+## 8. Memory Hooks / Learning Strategy
 Provide compact memory aids, concept clusters, and revision priorities.
 """
 
@@ -351,8 +339,8 @@ DEPTH_CONFIG = {
         "label": "Focused",
         "max_output_tokens": int(os.getenv("FOCUSED_MAX_OUTPUT_TOKENS", "1800")),
         "source_chars": int(os.getenv("FOCUSED_SOURCE_CHARS", "9000")),
-        "mindmap_branches": 4,
-        "mindmap_points": 3,
+        "mindmap_branches": 5,
+        "mindmap_points": 4,
         "instruction": (
             "Create a focused, easy-to-understand study note. Do not pad the answer. "
             "Cover the actual idea, the essential steps, one useful example if needed, and common mistakes. "
@@ -364,8 +352,8 @@ DEPTH_CONFIG = {
         "label": "Standard",
         "max_output_tokens": int(os.getenv("STANDARD_MAX_OUTPUT_TOKENS", "4200")),
         "source_chars": int(os.getenv("STANDARD_SOURCE_CHARS", "24000")),
-        "mindmap_branches": 5,
-        "mindmap_points": 4,
+        "mindmap_branches": 7,
+        "mindmap_points": 5,
         "instruction": (
             "Create clear study notes with moderate detail. Explain the key concepts, source structure, examples, "
             "step-by-step logic, and likely misunderstandings. Avoid unnecessary expansion, but include all important source-supported points."
@@ -376,8 +364,8 @@ DEPTH_CONFIG = {
         "label": "Detailed",
         "max_output_tokens": int(os.getenv("DETAILED_MAX_OUTPUT_TOKENS", "8000")),
         "source_chars": int(os.getenv("DETAILED_SOURCE_CHARS", "65000")),
-        "mindmap_branches": 6,
-        "mindmap_points": 5,
+        "mindmap_branches": 9,
+        "mindmap_points": 7,
         "instruction": (
             "Create a detailed source-faithful study guide. Preserve important subpoints, examples, definitions, formulas, evidence, "
             "and reasoning. Explain not only what the source says, but how a student should understand and apply it."
@@ -388,8 +376,8 @@ DEPTH_CONFIG = {
         "label": "Comprehensive",
         "max_output_tokens": int(os.getenv("COMPREHENSIVE_MAX_OUTPUT_TOKENS", "20000")),
         "source_chars": int(os.getenv("COMPREHENSIVE_SOURCE_CHARS", "500000")),
-        "mindmap_branches": 7,
-        "mindmap_points": 7,
+        "mindmap_branches": 11,
+        "mindmap_points": 8,
         "instruction": (
             "Create a comprehensive high-detail study guide. Use this only when the source is long, dense, technical, legal, academic, "
             "or multi-section. Cover structure, definitions, exceptions, procedures, implications, examples, verification checks, and learning strategy."
@@ -973,8 +961,8 @@ Use this mini-format whenever relevant:
 - **Meaning:** what it demonstrates conceptually
 - **Exam use:** how a student could use it in an answer
 
-#### Visual / diagram / table explanation
-Explain visible diagrams, tables, formulas, slide images, or visual cues. Do not only say “there is a diagram”; explain what it teaches and how it supports the concept.
+#### Source images inside the concept notes
+When a visible diagram, table, formula, slide image, or visual cue teaches a concept, explain it inside the relevant concept/example note. Do not create a standalone visual section.
 
 #### Connections to other possible sources
 Explain how this source could connect to other course materials, theories, applications, methods, or debates.
@@ -1250,7 +1238,7 @@ def generate_multisource_synthesis_from_digests(source_digest_block: str, source
             ("课程级大图景", "说明这组资料共同在教什么。不要只说主题名称，要解释它们如何从基础机制、理论争论、研究方法、证据、应用或考试要求共同组成一个学习单元。"),
             ("逐项来源之间的共同 idea", "找出至少 5 个真正重复或互相支持的共同 idea。每个 idea 都要解释含义、出现在哪些 source、每个 source 如何处理它、为什么重要。"),
             ("概念群组与知识地图", "把资料整理成 4–7 个 concept clusters。每个 cluster 要包含核心概念、对应来源、内部关系、容易混淆点。"),
-            ("研究、案例、实验与证据对照", "用表格和解释整理所有重要研究/案例/实验/计算/法律条文/图像证据。每项都要写 Question/Method/Result/Meaning/Exam use 或该学科等价结构。"),
+            ("研究、案例、实验与证据对照", "用表格和解释整理所有重要研究/案例/实验/计算/法律条文。相关源文件截图必须穿插在对应概念或例子旁边，不要做单独图片区。每项都要写 Question/Method/Result/Meaning/Exam use 或该学科等价结构。"),
             ("图像、幻灯片、表格与 diagram 讲解", "集中解释 source cards 中出现的视觉材料：图片、表格、流程图、坐标图、实验图、slide layout。说明图上有什么、为什么放在这里、学生应该从图中学到什么。"),
             ("差异、张力与争论", "比较来源之间的不同强调：理论 vs 证据、机制 vs 行为、天性 vs 教养、方法差异、层次差异、限制与批判。不要编造冲突，要解释 nuance。"),
             ("如何写出高分答案", "给出可直接用于考试/作业的答题模板。包括定义型、比较型、评价型、应用型、图表解释型问题。每个模板都要说明应该引用哪些 source evidence。"),
@@ -1950,7 +1938,7 @@ def readable_subscripts(value: str) -> str:
 
 
 def matrix_latex_to_readable(raw: str) -> str:
-    """Convert LaTeX matrices into compact readable forms for mind maps.
+    r"""Convert LaTeX matrices into compact readable forms for mind maps.
 
     Example:
     \begin{bmatrix} v_1 \\ v_2 \\ v_m \end{bmatrix}
@@ -2263,7 +2251,7 @@ def normalise_ai_mind_map(raw_map: dict, fallback_map: dict, depth: str = "detai
         section = clean_mindmap_text(branch.get("section") or branch.get("label") or "")
         fallback_branch = fallback_by_section.get(section) or (fallback_branches[min(index, len(fallback_branches) - 1)] if fallback_branches else {})
         label = short_mindmap_text(branch.get("label") or fallback_branch.get("label") or section or f"Branch {index + 1}", 48)
-        summary = short_mindmap_text(branch.get("summary") or fallback_branch.get("summary") or "", 190)
+        summary = short_mindmap_text(branch.get("summary") or fallback_branch.get("summary") or "", 280)
 
         raw_points = branch.get("points") if isinstance(branch.get("points"), list) else []
         points: List[dict] = []
@@ -2277,7 +2265,7 @@ def normalise_ai_mind_map(raw_map: dict, fallback_map: dict, depth: str = "detai
             else:
                 continue
             label_clean = short_mindmap_text(label_text, 58)
-            detail_clean = short_mindmap_text(detail_text, 260)
+            detail_clean = short_mindmap_text(detail_text, 420)
             if label_clean:
                 points.append({
                     "id": sha256_text(section + label_clean + detail_clean)[:10],
@@ -2309,15 +2297,16 @@ def generate_ai_mind_map(title: str, sections: Dict[str, str], preferred_languag
     if not sections:
         return fallback
 
-    compact_sections = []
-    for name, content in list(sections.items())[:7]:
-        compact_sections.append(f"SECTION: {name}\n{truncate_text(content, 2200)}")
-
     # Match mind-map size to the selected/adaptive depth.
     # This fixes the yellow underline / runtime NameError for {max_branches} and {max_points}.
     limits = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["detailed"])
     max_branches = int(limits.get("mindmap_branches", 6))
     max_points = int(limits.get("mindmap_points", 5))
+    section_limit = max(7, min(max_branches + 2, 12))
+
+    compact_sections = []
+    for name, content in list(sections.items())[:section_limit]:
+        compact_sections.append(f"SECTION: {name}\n{truncate_text(content, 3200)}")
 
     language_instruction = language_instruction_for(preferred_language)
 
@@ -2329,9 +2318,10 @@ Important design rules:
 - Do NOT copy long paragraphs directly.
 - Make the center title readable and specific.
 - Use no more than {max_branches} main branches.
-- Each branch should have no more than {max_points} short points. Use fewer points if that makes the map clearer.
-- Each point needs a short label and a useful detail sentence that contains the key substance, not just a title.
-- For math/technical content, DO NOT output Markdown bold, raw LaTeX, or escaped delimiters like \( ... \).
+- Use more branches when the notes contain distinct concepts, methods, evidence, examples, or exam themes.
+- Each branch should have no more than {max_points} points. Use fewer points only if the source truly has less material.
+- Each point needs a short label and 1-2 concrete detail sentences with source substance: definition, mechanism, evidence, example, common confusion, or exam use.
+- For math/technical content, DO NOT output Markdown bold, raw LaTeX, or escaped delimiters like \\( ... \\).
 - Convert formulas into readable plain text, for example: r'(t)=<1,2,6t>, √(180)=6√(5), curvature k = |r'×r''| / |r'|^3. For matrices, use compact readable notation like v=[v₁; v₂; …; vₘ] or v+w=[v₁+w₁; v₂+w₂; …; vₘ+wₘ]. Never output bmatrix, pmatrix, begin/end matrix text, or plain sqrt(180).
 - Point labels must be human-readable phrase titles in the selected language, not raw formulas. Put formulas in detail only when needed.
 - Branch labels, point labels, summaries, and details must follow the selected language.
@@ -2363,7 +2353,7 @@ Notes:
         raw = generate_chat([
             {"role": "system", "content": "You create accurate, compact, visual study mind maps as strict JSON. Never use markdown bold or raw LaTeX in mind map labels. Never translate the brand name Synapse."},
             {"role": "user", "content": prompt},
-        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=3800)
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=5600)
         parsed = extract_json_object(raw)
         return normalise_ai_mind_map(parsed or {}, fallback, depth)
     except Exception:
@@ -2851,7 +2841,8 @@ async def analyze_materials(
             cached_summary = attach_visual_argument_section(cached_result.get("summary", ""), source_units, preferred_language)
             cached_result = {**cached_result, "summary": cached_summary, "visual_gallery": build_visual_gallery(source_units)}
             stored_summary = cached_summary
-            stored_sections = cached_result.get("sections", {})
+            stored_sections = parse_sections(stored_summary)
+            cached_result["sections"] = stored_sections
             stored_connections = cached_result.get("connections", [])
             stored_mind_map = cached_result.get("mind_map", {})
             stored_title = cached_result.get("title", "Generated Study Notes")
@@ -3153,23 +3144,36 @@ async def ask_question(data: dict):
         selected_section = data.get("selected_section", "")
         chat_history = data.get("chat_history", [])
         preferred_language = data.get("preferred_language", "auto")
-        section_context = stored_sections.get(selected_section, "")
+        request_sections = data.get("sections") if isinstance(data.get("sections"), dict) else {}
+        context_sections = {
+            str(key): str(value)
+            for key, value in request_sections.items()
+            if str(value).strip()
+        } or stored_sections
+        request_summary = str(data.get("summary") or "").strip()
+        request_title = str(data.get("title") or "").strip()
+        request_source_identity = str(data.get("source_identity") or "").strip()
+        has_client_context = bool(request_summary or request_sections or request_title)
+        context_summary = request_summary or stored_summary
+        context_title = request_title or stored_title
+        context_source_identity = request_source_identity if has_client_context else stored_source_identity
+        section_context = context_sections.get(selected_section, "")
         answer_language = detect_question_language(question, preferred_language)
 
         research_context, research_results = gather_tutor_web_research(
             question=question,
             selected_section=selected_section,
-            source_identity=stored_source_identity,
-            title=stored_title,
+            source_identity=context_source_identity,
+            title=context_title,
         )
 
         context = f"""
 Current study context:
-Title: {stored_title}
-Primary source identity: {stored_source_identity}
+Title: {context_title}
+Primary source identity: {context_source_identity}
 Selected section: {selected_section if selected_section else 'Full document'}
 Section content: {section_context[:4500]}
-Full summary: {stored_summary[:11000]}
+Full summary: {context_summary[:11000]}
 
 External research context, use only when the notes/source context do not contain enough information:
 {research_context[:MAX_TUTOR_RESEARCH_CHARS] if research_context else 'No external research results were available.'}
@@ -3208,7 +3212,7 @@ The previous tutor answer was too short or refused to answer. Rewrite it properl
 
 Answer language: {answer_language}
 User question: {question}
-Current source title: {stored_title}
+Current source title: {context_title}
 Selected section: {selected_section}
 Source notes excerpt: {section_context[:3000]}
 External research context:
@@ -3257,17 +3261,17 @@ def worldclass_language_labels(preferred_language: str) -> dict:
     if key in {"simplified_chinese", "mixed_chinese_english"}:
         return {
             "guide_title": "# 🧠 综合学习指南",
-            "intro": "这份学习指南先逐项深入讲解每个 source，再明确整理 source 之间的 connection points、图像证据、差异争论和考试应用。",
+            "intro": "这份学习指南先逐项深入讲解每个 source，再明确整理 source 之间的 connection points、来源图表、差异争论和考试应用。",
             "source_heading": "## 1. 逐项资源精讲",
             "connection_heading": "## 2. 跨资源 Connection Points",
-            "visual_heading": "## 3. 图像证据与论证卡",
+            "visual_heading": "",
             "synthesis_heading": "## 4. 教授式综合讲解",
-            "visual_intro": "下面的图像来自你上传的 slides / PDF / 图片。每张图都不是装饰，而是用来支持、解释或挑战某个概念论点。",
+            "visual_intro": "",
             "connection_intro": "下面不是告诉你“如何找共同点”，而是直接把这组资料之间真正的共同 ideas、互相补充关系、差异和证据整理出来。",
-            "visual_card_title": "图像证据",
+            "visual_card_title": "来源图表",
             "source_label": "来源",
-            "what_shows": "图中显示",
-            "argument": "支持的论点",
+            "what_shows": "图中/表中显示",
+            "argument": "为什么放在这里",
             "connection": "连接到其他 source",
             "how_to_read": "阅读方法",
             "exam_use": "考试/复习用途",
@@ -3275,34 +3279,34 @@ def worldclass_language_labels(preferred_language: str) -> dict:
     if key == "traditional_chinese":
         return {
             "guide_title": "# 🧠 綜合學習指南",
-            "intro": "這份學習指南先逐項深入講解每個 source，再明確整理 source 之間的 connection points、圖像證據、差異爭論和考試應用。",
+            "intro": "這份學習指南先逐項深入講解每個 source，再明確整理 source 之間的 connection points、來源圖表、差異爭論和考試應用。",
             "source_heading": "## 1. 逐項資源精講",
             "connection_heading": "## 2. 跨資源 Connection Points",
-            "visual_heading": "## 3. 圖像證據與論證卡",
+            "visual_heading": "",
             "synthesis_heading": "## 4. 教授式綜合講解",
-            "visual_intro": "下面的圖像來自你上傳的 slides / PDF / 圖片。每張圖都不是裝飾，而是用來支持、解釋或挑戰某個概念論點。",
+            "visual_intro": "",
             "connection_intro": "下面不是告訴你「如何找共同點」，而是直接把這組資料之間真正的共同 ideas、互相補充關係、差異和證據整理出來。",
-            "visual_card_title": "圖像證據",
+            "visual_card_title": "來源圖表",
             "source_label": "來源",
-            "what_shows": "圖中顯示",
-            "argument": "支持的論點",
+            "what_shows": "圖中/表中顯示",
+            "argument": "為什麼放在這裡",
             "connection": "連接到其他 source",
             "how_to_read": "閱讀方法",
             "exam_use": "考試/複習用途",
         }
     return {
         "guide_title": "# 🧠 Integrated Study Guide",
-        "intro": "This guide first teaches each source in detail, then explicitly maps connection points, visual evidence, debates, and exam use across the source set.",
+        "intro": "This guide teaches the concepts in normal note flow, embedding uploaded source screenshots directly beside the concepts they explain.",
         "source_heading": "## 1. Source-by-Source Professor Notes",
         "connection_heading": "## 2. Cross-Source Connection Points",
-        "visual_heading": "## 3. Visual Evidence and Argument Cards",
-        "synthesis_heading": "## 4. Professor-Style Synthesis",
-        "visual_intro": "The visuals below come directly from the uploaded slides, PDFs, or images. They are not decoration: each visual is used to support, explain, or complicate an argument from the notes.",
+        "visual_heading": "",
+        "synthesis_heading": "## 3. Professor-Style Synthesis",
+        "visual_intro": "",
         "connection_intro": "This section does not tell you how to find connections; it directly maps the real shared ideas, extensions, differences, and evidence across the sources.",
-        "visual_card_title": "Visual evidence",
+        "visual_card_title": "Source figure",
         "source_label": "Source",
-        "what_shows": "What the visual shows",
-        "argument": "Argument it supports",
+        "what_shows": "What this source figure shows",
+        "argument": "Why it matters here",
         "connection": "Connection to other sources",
         "how_to_read": "How to read it",
         "exam_use": "Exam / revision use",
@@ -3591,19 +3595,20 @@ def extract_json_object(text: str) -> dict:
 
 
 def fallback_visual_card(candidate: dict, index: int, labels: dict) -> dict:
+    title_label = labels.get("figure_title") or labels.get("visual_card_title") or "Source figure"
     return {
         "index": index,
         "source_index": candidate.get("source_index"),
         "source_title": candidate.get("source_title", ""),
-        "location": candidate.get("location", ""),
-        "caption": candidate.get("caption", ""),
-        "url": candidate.get("url", ""),
-        "title": f"{labels['visual_card_title']} {index + 1}",
-        "what_shows": candidate.get("caption", "This visual comes from the uploaded source."),
-        "argument_supported": "Use this image as direct visual evidence from the source. Read it alongside the related source card and cross-source theme.",
-        "cross_source_connection": "This visual should be connected to the source's main concept and compared with related concepts from the other uploaded materials.",
+            "location": candidate.get("location", ""),
+            "caption": clean_source_figure_caption(candidate.get("caption", "")),
+            "url": candidate.get("url", ""),
+            "title": f"{title_label} {index + 1}",
+            "what_shows": clean_source_figure_caption(candidate.get("caption", "")) or "This source figure comes from the uploaded source.",
+        "argument_supported": "Use this source figure as direct support for the nearby concept in the notes.",
+        "cross_source_connection": "Connect this source figure to the source's main concept and compare it with related concepts from the other uploaded materials.",
         "how_to_read": "Start with the title/labels, then identify what is being compared, measured, sequenced, or illustrated.",
-        "exam_use": "Refer to this visual when explaining evidence, interpreting a diagram, or comparing sources in an exam answer.",
+        "exam_use": "Refer to this source figure when explaining evidence, interpreting a diagram, or comparing sources in an exam answer.",
     }
 
 
@@ -3620,7 +3625,7 @@ def generate_visual_argument_cards(source_units: List[dict], source_digest_block
     if existing:
         return existing
 
-    labels = worldclass_language_labels(preferred_language)
+    labels = source_figure_labels(preferred_language)
     candidates = select_visual_candidates_for_argument(source_units, VISUAL_ARGUMENT_CARD_LIMIT)
     if not candidates:
         return []
@@ -3690,7 +3695,7 @@ Return JSON only with these fields:
 
 
 def visual_argument_markdown(cards: List[dict], preferred_language: str) -> str:
-    labels = worldclass_language_labels(preferred_language)
+    labels = source_figure_labels(preferred_language)
     if not cards:
         return ""
     chunks = [f"{labels['visual_heading']}\n\n{labels['visual_intro']}"]
@@ -3760,8 +3765,8 @@ Sources:
 Detailed source cards:
 {truncate_text(source_digest_block, env_int('MULTISOURCE_DIGEST_CONTEXT_CHARS', 300000))}
 
-Visual evidence cards available:
-{visual_context if visual_context else 'No visual cards available.'}
+Source screenshots available for inline concept support:
+{visual_context if visual_context else 'No source screenshots available.'}
 
 Task:
 Write a deep, concrete connection map. Do NOT write advice such as "look for repeated terms". Actually identify the real connections.
@@ -3770,7 +3775,7 @@ For each connection point, include:
 1. Connection point title
 2. Core question this connection answers
 3. Shared idea
-4. Source-by-source contribution table with columns: Source, What it contributes, How it connects, Specific evidence, Visual evidence if relevant
+4. Source-by-source contribution table with columns: Source, What it contributes, How it connects, Specific evidence, Useful source image if relevant
 5. Agreement / extension / tension
 6. Why this connection matters for learning
 7. How to use it in an exam or assignment
@@ -3779,8 +3784,8 @@ Quality rules:
 - Produce at least 6 connection points when the source pack is large enough.
 - Every connection must mention at least two sources.
 - Use specific names, theories, studies, figures, slides, tables, laws, formulas, cases, or examples from the source cards.
-- Use visual cards as evidence where relevant.
-- If a source has limited readable text, connect it through its title, visible slide/page evidence, or visual card, but label uncertainty clearly.
+- Use uploaded source screenshots as evidence only inside the relevant concept/example explanation.
+- If a source has limited readable text, connect it through its title, visible slide/page evidence, or source screenshot, but label uncertainty clearly.
 - Write in a professor-style teaching voice: concept → evidence → comparison → implication.
 """
     try:
@@ -4004,15 +4009,8 @@ For every important study/example/case/calculation, use:
 - **Meaning:**
 - **Exam use:**
 
-#### Visual / diagram / table explanation from this source
-This section is mandatory when screenshots/images are attached.
-For each important visual you can inspect:
-- name the visible diagram/table/graph/slide
-- explain what is visually shown
-- explain what argument/concept it supports
-- explain how a student should read it step by step
-- explain how it could connect to other sources
-Do not write 'visuals are not detailed' if screenshots are attached. Inspect the screenshots.
+#### Source images inside the concept notes
+If screenshots/images are attached, explain useful diagrams/tables/graphs/slides inside the relevant concept, study, or example note. Do not create a standalone visual section.
 
 #### What this source uniquely contributes
 Explain the distinctive role of this source in the whole source pack: theory, evidence, method, case, mechanism, counterpoint, application, visual explanation, etc.
@@ -4236,12 +4234,12 @@ For EACH connection point, use this exact architecture:
 **Shared idea:** Explain the idea in professor-level detail.
 
 **Source-by-source contribution table:**
-| Source | What it contributes | How it connects | Specific evidence | Visual evidence |
+| Source | What it contributes | How it connects | Specific evidence | Useful source image |
 |---|---|---|---|---|
 
 **Agreement / extension / tension:** Explain whether sources agree, extend one another, contrast, or complicate the topic.
 
-**Visual argument:** If visual evidence is available, explain how one or more source screenshots/slides/tables/diagrams support this connection. If visual evidence is not directly available, say so briefly and rely on text evidence.
+**Image-supported explanation:** If a source screenshot/slide/table/diagram supports this connection, explain it directly as part of the concept. Do not create a separate visual section.
 
 **Why it matters:** Explain why this connection changes the student's understanding.
 
@@ -4249,10 +4247,10 @@ For EACH connection point, use this exact architecture:
 
 Quality rules:
 - Every connection point must mention at least two sources.
-- Across the section, every uploaded source should appear at least once unless it has no readable or visual evidence.
+- Across the section, every uploaded source should appear at least once unless it has no readable text or usable source screenshot.
 - Use names, theories, studies, cases, formulas, page/slide visuals, tables, diagrams, examples, or sections from the source cards.
 - Do not write generic lines such as 'these sources all discuss psychology'.
-- Prefer specific relationships: Source A provides mechanism; Source B provides evolutionary explanation; Source C provides developmental evidence; Source D provides method/measurement; Source E provides visual proof.
+- Prefer specific relationships: Source A provides mechanism; Source B provides evolutionary explanation; Source C provides developmental evidence; Source D provides method/measurement; Source E provides an image-supported example.
 - If a source has limited readable text, connect it through visible screenshots, slide titles, or filename/title, and label uncertainty.
 """
 
@@ -4608,3 +4606,2573 @@ def health_token_optimization():
         "cache_version": CACHE_VERSION,
         "note": "Final user-facing study guides are not minified; only internal JSON/prompts/cache are optimised.",
     }
+
+# -----------------------------------------------------------------------------
+# v22 Controlled Inline Visual Professor Mode
+# -----------------------------------------------------------------------------
+# Purpose:
+# - Keep the existing HTML/CSS/loading animation unchanged.
+# - Shorten waiting time by replacing the old multi-pass source-card + synthesis
+#   pipeline with a controlled one-pass study guide plus one batched visual pass.
+# - Put useful PDF/PPT visuals directly inside the generated content with
+#   [[VISUAL:n]] markers; the existing frontend renderer turns those markers into
+#   inline image cards.
+# - Prefer fewer, better visuals and tighter writing over endless generation.
+
+CONTROLLED_INLINE_VISUAL_MODE = os.getenv("CONTROLLED_INLINE_VISUAL_MODE", "true").lower() not in {"0", "false", "no"}
+CONTROLLED_MAX_VISUALS = max(env_int("CONTROLLED_MAX_VISUALS", 8), 8)
+CONTROLLED_MAX_SOURCE_CONTEXT_CHARS = env_int("CONTROLLED_MAX_SOURCE_CONTEXT_CHARS", 110000)
+CONTROLLED_MAX_CHARS_PER_SOURCE = env_int("CONTROLLED_MAX_CHARS_PER_SOURCE", 18000)
+CONTROLLED_OUTPUT_TOKENS = env_int("CONTROLLED_OUTPUT_TOKENS", 7000)
+CONTROLLED_VISUAL_CARD_TOKENS = env_int("CONTROLLED_VISUAL_CARD_TOKENS", 2200)
+CONTROLLED_VISUAL_RENDER_DPI = env_int("CONTROLLED_VISUAL_RENDER_DPI", 115)
+CONTROLLED_MAX_PDF_PAGES_PER_SOURCE = env_int("CONTROLLED_MAX_PDF_PAGES_PER_SOURCE", 6)
+CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE = env_int("CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE", 6)
+CONTROLLED_INCLUDE_SOURCE_CARDS = os.getenv("CONTROLLED_INCLUDE_SOURCE_CARDS", "false").lower() not in {"0", "false", "no"}
+
+# Move runtime cache outside backend/ so uvicorn --reload does not restart after
+# cache writes. This prevents the common "tokens spent but frontend failed" bug.
+try:
+    PROJECT_ROOT = BACKEND_DIR.parent
+    RUNTIME_DIR = PROJECT_ROOT / ".synapse_runtime"
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_PATH = RUNTIME_DIR / "synapse_analysis_cache.json"
+except Exception:
+    pass
+
+
+def _v22_visual_rank_keywords() -> List[str]:
+    return [
+        "figure", "fig.", "table", "graph", "chart", "diagram", "model", "results", "data", "comparison",
+        "compare", "versus", "vs", "experiment", "method", "procedure", "effect", "mechanism", "process",
+        "steps", "study", "case", "example", "formula", "calculation", "matrix", "boxplot", "scatter",
+        "bar graph", "line graph", "distribution", "brain", "neuron", "synapse", "action potential", "resting potential",
+        "mri", "fmri", "eeg", "heritability", "genotype", "phenotype", "pku", "maoa", "chimpanzee", "bonobo",
+        "dictator", "ultimatum", "language", "tool", "natural selection", "图", "表", "统计", "数据", "曲线", "坐标",
+        "模型", "实验", "研究", "结果", "对比", "比較", "机制", "機制", "步骤", "步驟", "案例", "公式",
+    ]
+
+
+def score_visual_text(text: str, index: int = 0) -> int:
+    """v22 override: rank visuals for teaching value, not just early-page position."""
+    value = normalise_space(text or "").lower()
+    score = 0
+    for kw in _v22_visual_rank_keywords():
+        if kw in value:
+            score += 4
+    if 80 <= len(value) <= 1100:
+        score += 3
+    if len(value) > 1100:
+        score += 1
+    if index == 0:
+        score += 1
+    if len(value) < 35 and index != 0:
+        score -= 4
+    if re.search(r"\b(overview|agenda|outline|today|contents|learning objective)s?\b", value):
+        score -= 1
+    return score
+
+
+def selected_indices_by_score(texts: List[str], limit: int) -> List[int]:
+    """v22 override: select a small, high-value spread of pages/slides."""
+    if not texts or limit <= 0:
+        return []
+    scored = [(score_visual_text(text, i), i) for i, text in enumerate(texts)]
+    selected: List[int] = []
+    # Include the first page/slide only when there is enough visual budget.
+    if limit >= 3 and texts:
+        selected.append(0)
+    for _, idx in sorted(scored, key=lambda pair: (-pair[0], pair[1])):
+        if idx not in selected:
+            selected.append(idx)
+        if len(selected) >= limit:
+            break
+    return sorted(selected)
+
+
+def _v22_resize_image_bytes(data: bytes, content_type: str = "image/jpeg", max_width: int = 1280, quality: int = 78) -> Tuple[bytes, str]:
+    """Compress visual payloads before sending to the model/frontend."""
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(data)).convert("RGB")
+        if img.width > max_width:
+            ratio = max_width / float(img.width)
+            img = img.resize((max_width, max(1, int(img.height * ratio))))
+        out = BytesIO()
+        img.save(out, format="JPEG", quality=quality, optimize=True)
+        return out.getvalue(), "image/jpeg"
+    except Exception:
+        return data, content_type or "image/jpeg"
+
+
+def image_part_from_bytes(data: bytes, content_type: str = "image/jpeg"):
+    """v22 override: keep visual payloads smaller without changing frontend code."""
+    data, content_type = _v22_resize_image_bytes(data, content_type)
+    encoded = base64.b64encode(data).decode("utf-8")
+    return {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{encoded}"}}
+
+
+def render_pdf_visual_parts(data: bytes, source_name: str, max_pages: Optional[int] = None) -> List[dict]:
+    """v22 override: render only the best few PDF pages for inline evidence."""
+    if fitz is None:
+        return []
+    requested_pages = int(max_pages or MAX_VISUAL_IMAGES_PER_SOURCE)
+    max_pages = min(max(requested_pages, CONTROLLED_MAX_PDF_PAGES_PER_SOURCE), CONTROLLED_MAX_PDF_PAGES_PER_SOURCE)
+    if max_pages <= 0:
+        return []
+    parts: List[dict] = []
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+        page_texts = []
+        for page in doc:
+            try:
+                page_texts.append(page.get_text("text") or "")
+            except Exception:
+                page_texts.append("")
+        selected = selected_indices_by_score(page_texts, max_pages)
+        matrix = fitz.Matrix(max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72), max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72))
+        for idx in selected:
+            page = doc.load_page(idx)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            img_bytes = pix.tobytes("jpeg")
+            preview = truncate_text(normalise_space(page_texts[idx] if idx < len(page_texts) else ""), 520)
+            label = (
+                f"IN-TEXT SOURCE FIGURE FROM {source_name} — PDF page {idx + 1}. "
+                f"Actual source screenshot selected for its likely diagram/table/chart/figure value. "
+                f"Page text preview: {preview}"
+            )
+            parts.append({"type": "text", "text": label})
+            parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+        doc.close()
+    except Exception:
+        return []
+    return parts
+
+
+def render_pptx_slide_screenshots(data: bytes, source_name: str, slide_texts: List[str], max_slides: int) -> List[dict]:
+    """v22 override: optional full-slide screenshots, capped hard to avoid long waits."""
+    if not ENABLE_PPTX_SLIDE_RENDER or fitz is None:
+        return []
+    soffice = find_libreoffice_binary()
+    if not soffice:
+        return []
+    requested_slides = int(max_slides or MAX_VISUAL_IMAGES_PER_SOURCE)
+    max_slides = min(max(requested_slides, CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE), CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE)
+    if max_slides <= 0:
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+        pptx_path = tmpdir / "input.pptx"
+        pptx_path.write_bytes(data)
+        try:
+            import subprocess
+            subprocess.run(
+                [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(tmpdir), str(pptx_path)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=35,
+            )
+        except Exception:
+            return []
+        pdf_candidates = list(tmpdir.glob("*.pdf"))
+        if not pdf_candidates:
+            return []
+        try:
+            doc = fitz.open(str(pdf_candidates[0]))
+            selected = selected_indices_by_score(slide_texts or ["" for _ in range(len(doc))], max_slides)
+            selected = [i for i in selected if i < len(doc)] or list(range(min(max_slides, len(doc))))
+            matrix = fitz.Matrix(max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72), max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72))
+            parts: List[dict] = []
+            for idx in selected:
+                page = doc.load_page(idx)
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
+                img_bytes = pix.tobytes("jpeg")
+                preview = truncate_text(normalise_space(slide_texts[idx] if idx < len(slide_texts) else ""), 520)
+                label = (
+                    f"IN-TEXT SOURCE FIGURE FROM {source_name} — PPT slide {idx + 1}. "
+                    f"Actual rendered slide screenshot selected for diagram/table/chart/figure value. "
+                    f"Slide text preview: {preview}"
+                )
+                parts.append({"type": "text", "text": label})
+                parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+            doc.close()
+            return parts
+        except Exception:
+            return []
+
+
+def _v22_source_context(source_units: List[dict]) -> str:
+    """Balanced source context so every source is represented without huge prompts."""
+    units = source_units or []
+    if not units:
+        return ""
+    total_budget = CONTROLLED_MAX_SOURCE_CONTEXT_CHARS
+    per_source = max(5000, min(CONTROLLED_MAX_CHARS_PER_SOURCE, total_budget // max(1, len(units))))
+    blocks = []
+    for i, unit in enumerate(units, start=1):
+        title = unit.get("title_candidate") or unit.get("display_name") or f"Source {i}"
+        text = truncate_text(unit.get("text_excerpt") or "", per_source)
+        visual_count = len([p for p in unit.get("visual_parts") or [] if isinstance(p, dict) and p.get("type") == "image_url"])
+        blocks.append(
+            f"SOURCE {i}: {title}\n"
+            f"File/name: {unit.get('display_name', '')}\n"
+            f"Visuals extracted: {visual_count}\n"
+            f"Text excerpt:\n{text if text else '[No readable text excerpt; rely on title/source figures if available.]'}"
+        )
+    return "\n\n---\n\n".join(blocks)
+
+
+def _v22_parse_visual_cards(raw: str, candidates: List[dict], labels: dict) -> List[dict]:
+    parsed = extract_json_object(raw)
+    cards_raw = []
+    if isinstance(parsed, dict):
+        value = parsed.get("cards")
+        if isinstance(value, list):
+            cards_raw = value
+        elif all(k in parsed for k in ("title", "what_shows")):
+            cards_raw = [parsed]
+    cards: List[dict] = []
+    for idx, cand in enumerate(candidates):
+        item = cards_raw[idx] if idx < len(cards_raw) and isinstance(cards_raw[idx], dict) else {}
+        card = {
+            "index": idx,
+            "source_index": cand.get("source_index"),
+            "source_title": cand.get("source_title", ""),
+            "location": cand.get("location", ""),
+            "caption": cand.get("caption", ""),
+            "url": cand.get("url", ""),
+            "title": normalise_space(item.get("title") or f"{labels['visual_card_title']} {idx + 1}"),
+            "what_shows": normalise_space(item.get("what_shows") or cand.get("caption", "")),
+            "argument_supported": normalise_space(item.get("argument_supported") or "This visual provides direct evidence from the uploaded material."),
+            "cross_source_connection": normalise_space(item.get("cross_source_connection") or "Use this visual to connect the source's concrete evidence to the wider study theme."),
+            "how_to_read": normalise_space(item.get("how_to_read") or "Read the title/labels first, then identify what is compared, sequenced, measured, or illustrated."),
+            "exam_use": normalise_space(item.get("exam_use") or "Use it as visual evidence when explaining or comparing the concept."),
+        }
+        cards.append(card)
+    return cards
+
+
+def generate_visual_argument_cards(source_units: List[dict], source_digest_block: str, preferred_language: str) -> List[dict]:
+    """v22 override: one batched visual-analysis call instead of one API call per image."""
+    existing = []
+    for unit in source_units or []:
+        existing.extend(unit.get("visual_argument_cards") or [])
+    if existing:
+        return existing
+
+    labels = worldclass_language_labels(preferred_language)
+    limit = max(0, min(CONTROLLED_MAX_VISUALS, VISUAL_ARGUMENT_CARD_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
+    candidates = select_visual_candidates_for_argument(source_units, limit)
+    if not candidates:
+        return []
+
+    language_rule = language_instruction_for(preferred_language)
+    context = truncate_text(source_digest_block or _v22_source_context(source_units), env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 35000))
+    metadata = []
+    for idx, cand in enumerate(candidates):
+        metadata.append(
+            f"Visual {idx}: Source {cand.get('source_index')} | {cand.get('source_title')} | "
+            f"{cand.get('location')} | {cand.get('caption')}"
+        )
+
+    prompt = f"""
+You are creating inline visual evidence cards for a study guide.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+Task:
+- Inspect each attached image/screenshot.
+- Explain only useful information: diagram, table, graph, figure, statistical chart, experiment layout, formula, comparison, or important slide structure.
+- Do not over-write. Each card must be concise but specific.
+- Use the image as evidence inside the notes, not as decoration.
+
+Source context:
+{context}
+
+Visual metadata:
+{chr(10).join(metadata)}
+
+Return JSON only, minified if possible:
+{{"cards":[{{"title":"...","what_shows":"...","argument_supported":"...","cross_source_connection":"...","how_to_read":"...","exam_use":"..."}}]}}
+The cards array must have exactly {len(candidates)} items and keep the same order as Visual 0, Visual 1, etc.
+"""
+    content = [{"type": "text", "text": prompt}]
+    for idx, cand in enumerate(candidates):
+        content.append({"type": "text", "text": f"Attached Visual {idx}: Source {cand.get('source_index')} — {cand.get('location')}"})
+        content.append(image_part_from_url(cand["url"]))
+
+    try:
+        raw = generate_chat(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=CONTROLLED_VISUAL_CARD_TOKENS,
+        )
+        cards = _v22_parse_visual_cards(raw, candidates, labels)
+    except Exception:
+        cards = [fallback_visual_card(cand, idx, labels) for idx, cand in enumerate(candidates)]
+
+    if source_units:
+        source_units[0]["visual_argument_cards"] = cards
+    return cards
+
+
+def build_visual_gallery(source_units: List[dict]) -> List[dict]:
+    """v22 override: frontend receives visual argument cards, not plain gallery images."""
+    cards = []
+    for unit in source_units or []:
+        cards.extend(unit.get("visual_argument_cards") or [])
+    if cards:
+        return cards[:max(1, min(CONTROLLED_MAX_VISUALS, MULTISOURCE_VISUAL_GALLERY_LIMIT))]
+
+    # Fallback raw gallery if no cards were generated.
+    gallery: List[dict] = []
+    max_items = max(1, min(CONTROLLED_MAX_VISUALS, MULTISOURCE_VISUAL_GALLERY_LIMIT))
+    for source_index, unit in enumerate(source_units or [], start=1):
+        title = unit.get("title_candidate") or unit.get("display_name") or f"Source {source_index}"
+        label = ""
+        for part in unit.get("visual_parts") or []:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text":
+                label = normalise_space(part.get("text") or "")
+            elif part.get("type") == "image_url":
+                image_url = (part.get("image_url") or {}).get("url")
+                if image_url:
+                    gallery.append({
+                        "index": len(gallery),
+                        "source_index": source_index,
+                        "source_title": title,
+                        "caption": label[:240] if label else f"In-text source figure from Source {source_index}",
+                        "url": image_url,
+                        "title": f"Source figure from {title}",
+                        "what_shows": label[:320] if label else "Extracted source figure.",
+                        "argument_supported": "Use this as direct support for the relevant concept in the notes.",
+                        "cross_source_connection": "Connect this source figure to the relevant concept in the notes.",
+                    })
+                    if len(gallery) >= max_items:
+                        return gallery
+    return gallery
+
+
+def _v22_visual_context_for_prompt(cards: List[dict]) -> str:
+    lines = []
+    for i, card in enumerate(cards or []):
+        lines.append(
+            f"Source figure {i}: Source {card.get('source_index')} {card.get('location')} | "
+            f"Title: {card.get('title')} | Shows: {card.get('what_shows')} | "
+            f"Argument: {card.get('argument_supported')} | Connection: {card.get('cross_source_connection')}"
+        )
+    return "\n".join(lines)
+
+
+def _v22_ensure_visual_markers(summary: str, cards: List[dict], preferred_language: str) -> str:
+    summary = summary or ""
+    if not cards:
+        return summary
+    present = {int(x) for x in re.findall(r"\[\[VISUAL:(\d+)\]\]", summary)}
+    missing = [i for i in range(len(cards)) if i not in present]
+    if not missing:
+        return summary
+    labels = worldclass_language_labels(preferred_language)
+    chunks = [summary.rstrip(), f"\n\n## {labels['visual_card_title']} in Context"]
+    for i in missing:
+        c = cards[i]
+        chunks.append(
+            f"\n\n### {c.get('title') or labels['visual_card_title']}\n\n"
+            f"[[VISUAL:{i}]]\n\n"
+            f"**{labels['what_shows']}:** {c.get('what_shows','')}\n\n"
+            f"**{labels['argument']}:** {c.get('argument_supported','')}\n\n"
+            f"**{labels['connection']}:** {c.get('cross_source_connection','')}"
+        )
+    return "".join(chunks).strip()
+
+
+def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict) -> str:
+    """v22 controlled multi-source notes: one visual pass + one final notes pass."""
+    if not CONTROLLED_INLINE_VISUAL_MODE:
+        # Safety: if disabled, fall back to the latest previous functions if present.
+        return generate_multisource_synthesis_from_digests(
+            generate_source_digests_for_multisource(source_units, language_instruction_for(preferred_language)),
+            source_units,
+            preferred_language,
+            depth_plan,
+        )
+
+    language_rule = language_instruction_for(preferred_language)
+    source_context = _v22_source_context(source_units)
+    visual_cards = generate_visual_argument_cards(source_units, source_context, preferred_language)
+    visual_context = _v22_visual_context_for_prompt(visual_cards)
+    source_list = "\n".join(
+        f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
+        for i, u in enumerate(source_units or [], start=1)
+    )
+
+    source_card_rule = "" if CONTROLLED_INCLUDE_SOURCE_CARDS else "Do NOT create a long full card for every source. Mention every source, but prioritise integrated themes and evidence."
+    prompt = f"""
+You are Synapse, a controlled inline-visual professor note generator.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+Goal:
+Generate ONE complete study guide that is detailed but controlled. It should be useful within 3-5 minutes of generation, not an endless report.
+
+Source list:
+{source_list}
+
+Balanced extracted source context:
+{source_context}
+
+Visual evidence cards created from actual uploaded PDF/PPT/image screenshots:
+{visual_context if visual_context else 'No useful visual cards were extracted.'}
+
+Non-negotiable output rules:
+- Return final user-facing markdown directly.
+- Length target: detailed but compact. Prefer strong paragraphs and tables over long repetition.
+- Use the selected language for all headings and explanations.
+- Identify real common ideas and connection points. Do not write advice about how to find them.
+- Mention every source at least once if it has readable text or visual evidence.
+- Use markdown tables for comparison, evidence matrix, methods/results, or concept differences.
+- Images must be in the text, not only at the end. Insert [[VISUAL:n]] immediately after the paragraph/table that the visual supports.
+- After each [[VISUAL:n]], explain in prose what it shows and how it supports the argument. Use Visual numbers only from 0 to {max(0, len(visual_cards)-1)}.
+- {source_card_rule}
+- For research/studies: use Question → Method → Result → Meaning.
+- For technical/math content: use given info → formula → substitution → result → check.
+- For law/policy: use purpose → definitions → duties/tests → consequences → example.
+- Include at least one comparison table and one evidence/application table when the source supports it.
+- Do not create a separate decorative visual gallery.
+- If a visual is unclear, say exactly what can and cannot be read.
+
+Required structure:
+# Integrated Study Guide: specific topic title
+## 1. Big Picture
+## 2. Main Themes and Source Connections
+## 3. Key Concepts, Evidence, and Examples
+## 4. Visual Arguments Inside the Content
+## 5. Comparison / Evidence Tables
+## 6. Exam or Assignment Use
+## 7. Common Misunderstandings
+
+Quality standard:
+The notes should feel like a smart tutor selected the most useful material, inserted the most useful source images in context, and explained them clearly. Shorter than the previous version, but not shallow.
+"""
+    try:
+        result = generate_chat(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=CONTROLLED_OUTPUT_TOKENS,
+        ).strip()
+        if not result or is_refusal_or_useless_response(result) or count_readable_units(result) < env_int("CONTROLLED_MIN_OUTPUT_UNITS", 1200):
+            raise RuntimeError("Controlled notes were too short or unusable.")
+    except Exception:
+        # Deterministic fallback that still returns useful notes and inline visual cards.
+        labels = worldclass_language_labels(preferred_language)
+        rows = []
+        for i, unit in enumerate(source_units or [], start=1):
+            title = unit.get("title_candidate") or unit.get("display_name") or f"Source {i}"
+            excerpt = truncate_text(normalise_space(unit.get("text_excerpt") or ""), 850)
+            rows.append(f"| Source {i} | {title} | {excerpt or 'Readable text limited; use extracted visuals if available.'} |")
+        result = (
+            f"# Integrated Study Guide\n\n"
+            f"## 1. Big Picture\n\nThis source pack contains {len(source_units or [])} materials. Synapse extracted text and selected the most useful visuals for direct explanation.\n\n"
+            f"## 2. Source Overview Table\n\n| Source | Topic | Useful evidence |\n|---|---|---|\n" + "\n".join(rows) + "\n\n"
+            f"## 3. Inline Visual Arguments\n\n"
+        )
+        for i, card in enumerate(visual_cards or []):
+            result += (
+                f"### {card.get('title') or labels['visual_card_title']}\n\n[[VISUAL:{i}]]\n\n"
+                f"**{labels['what_shows']}:** {card.get('what_shows','')}\n\n"
+                f"**{labels['argument']}:** {card.get('argument_supported','')}\n\n"
+                f"**{labels['connection']}:** {card.get('cross_source_connection','')}\n\n"
+            )
+
+    return enforce_thetawave_inline_note_format(result, visual_cards, preferred_language)
+
+
+def attach_visual_argument_section(summary: str, source_units: List[dict], preferred_language: str) -> str:
+    """v22 override: do not add a second visual section if final notes already use inline visuals."""
+    summary = summary or ""
+    cards = []
+    for unit in source_units or []:
+        cards.extend(unit.get("visual_argument_cards") or [])
+    if not cards:
+        cards = generate_visual_argument_cards(source_units, summary[:env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 35000)], preferred_language)
+    if not cards:
+        return summary
+    return _v22_ensure_visual_markers(summary, cards, preferred_language)
+
+
+@app.get("/health/v22")
+def health_v22():
+    return {
+        "status": "ok",
+        "mode": "controlled_inline_visual_professor",
+        "html_css_changed": False,
+        "controlled_inline_visual_mode": CONTROLLED_INLINE_VISUAL_MODE,
+        "controlled_max_visuals": CONTROLLED_MAX_VISUALS,
+        "controlled_output_tokens": CONTROLLED_OUTPUT_TOKENS,
+        "controlled_max_source_context_chars": CONTROLLED_MAX_SOURCE_CONTEXT_CHARS,
+        "controlled_visual_render_dpi": CONTROLLED_VISUAL_RENDER_DPI,
+        "cache_path": str(CACHE_PATH),
+        "note": "Uses fewer model calls, batched visual-card generation, and inline [[VISUAL:n]] markers rendered by the existing frontend.",
+    }
+
+
+# -----------------------------------------------------------------------------
+# v23 Relevant In-Text Teaching Images
+# -----------------------------------------------------------------------------
+# The user wants images like textbook/lecture-note in-text figures: diagrams,
+# data tables, charts, experiment sequences, and statistical evidence that help
+# understanding. Decorative screenshots, title slides, logos, presenter photos,
+# stock photos, and purely atmospheric images should be ignored whenever useful
+# teaching visuals exist.
+
+RELEVANT_VISUAL_MODE = os.getenv("RELEVANT_VISUAL_MODE", "true").lower() not in {"0", "false", "no"}
+RELEVANT_VISUAL_POOL_LIMIT = env_int("RELEVANT_VISUAL_POOL_LIMIT", 10)
+RELEVANT_VISUAL_MIN_SCORE = env_int("RELEVANT_VISUAL_MIN_SCORE", 8)
+CACHE_VERSION = "source_identity_mindmap_v37_richer_mindmap"
+
+
+def source_figure_labels(preferred_language: str) -> dict:
+    key = normalise_language_key(preferred_language)
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        return {
+            "figure_title": "来源图表",
+            "visual_card_title": "来源图表",
+            "what_shows": "图中/表中显示",
+            "argument": "为什么放在这里",
+            "connection": "和知识点的连接",
+            "how_to_read": "阅读方法",
+            "exam_use": "考试/复习用途",
+        }
+    if key == "traditional_chinese":
+        return {
+            "figure_title": "來源圖表",
+            "visual_card_title": "來源圖表",
+            "what_shows": "圖中/表中顯示",
+            "argument": "為什麼放在這裡",
+            "connection": "和知識點的連接",
+            "how_to_read": "閱讀方法",
+            "exam_use": "考試/複習用途",
+        }
+    return {
+        "figure_title": "Source figure",
+        "visual_card_title": "Source figure",
+        "what_shows": "What the image shows",
+        "argument": "Why it matters here",
+        "connection": "Connection to the concept",
+        "how_to_read": "How to read it",
+        "exam_use": "Exam / revision use",
+    }
+
+
+def clean_source_figure_caption(text: str) -> str:
+    value = normalise_space(text or "")
+    value = re.sub(r"\b(?:IN-TEXT SOURCE FIGURE|VISUAL EVIDENCE)\s+FROM\s+.+?\s+—\s+", "", value, flags=re.I)
+    value = re.sub(r"\b(?:PDF page|PPT slide|slide|page|p\.)\s*\d+\.?\s*", "", value, flags=re.I)
+    value = re.sub(r"\b(?:Actual source screenshot|Actual rendered slide screenshot)\s+selected\s+for\s+.+?\.\s*", "", value, flags=re.I)
+    value = re.sub(r"\bThis is an image extracted from the slide, not the full slide screenshot\.?\s*", "", value, flags=re.I)
+    value = re.sub(r"\bTeaching-signal-count=\d+;\s*decorative-signal-count=\d+\.?\s*", "", value, flags=re.I)
+    value = re.sub(r"\bUse only if the actual image is\b.*$", "", value, flags=re.I)
+    value = re.sub(r"\b(?:Current slide text preview|Nearby slide context|Page text preview|Slide text preview)\s*:\s*", "", value, flags=re.I)
+    return normalise_space(value)
+
+
+def _v23_scoring_text(text: str) -> str:
+    value = normalise_space(text or "")
+    value = re.sub(r"^(?:IN-TEXT SOURCE FIGURE|VISUAL EVIDENCE)\s+FROM\s+.+?\s+—\s+", "", value, flags=re.I)
+    value = re.sub(r"Use only if the image is .*?$", "", value, flags=re.I)
+    value = re.sub(r"Use only if the actual image is .*?$", "", value, flags=re.I)
+    value = re.sub(r"Actual source screenshot selected for its likely .*? value\.", "", value, flags=re.I)
+    value = re.sub(r"Actual rendered slide screenshot selected for .*? value\.", "", value, flags=re.I)
+    value = re.sub(r"Teaching-signal-count=\d+;\s*decorative-signal-count=\d+\.", "", value, flags=re.I)
+    value = re.sub(r"This is an image extracted from the slide, not the full slide screenshot\.", "", value, flags=re.I)
+    return normalise_space(value)
+
+
+def _v23_signal_counts(text: str) -> dict:
+    value = _v23_scoring_text(text).lower()
+    teaching_patterns = [
+        r"\b(table|figure|fig\.|graph|chart|plot|diagram|schema|schematic|model|flow|process|timeline)\b",
+        r"\b(data|results?|statistics?|mean|median|weighted|correlation|axis|axes|distribution|percentage|rate)\b",
+        r"\b(experiment|method|procedure|trial|task|condition|control|sample|participant|stimulus|response)\b",
+        r"\b(event|habituation|observed|possible|impossible|violation|looking time|occlusion|screen|object permanence)\b",
+        r"\b(ultimatum|dictator|proposer|responder|equal split|selfish split|fairness|chimp|banana|token|warfare mortality|bowles|gintis)\b",
+        r"\b(formula|equation|calculation|matrix|vector|mri|fmri|eeg|bold|action potential|resting potential|synapse)\b",
+        r"\b(comparison|compare|versus|vs|difference|contrast|mechanism|evidence|case study)\b",
+        r"(图|表|图表|统计|数据|结果|实验|流程|步骤|机制|模型|公式|对比|比较|證據|證据|坐标|曲线)",
+    ]
+    decorative_patterns = [
+        r"\b(title slide|cover|agenda|outline|contents|today|welcome|overview|learning objectives?)\b",
+        r"\b(lecturer|professor|dr\.|email|contact|office|university|department|course code|canvas)\b",
+        r"\b(photo|photograph|portrait|headshot|people|person|speaker|presenter|biography|about me)\b",
+        r"\b(logo|brand|stock|getty|unsplash|image credit|copyright|decorative|background)\b",
+        r"(封面|目录|大纲|学习目标|照片|头像|人物照|装饰|背景|作者|讲师|联系方式|邮箱|学校|标志)",
+    ]
+    teaching = sum(len(re.findall(pattern, value, flags=re.I)) for pattern in teaching_patterns)
+    decorative = sum(len(re.findall(pattern, value, flags=re.I)) for pattern in decorative_patterns)
+    return {"teaching": teaching, "decorative": decorative, "text_len": len(value)}
+
+
+def score_visual_text(text: str, index: int = 0) -> int:
+    """v23 override: strongly prefer diagrams/data/figures and demote decoration."""
+    counts = _v23_signal_counts(text)
+    score = counts["teaching"] * 7 - counts["decorative"] * 8
+    value = normalise_space(text or "").lower()
+    if 60 <= counts["text_len"] <= 1200:
+        score += 4
+    if counts["text_len"] > 1200:
+        score += 2
+    if index == 0:
+        score -= 3
+    if "table" in value and re.search(r"\b(mean|median|rate|data|results?|percentage|weighted|arithmetic)\b", value):
+        score += 10
+    if re.search(r"\b(habituation|possible event|impossible event|observed by all infants|violation)\b", value):
+        score += 14
+    if re.search(r"\b(ultimatum|dictator|equal split|selfish split|proposer|responder|fairness|chimp)\b", value):
+        score += 16
+    if re.search(r"\b(title slide|cover|about me|lecturer|email|contact)\b", value):
+        score -= 12
+    return score
+
+
+def selected_indices_by_score(texts: List[str], limit: int) -> List[int]:
+    """v23 override: no automatic cover slide; choose high-value teaching pages."""
+    if not texts or limit <= 0:
+        return []
+    scored = [(score_visual_text(text, i), i) for i, text in enumerate(texts)]
+    positive = [(score, idx) for score, idx in scored if score >= RELEVANT_VISUAL_MIN_SCORE]
+    ranked = positive if positive else scored
+    selected = [idx for _, idx in sorted(ranked, key=lambda pair: (-pair[0], pair[1]))[:limit]]
+    return sorted(selected)
+
+
+def pptx_table_to_markdown(table) -> str:
+    rows: List[List[str]] = []
+    try:
+        for row in table.rows:
+            cells = [normalise_space(cell.text).replace("|", "/") for cell in row.cells]
+            if any(cells):
+                rows.append(cells)
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    lines = [
+        "| " + " | ".join(rows[0]) + " |",
+        "| " + " | ".join(["---"] * width) + " |",
+    ]
+    for row in rows[1:]:
+        lines.append("| " + " | ".join(row) + " |")
+    return "\n".join(lines)
+
+
+def pptx_chart_to_text(shape, slide_index: int) -> str:
+    try:
+        if not getattr(shape, "has_chart", False):
+            return ""
+        chart = shape.chart
+    except Exception:
+        return ""
+    title = ""
+    try:
+        if chart.has_title and chart.chart_title and chart.chart_title.text_frame:
+            title = normalise_space(chart.chart_title.text_frame.text)
+    except Exception:
+        title = ""
+    lines = [f"[PPT SLIDE {slide_index} CHART] {title}".strip()]
+    try:
+        for plot_index, plot in enumerate(chart.plots, start=1):
+            try:
+                categories = [normalise_space(str(category)) for category in plot.categories]
+            except Exception:
+                categories = []
+            for series in plot.series:
+                name = normalise_space(getattr(series, "name", "") or f"Series {plot_index}")
+                try:
+                    values = list(series.values)
+                except Exception:
+                    values = []
+                if categories and values and len(categories) == len(values):
+                    lines.append(f"- {name}: " + ", ".join(f"{cat}: {value}" for cat, value in zip(categories, values)))
+                elif values:
+                    lines.append(f"- {name}: " + ", ".join(str(value) for value in values))
+    except Exception:
+        pass
+    return "\n".join(lines).strip() if len(lines) > 1 or title else ""
+
+
+def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, List[dict]]:
+    """v23 override: include current and nearby slide context in embedded-image labels."""
+    if Presentation is None:
+        return "PPTX support is not installed. Run: pip install python-pptx", []
+    try:
+        prs = Presentation(BytesIO(data))
+    except Exception:
+        return "PPTX parsing failed. Convert this presentation to PDF or paste slide text for richer extraction.", []
+
+    slide_infos: List[dict] = []
+    for slide_index, slide in enumerate(prs.slides, start=1):
+        lines: List[str] = []
+        image_blobs: List[Tuple[bytes, str]] = []
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text and shape.text.strip():
+                lines.append(shape.text.strip())
+            if getattr(shape, "has_table", False):
+                table_md = pptx_table_to_markdown(shape.table)
+                if table_md:
+                    lines.append(f"[PPT SLIDE {slide_index} TABLE]\n{table_md}")
+            chart_text = pptx_chart_to_text(shape, slide_index)
+            if chart_text:
+                lines.append(chart_text)
+            if hasattr(shape, "image"):
+                try:
+                    image_blobs.append((shape.image.blob, shape.image.content_type or "image/png"))
+                except Exception:
+                    pass
+        slide_infos.append({
+            "index": slide_index,
+            "text": "\n".join(lines),
+            "images": image_blobs,
+        })
+
+    slide_texts = [f"[PPT SLIDE {info['index']}]\n{info['text']}" for info in slide_infos]
+    full_slide_parts = render_pptx_slide_screenshots(data, source_name, slide_texts, MAX_VISUAL_IMAGES_PER_SOURCE)
+    if full_slide_parts:
+        return "\n\n".join(slide_texts).strip(), full_slide_parts
+
+    embedded_parts: List[dict] = []
+    embedded_count = 0
+    embedded_limit = max(MAX_VISUAL_IMAGES_PER_SOURCE, RELEVANT_VISUAL_POOL_LIMIT)
+
+    for idx, info in enumerate(slide_infos):
+        current_preview = truncate_text(normalise_space(info.get("text") or ""), 700)
+        prev_preview = truncate_text(normalise_space(slide_infos[idx - 1].get("text") or ""), 360) if idx > 0 else ""
+        next_preview = truncate_text(normalise_space(slide_infos[idx + 1].get("text") or ""), 360) if idx + 1 < len(slide_infos) else ""
+        context_preview = normalise_space(" ".join(part for part in (prev_preview, current_preview, next_preview) if part))
+        signal = _v23_signal_counts(context_preview or current_preview)
+        for blob, content_type in info.get("images") or []:
+            if embedded_count >= embedded_limit:
+                break
+            embedded_count += 1
+            label = (
+                f"IN-TEXT SOURCE FIGURE FROM {source_name} — embedded image on PPT slide {info['index']}. "
+                f"Current slide text preview: {current_preview}. "
+                f"Nearby slide context: previous={prev_preview}; next={next_preview}. "
+                f"Teaching-signal-count={signal['teaching']}; decorative-signal-count={signal['decorative']}. "
+                "Use only if the actual image is a relevant teaching figure, chart, data display, diagram, experiment sequence, or method/result image."
+            )
+            embedded_parts.append({"type": "text", "text": label})
+            embedded_parts.append(image_part_from_bytes(blob, content_type))
+
+    return "\n\n".join(slide_texts).strip(), embedded_parts
+
+
+def _v23_visual_kind(label: str) -> str:
+    value = _v23_scoring_text(label).lower()
+    if re.search(r"\b(table|mean|median|rate|statistics?|data|results?)\b|表|统计|数据|结果", value):
+        return "data/table"
+    if re.search(r"\b(graph|chart|plot|axis|distribution|curve)\b|图表|坐标|曲线", value):
+        return "graph/chart"
+    if re.search(r"\b(diagram|model|process|flow|mechanism|schema|schematic)\b|模型|机制|流程", value):
+        return "diagram/model"
+    if re.search(r"\b(experiment|trial|task|event|habituation|possible|impossible|observed|violation|ultimatum|dictator|proposer|responder|equal split|selfish split|fairness|chimp|token)\b|实验|事件", value):
+        return "experiment/event"
+    if re.search(r"\b(formula|equation|calculation|matrix|vector)\b|公式", value):
+        return "formula/calculation"
+    if re.search(r"\b(mri|fmri|eeg|bold|activation|neuroimaging|brain scan|biomarker|network|applications? in research)\b|脑成像|神经影像|激活", value):
+        return "method/result figure"
+    return "unknown"
+
+
+def iter_visual_candidates(source_units: List[dict]) -> List[dict]:
+    """v23 override: attach relevance metadata for sorting and model filtering."""
+    candidates: List[dict] = []
+    for source_index, unit in enumerate(source_units or [], start=1):
+        title = unit.get("title_candidate") or unit.get("display_name") or f"Source {source_index}"
+        label = ""
+        visual_number = 0
+        for part in unit.get("visual_parts") or []:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text":
+                label = normalise_space(part.get("text") or "")
+                continue
+            if part.get("type") != "image_url":
+                continue
+            url = image_url_from_part(part)
+            if not url:
+                continue
+            visual_number += 1
+            _, location = visual_source_location_from_label(label)
+            score = score_visual_text(f"{label} {title}", visual_number)
+            kind = _v23_visual_kind(label)
+            signals = _v23_signal_counts(label)
+            is_unusable_unknown = kind == "unknown" and signals["teaching"] <= 0
+            candidates.append({
+                "source_index": source_index,
+                "source_title": title,
+                "display_name": unit.get("display_name", title),
+                "caption": label[:620] if label else f"In-text source figure from Source {source_index}",
+                "location": location or f"figure {visual_number}",
+                "url": url,
+                "score": score,
+                "visual_kind": kind,
+                "teaching_signals": signals["teaching"],
+                "decorative_signals": signals["decorative"],
+                "is_likely_decorative": is_unusable_unknown or (signals["decorative"] > signals["teaching"] and score < RELEVANT_VISUAL_MIN_SCORE),
+            })
+    return candidates
+
+
+def select_visual_candidates_for_argument(source_units: List[dict], limit: Optional[int] = None) -> List[dict]:
+    limit = int(limit or CONTROLLED_MAX_VISUALS or VISUAL_ARGUMENT_CARD_LIMIT)
+    candidates = iter_visual_candidates(source_units)
+    if not candidates or limit <= 0:
+        return []
+
+    useful = [
+        cand for cand in candidates
+        if cand.get("score", 0) >= RELEVANT_VISUAL_MIN_SCORE
+        and not cand.get("is_likely_decorative")
+        and cand.get("visual_kind") != "unknown"
+    ]
+    non_decorative = [
+        cand for cand in candidates
+        if not cand.get("is_likely_decorative") and cand.get("visual_kind") != "unknown"
+    ]
+    pool = useful if useful else non_decorative
+    if not pool:
+        return []
+
+    selected: List[dict] = []
+    seen_sources = set()
+    for cand in sorted(pool, key=lambda c: (-c.get("score", 0), c.get("source_index", 0))):
+        if cand["source_index"] not in seen_sources:
+            selected.append(cand)
+            seen_sources.add(cand["source_index"])
+        if len(selected) >= limit:
+            return selected[:limit]
+    for cand in sorted(pool, key=lambda c: (-c.get("score", 0), c.get("source_index", 0))):
+        if cand not in selected:
+            selected.append(cand)
+        if len(selected) >= limit:
+            break
+    return selected[:limit]
+
+
+def _v23_parse_relevant_visual_cards(raw: str, candidates: List[dict], labels: dict) -> List[dict]:
+    parsed = extract_json_object(raw)
+    raw_cards = parsed.get("cards") if isinstance(parsed, dict) else []
+    cards: List[dict] = []
+    if not isinstance(raw_cards, list):
+        raw_cards = []
+    for item in raw_cards:
+        if not isinstance(item, dict):
+            continue
+        try:
+            cand_index = int(item.get("visual_index", len(cards)))
+        except Exception:
+            cand_index = len(cards)
+        if cand_index < 0 or cand_index >= len(candidates):
+            continue
+        cand = candidates[cand_index]
+        if cand.get("is_likely_decorative") or cand.get("visual_kind") == "unknown":
+            continue
+        useful = item.get("is_useful")
+        if useful is False:
+            continue
+        reason = normalise_space(item.get("why_relevant") or item.get("argument_supported") or "")
+        if not reason and cand.get("is_likely_decorative"):
+            continue
+        card = {
+            "index": len(cards),
+            "source_index": cand.get("source_index"),
+            "source_title": cand.get("source_title", ""),
+            "location": cand.get("location", ""),
+            "caption": clean_source_figure_caption(cand.get("caption", "")),
+            "url": cand.get("url", ""),
+            "title": normalise_space(item.get("title") or f"{labels['figure_title']} {len(cards) + 1}"),
+            "what_shows": normalise_space(item.get("what_shows") or clean_source_figure_caption(cand.get("caption", ""))),
+            "argument_supported": normalise_space(item.get("argument_supported") or reason or "This source figure provides direct evidence from the uploaded material."),
+            "cross_source_connection": normalise_space(item.get("cross_source_connection") or "Connect this source figure to the nearby concept in the notes."),
+            "how_to_read": normalise_space(item.get("how_to_read") or "Read the labels/title first, then identify the relationship, comparison, sequence, or values."),
+            "exam_use": normalise_space(item.get("exam_use") or "Use it as source evidence when explaining this concept."),
+            "visual_kind": cand.get("visual_kind", ""),
+        }
+        cards.append(card)
+        if len(cards) >= CONTROLLED_MAX_VISUALS:
+            break
+    return cards
+
+
+def generate_visual_argument_cards(source_units: List[dict], source_digest_block: str, preferred_language: str) -> List[dict]:
+    """v23 override: model filters decorative candidates and keeps only teaching images."""
+    existing = []
+    for unit in source_units or []:
+        existing.extend(unit.get("visual_argument_cards") or [])
+    if existing:
+        return existing
+
+    labels = source_figure_labels(preferred_language)
+    hard_limit = max(1, min(max(CONTROLLED_MAX_VISUALS, VISUAL_ARGUMENT_CARD_LIMIT), MAX_MULTI_SOURCE_VISUAL_IMAGES))
+    candidate_pool = select_visual_candidates_for_argument(source_units, max(hard_limit, RELEVANT_VISUAL_POOL_LIMIT))
+    if not candidate_pool:
+        return []
+
+    language_rule = language_instruction_for(preferred_language)
+    context = truncate_text(source_digest_block or _v22_source_context(source_units), env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 35000))
+    metadata = []
+    for idx, cand in enumerate(candidate_pool):
+        metadata.append(
+            f"Candidate {idx}: Source {cand.get('source_index')} | {cand.get('source_title')} | {cand.get('location')} | "
+            f"kind={cand.get('visual_kind')} | score={cand.get('score')} | decorative={cand.get('is_likely_decorative')} | "
+            f"caption={cand.get('caption')}"
+        )
+
+    prompt = f"""
+You are selecting in-text source figures for a professor-style study guide.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+Choose ONLY source figures that help students understand:
+- diagrams, experiment/event sequences, tables, charts, graphs, statistical evidence, formulas, process models, or method/result figures.
+
+Reject images that are mainly:
+- cover/title slides, portraits, lecturer photos, logos, stock photos, decorative backgrounds, contact/about-me slides, or generic pictures without teaching value.
+
+Source context:
+{context}
+
+Candidate metadata:
+{chr(10).join(metadata)}
+
+Inspect every attached candidate image. Return JSON only:
+{{"cards":[{{"visual_index":0,"is_useful":true,"title":"...","why_relevant":"...","what_shows":"...","argument_supported":"...","cross_source_connection":"...","how_to_read":"...","exam_use":"..."}}]}}
+
+Rules:
+- Return at most {hard_limit} cards.
+- Do not include decorative images.
+- Prefer data/charts/diagrams/experiment sequences over photos.
+- Titles should name the concept shown in the figure, not the page/slide number.
+- For PDF/PPT pages, treat the attached image as the source screenshot that should be placed into the notes.
+- Keep the same order as their educational usefulness, not necessarily candidate order.
+- If none are useful, return {{"cards":[]}}.
+"""
+    content = [{"type": "text", "text": prompt}]
+    for idx, cand in enumerate(candidate_pool):
+        content.append({"type": "text", "text": f"Candidate image {idx}: Source {cand.get('source_index')} — {cand.get('location')} — {cand.get('visual_kind')}"})
+        content.append(image_part_from_url(cand["url"]))
+
+    try:
+        raw = generate_chat(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=CONTROLLED_VISUAL_CARD_TOKENS,
+        )
+        cards = _v23_parse_relevant_visual_cards(raw, candidate_pool, labels)
+    except Exception:
+        cards = []
+
+    if not cards:
+        deterministic = [
+            cand for cand in candidate_pool
+            if cand.get("score", 0) >= RELEVANT_VISUAL_MIN_SCORE
+            and not cand.get("is_likely_decorative")
+            and cand.get("visual_kind") != "unknown"
+        ][:hard_limit]
+        if not deterministic:
+            deterministic = [
+                cand for cand in candidate_pool
+                if not cand.get("is_likely_decorative") and cand.get("visual_kind") != "unknown"
+            ][:hard_limit]
+        cards = [fallback_visual_card(cand, idx, labels) for idx, cand in enumerate(deterministic)]
+        for idx, card in enumerate(cards):
+            card["index"] = idx
+            card["visual_kind"] = deterministic[idx].get("visual_kind", "")
+
+    if source_units:
+        source_units[0]["visual_argument_cards"] = cards
+    return cards
+
+
+def _v23_keywords_for_card(card: dict) -> List[str]:
+    text = " ".join(
+        str(card.get(key, ""))
+        for key in ("title", "what_shows", "argument_supported", "cross_source_connection", "caption", "visual_kind", "location")
+    ).lower()
+    words = re.findall(r"[A-Za-z][A-Za-z-]{3,}|[\u4e00-\u9fff]{2,}", text)
+    stop = {
+        "this", "that", "with", "from", "source", "visual", "image", "shows", "supports", "student",
+        "concept", "evidence", "uploaded", "material", "direct", "table", "figure", "diagram",
+        "这个", "图像", "图片", "来源", "显示", "支持", "概念", "材料", "证据",
+    }
+    unique = []
+    for word in words:
+        w = word.lower()
+        if w not in stop and w not in unique:
+            unique.append(w)
+    return unique[:18]
+
+
+def _v23_location_terms(card: dict) -> List[str]:
+    terms: List[str] = []
+    location = normalise_space(card.get("location", ""))
+    for number in re.findall(r"\b\d+\b", location):
+        terms.extend([
+            f"slide {number}",
+            f"page {number}",
+            f"p.{number}",
+            f"p. {number}",
+            f"p {number}",
+            f"第{number}页",
+            f"第 {number} 页",
+        ])
+    return terms
+
+
+def _v23_remove_visible_slide_refs(text: str) -> str:
+    cleaned = re.sub(r"\s*\((?:[^)]*\b(?:slide|slides|page|pages|p\.)\s*\d+[^)]*)\)", "", text, flags=re.I)
+    cleaned = re.sub(r"\s*（(?:[^）]*(?:slide|slides|page|pages|p\.|第\s*\d+\s*页)[^）]*)）", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:as used on the slide|from the slide|on the slide)\b", "", cleaned, flags=re.I)
+    return normalise_space(cleaned) if "\n" not in cleaned else cleaned
+
+
+def _v23_marker_block(card: dict, marker_index: int, preferred_language: str) -> str:
+    labels = source_figure_labels(preferred_language)
+    return (
+        f"\n\n[[VISUAL:{marker_index}]]\n\n"
+        f"**{labels['what_shows']}:** {card.get('what_shows','')}\n\n"
+        f"**{labels['argument']}:** {card.get('argument_supported','')}\n\n"
+    )
+
+
+def remove_standalone_visual_diagram_headings(summary: str) -> str:
+    """Remove old standalone visual-feature headings so figures stay fused into notes."""
+    visual_heading_pattern = re.compile(
+        r"^#{1,4}\s*(?:"
+        r"visual\s*(?:/|and)?\s*diagram(?:-based)?(?:\s*explanation)?|"
+        r"visual\s*evidence(?:\s*in\s*context)?|"
+        r"source\s*figures(?:\s*in\s*context)?|"
+        r"source\s*visuals|"
+        r"diagram(?:-based)?\s*explanation|"
+        r"图像证据|圖像證據|视觉证据|視覺證據|来源图表|來源圖表|图表说明|圖表說明"
+        r")\b.*$",
+        flags=re.I,
+    )
+    kept: List[str] = []
+    for line in (summary or "").splitlines():
+        if visual_heading_pattern.match(line.strip()):
+            continue
+        kept.append(line)
+    text = "\n".join(kept)
+    text = re.sub(r"\bVisual evidence in Context\b", "", text, flags=re.I)
+    text = re.sub(r"\bVisual evidence\b", "Source example", text, flags=re.I)
+    text = re.sub(r"图像证据|圖像證據", "来源例子", text)
+    return re.sub(r"\n{4,}", "\n\n\n", text).strip()
+
+
+def enforce_thetawave_inline_note_format(summary: str, cards: List[dict], preferred_language: str) -> str:
+    summary = _v22_ensure_visual_markers(summary or "", cards or [], preferred_language)
+    return remove_standalone_visual_diagram_headings(summary)
+
+
+def _v22_ensure_visual_markers(summary: str, cards: List[dict], preferred_language: str) -> str:
+    """v23 override: insert missing visuals near relevant text, not in an end gallery."""
+    summary = summary or ""
+    if not cards:
+        return summary
+    existing = {int(x) for x in re.findall(r"\[\[VISUAL:(\d+)\]\]", summary)}
+    missing = [i for i in range(len(cards)) if i not in existing]
+    if not missing:
+        return summary
+
+    blocks = re.split(r"(\n{2,})", summary.rstrip())
+    paragraph_indices = [i for i in range(0, len(blocks), 2) if blocks[i].strip()]
+    used_paragraphs = set()
+    for marker_index in missing:
+        card = cards[marker_index]
+        keywords = _v23_keywords_for_card(card)
+        location_terms = _v23_location_terms(card)
+        best_i = None
+        best_score = -1
+        for i in paragraph_indices:
+            if i in used_paragraphs or f"[[VISUAL:{marker_index}]]" in blocks[i]:
+                continue
+            text = blocks[i].lower()
+            if text.startswith("#"):
+                continue
+            score = sum(1 for keyword in keywords if keyword and keyword in text)
+            score += 4 * sum(1 for term in location_terms if term and term.lower() in text)
+            if "visual" in text or "图" in text or "表" in text:
+                score += 1
+            if re.search(r"\b(ultimatum|dictator|bowles|gintis|correlation|maoa|genotype|heritability|chimp|公平|最后通牒|独裁者|相关|基因|遗传)\b", text, flags=re.I):
+                score += 2
+            if score > best_score:
+                best_score = score
+                best_i = i
+        if best_i is None or best_score <= 0:
+            # Prefer the visual-argument section if the model created one.
+            for i in paragraph_indices:
+                if re.search(r"Source Figures|来源图表|图像|圖像|Diagram|图表|圖表|Data|数据", blocks[i], flags=re.I):
+                    best_i = i
+                    break
+        if best_i is None:
+            best_i = paragraph_indices[min(marker_index, len(paragraph_indices) - 1)] if paragraph_indices else 0
+        blocks[best_i] = _v23_remove_visible_slide_refs(blocks[best_i]).rstrip() + _v23_marker_block(card, marker_index, preferred_language)
+        used_paragraphs.add(best_i)
+    return "".join(blocks).strip()
+
+
+def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict) -> str:
+    """v23: controlled notes with relevant in-text diagrams/tables/charts only."""
+    language_rule = language_instruction_for(preferred_language)
+    source_context = _v22_source_context(source_units)
+    visual_cards = generate_visual_argument_cards(source_units, source_context, preferred_language)
+    visual_context = _v22_visual_context_for_prompt(visual_cards)
+    source_list = "\n".join(
+        f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
+        for i, u in enumerate(source_units or [], start=1)
+    )
+    prompt = f"""
+You are Synapse, a source-grounded study-note generator.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+The user wants the output style to mimic a clean lecture-note page:
+- write compact, scan-friendly notes with short headings, bullets, and small explanation blocks;
+- explain one concept at a time, then place the relevant source screenshot directly below that concept;
+- use screenshots/figures ONLY from the user's uploaded files;
+- use [[VISUAL:n]] as the image placeholder exactly where the screenshot should appear in the content;
+- never create a separate visual evidence/gallery/source figures section;
+- never merely say "slide 30", "p.11", or "PDF page 30" when an image exists. Put the image there.
+
+Source-image rules:
+- Use images for diagrams, data tables, charts, scatter plots, correlation figures, genotype/environment graphs, experiment setups, game-theory examples, method/result figures, or formulas.
+- Reject decorative cover photos, portraits, logos, stock photos, lecturer/contact slides, and random pictures.
+- The page/slide number is internal provenance only. Do not put it in headings.
+
+Sources:
+{source_list}
+
+Balanced extracted source context:
+{source_context}
+
+Relevant in-text source figures selected from the uploaded files:
+{visual_context if visual_context else 'No relevant source figures were selected. Do not invent image markers.'}
+
+Output requirements:
+- Return final markdown only.
+- Write in the selected language.
+- Use the same "notes page" feel as the reference image: concise headings, bullet points, bold labels, short paragraphs, and source screenshots embedded in the flow.
+- Insert [[VISUAL:n]] immediately after the concept/example/data point it explains. Use each available source figure at most once.
+- After each marker, write 2-4 concise bullets:
+  - "图中显示 / What it shows"
+  - "怎么理解 / How to read it"
+  - "为什么重要 / Why it matters"
+  - "考试用法 / Exam use" when relevant
+- Do not use page/slide numbers as the visible teaching device.
+- Use markdown tables for comparisons, definitions, and evidence summaries.
+- Mention every usable source at least once.
+- Do not include "Visual evidence", "图像证据", "Source Figures", or a standalone image section title.
+
+Recommended structure:
+# [specific topic title]
+## 学习目标 / What this section teaches
+## 核心概念 / Key concepts
+## 来源例子与证据 / Source examples and evidence
+## 概念对比表 / Comparison table
+## 考试复习重点 / Exam revision
+## 常见误区 / Common mistakes
+"""
+    try:
+        result = generate_chat(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=CONTROLLED_OUTPUT_TOKENS,
+        ).strip()
+        if not result or is_refusal_or_useless_response(result) or count_readable_units(result) < env_int("CONTROLLED_MIN_OUTPUT_UNITS", 1200):
+            raise RuntimeError("Relevant visual notes were too short or unusable.")
+    except Exception:
+        rows = []
+        for i, unit in enumerate(source_units or [], start=1):
+            title = unit.get("title_candidate") or unit.get("display_name") or f"Source {i}"
+            excerpt = truncate_text(normalise_space(unit.get("text_excerpt") or ""), 850)
+            rows.append(f"| Source {i} | {title} | {excerpt or 'Readable text limited; use extracted source figures if available.'} |")
+        result = (
+            "# Integrated Study Guide\n\n"
+            "## Big Picture\n\nSynapse extracted source text and will place useful uploaded screenshots directly beside the concepts they explain.\n\n"
+            "## Source Evidence Table\n\n| Source | Topic | Useful evidence |\n|---|---|---|\n" + "\n".join(rows) + "\n\n"
+            "## Source Examples and Evidence\n\n"
+        )
+        for i, card in enumerate(visual_cards or []):
+            result += (
+                f"### {card.get('title')}\n\n"
+                f"The following source figure is included because it supports the nearby concept rather than acting as decoration."
+                f"{_v23_marker_block(card, i, preferred_language)}"
+            )
+    return _v22_ensure_visual_markers(result, visual_cards, preferred_language)
+
+
+def attach_visual_argument_section(summary: str, source_units: List[dict], preferred_language: str) -> str:
+    """v36: keep uploaded source screenshots fused into normal note text."""
+    cards = []
+    for unit in source_units or []:
+        cards.extend(unit.get("visual_argument_cards") or [])
+    if not cards:
+        cards = generate_visual_argument_cards(source_units, summary[:env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 35000)], preferred_language)
+    return enforce_thetawave_inline_note_format(summary or "", cards, preferred_language)
+
+
+@app.get("/health/v23")
+def health_v23():
+    return {
+        "status": "ok",
+        "mode": "relevant_in_text_teaching_images",
+        "html_css_changed": False,
+        "relevant_visual_mode": RELEVANT_VISUAL_MODE,
+        "candidate_pool_limit": RELEVANT_VISUAL_POOL_LIMIT,
+        "min_score": RELEVANT_VISUAL_MIN_SCORE,
+        "max_in_text_visuals": CONTROLLED_MAX_VISUALS,
+        "rejects_decorative_visuals": True,
+        "prioritises": ["data tables", "charts/graphs", "diagrams", "experiment/event sequences", "formulas/process models"],
+    }
+
+
+def _v23_card_text(card: dict) -> str:
+    return normalise_space(" ".join(
+        str(card.get(key, ""))
+        for key in (
+            "title",
+            "caption",
+            "what_shows",
+            "argument_supported",
+            "cross_source_connection",
+            "how_to_read",
+            "exam_use",
+            "location",
+            "visual_kind",
+        )
+    ))
+
+
+def _v23_card_is_teaching_figure(card: dict) -> bool:
+    if not isinstance(card, dict) or not card.get("url"):
+        return False
+    if card.get("is_likely_decorative") or card.get("visual_kind") == "unknown":
+        return False
+    text = _v23_card_text(card)
+    if re.search(r"visual evidence|图像证据|圖像證據", text, flags=re.I):
+        return False
+    kind = card.get("visual_kind")
+    if kind in {"data/table", "graph/chart", "diagram/model", "experiment/event", "formula/calculation", "method/result figure"}:
+        return True
+    signals = _v23_signal_counts(text)
+    return signals["teaching"] > 0 and signals["decorative"] <= signals["teaching"]
+
+
+def build_visual_gallery(source_units: List[dict]) -> List[dict]:
+    """v23 final override: return only in-text source figures, never a raw gallery."""
+    cards: List[dict] = []
+    for unit in source_units or []:
+        cards.extend(unit.get("visual_argument_cards") or [])
+    if not cards:
+        cards = generate_visual_argument_cards(source_units, _v22_source_context(source_units), "auto")
+
+    cleaned: List[dict] = []
+    max_items = max(0, min(CONTROLLED_MAX_VISUALS, MULTISOURCE_VISUAL_GALLERY_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
+    for card in cards or []:
+        if not _v23_card_is_teaching_figure(card):
+            continue
+        item = dict(card)
+        try:
+            item["index"] = int(item.get("index", len(cleaned)))
+        except Exception:
+            item["index"] = len(cleaned)
+        item["title"] = normalise_space(item.get("title") or f"Source figure {len(cleaned) + 1}")
+        item["caption"] = clean_source_figure_caption(item.get("caption") or item.get("what_shows") or "")
+        item["what_shows"] = clean_source_figure_caption(item.get("what_shows") or item.get("caption") or "")
+        item["argument_supported"] = clean_source_figure_caption(item.get("argument_supported") or "")
+        item["cross_source_connection"] = clean_source_figure_caption(item.get("cross_source_connection") or "")
+        cleaned.append(item)
+        if len(cleaned) >= max_items:
+            break
+    return cleaned
+
+
+# -----------------------------------------------------------------------------
+# Quiz generation
+# -----------------------------------------------------------------------------
+
+QUIZ_TYPE_LABELS = {
+    "single_choice": "Single choice",
+    "multiple_choice": "Multiple choice",
+    "true_false": "True / False",
+    "short_answer": "Short answer",
+    "case_analysis": "Case analysis",
+    "essay": "Essay",
+}
+
+QUIZ_TYPE_ALIASES = {
+    "single": "single_choice",
+    "single_choice": "single_choice",
+    "choice": "single_choice",
+    "mcq": "single_choice",
+    "单选题": "single_choice",
+    "单选": "single_choice",
+    "multiple": "multiple_choice",
+    "multiple_choice": "multiple_choice",
+    "多选题": "multiple_choice",
+    "多选": "multiple_choice",
+    "true_false": "true_false",
+    "truefalse": "true_false",
+    "tf": "true_false",
+    "判断题": "true_false",
+    "判断": "true_false",
+    "short": "short_answer",
+    "short_answer": "short_answer",
+    "简答题": "short_answer",
+    "简答": "short_answer",
+    "case": "case_analysis",
+    "case_analysis": "case_analysis",
+    "案例分析题": "case_analysis",
+    "案例分析": "case_analysis",
+    "essay": "essay",
+    "论述题": "essay",
+    "论述": "essay",
+}
+
+QUIZ_LANGUAGE_ALIASES = {
+    "multi": "multi_language",
+    "multilingual": "multi_language",
+    "multi_language": "multi_language",
+    "multi-language": "multi_language",
+    "multiple_languages": "multi_language",
+    "多语言": "multi_language",
+    "多語言": "multi_language",
+}
+
+
+def normalise_quiz_language(value: str) -> str:
+    raw = str(value or "english").strip()
+    key = raw.lower().replace("-", "_").replace(" ", "_")
+    if key in QUIZ_LANGUAGE_ALIASES:
+        return QUIZ_LANGUAGE_ALIASES[key]
+    language_key = normalise_language_key(key)
+    return language_key if language_key != "auto" else "english"
+
+
+def quiz_language_instruction(preferred_language: str) -> str:
+    key = normalise_quiz_language(preferred_language)
+    if key == "multi_language":
+        return (
+            "Use the same dominant language as the generated notes. If the notes mix languages, "
+            "write clear bilingual-friendly quiz content and preserve important source academic terms "
+            "in their original language when useful."
+        )
+    return language_instruction_for(key)
+
+
+def normalise_quiz_type(value: str) -> str:
+    key = normalise_space(str(value or "")).lower().replace("-", "_").replace(" ", "_")
+    return QUIZ_TYPE_ALIASES.get(key) or QUIZ_TYPE_ALIASES.get(str(value or "").strip()) or "single_choice"
+
+
+def clamp_quiz_count(value, default: int = 1) -> int:
+    try:
+        number = int(value)
+    except Exception:
+        number = default
+    return max(1, min(number, env_int("QUIZ_MAX_QUESTIONS", 30)))
+
+
+def parse_quiz_type_plan(data: dict) -> List[dict]:
+    raw_types = data.get("question_types") or data.get("types") or []
+    plan: List[dict] = []
+    if isinstance(raw_types, list):
+        for item in raw_types:
+            if isinstance(item, dict):
+                qtype = normalise_quiz_type(item.get("type") or item.get("value") or item.get("label"))
+                count = clamp_quiz_count(item.get("count"), 1)
+            else:
+                qtype = normalise_quiz_type(str(item))
+                count = 1
+            plan.append({"type": qtype, "count": count})
+
+    if not plan:
+        total = clamp_quiz_count(data.get("total_questions") or data.get("question_count"), 6)
+        plan = [{"type": "single_choice", "count": total}]
+
+    max_questions = env_int("QUIZ_MAX_QUESTIONS", 30)
+    trimmed: List[dict] = []
+    used = 0
+    for item in plan:
+        if used >= max_questions:
+            break
+        count = min(item["count"], max_questions - used)
+        if count > 0:
+            trimmed.append({"type": item["type"], "count": count})
+            used += count
+    return trimmed or [{"type": "single_choice", "count": 6}]
+
+
+def expand_quiz_type_plan(plan: List[dict]) -> List[str]:
+    desired: List[str] = []
+    for item in plan:
+        desired.extend([item["type"]] * item["count"])
+    return desired
+
+
+def quiz_sections_context(sections_payload) -> str:
+    source = sections_payload if isinstance(sections_payload, dict) and sections_payload else stored_sections
+    if not isinstance(source, dict):
+        return ""
+    blocks = []
+    for name, content in list(source.items())[:12]:
+        blocks.append(f"## {normalise_space(name)}\n{truncate_text(str(content or ''), 2600)}")
+    return "\n\n".join(blocks)
+
+
+def quiz_summary_context(data: dict) -> str:
+    summary = data.get("summary") or stored_summary or ""
+    sections_context = quiz_sections_context(data.get("sections"))
+    combined = f"{summary}\n\n{sections_context}".strip()
+    combined = re.sub(r"\[\[VISUAL:\d+\]\]", "[source image inserted in notes]", combined)
+    return truncate_text(combined, env_int("QUIZ_CONTEXT_CHARS", 70000))
+
+
+# -----------------------------------------------------------------------------
+# Timeline generation
+# -----------------------------------------------------------------------------
+
+TIMELINE_TYPE_ALIASES = {
+    "warm_up": "warm_up",
+    "overview": "warm_up",
+    "flow": "warm_up",
+    "lecture": "warm_up",
+    "lecture_flow": "warm_up",
+    "sequence": "warm_up",
+    "learn": "learn",
+    "concept": "learn",
+    "definition": "learn",
+    "mechanism": "learn",
+    "method": "learn",
+    "apply": "apply",
+    "evidence": "apply",
+    "data": "apply",
+    "figure": "apply",
+    "experiment": "apply",
+    "study": "apply",
+    "example": "apply",
+    "case": "apply",
+    "application": "apply",
+    "check": "check",
+    "exam": "check",
+    "assessment": "check",
+    "test": "check",
+    "revise": "revise",
+    "revision": "revise",
+    "review": "revise",
+    "mistake": "revise",
+}
+
+
+def normalise_timeline_type(value: str) -> str:
+    key = normalise_space(str(value or "")).lower().replace("-", "_").replace(" ", "_")
+    return TIMELINE_TYPE_ALIASES.get(key, "learn")
+
+
+STUDY_PATH_QUESTION_TYPE_ALIASES = {
+    "short": "short_answer",
+    "short_answer": "short_answer",
+    "short_response": "short_answer",
+    "open": "short_answer",
+    "open_ended": "short_answer",
+    "single": "single_choice",
+    "choice": "single_choice",
+    "mcq": "single_choice",
+    "single_choice": "single_choice",
+    "multiple": "multiple_choice",
+    "multi": "multiple_choice",
+    "multiple_choice": "multiple_choice",
+    "true_false": "true_false",
+    "truefalse": "true_false",
+    "tf": "true_false",
+    "true_or_false": "true_false",
+    "case": "case_analysis",
+    "case_analysis": "case_analysis",
+    "scenario": "case_analysis",
+    "application": "case_analysis",
+    "compare": "compare",
+    "comparison": "compare",
+    "compare_contrast": "compare",
+    "essay": "essay_outline",
+    "outline": "essay_outline",
+    "essay_outline": "essay_outline",
+    "diagram": "diagram_prompt",
+    "figure": "diagram_prompt",
+    "visual": "diagram_prompt",
+    "graph": "diagram_prompt",
+    "chart": "diagram_prompt",
+    "diagram_prompt": "diagram_prompt",
+}
+
+
+def normalise_study_path_question_type(value: str) -> str:
+    key = normalise_space(str(value or "")).lower().replace("-", "_").replace(" ", "_")
+    return STUDY_PATH_QUESTION_TYPE_ALIASES.get(key, "short_answer")
+
+
+def fallback_study_path_question(event_type: str, title: str, summary: str, source_reference: str = "") -> dict:
+    clean_title = clean_quiz_string(title, "this checkpoint")
+    clean_summary = clean_quiz_string(summary, "the key idea in this checkpoint")
+    if event_type == "apply":
+        qtype = "case_analysis"
+        prompt = f"How does this evidence or example support the concept: {clean_title}?"
+    elif event_type == "check":
+        qtype = "essay_outline"
+        prompt = f"What would be the first three points in an exam answer about {clean_title}?"
+    elif event_type == "revise":
+        qtype = "true_false"
+        prompt = f"True or false: {clean_summary[:150]}"
+    elif event_type == "learn":
+        qtype = "short_answer"
+        prompt = f"What does {clean_title} mean, and why is it important here?"
+    else:
+        qtype = "short_answer"
+        prompt = f"What is the main question or goal of {clean_title}?"
+    return {
+        "type": qtype,
+        "prompt": truncate_text(prompt, 280),
+        "options": ["True", "False"] if qtype == "true_false" else [],
+        "correct_option_indexes": [],
+        "correct_boolean": True if qtype == "true_false" else None,
+        "expected_answer": truncate_text(clean_summary, 420),
+        "explanation": "A strong answer should use the task focus and connect it back to the notes, source evidence, or example.",
+        "source_reference": truncate_text(source_reference or clean_title, 180),
+    }
+
+
+def normalise_study_path_practice_question(raw, fallback_event: dict, title: str, index: int) -> dict:
+    fallback = fallback_event.get("practice_question") or fallback_study_path_question(
+        normalise_timeline_type(fallback_event.get("type")),
+        title or fallback_event.get("title") or f"Checkpoint {index + 1}",
+        fallback_event.get("summary") or fallback_event.get("detail") or "",
+        fallback_event.get("source_reference") or fallback_event.get("section") or "",
+    )
+    if isinstance(raw, str):
+        source = {"prompt": raw}
+    elif isinstance(raw, dict):
+        source = raw
+    else:
+        source = {}
+
+    qtype = normalise_study_path_question_type(
+        source.get("type") or source.get("question_type") or source.get("questionType") or fallback.get("type")
+    )
+    prompt = clean_quiz_string(
+        source.get("prompt") or source.get("question") or source.get("title"),
+        fallback.get("prompt", ""),
+    )
+    options = source.get("options") if isinstance(source.get("options"), list) else source.get("choices")
+    options = [clean_quiz_string(option) for option in options if clean_quiz_string(option)] if isinstance(options, list) else list(fallback.get("options") or [])
+    options = options[:6]
+    if qtype == "true_false" and len(options) < 2:
+        options = ["True", "False"]
+    if qtype not in {"single_choice", "multiple_choice", "true_false"}:
+        options = []
+
+    correct_indexes = coerce_option_indexes(
+        source.get("correct_option_indexes", source.get("correctOptionIndexes", source.get("correct_indexes", source.get("answer_index", source.get("answer"))))),
+        options,
+    )
+    fallback_indexes = fallback.get("correct_option_indexes") if isinstance(fallback.get("correct_option_indexes"), list) else []
+    if qtype in {"single_choice", "multiple_choice"} and not correct_indexes:
+        correct_indexes = [idx for idx in fallback_indexes if isinstance(idx, int) and 0 <= idx < len(options)]
+    if qtype == "single_choice":
+        correct_indexes = correct_indexes[:1]
+    elif qtype == "multiple_choice" and len(correct_indexes) < 2 and len(options) >= 2:
+        correct_indexes = correct_indexes or [0, 1]
+    elif qtype not in {"single_choice", "multiple_choice"}:
+        correct_indexes = []
+
+    correct_boolean = coerce_boolean(source.get("correct_boolean", source.get("correctBoolean", source.get("answer"))))
+    if qtype == "true_false" and correct_boolean is None:
+        correct_boolean = coerce_boolean(fallback.get("correct_boolean"))
+    if qtype != "true_false":
+        correct_boolean = None
+
+    return {
+        "type": qtype,
+        "prompt": truncate_text(prompt, 360),
+        "options": [truncate_text(option, 180) for option in options],
+        "correct_option_indexes": correct_indexes,
+        "correct_boolean": correct_boolean,
+        "expected_answer": truncate_text(clean_quiz_string(
+            source.get("expected_answer") or source.get("expectedAnswer") or source.get("answer_guide") or source.get("answerGuide"),
+            fallback.get("expected_answer", ""),
+        ), 650),
+        "explanation": truncate_text(clean_quiz_string(source.get("explanation") or source.get("rationale"), fallback.get("explanation", "")), 520),
+        "source_reference": truncate_text(clean_quiz_string(
+            source.get("source_reference") or source.get("sourceReference") or source.get("source"),
+            fallback.get("source_reference", ""),
+        ), 220),
+    }
+
+
+def fallback_timeline_from_context(title: str, sections: Dict[str, str], context: str) -> dict:
+    ordered_names = list(sections.keys())[:10] if isinstance(sections, dict) else []
+    if not ordered_names:
+        snippets = [
+            normalise_space(line.lstrip("#-0123456789. "))
+            for line in context.splitlines()
+            if len(normalise_space(line.lstrip("#-0123456789. "))) > 30
+        ][:8]
+        ordered_names = [f"Checkpoint {index + 1}" for index, _ in enumerate(snippets)]
+        section_lookup = dict(zip(ordered_names, snippets))
+    else:
+        section_lookup = sections
+
+    events = []
+    for index, name in enumerate(ordered_names[:12]):
+        text = section_lookup.get(name, "") if isinstance(section_lookup, dict) else ""
+        summary = first_good_sentence(text, 180) or normalise_space(str(text))[:180] or "Review this stage in the notes."
+        event_type = "warm_up"
+        lowered = f"{name} {summary}".lower()
+        if re.search(r"\b(table|figure|data|result|evidence|study|experiment|graph|chart)\b", lowered):
+            event_type = "apply"
+        elif re.search(r"\b(example|case|application)\b", lowered):
+            event_type = "apply"
+        elif re.search(r"\b(exam|revision|mistake|critical)\b", lowered):
+            event_type = "check"
+        elif re.search(r"\b(definition|concept|idea|method|model)\b", lowered):
+            event_type = "learn"
+        practice_question = fallback_study_path_question(event_type, name, summary, name)
+        events.append({
+            "id": sha256_text(f"{name}-{index}")[:10],
+            "order": index + 1,
+            "marker": f"Task {index + 1}",
+            "type": event_type,
+            "title": short_mindmap_text(name, 72),
+            "section": name,
+            "summary": summary,
+            "detail": summary,
+            "task": f"Read this part and write a two-sentence explanation of: {summary[:120]}",
+            "active_prompt": f"Without looking, explain the key idea from {name}.",
+            "practice_question": practice_question,
+            "deliverable": "A short explanation in your own words.",
+            "mastery_check": "You can explain the idea and connect it to one piece of source evidence.",
+            "estimated_minutes": 8,
+            "priority": "medium",
+            "evidence": "",
+            "why_it_matters": "This checkpoint helps organise the material into a learnable sequence.",
+            "misconception": "",
+            "exam_use": "Use it as a revision checkpoint before moving to the next concept.",
+            "source_reference": name,
+            "related_terms": [],
+        })
+
+    return {
+        "title": clean_quiz_string(title, stored_title or "Study Path"),
+        "summary": "A task-based study path that moves from orientation to practice and exam-ready revision.",
+        "events": events,
+    }
+
+
+def normalise_timeline(raw: dict, fallback: dict) -> dict:
+    if not isinstance(raw, dict):
+        raw = {}
+    raw_events = raw.get("events") if isinstance(raw.get("events"), list) else []
+    fallback_events = fallback.get("events", []) or []
+    events: List[dict] = []
+    for index, event in enumerate(raw_events[: env_int("TIMELINE_MAX_EVENTS", 16)]):
+        if not isinstance(event, dict):
+            continue
+        fallback_event = fallback_events[min(index, len(fallback_events) - 1)] if fallback_events else {}
+        title = clean_quiz_string(event.get("title") or event.get("label"), fallback_event.get("title", f"Checkpoint {index + 1}"))
+        summary = clean_quiz_string(event.get("summary") or event.get("what_happens"), fallback_event.get("summary", ""))
+        detail = clean_quiz_string(event.get("detail") or event.get("explanation") or event.get("why"), fallback_event.get("detail", summary))
+        evidence = clean_quiz_string(event.get("evidence") or event.get("source_evidence"), fallback_event.get("evidence", ""))
+        try:
+            estimated_minutes = int(event.get("estimated_minutes") or event.get("estimatedMinutes") or fallback_event.get("estimated_minutes") or 8)
+        except Exception:
+            estimated_minutes = 8
+        estimated_minutes = max(3, min(estimated_minutes, 60))
+        if not title or not (summary or detail or evidence):
+            continue
+        related_terms = event.get("related_terms") or event.get("relatedTerms") or []
+        if not isinstance(related_terms, list):
+            related_terms = []
+        events.append({
+            "id": clean_quiz_string(event.get("id"), sha256_text(f"{title}-{index}")[:10]),
+            "order": index + 1,
+            "marker": clean_quiz_string(event.get("marker") or event.get("time") or event.get("step"), f"Step {index + 1}"),
+            "type": normalise_timeline_type(event.get("type") or fallback_event.get("type")),
+            "title": truncate_text(title, 140),
+            "section": clean_quiz_string(event.get("section"), fallback_event.get("section", "")),
+            "summary": truncate_text(summary, 420),
+            "detail": truncate_text(detail, 900),
+            "task": truncate_text(clean_quiz_string(event.get("task") or event.get("action") or event.get("study_task"), fallback_event.get("task", detail or summary)), 650),
+            "active_prompt": truncate_text(clean_quiz_string(event.get("active_prompt") or event.get("recall_prompt"), fallback_event.get("active_prompt", "")), 520),
+            "practice_question": normalise_study_path_practice_question(
+                event.get("practice_question") or event.get("practiceQuestion") or event.get("question"),
+                fallback_event,
+                title,
+                index,
+            ),
+            "deliverable": truncate_text(clean_quiz_string(event.get("deliverable") or event.get("output"), fallback_event.get("deliverable", "")), 420),
+            "mastery_check": truncate_text(clean_quiz_string(event.get("mastery_check") or event.get("checkpoint"), fallback_event.get("mastery_check", "")), 420),
+            "estimated_minutes": estimated_minutes,
+            "priority": clean_quiz_string(event.get("priority"), fallback_event.get("priority", "medium")).lower(),
+            "evidence": truncate_text(evidence, 700),
+            "why_it_matters": truncate_text(clean_quiz_string(event.get("why_it_matters") or event.get("whyItMatters"), fallback_event.get("why_it_matters", "")), 520),
+            "misconception": truncate_text(clean_quiz_string(event.get("misconception") or event.get("common_mistake"), fallback_event.get("misconception", "")), 420),
+            "exam_use": truncate_text(clean_quiz_string(event.get("exam_use") or event.get("examUse"), fallback_event.get("exam_use", "")), 420),
+            "source_reference": truncate_text(clean_quiz_string(event.get("source_reference") or event.get("source"), fallback_event.get("source_reference", "")), 220),
+            "related_terms": [truncate_text(clean_quiz_string(term), 48) for term in related_terms if clean_quiz_string(term)][:6],
+        })
+
+    if len(events) < 3:
+        events = fallback_events[: env_int("TIMELINE_MAX_EVENTS", 16)]
+    return {
+        "title": clean_quiz_string(raw.get("title"), fallback.get("title", "Study Path")),
+        "summary": truncate_text(clean_quiz_string(raw.get("summary"), fallback.get("summary", "")), 520),
+        "events": events,
+    }
+
+
+@app.post("/timeline/generate")
+async def generate_timeline(data: dict):
+    try:
+        require_openai()
+        payload = data or {}
+        title = clean_quiz_string(payload.get("title") if isinstance(payload, dict) else "", stored_title or "Study Path")
+        context = quiz_summary_context(payload)
+        if not context:
+            return {"error": "No generated notes are available for timeline generation yet."}
+
+        sections_payload = payload.get("sections") if isinstance(payload, dict) else {}
+        sections_source = sections_payload if isinstance(sections_payload, dict) and sections_payload else stored_sections
+        fallback = fallback_timeline_from_context(title, sections_source if isinstance(sections_source, dict) else {}, context)
+        language_rule = language_instruction_for(payload.get("preferred_language", "auto") if isinstance(payload, dict) else "auto")
+
+        prompt = f"""
+Create an interactive Study Path for a learning app.
+{language_rule}
+
+This should NOT behave like a mind map and should NOT merely reorder the notes.
+It must be an actionable sequence of study tasks. Each item should tell the student what to do next, how long to spend, how to actively recall, what output to produce, and how to know they have mastered it.
+
+Return JSON only with this shape:
+{{
+  "title": "short study path title",
+  "summary": "one sentence explaining how this path helps the learner study",
+  "events": [
+    {{
+      "marker": "Task 1 / 10 min / First pass",
+      "type": "warm_up | learn | apply | check | revise",
+      "title": "short task title",
+      "section": "matching section heading from the notes if possible",
+      "summary": "why this task exists",
+      "task": "specific action the student should do now",
+      "active_prompt": "self-test prompt the student should answer from memory",
+      "practice_question": {{
+        "type": "short_answer | single_choice | multiple_choice | true_false | case_analysis | compare | essay_outline | diagram_prompt",
+        "prompt": "one short, direct question the student can answer now",
+        "options": ["only for single_choice, multiple_choice, or true_false"],
+        "correct_option_indexes": [0],
+        "correct_boolean": true,
+        "expected_answer": "brief answer guide or key points",
+        "explanation": "why this answer is right or how to approach it",
+        "source_reference": "source evidence or concept used by the question"
+      }},
+      "deliverable": "what the student should produce",
+      "mastery_check": "how the student knows they are ready to move on",
+      "estimated_minutes": 8,
+      "priority": "high | medium | low",
+      "detail": "supporting explanation for the task",
+      "evidence": "specific source evidence, figure, table, study, or example if relevant",
+      "why_it_matters": "why this checkpoint matters",
+      "misconception": "common mistake or confusion",
+      "exam_use": "how to use this in an answer or revision",
+      "source_reference": "source concept/evidence, not only a page number",
+      "related_terms": ["term 1", "term 2"]
+    }}
+  ]
+}}
+
+Rules:
+- Return 6 to 12 tasks unless the notes are very short.
+- The first task should orient the learner; the middle tasks should practise concepts/evidence/examples; the final tasks should check exam readiness or revision.
+- Every task must include practice_question. This is the explicit short question the student sees first, so it must make the student know exactly what to answer.
+- Use a varied mix of practice_question types. Do not default to multiple choice. Prefer short_answer, case_analysis, compare, diagram_prompt, and essay_outline when those are better for understanding; use single_choice, multiple_choice, and true_false only when options genuinely help.
+- Practice questions should be answerable from the notes and should be shorter than the supporting explanation.
+- Use realistic estimated_minutes values from 5 to 25.
+- Do not invent dates. If no real date exists, use Step markers.
+- Use exact course concepts, named researchers, experiments, diagrams, tables, and data only when they appear in the notes context.
+- Do not add external researchers, studies, citations, dates, or examples that are not present in the generated notes context.
+- If a checkpoint has no explicit study/table/figure in the notes, keep evidence brief and say what the notes themselves state; do not fabricate a source.
+- Do not ask the student to merely remember slide/page numbers.
+- Keep every user-facing value in the required language.
+- Keep task titles short enough for a vertical rail.
+- Make tasks meaningfully different from each other; no duplicated checkpoints.
+- Every task must be action-oriented, for example "draw", "compare", "explain from memory", "answer", "identify", "rewrite", "test yourself".
+
+Current note title: {title}
+
+Generated notes context:
+{context}
+"""
+        raw = generate_chat(
+            [
+                {"role": "system", "content": "You generate rigorous source-grounded study timelines as strict JSON. Never include markdown fences or prose outside JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            model=model_for_depth("detailed"),
+            temperature=float(os.getenv("TIMELINE_TEMPERATURE", "0.25")),
+            max_tokens=env_int("TIMELINE_GENERATION_TOKENS", 6500),
+        )
+        parsed = extract_json_object(raw)
+        timeline = normalise_timeline(parsed or {}, fallback)
+        return {
+            **timeline,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+        }
+    except Exception as error:
+        return {"error": str(error)}
+
+
+def study_path_answer_text(answer_payload) -> str:
+    if isinstance(answer_payload, dict):
+        if isinstance(answer_payload.get("selected_options"), list) and answer_payload.get("selected_options"):
+            return "; ".join(clean_quiz_string(item) for item in answer_payload.get("selected_options") if clean_quiz_string(item))
+        return clean_quiz_string(answer_payload.get("text") or answer_payload.get("answer") or answer_payload.get("value"))
+    if isinstance(answer_payload, list):
+        return "; ".join(clean_quiz_string(item) for item in answer_payload if clean_quiz_string(item))
+    return clean_quiz_string(answer_payload)
+
+
+def study_path_selected_indexes(answer_payload, options: List[str]) -> List[int]:
+    if isinstance(answer_payload, dict):
+        raw = answer_payload.get("selected_indexes")
+        if raw is None:
+            raw = answer_payload.get("selectedIndexes")
+        if raw is None:
+            raw = answer_payload.get("selected_index")
+        if raw is None:
+            raw = answer_payload.get("answer")
+        return coerce_option_indexes(raw, options)
+    return coerce_option_indexes(answer_payload, options)
+
+
+def study_path_local_correct(question: dict, answer_payload) -> Optional[bool]:
+    qtype = normalise_study_path_question_type(question.get("type"))
+    options = question.get("options") if isinstance(question.get("options"), list) else []
+    options = [clean_quiz_string(option) for option in options if clean_quiz_string(option)]
+    selected_indexes = study_path_selected_indexes(answer_payload, options)
+    if qtype == "single_choice":
+        correct_indexes = coerce_option_indexes(question.get("correct_option_indexes") or question.get("correctOptionIndexes"), options)
+        return bool(correct_indexes) and selected_indexes[:1] == correct_indexes[:1]
+    if qtype == "multiple_choice":
+        correct_indexes = coerce_option_indexes(question.get("correct_option_indexes") or question.get("correctOptionIndexes"), options)
+        return bool(correct_indexes) and sorted(selected_indexes) == sorted(correct_indexes)
+    if qtype == "true_false":
+        correct_boolean = coerce_boolean(question.get("correct_boolean", question.get("correctBoolean")))
+        if correct_boolean is None:
+            return None
+        if selected_indexes:
+            answer_boolean = selected_indexes[0] == 0
+        else:
+            answer_boolean = coerce_boolean(study_path_answer_text(answer_payload))
+        return answer_boolean is not None and answer_boolean == correct_boolean
+    return None
+
+
+def fallback_replacement_study_path_question(event: dict, previous_question: dict, answer_text: str) -> dict:
+    event_type = normalise_timeline_type(event.get("type"))
+    title = clean_quiz_string(event.get("title") or event.get("section"), "this checkpoint")
+    summary = clean_quiz_string(event.get("summary") or event.get("detail") or event.get("task"), previous_question.get("expected_answer", ""))
+    replacement = fallback_study_path_question(event_type, title, summary, event.get("source_reference") or event.get("sourceReference") or title)
+    previous_type = normalise_study_path_question_type(previous_question.get("type"))
+    if previous_type == "single_choice":
+        replacement.update({
+            "type": "short_answer",
+            "prompt": f"In one or two sentences, correct the misunderstanding in this answer: {truncate_text(answer_text, 120)}",
+            "options": [],
+            "correct_option_indexes": [],
+            "correct_boolean": None,
+        })
+    elif previous_type in {"short_answer", "case_analysis", "compare"}:
+        replacement.update({
+            "type": "true_false",
+            "prompt": f"True or false: {truncate_text(summary, 150)}",
+            "options": ["True", "False"],
+            "correct_option_indexes": [],
+            "correct_boolean": True,
+        })
+    return replacement
+
+
+def generate_replacement_study_path_question(event: dict, question: dict, answer_text: str, preferred_language: str) -> dict:
+    language_rule = language_instruction_for(preferred_language or "auto")
+    prompt = f"""
+Create ONE new practice question for the same Study Path task because the student got the previous question wrong.
+{language_rule}
+
+Return JSON only:
+{{
+  "type": "short_answer | single_choice | multiple_choice | true_false | case_analysis | compare | essay_outline | diagram_prompt",
+  "prompt": "short direct question",
+  "options": ["only if needed"],
+  "correct_option_indexes": [0],
+  "correct_boolean": true,
+  "expected_answer": "brief answer guide",
+  "explanation": "why this answer is right",
+  "source_reference": "source concept/evidence"
+}}
+
+Rules:
+- Make it different from the previous question.
+- Keep it directly about the same task, source concept, or evidence.
+- Prefer a simpler diagnostic question if the previous answer shows confusion.
+- Do not invent external examples or studies.
+- Do not ask only for a page or slide number.
+
+Study Path task:
+Title: {clean_quiz_string(event.get("title"))}
+Type: {normalise_timeline_type(event.get("type"))}
+Summary: {truncate_text(clean_quiz_string(event.get("summary")), 700)}
+Task: {truncate_text(clean_quiz_string(event.get("task")), 700)}
+Evidence: {truncate_text(clean_quiz_string(event.get("evidence")), 700)}
+Source reference: {clean_quiz_string(event.get("source_reference") or event.get("sourceReference"))}
+
+Previous question:
+{json.dumps(question, ensure_ascii=False)[:1800]}
+
+Student's wrong answer:
+{truncate_text(answer_text, 700)}
+"""
+    try:
+        raw = generate_chat(
+            [
+                {"role": "system", "content": "You create concise source-grounded study practice questions as strict JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            model=model_for_depth("focused"),
+            temperature=0.35,
+            max_tokens=env_int("TIMELINE_CHECK_TOKENS", 1600),
+        )
+        parsed = extract_json_object(raw)
+        if isinstance(parsed, dict):
+            return normalise_study_path_practice_question(parsed, event, event.get("title", ""), 0)
+    except Exception:
+        pass
+    return normalise_study_path_practice_question(
+        fallback_replacement_study_path_question(event, question, answer_text),
+        event,
+        event.get("title", ""),
+        0,
+    )
+
+
+@app.post("/timeline/check-answer")
+async def check_timeline_answer(data: dict):
+    try:
+        require_openai()
+        payload = data or {}
+        raw_event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
+        raw_question = payload.get("question") if isinstance(payload.get("question"), dict) else {}
+        preferred_language = payload.get("preferred_language", "auto")
+        if not raw_question:
+            return {"error": "No practice question was provided."}
+
+        event = {
+            "type": normalise_timeline_type(raw_event.get("type")),
+            "title": clean_quiz_string(raw_event.get("title") or raw_event.get("section"), "Study task"),
+            "section": clean_quiz_string(raw_event.get("section")),
+            "summary": truncate_text(clean_quiz_string(raw_event.get("summary")), 700),
+            "detail": truncate_text(clean_quiz_string(raw_event.get("detail")), 900),
+            "task": truncate_text(clean_quiz_string(raw_event.get("task")), 700),
+            "evidence": truncate_text(clean_quiz_string(raw_event.get("evidence")), 700),
+            "source_reference": truncate_text(clean_quiz_string(raw_event.get("source_reference") or raw_event.get("sourceReference")), 220),
+        }
+        question = normalise_study_path_practice_question(raw_question, event, event.get("title", ""), 0)
+        answer_payload = payload.get("answer")
+        answer_text = study_path_answer_text(answer_payload)
+        if not answer_text:
+            return {"error": "Answer is empty."}
+
+        local_correct = study_path_local_correct(question, answer_payload)
+        feedback = ""
+        correct = bool(local_correct) if local_correct is not None else False
+
+        if local_correct is None:
+            language_rule = language_instruction_for(preferred_language or "auto")
+            context = quiz_summary_context(payload)
+            prompt = f"""
+Grade the student's answer to one Study Path practice question.
+{language_rule}
+
+Return JSON only:
+{{
+  "correct": true,
+  "feedback": "one or two sentences explaining the judgement"
+}}
+
+Mark correct only if the answer captures the core idea accurately enough to move on.
+Accept wording differences, but reject vague, contradictory, or source-unsupported answers.
+
+Question:
+{json.dumps(question, ensure_ascii=False)[:1800]}
+
+Study Path task:
+Title: {event['title']}
+Summary: {event['summary']}
+Task: {event['task']}
+Evidence: {event['evidence']}
+
+Student answer:
+{truncate_text(answer_text, 1200)}
+
+Notes context:
+{truncate_text(context, 5000)}
+"""
+            raw = generate_chat(
+                [
+                    {"role": "system", "content": "You are a strict but helpful study-answer grader. Return strict JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                model=model_for_depth("focused"),
+                temperature=0,
+                max_tokens=env_int("TIMELINE_CHECK_TOKENS", 1600),
+            )
+            parsed = extract_json_object(raw)
+            if isinstance(parsed, dict):
+                correct = bool(parsed.get("correct"))
+                feedback = truncate_text(clean_quiz_string(parsed.get("feedback")), 420)
+
+        if correct:
+            if not feedback:
+                feedback = "Correct. You can mark this task done."
+            return {"correct": True, "feedback": feedback}
+
+        new_question = generate_replacement_study_path_question(event, question, answer_text, preferred_language)
+        if not feedback:
+            feedback = "Not quite. Try the new question below before marking this task done."
+        return {
+            "correct": False,
+            "feedback": feedback,
+            "new_question": new_question,
+        }
+    except Exception as error:
+        return {"error": str(error)}
+
+
+def quiz_question_signature(value: str) -> str:
+    text = normalise_space(str(value or "")).lower()
+    text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", " ", text)
+    return normalise_space(text)[:220]
+
+
+def extract_quiz_avoidance(data: dict) -> List[dict]:
+    raw_items = []
+    if isinstance(data, dict):
+        for key in ["avoid_questions", "previous_questions"]:
+            value = data.get(key)
+            if isinstance(value, list):
+                raw_items.extend(value)
+        previous_quizzes = data.get("previous_quizzes")
+        if isinstance(previous_quizzes, list):
+            for quiz in previous_quizzes:
+                if isinstance(quiz, dict) and isinstance(quiz.get("questions"), list):
+                    raw_items.extend(quiz.get("questions") or [])
+
+    items: List[dict] = []
+    seen = set()
+    for raw in raw_items:
+        if isinstance(raw, str):
+            question = clean_quiz_string(raw)
+            qtype = ""
+            source = ""
+            options: List[str] = []
+        elif isinstance(raw, dict):
+            question = clean_quiz_string(raw.get("question") or raw.get("prompt"))
+            qtype = normalise_quiz_type(raw.get("type") or "")
+            source = clean_quiz_string(raw.get("source_reference") or raw.get("sourceReference") or raw.get("source"))
+            raw_options = raw.get("options") if isinstance(raw.get("options"), list) else []
+            options = [clean_quiz_string(option) for option in raw_options if clean_quiz_string(option)][:5]
+        else:
+            continue
+        signature = quiz_question_signature(question)
+        if not signature or signature in seen:
+            continue
+        seen.add(signature)
+        items.append({
+            "type": qtype,
+            "question": truncate_text(question, 260),
+            "source_reference": truncate_text(source, 160),
+            "options": options,
+            "signature": signature,
+        })
+        if len(items) >= env_int("QUIZ_AVOID_QUESTION_LIMIT", 80):
+            break
+    return items
+
+
+def quiz_avoidance_prompt(items: List[dict]) -> str:
+    if not items:
+        return "No previous quiz questions were provided."
+    lines = []
+    for index, item in enumerate(items[: env_int("QUIZ_AVOID_PROMPT_LIMIT", 36)], start=1):
+        details = []
+        if item.get("type"):
+            details.append(item["type"])
+        if item.get("source_reference"):
+            details.append(item["source_reference"])
+        if item.get("options"):
+            details.append("options: " + " | ".join(item["options"][:4]))
+        suffix = f" ({'; '.join(details)})" if details else ""
+        lines.append(f"{index}. {item['question']}{suffix}")
+    return "\n".join(lines)
+
+
+def coerce_option_indexes(value, options: List[str]) -> List[int]:
+    if value is None:
+        return []
+    raw_values = value if isinstance(value, list) else [value]
+    indexes = []
+    for raw in raw_values:
+        idx = None
+        if isinstance(raw, int):
+            idx = raw
+        elif isinstance(raw, str):
+            stripped = raw.strip()
+            if stripped.isdigit():
+                idx = int(stripped)
+            elif len(stripped) == 1 and stripped.upper() in "ABCDE":
+                idx = ord(stripped.upper()) - ord("A")
+            else:
+                for option_index, option in enumerate(options):
+                    if normalise_space(option).lower() == normalise_space(stripped).lower():
+                        idx = option_index
+                        break
+        if idx is not None and 0 <= idx < len(options) and idx not in indexes:
+            indexes.append(idx)
+    return indexes
+
+
+def coerce_boolean(value) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    text = normalise_space(str(value or "")).lower()
+    if text in {"true", "t", "yes", "correct", "right", "对", "正确", "是"}:
+        return True
+    if text in {"false", "f", "no", "incorrect", "wrong", "错", "错误", "否"}:
+        return False
+    return None
+
+
+def clean_quiz_string(value, fallback: str = "") -> str:
+    cleaned = normalise_space(str(value or ""))
+    return cleaned or fallback
+
+
+def fallback_quiz_question(qtype: str, index: int, title: str, context: str) -> dict:
+    topic = title or stored_title or "the uploaded material"
+    snippets = [
+        normalise_space(line.lstrip("#-0123456789. "))
+        for line in context.splitlines()
+        if len(normalise_space(line.lstrip("#-0123456789. "))) > 24
+    ]
+    focus = snippets[index % len(snippets)] if snippets else f"the main idea in {topic}"
+    base = {
+        "id": f"q{index + 1}",
+        "type": qtype,
+        "question": f"Using the study material, explain or judge this key point: {focus[:180]}",
+        "options": [],
+        "correct_option_indexes": [],
+        "correct_boolean": None,
+        "expected_answer": f"A strong answer should accurately explain: {focus[:220]}",
+        "explanation": "This question checks whether you can connect the key concept to source evidence instead of memorising only a heading.",
+        "source_reference": topic,
+        "difficulty": "medium",
+        "points": 1,
+        "rubric": ["Use the relevant concept from the material", "Explain the reason or evidence", "Avoid vague general statements"],
+    }
+    if qtype == "single_choice":
+        base.update({
+            "question": f"Which option best matches this point from the material: {focus[:160]}",
+            "options": [focus[:160], "A decorative detail unrelated to the topic", "Only the page number matters", "The material provides no evidence"],
+            "correct_option_indexes": [0],
+        })
+    elif qtype == "multiple_choice":
+        base.update({
+            "question": f"Which statements are reasonable about this point from the material? {focus[:150]}",
+            "options": [focus[:150], "It should be understood with source evidence", "The heading alone is enough for the full answer", "It can be explained with relevant examples or figures", "It is unrelated to the core course concepts"],
+            "correct_option_indexes": [0, 1, 3],
+        })
+    elif qtype == "true_false":
+        base.update({
+            "question": f"True or false: this point should be understood with concrete evidence, not only by memorising a page number. Point: {focus[:140]}",
+            "options": ["True", "False"],
+            "correct_boolean": True,
+        })
+    elif qtype == "case_analysis":
+        base.update({
+            "points": 4,
+            "question": f"Case analysis: if an exam asks you to explain \"{focus[:120]}\" using the material, how would you organise your answer?",
+        })
+    elif qtype == "essay":
+        base.update({
+            "points": 5,
+            "question": f"Essay: write a structured response about \"{focus[:130]}\" using concepts, evidence, and examples from the material.",
+        })
+    elif qtype == "short_answer":
+        base.update({"points": 2})
+    return base
+
+
+def normalise_quiz_questions(parsed: dict, desired_types: List[str], title: str, context: str, avoid_items: Optional[List[dict]] = None) -> List[dict]:
+    raw_questions = parsed.get("questions") if isinstance(parsed, dict) else []
+    if not isinstance(raw_questions, list):
+        raw_questions = []
+
+    questions: List[dict] = []
+    used_signatures = {item.get("signature") for item in (avoid_items or []) if item.get("signature")}
+    for index, desired_type in enumerate(desired_types):
+        raw = raw_questions[index] if index < len(raw_questions) and isinstance(raw_questions[index], dict) else {}
+        qtype = normalise_quiz_type(raw.get("type") or desired_type)
+        if qtype != desired_type:
+            qtype = desired_type
+        fallback = fallback_quiz_question(qtype, index, title, context)
+
+        options = raw.get("options") if isinstance(raw.get("options"), list) else fallback.get("options", [])
+        options = [clean_quiz_string(option) for option in options if clean_quiz_string(option)]
+
+        correct_indexes = coerce_option_indexes(
+            raw.get("correct_option_indexes", raw.get("correct_indexes", raw.get("answer_index", raw.get("answer")))),
+            options,
+        )
+        correct_boolean = coerce_boolean(raw.get("correct_boolean", raw.get("answer")))
+
+        if qtype in {"single_choice", "multiple_choice"}:
+            if len(options) < 2:
+                options = fallback["options"]
+            if not correct_indexes:
+                correct_indexes = fallback.get("correct_option_indexes", [0])
+            if qtype == "single_choice":
+                correct_indexes = correct_indexes[:1] or [0]
+            else:
+                correct_indexes = correct_indexes[: max(2, min(len(correct_indexes), len(options)))]
+                if len(correct_indexes) < 2 and len(options) >= 2:
+                    correct_indexes = [0, 1]
+        elif qtype == "true_false":
+            options = ["True", "False"]
+            if correct_boolean is None:
+                correct_boolean = fallback.get("correct_boolean", True)
+            correct_indexes = [0 if correct_boolean else 1]
+        else:
+            options = []
+            correct_indexes = []
+            correct_boolean = None
+
+        question = {
+            "id": f"q{index + 1}",
+            "type": qtype,
+            "label": QUIZ_TYPE_LABELS.get(qtype, qtype),
+            "question": clean_quiz_string(raw.get("question") or raw.get("prompt"), fallback["question"]),
+            "options": options,
+            "correct_option_indexes": correct_indexes,
+            "correct_boolean": correct_boolean,
+            "expected_answer": clean_quiz_string(raw.get("expected_answer") or raw.get("answer_text"), fallback["expected_answer"]),
+            "explanation": clean_quiz_string(raw.get("explanation"), fallback["explanation"]),
+            "source_reference": clean_quiz_string(raw.get("source_reference") or raw.get("source"), fallback["source_reference"]),
+            "difficulty": clean_quiz_string(raw.get("difficulty"), fallback["difficulty"]).lower(),
+            "points": clamp_quiz_count(raw.get("points"), fallback.get("points", 1)),
+            "rubric": raw.get("rubric") if isinstance(raw.get("rubric"), list) else fallback["rubric"],
+        }
+        signature = quiz_question_signature(question["question"])
+        if signature in used_signatures:
+            replacement = fallback_quiz_question(qtype, index + len(used_signatures), title, context)
+            question.update({
+                "question": replacement["question"],
+                "options": replacement.get("options", []),
+                "correct_option_indexes": replacement.get("correct_option_indexes", []),
+                "correct_boolean": replacement.get("correct_boolean"),
+                "expected_answer": replacement.get("expected_answer", question["expected_answer"]),
+                "explanation": "This replacement avoids repeating a quiz question already generated for these notes.",
+                "source_reference": replacement.get("source_reference", question["source_reference"]),
+                "difficulty": replacement.get("difficulty", question["difficulty"]),
+                "points": replacement.get("points", question["points"]),
+                "rubric": replacement.get("rubric", question["rubric"]),
+            })
+            signature = quiz_question_signature(question["question"])
+        used_signatures.add(signature)
+        question["rubric"] = [clean_quiz_string(item) for item in question["rubric"] if clean_quiz_string(item)][:6]
+        questions.append(question)
+    return questions
+
+
+@app.post("/quiz/generate")
+async def generate_quiz(data: dict):
+    try:
+        require_openai()
+        plan = parse_quiz_type_plan(data or {})
+        desired_types = expand_quiz_type_plan(plan)
+        title = clean_quiz_string(data.get("title") if isinstance(data, dict) else "", stored_title or "Study Quiz")
+        preferred_language = normalise_quiz_language(data.get("preferred_language", "english") if isinstance(data, dict) else "english")
+        exam_mode = bool(data.get("exam_mode", False)) if isinstance(data, dict) else False
+        avoid_items = extract_quiz_avoidance(data or {})
+        try:
+            previous_quiz_count = int((data or {}).get("previous_quiz_count", len(avoid_items))) if isinstance(data, dict) else 0
+        except Exception:
+            previous_quiz_count = len(avoid_items)
+        previous_quiz_count = max(0, min(previous_quiz_count, 200))
+        variant_seed = clean_quiz_string((data or {}).get("variant_seed") if isinstance(data, dict) else "", "")
+        context = quiz_summary_context(data or {})
+        if not context:
+            return {"error": "No generated notes are available for quiz generation yet."}
+        if not variant_seed:
+            variant_seed = sha256_text(f"{title}|{len(avoid_items)}|{context[:400]}")[:12]
+
+        plan_lines = "\n".join(
+            f"- {QUIZ_TYPE_LABELS.get(item['type'], item['type'])} ({item['type']}): {item['count']}"
+            for item in plan
+        )
+        language_rule = quiz_language_instruction(preferred_language)
+        avoid_prompt = quiz_avoidance_prompt(avoid_items)
+        schema = """
+Return JSON only with this exact shape. Keep JSON keys in English. Every user-facing value must follow the language requirement:
+{
+  "title": "short quiz title",
+  "questions": [
+    {
+      "type": "single_choice | multiple_choice | true_false | short_answer | case_analysis | essay",
+      "question": "question text",
+      "options": ["A", "B", "C", "D"],
+      "correct_option_indexes": [0],
+      "correct_boolean": true,
+      "expected_answer": "model answer",
+      "explanation": "explanation grounded in the uploaded material",
+      "source_reference": "nearby concept/source evidence, not just a page number",
+      "difficulty": "easy | medium | hard",
+      "points": 1,
+      "rubric": ["criterion 1", "criterion 2"]
+    }
+  ]
+}
+"""
+        prompt = f"""
+Create a high-quality study quiz from the generated notes below.
+
+Language requirement: {language_rule}
+Additional hard rule: all user-facing quiz content must follow the language requirement, including title, questions, options, explanations, expected answers, source_reference, and rubric.
+Quiz title/topic: {title}
+Exam mode enabled: {exam_mode}
+Already generated quiz count for this note: {previous_quiz_count}
+Variation seed: {variant_seed}
+
+Question type plan. Return exactly {len(desired_types)} questions, in this order:
+{plan_lines}
+
+Previously generated questions for this exact note. Avoid repeating these question wordings, scenarios, answer options, and source angles:
+{avoid_prompt}
+
+Quality requirements:
+- Test understanding, transfer, source evidence, and common confusions, not trivia.
+- Use the student's uploaded-file content as the authority.
+- Prefer concepts that were explained with concrete examples, diagrams, tables, data, experiments, or source images in the notes.
+- If previous questions exist, choose different concepts, different examples, different source visuals/data, or a harder/different angle. Do not make a paraphrase of an old question.
+- Do not ask "what page/slide number"; use the concept or image/data content directly.
+- For single choice, provide exactly 4 plausible options and one correct index.
+- For multiple choice, provide 5 plausible options and at least 2 correct indexes.
+- For true/false, provide correct_boolean and a short explanation.
+- For short answer, case analysis, and essay, provide expected_answer and a clear rubric.
+- Keep each question self-contained and useful for revision.
+- Use source_reference to name the concept/evidence, not only a page or slide number.
+
+{schema}
+
+Generated notes context:
+{context}
+"""
+        raw = generate_chat(
+            [
+                {"role": "system", "content": "You generate rigorous, source-grounded quizzes as strict JSON. Never include markdown fences or prose outside JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            model=model_for_depth("detailed"),
+            temperature=float(os.getenv("QUIZ_TEMPERATURE", "0.45")),
+            max_tokens=env_int("QUIZ_GENERATION_TOKENS", 6500),
+        )
+        parsed = extract_json_object(raw)
+        questions = normalise_quiz_questions(parsed, desired_types, title, context, avoid_items)
+        return {
+            "title": clean_quiz_string(parsed.get("title") if isinstance(parsed, dict) else "", f"{title} Quiz"),
+            "exam_mode": exam_mode,
+            "preferred_language": preferred_language,
+            "total_questions": len(questions),
+            "question_types": plan,
+            "questions": questions,
+        }
+    except Exception as error:
+        return {"error": str(error)}
+
+
+# -----------------------------------------------------------------------------
+# Flashcard generation
+# -----------------------------------------------------------------------------
+
+def clamp_flashcard_count(value, default: int = 16) -> int:
+    try:
+        number = int(value)
+    except Exception:
+        number = default
+    return max(1, min(number, env_int("FLASHCARD_MAX_CARDS", 80)))
+
+
+def resolve_flashcard_count(data: dict, context: str) -> Tuple[str, int]:
+    mode = normalise_space(str(data.get("count_mode") or "auto")).lower().replace("-", "_")
+    if mode in {"30", "thirty"}:
+        return "30", clamp_flashcard_count(30)
+    if mode in {"60", "sixty"}:
+        return "60", clamp_flashcard_count(60)
+    if mode == "custom":
+        return "custom", clamp_flashcard_count(data.get("card_count") or data.get("count"), 20)
+
+    section_count = len(data.get("sections") or {}) if isinstance(data.get("sections"), dict) else len(stored_sections or {})
+    estimated = max(12, min(32, section_count * 3 if section_count else max(12, len(context) // 1800)))
+    return "auto", clamp_flashcard_count(data.get("card_count"), estimated)
+
+
+def fallback_flashcard_cards(title: str, context: str, count: int) -> List[dict]:
+    topic = title or stored_title or "Study material"
+    candidates = []
+    for line in context.splitlines():
+        cleaned = normalise_space(line.lstrip("#-0123456789. "))
+        if 28 <= len(cleaned) <= 220 and not cleaned.lower().startswith(("source:", "generated notes context")):
+            candidates.append(cleaned)
+        if len(candidates) >= count:
+            break
+    if not candidates:
+        candidates = [f"Main idea from {topic}"]
+
+    cards = []
+    for index in range(count):
+        focus = candidates[index % len(candidates)]
+        cards.append({
+            "id": f"fc{index + 1}",
+            "front": focus[:120],
+            "back": f"Explain this using the source notes: {focus[:260]}",
+            "hint": "Look for the definition, example, or evidence around this point.",
+            "source_reference": topic,
+            "difficulty": "medium",
+            "tags": ["source notes"],
+        })
+    return cards
+
+
+def normalise_flashcard_cards(parsed: dict, title: str, context: str, count: int) -> List[dict]:
+    raw_cards = parsed.get("cards") if isinstance(parsed, dict) else []
+    if not isinstance(raw_cards, list):
+        raw_cards = []
+
+    fallback_cards = fallback_flashcard_cards(title, context, count)
+    cards: List[dict] = []
+    for index in range(count):
+        raw = raw_cards[index] if index < len(raw_cards) and isinstance(raw_cards[index], dict) else {}
+        fallback = fallback_cards[index]
+        tags = raw.get("tags") if isinstance(raw.get("tags"), list) else fallback["tags"]
+        cards.append({
+            "id": f"fc{index + 1}",
+            "front": clean_quiz_string(raw.get("front") or raw.get("term") or raw.get("question"), fallback["front"]),
+            "back": clean_quiz_string(raw.get("back") or raw.get("definition") or raw.get("answer"), fallback["back"]),
+            "hint": clean_quiz_string(raw.get("hint"), fallback["hint"]),
+            "source_reference": clean_quiz_string(raw.get("source_reference") or raw.get("source"), fallback["source_reference"]),
+            "difficulty": clean_quiz_string(raw.get("difficulty"), fallback["difficulty"]).lower(),
+            "tags": [clean_quiz_string(tag) for tag in tags if clean_quiz_string(tag)][:4],
+        })
+    return cards
+
+
+@app.post("/flashcards/generate")
+async def generate_flashcards(data: dict):
+    try:
+        require_openai()
+        data = data or {}
+        title = clean_quiz_string(data.get("title"), stored_title or "Study Flashcards")
+        preferred_language = normalise_quiz_language(data.get("preferred_language", "english"))
+        context = quiz_summary_context(data)
+        if not context:
+            return {"error": "No generated notes are available for flashcard generation yet."}
+
+        count_mode, card_count = resolve_flashcard_count(data, context)
+        language_rule = quiz_language_instruction(preferred_language)
+        schema = """
+Return JSON only with this exact shape. Keep JSON keys in English. Every user-facing value must follow the language requirement:
+{
+  "title": "short deck title",
+  "cards": [
+    {
+      "front": "short recall prompt, term, contrast, or question",
+      "back": "clear answer/explanation grounded in the notes",
+      "hint": "small clue before revealing the answer",
+      "source_reference": "nearby concept, example, source figure, or evidence",
+      "difficulty": "easy | medium | hard",
+      "tags": ["concept", "evidence"]
+    }
+  ]
+}
+"""
+        prompt = f"""
+Create a high-quality flashcard deck from the generated notes below.
+
+Language requirement: {language_rule}
+Deck title/topic: {title}
+Card count mode: {count_mode}
+Return exactly {card_count} cards.
+
+Card-writing rules:
+- Do not copy long paragraphs. Make each front side compact enough for active recall.
+- The back side should be clear, specific, and usually 1-3 sentences.
+- Cover definitions, contrasts, mechanisms, processes, examples, important studies/data, source images/figures, formulas, and common confusions when present.
+- Prefer source-grounded cards over generic textbook cards.
+- Do not make cards whose answer is only a page number or slide number.
+- Include useful bilingual academic terms when the language requirement asks for mixed or multi-language output.
+- Keep the deck varied: not every card should be a definition.
+
+{schema}
+
+Generated notes context:
+{context}
+"""
+        raw = generate_chat(
+            [
+                {"role": "system", "content": "You generate concise, source-grounded flashcards as strict JSON. Never include markdown fences or prose outside JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=env_int("FLASHCARD_GENERATION_TOKENS", 8500),
+        )
+        parsed = extract_json_object(raw)
+        cards = normalise_flashcard_cards(parsed or {}, title, context, card_count)
+        return {
+            "title": clean_quiz_string(parsed.get("title") if isinstance(parsed, dict) else "", f"{title} Flashcards"),
+            "preferred_language": preferred_language,
+            "count_mode": count_mode,
+            "total_cards": len(cards),
+            "cards": cards,
+        }
+    except Exception as error:
+        return {"error": str(error)}
