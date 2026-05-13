@@ -5,6 +5,7 @@ import mimetypes
 import ssl
 import os
 import re
+import shutil
 import tempfile
 import time
 import urllib.request
@@ -14,8 +15,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pypdf import PdfReader
@@ -84,9 +86,15 @@ client = OpenAI(
 ANALYSIS_MODEL = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-4o")
 CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
+REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2")
+REALTIME_VOICE = os.getenv("OPENAI_REALTIME_VOICE", "marin")
 ENABLE_TUTOR_WEB_RESEARCH = os.getenv("ENABLE_TUTOR_WEB_RESEARCH", "true").lower() not in {"0", "false", "no"}
 MAX_TUTOR_SEARCH_RESULTS = int(os.getenv("MAX_TUTOR_SEARCH_RESULTS", "4"))
 MAX_TUTOR_RESEARCH_CHARS = int(os.getenv("MAX_TUTOR_RESEARCH_CHARS", "9000"))
+VOICE_TUTOR_HISTORY_LIMIT = int(os.getenv("VOICE_TUTOR_HISTORY_LIMIT", "24"))
+VOICE_TUTOR_CONTEXT_CHARS = int(os.getenv("VOICE_TUTOR_CONTEXT_CHARS", "18000"))
+VOICE_TUTOR_TOKENS = int(os.getenv("VOICE_TUTOR_TOKENS", "2200"))
+VOICE_TUTOR_REALTIME_CONTEXT_CHARS = int(os.getenv("VOICE_TUTOR_REALTIME_CONTEXT_CHARS", "16000"))
 
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(24 * 1024 * 1024)))
 MAX_VIDEO_BYTES = int(os.getenv("MAX_VIDEO_BYTES", str(60 * 1024 * 1024)))
@@ -106,7 +114,7 @@ MULTISOURCE_SOURCE_DIGEST_TOKENS = int(os.getenv("MULTISOURCE_SOURCE_DIGEST_TOKE
 MULTISOURCE_SOURCE_CHARS = int(os.getenv("MULTISOURCE_SOURCE_CHARS", "500000"))
 ANALYSIS_CACHE_TTL_SECONDS = int(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 CACHE_PATH = BACKEND_DIR / "synapse_analysis_cache.json"
-CACHE_VERSION = "source_identity_mindmap_v28_multisource_visual_argument_engine"
+CACHE_VERSION = "source_identity_mindmap_v50_isolated_tutor_language_quality_gate"
 
 app = FastAPI(title="Synapse Backend")
 app.add_middleware(
@@ -123,7 +131,6 @@ def health():
     return {
         "status": "ok",
         "api_key_loaded": bool(OPENAI_API_KEY),
-        "api_key_prefix": (OPENAI_API_KEY[:12] + "...") if OPENAI_API_KEY else "",
         "org_id_loaded": bool(OPENAI_ORG_ID),
         "project_id_loaded": bool(OPENAI_PROJECT_ID),
         "analysis_model": ANALYSIS_MODEL,
@@ -133,6 +140,7 @@ def health():
         "tutor_web_research_enabled": ENABLE_TUTOR_WEB_RESEARCH,
         "multi_source_digests_enabled": ENABLE_MULTI_SOURCE_DIGESTS,
         "max_visual_images_per_source": MAX_VISUAL_IMAGES_PER_SOURCE,
+        "max_pdf_visual_candidates_per_source": globals().get("PDF_VISUAL_CANDIDATE_LIMIT", MAX_VISUAL_IMAGES_PER_SOURCE),
         "max_multi_source_visual_images": MAX_MULTI_SOURCE_VISUAL_IMAGES,
         "multi_source_visual_gallery_limit": MULTISOURCE_VISUAL_GALLERY_LIMIT,
         "multi_source_synthesis_part_tokens": MULTISOURCE_SYNTHESIS_PART_TOKENS,
@@ -683,6 +691,45 @@ def clean_html(raw: str) -> str:
 def remove_urls_from_text(text: str) -> str:
     text = re.sub(r"https?://[^\s<>()]+", " ", text or "")
     return normalise_space(text)
+
+
+URL_PATTERN = re.compile(r"https?://[^\s<>()\"']+", re.I)
+TRAILING_URL_PUNCTUATION = ".,;:!?)]}”’\""
+
+
+def clean_detected_url(raw_url: str) -> str:
+    return (raw_url or "").strip().rstrip(TRAILING_URL_PUNCTUATION)
+
+
+def extract_urls_from_text(text: str) -> List[str]:
+    urls: List[str] = []
+    seen = set()
+    for raw_url in URL_PATTERN.findall(text or ""):
+        cleaned = clean_detected_url(raw_url)
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        urls.append(cleaned)
+    return urls
+
+
+def canonicalize_youtube_watch_url(url: str) -> str:
+    video_id = get_youtube_video_id(url)
+    if not video_id:
+        return clean_detected_url(url)
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def extract_youtube_urls_from_text(text: str) -> List[str]:
+    urls: List[str] = []
+    seen_video_ids = set()
+    for url in extract_urls_from_text(text):
+        video_id = get_youtube_video_id(url)
+        if not video_id or video_id in seen_video_ids:
+            continue
+        seen_video_ids.add(video_id)
+        urls.append(canonicalize_youtube_watch_url(url))
+    return urls
 
 
 def image_part_from_bytes(data: bytes, content_type: str = "image/jpeg"):
@@ -1696,6 +1743,43 @@ def fetch_youtube_caption_transcript(url: str) -> str:
         return ""
 
 
+def format_duration(seconds) -> str:
+    try:
+        total_seconds = int(float(seconds))
+    except Exception:
+        return ""
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def fetch_youtube_metadata(url: str) -> dict:
+    if yt_dlp is None:
+        return {}
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "skip_download": True,
+        "socket_timeout": 12,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        if not isinstance(info, dict):
+            return {}
+        return {
+            "title": normalise_space(info.get("title") or ""),
+            "channel": normalise_space(info.get("uploader") or info.get("channel") or ""),
+            "duration": format_duration(info.get("duration")),
+            "webpage_url": info.get("webpage_url") or url,
+        }
+    except Exception:
+        return {}
+
+
 def transcribe_media_bytes(filename: str, data: bytes) -> str:
     require_openai()
     if not data:
@@ -1783,6 +1867,7 @@ def download_youtube_media(url: str) -> Optional[str]:
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
         "max_filesize": MAX_VIDEO_BYTES,
         "merge_output_format": "mp4",
     }
@@ -1798,30 +1883,53 @@ def download_youtube_media(url: str) -> Optional[str]:
 
 
 def analyse_youtube_url(url: str) -> Tuple[str, List[dict], dict]:
-    transcript = fetch_youtube_caption_transcript(url)
+    canonical_url = canonicalize_youtube_watch_url(url)
+    metadata = fetch_youtube_metadata(canonical_url)
+    transcript = fetch_youtube_caption_transcript(canonical_url)
     frame_parts: List[dict] = []
     media_path = None
-    if yt_dlp is not None or not transcript:
-        media_path = download_youtube_media(url)
+
+    extract_frames = os.getenv("YOUTUBE_EXTRACT_FRAMES", "0").lower() in {"1", "true", "yes"}
+    needs_audio_fallback = len(transcript.strip()) < 500
+    if yt_dlp is not None and (extract_frames or needs_audio_fallback):
+        media_path = download_youtube_media(canonical_url)
     if media_path:
-        frame_parts = extract_video_frames_from_file(media_path)
-        if len(transcript.strip()) < 500 and has_openai():
+        try:
+            if extract_frames:
+                frame_parts = extract_video_frames_from_file(media_path)
+            if needs_audio_fallback and has_openai():
+                try:
+                    with open(media_path, "rb") as media_file:
+                        media_bytes = media_file.read(MAX_AUDIO_BYTES + 1)
+                    transcribed = transcribe_media_bytes(os.path.basename(media_path), media_bytes)
+                    if transcribed and not transcribed.lower().startswith("the audio/video file is too large"):
+                        transcript = transcribed
+                except Exception:
+                    pass
+        finally:
             try:
-                with open(media_path, "rb") as media_file:
-                    media_bytes = media_file.read(MAX_AUDIO_BYTES + 1)
-                transcribed = transcribe_media_bytes(os.path.basename(media_path), media_bytes)
-                if transcribed and not transcribed.lower().startswith("the audio/video file is too large"):
-                    transcript = transcribed
+                shutil.rmtree(Path(media_path).parent, ignore_errors=True)
             except Exception:
                 pass
     if not transcript:
         transcript = "No readable YouTube transcript could be accessed."
-    video_id = get_youtube_video_id(url) or "unknown"
+    metadata_lines = []
+    if metadata.get("title"):
+        metadata_lines.append(f"Video title: {metadata['title']}")
+    if metadata.get("channel"):
+        metadata_lines.append(f"Channel: {metadata['channel']}")
+    if metadata.get("duration"):
+        metadata_lines.append(f"Duration: {metadata['duration']}")
+    if metadata_lines:
+        transcript = "[YouTube metadata]\n" + "\n".join(metadata_lines) + "\n\n[Transcript]\n" + transcript
+    video_id = get_youtube_video_id(canonical_url) or "unknown"
+    detected_title = metadata.get("title") or f"YouTube video {video_id}"
     meta = {
-        "url": url,
+        "url": canonical_url,
         "source_identity": f"youtube:{video_id}",
-        "detected_title": f"YouTube video {video_id}",
+        "detected_title": detected_title,
         "content_hash": sha256_text(transcript),
+        "metadata": metadata,
     }
     return transcript, frame_parts, meta
 
@@ -1886,15 +1994,27 @@ def parse_sections(summary: str) -> Dict[str, str]:
     current_content: List[str] = []
     heading_seen = False
 
+    promoted_heading_pattern = re.compile(
+        r"^\s*(?:"
+        r"Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources? \(|Sources?:|Core argument|Key ideas?|Concepts? explained|"
+        r"Source evidence|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|"
+        r"Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|"
+        r"学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
+        r"考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論"
+        r")\b.*$",
+        flags=re.I,
+    )
+
     for raw_line in (summary or "").split("\n"):
         line = raw_line.rstrip()
         heading_match = re.match(r"^#{1,3}\s+(.+?)\s*$", line)
+        promoted_heading_match = None if heading_match else promoted_heading_pattern.match(line)
 
-        if heading_match:
-            heading = normalise_space(heading_match.group(1))
+        if heading_match or promoted_heading_match:
+            heading = normalise_space(heading_match.group(1) if heading_match else line)
             heading = heading.strip("# ").strip()
             # Ignore empty headings and accidental markdown titles that are too long.
-            if heading and len(heading) <= 90:
+            if heading and len(heading) <= 140:
                 if current_content:
                     sections[current_heading] = "\n".join(current_content).strip()
                 elif heading_seen and current_heading not in sections:
@@ -2456,14 +2576,15 @@ def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
         parts = [{
             "type": "text",
             "text": (
-                f"\n\nSOURCE YOUTUBE VIDEO: {url}\n"
+                f"\n\nSOURCE YOUTUBE VIDEO: {meta.get('url') or url}\n"
                 f"Stable identity: {meta['source_identity']}\n"
+                f"Detected title/topic: {meta['detected_title']}\n"
                 f"Transcript:\n{truncate_text(transcript)}"
             ),
         }]
         parts.extend(frame_parts)
         return parts, {
-            "display_name": url,
+            "display_name": meta.get("url") or url,
             "source_identity": meta["source_identity"],
             "title_candidate": meta["detected_title"],
             "content_hash": meta["content_hash"],
@@ -2520,6 +2641,44 @@ def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
         }
 
 
+def youtube_source_key(url: str) -> Optional[str]:
+    video_id = get_youtube_video_id(url)
+    return f"youtube:{video_id}" if video_id else None
+
+
+def expand_embedded_youtube_sources(text: str, parent_meta: dict, seen_youtube_sources: set) -> Tuple[List[dict], List[dict], List[str]]:
+    """Turn YouTube URLs found inside an uploaded file's extracted text into real source units."""
+    embedded_parts: List[dict] = []
+    embedded_units: List[dict] = []
+    embedded_titles: List[str] = []
+    parent_name = parent_meta.get("display_name") or parent_meta.get("title_candidate") or "uploaded source"
+
+    for url in extract_youtube_urls_from_text(text):
+        key = youtube_source_key(url)
+        if not key or key in seen_youtube_sources:
+            continue
+        seen_youtube_sources.add(key)
+        parts, meta = link_to_source_unit(url)
+        title = meta.get("title_candidate") or meta.get("display_name") or url
+        embedded_parts.append({
+            "type": "text",
+            "text": (
+                f"\n\nEMBEDDED YOUTUBE LINK DETECTED IN SOURCE FILE: {parent_name}\n"
+                f"Synapse expanded this link into an analyzable transcript source instead of treating it as plain slide text.\n"
+                f"Embedded URL: {url}\n"
+                f"Video source title/topic: {title}"
+            ),
+        })
+        embedded_parts.extend(parts)
+        meta["display_name"] = f"Embedded YouTube from {parent_name}: {title}"
+        meta["parent_source"] = parent_name
+        meta["embedded_url"] = url
+        embedded_units.append(meta)
+        embedded_titles.append(title)
+
+    return embedded_parts, embedded_units, embedded_titles
+
+
 def build_analysis_fingerprint(preferred_language: str, units: List[dict], depth: str = "auto") -> str:
     identity_bits = [f"cache:{globals().get('CACHE_VERSION', 'v0')}", f"lang:{preferred_language or 'auto'}", f"depth:{depth or 'auto'}"]
     for unit in units:
@@ -2550,7 +2709,7 @@ def normalise_plain_sqrt_text(text: str) -> str:
 LANGUAGE_POLICIES = {
     "auto": {
         "name": "the source's main language",
-        "instruction": "Use the source's dominant language. If the source is mixed-language, use the language that best helps the learner.",
+        "instruction": "Use only the source's dominant language. If the source is English, write only English. Do not add bilingual headings, Chinese translations, or mixed-language section titles unless the source itself is mixed-language.",
         "rewrite": False,
     },
     "english": {
@@ -2631,6 +2790,169 @@ def target_language_name(preferred_language: str) -> str:
 def language_instruction_for(preferred_language: str) -> str:
     key = normalise_language_key(preferred_language)
     return LANGUAGE_POLICIES[key]["instruction"]
+
+
+def detect_dominant_source_language_key(source_text: str) -> str:
+    """Best-effort language detection for Auto output without adding dependencies."""
+    text = source_text or ""
+    if not text.strip():
+        return "english"
+    chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
+    japanese_chars = len(re.findall(r"[\u3040-\u30ff]", text))
+    korean_chars = len(re.findall(r"[\uac00-\ud7af]", text))
+    arabic_chars = len(re.findall(r"[\u0600-\u06ff]", text))
+    latin_words = len(re.findall(r"\b[A-Za-z]{3,}\b", text))
+
+    if japanese_chars >= 30 and japanese_chars >= chinese_chars * 0.4:
+        return "japanese"
+    if korean_chars >= 30:
+        return "korean"
+    if arabic_chars >= 30:
+        return "arabic"
+    if chinese_chars >= 80 and chinese_chars >= max(30, latin_words * 0.25):
+        return "simplified_chinese"
+    if latin_words >= 30:
+        return "english"
+    return "english"
+
+
+def resolve_generation_language_key(preferred_language: str, source_text: str = "") -> str:
+    key = normalise_language_key(preferred_language)
+    if key != "auto":
+        return key
+    return detect_dominant_source_language_key(source_text)
+
+
+def language_instruction_for_generation(preferred_language: str, source_text: str = "") -> str:
+    requested_key = normalise_language_key(preferred_language)
+    if requested_key != "auto":
+        return language_instruction_for(requested_key)
+    detected_key = resolve_generation_language_key(preferred_language, source_text)
+    detected_name = target_language_name(detected_key)
+    return (
+        f"Auto language detected from the uploaded source as {detected_name}. "
+        f"{LANGUAGE_POLICIES[detected_key]['instruction']} "
+        "Keep the entire generated notes page in this one language. "
+        "Do not use bilingual headings or add translations from another language."
+    )
+
+
+def note_structure_for_language(preferred_language: str, source_text: str = "") -> str:
+    key = resolve_generation_language_key(preferred_language, source_text)
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        return "\n".join([
+            "# [具体主题标题]",
+            "## 学习问题",
+            "## 来源与论点地图",
+            "## 核心笔记",
+            "## 关键术语与机制",
+            "## 结合源内证据讲解概念",
+            "## 源内证据怎么读",
+            "## 例子与证据表",
+            "## 考试策略与常见错误",
+            "## 复习清单",
+        ])
+    if key == "traditional_chinese":
+        return "\n".join([
+            "# [具體主題標題]",
+            "## 學習問題",
+            "## 來源與論點地圖",
+            "## 核心筆記",
+            "## 關鍵術語與機制",
+            "## 結合源內證據講解概念",
+            "## 源內證據怎麼讀",
+            "## 例子與證據表",
+            "## 考試策略與常見錯誤",
+            "## 複習清單",
+        ])
+    return "\n".join([
+        "# [specific topic title]",
+        "## Learning Question",
+        "## Source and Argument Map",
+        "## Core Notes",
+        "## Key Terms and Mechanisms",
+        "## Concepts Explained With Source Evidence",
+        "## Reading the Source Evidence",
+        "## Worked Examples and Evidence Matrix",
+        "## Exam Strategy and Common Mistakes",
+        "## Revision Checklist",
+    ])
+
+
+def remove_auto_bilingual_heading_leakage(summary: str, preferred_language: str, source_text: str = "") -> str:
+    """When Auto detects English, remove accidental Chinese translations from headings."""
+    if not summary or normalise_language_key(preferred_language) != "auto":
+        return summary
+    if resolve_generation_language_key(preferred_language, source_text) != "english":
+        return summary
+
+    cleaned_lines: List[str] = []
+    for line in summary.splitlines():
+        heading_match = re.match(r"^(\s*#{1,4}\s+)(.+?)\s*$", line)
+        if not heading_match:
+            cleaned_lines.append(line)
+            continue
+        prefix, heading = heading_match.groups()
+        if "/" in heading:
+            left, right = [part.strip() for part in heading.split("/", 1)]
+            if re.search(r"[A-Za-z]", left) and re.search(r"[\u4e00-\u9fff]", right):
+                heading = left
+        cleaned_lines.append(prefix + heading)
+    return "\n".join(cleaned_lines)
+
+
+def markdown_table_count(text: str) -> int:
+    return len(re.findall(r"(?m)^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$", text or ""))
+
+
+def markdown_heading_count(text: str) -> int:
+    return len(re.findall(r"(?m)^\s*#{1,4}\s+\S+", text or ""))
+
+
+def source_looks_academic_or_dense(source_context: str) -> bool:
+    value = (source_context or "").lower()
+    signals = len(re.findall(
+        r"\b(lecture|slide|chapter|study|experiment|method|results?|figure|table|data|theory|model|"
+        r"evidence|correlation|comparison|definition|exam|limitation|critique|argument|hypothesis|"
+        r"psychology|biology|genetics|neuroscience|law|formula|equation)\b|图|表|实验|数据|理论|模型|证据|比较|局限|定义",
+        value,
+        flags=re.I,
+    ))
+    return count_readable_units(source_context) >= 1800 or signals >= 14
+
+
+def advanced_notes_quality_flags(summary: str, source_context: str) -> List[str]:
+    """Return detail gaps that should trigger a targeted expansion pass."""
+    flags: List[str] = []
+    text = summary or ""
+    lower = text.lower()
+    units = count_readable_units(text)
+    headings = markdown_heading_count(text)
+    tables = markdown_table_count(text)
+    dense_source = source_looks_academic_or_dense(source_context)
+
+    if units < RICH_INLINE_MIN_OUTPUT_UNITS:
+        flags.append("too short for advanced study notes")
+    if dense_source and headings < ADVANCED_NOTES_MIN_HEADINGS:
+        flags.append("too few navigable teaching sections")
+    if dense_source and tables < ADVANCED_NOTES_MIN_TABLES and re.search(
+        r"\b(table|figure|graph|chart|correlation|comparison|data|results?|study|experiment|mean|median|rate|percentage)\b|图|表|数据|实验|结果|对比",
+        source_context or "",
+        flags=re.I,
+    ):
+        flags.append("missing comparison/evidence tables")
+
+    required_signals = {
+        "evidence": r"\b(evidence|source|data|study|experiment|result|finding|example)\b|证据|数据|实验|例子",
+        "limitation": r"\b(limitation|caveat|critique|problem|weakness|misleading|cannot|does not prove)\b|局限|限制|误区|不能证明",
+        "exam use": r"\b(exam|essay|answer|revision|remember|application|use this)\b|考试|答题|复习|应用",
+        "mechanism": r"\b(mechanism|process|because|therefore|works by|leads to|explains why)\b|机制|过程|因为|所以",
+    }
+    for label, pattern in required_signals.items():
+        if not re.search(pattern, lower, flags=re.I):
+            flags.append(f"missing {label}")
+    return flags
+
 
 def localized_overview_heading(preferred_language: str) -> str:
     key = normalise_language_key(preferred_language)
@@ -2770,6 +3092,7 @@ async def analyze_materials(
         content_parts: List[dict] = []
         source_units: List[dict] = []
         title_candidates: List[str] = []
+        seen_youtube_sources = set()
 
         for uploaded in files:
             data = await uploaded.read()
@@ -2780,6 +3103,15 @@ async def analyze_materials(
             content_parts.extend(parts)
             source_units.append(meta)
             title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
+            embedded_parts, embedded_units, embedded_titles = expand_embedded_youtube_sources(
+                meta.get("text_excerpt", ""),
+                meta,
+                seen_youtube_sources,
+            )
+            if embedded_units:
+                content_parts.extend(embedded_parts)
+                source_units.extend(embedded_units)
+                title_candidates.extend(embedded_titles)
 
         try:
             parsed_links = json.loads(links) if links else []
@@ -2789,7 +3121,25 @@ async def analyze_materials(
         for url in parsed_links:
             if not isinstance(url, str) or not url.strip():
                 continue
-            parts, meta = link_to_source_unit(url.strip())
+            cleaned_url = clean_detected_url(url.strip())
+            if get_youtube_video_id(cleaned_url):
+                cleaned_url = canonicalize_youtube_watch_url(cleaned_url)
+                key = youtube_source_key(cleaned_url)
+                if key in seen_youtube_sources:
+                    continue
+                seen_youtube_sources.add(key)
+            parts, meta = link_to_source_unit(cleaned_url)
+            content_parts.extend(parts)
+            source_units.append(meta)
+            title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
+
+        for url in extract_youtube_urls_from_text(free_text):
+            key = youtube_source_key(url)
+            if not key or key in seen_youtube_sources:
+                continue
+            seen_youtube_sources.add(key)
+            parts, meta = link_to_source_unit(url)
+            meta["display_name"] = f"YouTube link from pasted text: {meta.get('title_candidate') or url}"
             content_parts.extend(parts)
             source_units.append(meta)
             title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
@@ -2822,6 +3172,8 @@ async def analyze_materials(
             part.get("text", "") for part in content_parts
             if isinstance(part, dict) and part.get("type") == "text"
         )
+        resolved_language_key = resolve_generation_language_key(preferred_language, combined_source_text)
+        postprocess_language = resolved_language_key if normalise_language_key(preferred_language) == "auto" else preferred_language
         depth_plan = choose_learning_depth(combined_source_text, source_units, "auto")
         depth = depth_plan["depth"]
         depth_config = depth_plan["config"]
@@ -2838,7 +3190,8 @@ async def analyze_materials(
             # Rebuild live visual cards from the freshly uploaded files. The cache
             # intentionally does not store large base64 images, but the current
             # request still has the source_units needed to recreate them.
-            cached_summary = attach_visual_argument_section(cached_result.get("summary", ""), source_units, preferred_language)
+            cached_summary = attach_visual_argument_section(cached_result.get("summary", ""), source_units, postprocess_language)
+            cached_summary = remove_auto_bilingual_heading_leakage(cached_summary, preferred_language, combined_source_text)
             cached_result = {**cached_result, "summary": cached_summary, "visual_gallery": build_visual_gallery(source_units)}
             stored_summary = cached_summary
             stored_sections = parse_sections(stored_summary)
@@ -2847,9 +3200,9 @@ async def analyze_materials(
             stored_mind_map = cached_result.get("mind_map", {})
             stored_title = cached_result.get("title", "Generated Study Notes")
             stored_source_identity = cached_result.get("primary_source_identity", "")
-            return {**cached_result, "cached": True, "source_fingerprint": source_fingerprint}
+            return {**cached_result, "cached": True, "source_fingerprint": source_fingerprint, "output_language": postprocess_language}
 
-        language_rule = language_instruction_for(preferred_language)
+        language_rule = language_instruction_for_generation(preferred_language, combined_source_text)
 
         source_identity_lines = []
         for index, unit in enumerate(source_units, start=1):
@@ -2858,7 +3211,11 @@ async def analyze_materials(
             )
 
         title_hint = choose_best_source_title(title_candidates)
-        source_digest_block = generate_source_digests_for_multisource(source_units, language_rule)
+        # v42: use the controlled advanced tutor generator for both single and
+        # multi-source uploads. This avoids an expensive source-digest prepass
+        # and prevents the old single-source path from producing thin notes that
+        # need visual cards patched on afterward.
+        source_digest_block = ""
         analysis_task = f"""
 {ANALYSIS_PROMPT}
 
@@ -2882,6 +3239,7 @@ MANDATORY depth requirement:
 - Match the explanation length to the actual complexity of the source, not to an arbitrary fixed word count.
 - If the source is a law or formal document, cover definitions, key sections, exceptions, duties, liabilities, procedures, and consequences.
 - If the source is a math/video lesson, reconstruct the full teaching sequence, formulas, calculations, verification steps, and common errors.
+- If an uploaded PDF, PPT, DOC, or text source contains an embedded YouTube URL, Synapse expands it into a SOURCE YOUTUBE VIDEO transcript source. Treat that video as part of the original source context, analyze what it teaches, and connect it back to the slide/page/concept where the link appeared.
 - Use the source structure wherever visible: parts, sections, headings, tables, transcript sequence, examples, or diagrams.
 - If examples exist inside the source, include them. If no example exists, add a clearly labelled external real-world example and explain how it applies.
 - Avoid generic filler such as “this is important for understanding”. Every paragraph should teach a specific point.
@@ -2897,7 +3255,7 @@ Stable source identity list:
 Professor source-card preanalysis for multi-source synthesis:
 {source_digest_block if source_digest_block else "Not required for single-source mode."}
 
-{build_multisource_instruction(source_units, preferred_language)}
+{build_multisource_instruction(source_units, postprocess_language)}
 
 Consistency requirement:
 - The same source must not become two different documents.
@@ -2905,27 +3263,17 @@ Consistency requirement:
 - If the source title says Partnership Law Act 2019, do NOT change it to Arms Legislation Act 2019 or any other act.
 """
 
-        if len(source_units) >= 2:
-            # Robust all-subject multi-source mode: preserve detailed per-source notes first,
-            # then synthesize shared ideas from those notes. This avoids one huge generation
-            # call collapsing into a refusal or a basic summary.
-            stored_summary = generate_reference_style_multisource_notes(source_units, preferred_language, depth_plan)
-        else:
-            source_budget = int(depth_config.get("source_chars", MAX_SOURCE_CHARS))
-            limited_parts = limit_text_parts_for_depth(content_parts, source_budget)
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": [{"type": "text", "text": analysis_task}] + limited_parts},
-            ]
-            stored_summary = generate_study_notes_with_quality_guard(messages, preferred_language, title_hint, source_units, content_parts, depth_plan)
+        stored_summary = generate_reference_style_multisource_notes(source_units, preferred_language, depth_plan)
 
         stored_summary = enforce_requested_language(stored_summary, preferred_language)
-        stored_summary = protect_synapse_brand_and_first_heading(stored_summary, preferred_language)
+        stored_summary = remove_auto_bilingual_heading_leakage(stored_summary, preferred_language, combined_source_text)
+        stored_summary = protect_synapse_brand_and_first_heading(stored_summary, postprocess_language)
         stored_summary = normalise_plain_sqrt_text(stored_summary)
         # Add source screenshots / slide visuals directly into the generated notes.
         # This is not decorative: each visual is converted into an argument card
         # that explains what it shows and how it supports a cross-source idea.
-        stored_summary = attach_visual_argument_section(stored_summary, source_units, preferred_language)
+        stored_summary = attach_visual_argument_section(stored_summary, source_units, postprocess_language)
+        stored_summary = remove_auto_bilingual_heading_leakage(stored_summary, preferred_language, combined_source_text)
         stored_sections = parse_sections(stored_summary)
         stored_title = make_notes_title(stored_summary, title_candidates)
         if len(source_units) >= 2:
@@ -2933,9 +3281,9 @@ Consistency requirement:
             shared_title_hint = detect_course_or_topic_title(combined_source_text[:5000]) or "Multi-Source Study Synthesis"
             if stored_title in title_candidates or len(stored_title) < 18:
                 stored_title = shared_title_hint
-        stored_title = localise_title_if_needed(stored_title, preferred_language)
+        stored_title = localise_title_if_needed(stored_title, postprocess_language)
         stored_connections = generate_connections_from_sections(stored_sections)
-        stored_mind_map = generate_ai_mind_map(stored_title, stored_sections, preferred_language, depth)
+        stored_mind_map = generate_ai_mind_map(stored_title, stored_sections, postprocess_language, depth)
         stored_source_identity = source_units[0].get("source_identity", "") if source_units else ""
 
         result = {
@@ -2962,6 +3310,7 @@ Consistency requirement:
             "depth_label": depth_config.get("label", depth),
             "depth_reason": depth_plan.get("reason", ""),
             "detail_plan": {k: v for k, v in depth_plan.items() if k != "config"},
+            "output_language": postprocess_language,
             "cached": False,
         }
         # Do not persist large base64 visual images in the JSON cache. The
@@ -3131,6 +3480,388 @@ def gather_tutor_web_research(question: str, selected_section: str, source_ident
         )
     return "\n\n".join(blocks), enriched
 
+
+def parse_json_list(value: str) -> List[dict]:
+    try:
+        parsed = json.loads(value or "[]")
+    except Exception:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def parse_json_dict(value: str) -> dict:
+    try:
+        parsed = json.loads(value or "{}")
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def normalise_voice_tutor_history(history: List[dict]) -> List[dict]:
+    turns: List[dict] = []
+    for item in history or []:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "").strip().lower()
+        if role not in {"user", "assistant"}:
+            continue
+        text = normalise_space(str(item.get("text") or item.get("content") or ""))
+        if not text:
+            continue
+        turn = {
+            "role": role,
+            "text": truncate_text(text, 1400),
+        }
+        if item.get("state"):
+            turn["state"] = str(item.get("state"))
+        if item.get("mastery") is not None:
+            turn["mastery"] = item.get("mastery")
+        turns.append(turn)
+    return turns[-VOICE_TUTOR_HISTORY_LIMIT:]
+
+
+def voice_tutor_context_from_sections(sections: dict, selected_section: str) -> str:
+    if not isinstance(sections, dict):
+        return ""
+    if selected_section and sections.get(selected_section):
+        return f"Selected section: {selected_section}\n{truncate_text(str(sections.get(selected_section)), 4500)}"
+    blocks = []
+    for title, content in list(sections.items())[:10]:
+        text = normalise_space(str(content))
+        if text:
+            blocks.append(f"{title}: {truncate_text(text, 900)}")
+    return "\n".join(blocks)
+
+
+def normalise_voice_tutor_json(parsed: dict, fallback_reply: str, transcript: str, history: List[dict]) -> dict:
+    if not isinstance(parsed, dict):
+        parsed = {}
+    try:
+        mastery = int(float(parsed.get("mastery", 0)))
+    except Exception:
+        mastery = 0
+    mastery = max(0, min(100, mastery))
+    state = normalise_space(str(parsed.get("state") or "diagnose")).lower().replace("-", "_")
+    if state not in {"diagnose", "teach", "practice", "hint", "review", "mastered"}:
+        state = "diagnose"
+    reply = normalise_space(str(parsed.get("reply") or fallback_reply or "Tell me what you understand so far, and I will guide you from there."))
+    next_prompt = normalise_space(str(parsed.get("next_prompt") or ""))
+    if state != "mastered" and not next_prompt:
+        next_prompt = "Answer the next question in your own words."
+    exercise = parsed.get("exercise") if isinstance(parsed.get("exercise"), dict) else {}
+    exercise = {
+        "type": normalise_space(str(exercise.get("type") or "short_answer")),
+        "question": normalise_space(str(exercise.get("question") or next_prompt)),
+        "expected_answer": normalise_space(str(exercise.get("expected_answer") or "")),
+    }
+    suggestions = parsed.get("suggested_actions") if isinstance(parsed.get("suggested_actions"), list) else []
+    suggestions = [normalise_space(str(item)) for item in suggestions if normalise_space(str(item))][:4]
+    if not suggestions:
+        suggestions = ["Give me a hint", "Ask a simpler question", "Give me another example"]
+        if state == "mastered" or mastery >= 85:
+            suggestions.append("End session")
+    can_end = bool(parsed.get("can_end")) or state == "mastered" or mastery >= 88
+    return {
+        "transcript": transcript,
+        "reply": reply,
+        "state": "mastered" if can_end and mastery >= 85 else state,
+        "mastery": mastery,
+        "student_level": normalise_space(str(parsed.get("student_level") or "unclear")),
+        "diagnosis": normalise_space(str(parsed.get("diagnosis") or "")),
+        "next_prompt": "" if can_end and mastery >= 85 else next_prompt,
+        "hint": normalise_space(str(parsed.get("hint") or "")),
+        "exercise": exercise,
+        "can_end": can_end,
+        "suggested_actions": suggestions,
+        "turn_count": len(history) + (1 if transcript else 0),
+    }
+
+
+def realtime_tutor_instructions(
+    title: str,
+    note_summary: str,
+    section_context: str,
+    topic_title: str,
+    topic_context: str,
+    topic_scope: str,
+    history: List[dict],
+    preferred_language: str,
+    source_identity: str,
+) -> str:
+    focused_topic = normalise_space(topic_title) or normalise_space(title) or "current study topic"
+    focused_context = str(topic_context or "").strip() or str(section_context or "").strip()
+    language_source_text = focused_context or note_summary or section_context
+    language_name = target_language_name(resolve_generation_language_key(preferred_language, language_source_text))
+    recent_history = "\n".join(
+        f"{turn.get('role', 'user')}: {normalise_space(str(turn.get('text', '')))}"
+        for turn in history[-10:]
+    ) or "No prior voice tutor turns."
+    broader_note_context = truncate_text(note_summary, 2800 if focused_context else VOICE_TUTOR_REALTIME_CONTEXT_CHARS)
+    return f"""
+You are Synapse Realtime Voice Tutor, a live speech-to-speech academic tutor.
+
+Voice persona:
+- Sound like a young adult female academic tutor in a modern chat app.
+- Warm, natural, gentle, curious, encouraging, and conversational.
+- Use a light smile in the voice and small natural pauses.
+- Do not sound like a narrator, audiobook reader, news anchor, customer-service bot, or corporate assistant.
+- Avoid long monologues. Speak in short, human turns.
+
+Language:
+- Speak in {language_name}.
+- Match the learner's language if they speak differently, but do not randomly mix languages.
+- Never translate the product name Synapse.
+
+Current note:
+Title: {normalise_space(title) or 'current study topic'}
+Primary source identity: {source_identity or 'current uploaded material'}
+
+Current focused topic:
+Topic title: {focused_topic}
+Topic scope: {normalise_space(topic_scope) or 'current visible generated topic'}
+Topic context:
+{truncate_text(focused_context, 6500) if focused_context else 'No focused topic was sent. Use the note overview carefully.'}
+
+Opening line:
+- On the first assistant turn of the live session, start exactly with: "Hi, I'm your Synapse tutor for {focused_topic}. We'll build this step by step."
+
+Small broader-note guardrail:
+{broader_note_context}
+
+Conversation memory:
+{recent_history}
+
+Strict scope rule:
+- Treat the Current focused topic as the primary lesson scope.
+- Answer about this topic only. Use the broader-note guardrail only for one-sentence connections if helpful.
+- Never ask what subject, course, material, or topic the learner is working on. You already know the focused topic above.
+- If the learner says "I have no idea", "I don't know", "I'm lost", or gives a very short answer, start teaching the focused topic directly from basics. Do not ask them to pick a subject.
+- If the learner asks something outside this generated topic, briefly say it is outside the current topic and bring them back to this topic.
+- Do not lecture through the whole note unless the current topic is the whole note overview.
+- Every assistant turn must end with exactly one clear next step: a short question, a prompt for the learner to continue explaining, or a mini-example for them to try. Never end a tutoring turn with only a statement.
+
+Adaptive tutoring loop:
+1. Start the session with the exact opening line above, then ask the learner what they already understand about that exact topic. Do not ask for the subject.
+2. Listen to the learner's explanation and diagnose gaps.
+3. Ask exactly one focused question or mini-example at a time.
+4. If the learner is stuck or wrong, give a gentle hint or micro-lesson, then ask a simpler question.
+5. If the learner is doing well, ask a transfer/application question using the uploaded source material.
+6. Only end when the learner shows stable understanding across definition, source evidence/example, and application.
+7. Do not say they have mastered it just because they say they are done.
+
+When useful, mention the source evidence naturally, but do not read long notes aloud. Be interactive.
+""".strip()
+
+
+@app.post("/voice-tutor/realtime-call")
+async def voice_tutor_realtime_call(
+    sdp: str = Form(...),
+    history: str = Form(default="[]"),
+    title: str = Form(default=""),
+    summary: str = Form(default=""),
+    sections: str = Form(default="{}"),
+    selected_section: str = Form(default=""),
+    topic_title: str = Form(default=""),
+    topic_context: str = Form(default=""),
+    topic_scope: str = Form(default=""),
+    preferred_language: str = Form(default="auto"),
+    source_identity: str = Form(default=""),
+):
+    try:
+        require_openai()
+        parsed_history = normalise_voice_tutor_history(parse_json_list(history))
+        sections_dict = parse_json_dict(sections)
+        note_summary = str(summary or "").strip()
+        focused_topic_context = str(topic_context or "").strip()
+        if not note_summary and not sections_dict and not focused_topic_context:
+            return Response(
+                content=json.dumps({"error": "No current note context was provided. Open or generate the note before starting voice tutor."}),
+                media_type="application/json",
+                status_code=400,
+            )
+
+        section_context = voice_tutor_context_from_sections(sections_dict, selected_section)
+        session_config = {
+            "type": "realtime",
+            "model": REALTIME_MODEL,
+            "output_modalities": ["audio"],
+            "instructions": realtime_tutor_instructions(
+                title=title,
+                note_summary=note_summary,
+                section_context=section_context,
+                topic_title=topic_title,
+                topic_context=focused_topic_context,
+                topic_scope=topic_scope,
+                history=parsed_history,
+                preferred_language=preferred_language,
+                source_identity=source_identity,
+            ),
+            "audio": {
+                "output": {"voice": REALTIME_VOICE},
+                "input": {
+                    "transcription": {"model": TRANSCRIBE_MODEL},
+                    "noise_reduction": {"type": "near_field"},
+                    "turn_detection": {
+                        "type": "server_vad",
+                        "threshold": 0.45,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 650,
+                        "create_response": True,
+                        "interrupt_response": True,
+                    },
+                },
+            },
+        }
+        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+        if OPENAI_ORG_ID:
+            headers["OpenAI-Organization"] = OPENAI_ORG_ID
+        if OPENAI_PROJECT_ID:
+            headers["OpenAI-Project"] = OPENAI_PROJECT_ID
+        response = requests.post(
+            "https://api.openai.com/v1/realtime/calls",
+            headers=headers,
+            files={
+                "sdp": (None, sdp),
+                "session": (None, json.dumps(session_config)),
+            },
+            timeout=30,
+        )
+        if response.status_code >= 400:
+            return Response(
+                content=response.text,
+                media_type=response.headers.get("content-type", "text/plain"),
+                status_code=response.status_code,
+            )
+        return Response(
+            content=response.text,
+            media_type="application/sdp",
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as error:
+        return Response(
+            content=json.dumps({"error": str(error)}),
+            media_type="application/json",
+            status_code=500,
+        )
+
+
+@app.post("/voice-tutor/respond")
+async def voice_tutor_respond(
+    audio: Optional[UploadFile] = File(default=None),
+    transcript: str = Form(default=""),
+    history: str = Form(default="[]"),
+    title: str = Form(default=""),
+    summary: str = Form(default=""),
+    sections: str = Form(default="{}"),
+    selected_section: str = Form(default=""),
+    preferred_language: str = Form(default="auto"),
+    source_identity: str = Form(default=""),
+):
+    try:
+        require_openai()
+        parsed_history = normalise_voice_tutor_history(parse_json_list(history))
+        sections_dict = parse_json_dict(sections)
+        note_summary = str(summary or "").strip()
+        if not note_summary and not sections_dict:
+            return {"error": "No current note context was provided. Open or generate the note before starting voice tutor."}
+
+        transcript_text = normalise_space(transcript)
+        if audio is not None and audio.filename:
+            audio_bytes = await audio.read()
+            if audio_bytes:
+                transcript_text = normalise_space(transcribe_media_bytes(audio.filename, audio_bytes))
+        is_opening_turn = not transcript_text and not parsed_history
+
+        section_context = voice_tutor_context_from_sections(sections_dict, selected_section)
+        topic = normalise_space(title) or "the current study topic"
+        language_source_text = note_summary or section_context
+        answer_language = (
+            detect_question_language(transcript_text, preferred_language)
+            if transcript_text else
+            target_language_name(resolve_generation_language_key(preferred_language, language_source_text))
+        )
+        history_lines = "\n".join(
+            f"{turn['role']}: {turn['text']}" + (f" [state={turn.get('state')}, mastery={turn.get('mastery')}]" if turn.get("state") else "")
+            for turn in parsed_history[-VOICE_TUTOR_HISTORY_LIMIT:]
+        ) or "No prior voice tutor turns."
+        opening_instruction = (
+            "This is the opening turn. Ask the learner to explain what they already understand about the topic before teaching. "
+            "Do not lecture yet. Give a warm, short diagnostic prompt."
+            if is_opening_turn else
+            "Evaluate the learner's latest answer, then decide whether to teach, hint, ask a simpler question, ask a harder transfer question, or end."
+        )
+
+        prompt = f"""
+You are Synapse Voice Tutor, an adaptive spoken academic tutor.
+
+Speak in: {answer_language}
+Never translate the product name Synapse.
+
+Current note:
+Title: {topic}
+Primary source identity: {source_identity or 'current uploaded material'}
+Selected section context:
+{section_context[:5000] if section_context else 'Full note context is used.'}
+
+Generated notes context:
+{truncate_text(note_summary, VOICE_TUTOR_CONTEXT_CHARS)}
+
+Voice tutor conversation so far:
+{history_lines}
+
+Latest learner answer transcript:
+{transcript_text or '[No learner answer yet]'}
+
+Tutor mission:
+- Start by asking what the learner already understands about this topic.
+- Use the learner's first explanation as a diagnostic baseline.
+- Keep asking one focused question or example at a time.
+- If the learner is vague, wrong, or stuck, give a hint, a simpler question, or a short micro-lesson before asking again.
+- If the learner is doing well, ask a harder transfer/example question, not just recall.
+- End only when the learner has shown stable understanding across definition, evidence/example, and application.
+- Do not mark mastery just because the learner says they are done.
+- Keep the reply speakable: short paragraphs, no markdown tables, no long lists.
+- Write the reply like a natural voice-chat script from a warm young female academic tutor. Use conversational phrasing, not textbook prose.
+- In English, use natural contractions where appropriate. Do not use headings like "Diagnosis:" or "Question:" in the spoken reply.
+- Use the source notes as the authority. Do not invent facts outside the uploaded material.
+- Ask exactly one main question at the end unless can_end is true.
+- If can_end is true, give a brief mastery summary and tell the learner they can finish or ask for one final challenge.
+
+Current instruction:
+{opening_instruction}
+
+Return JSON only:
+{{
+  "reply": "what the voice tutor should say aloud",
+  "state": "diagnose | teach | practice | hint | review | mastered",
+  "mastery": 0,
+  "student_level": "unclear | beginner | developing | secure | strong",
+  "diagnosis": "brief private-facing diagnosis for UI",
+  "next_prompt": "the one question the learner should answer next, empty if mastered",
+  "hint": "short hint if useful",
+  "exercise": {{"type":"short_answer | explain | example | compare | apply | correct_mistake","question":"...","expected_answer":"..."}},
+  "can_end": false,
+  "suggested_actions": ["Give me a hint", "Ask a simpler question", "Give me another example"]
+}}
+"""
+        raw = generate_chat(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT + "\n\nYou are running a spoken tutoring loop. Return compact JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            model=CHAT_MODEL,
+            temperature=0.25,
+            max_tokens=VOICE_TUTOR_TOKENS,
+        )
+        try:
+            parsed = extract_json_object(raw)
+        except Exception:
+            parsed = {}
+        fallback = "Tell me what you already understand about this topic. Start with the main idea, then one example or source detail you remember."
+        return normalise_voice_tutor_json(parsed, fallback, transcript_text, parsed_history)
+    except Exception as error:
+        return {"error": str(error)}
+
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     return await analyze_materials(files=[file], links="[]", free_text="", preferred_language="auto", client_fingerprint="")
@@ -3149,14 +3880,16 @@ async def ask_question(data: dict):
             str(key): str(value)
             for key, value in request_sections.items()
             if str(value).strip()
-        } or stored_sections
+        }
         request_summary = str(data.get("summary") or "").strip()
         request_title = str(data.get("title") or "").strip()
         request_source_identity = str(data.get("source_identity") or "").strip()
-        has_client_context = bool(request_summary or request_sections or request_title)
-        context_summary = request_summary or stored_summary
-        context_title = request_title or stored_title
-        context_source_identity = request_source_identity if has_client_context else stored_source_identity
+        if not request_summary and not context_sections:
+            return {"error": "No current note context was provided. Open or generate the note again before asking the tutor."}
+
+        context_summary = request_summary
+        context_title = request_title or "Current Notes"
+        context_source_identity = request_source_identity
         section_context = context_sections.get(selected_section, "")
         answer_language = detect_question_language(question, preferred_language)
 
@@ -3184,7 +3917,10 @@ Tutor rules:
 - Do not claim that information is unavailable until you have checked both the note context and the external research context above.
 - If the answer uses external research because the uploaded source does not contain the point, clearly say it is "external research" / "外部资料" and explain how it connects back to the study topic.
 - Do not switch to a different source identity. If external research discusses a broader act/topic, connect it carefully to the current source identity.
-- Be a helpful academic tutor: explain the concept, give context, give a concrete example when useful, and avoid minimal one-sentence answers.
+- Be an advanced academic tutor: answer the question directly, then explain the idea, the evidence, the reasoning chain, and the likely misunderstanding.
+- Use a compact markdown table when the user asks for a comparison, a list of studies/evidence, steps, or differences.
+- For "explain" questions, use: short answer -> detailed explanation -> example/source evidence -> common mistake -> how to remember/use it.
+- For "summarise" questions, prioritise the central argument and evidence over a list of headings.
 - Never translate the brand name Synapse.
 """
 
@@ -3201,7 +3937,7 @@ Tutor rules:
             messages.append({"role": role, "content": message.get("content", "")})
 
         messages.append({"role": "user", "content": question})
-        answer = generate_chat(messages, model=CHAT_MODEL, temperature=0.2, max_tokens=2400)
+        answer = generate_chat(messages, model=CHAT_MODEL, temperature=0.2, max_tokens=3200)
 
         # Guard against the exact bad behavior shown in the screenshot: refusing because the notes alone are incomplete.
         if is_refusal_or_useless_response(answer) and research_context:
@@ -3902,7 +4638,6 @@ def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: fl
 # 2) build explicit source-to-source connection points;
 # 3) embed actual source screenshots/slides into the generated notes;
 # 4) use the screenshots as evidence for arguments, not decoration.
-CACHE_VERSION = "source_identity_mindmap_v30_worldclass_source_grounded_visual_connections"
 
 
 def v20_visual_parts_count(unit: dict) -> int:
@@ -4620,10 +5355,10 @@ def health_token_optimization():
 # - Prefer fewer, better visuals and tighter writing over endless generation.
 
 CONTROLLED_INLINE_VISUAL_MODE = os.getenv("CONTROLLED_INLINE_VISUAL_MODE", "true").lower() not in {"0", "false", "no"}
-CONTROLLED_MAX_VISUALS = max(env_int("CONTROLLED_MAX_VISUALS", 8), 8)
+CONTROLLED_MAX_VISUALS = max(1, env_int("CONTROLLED_MAX_VISUALS", 5))
 CONTROLLED_MAX_SOURCE_CONTEXT_CHARS = env_int("CONTROLLED_MAX_SOURCE_CONTEXT_CHARS", 110000)
 CONTROLLED_MAX_CHARS_PER_SOURCE = env_int("CONTROLLED_MAX_CHARS_PER_SOURCE", 18000)
-CONTROLLED_OUTPUT_TOKENS = env_int("CONTROLLED_OUTPUT_TOKENS", 7000)
+CONTROLLED_OUTPUT_TOKENS = env_int("CONTROLLED_OUTPUT_TOKENS", 9000)
 CONTROLLED_VISUAL_CARD_TOKENS = env_int("CONTROLLED_VISUAL_CARD_TOKENS", 2200)
 CONTROLLED_VISUAL_RENDER_DPI = env_int("CONTROLLED_VISUAL_RENDER_DPI", 115)
 CONTROLLED_MAX_PDF_PAGES_PER_SOURCE = env_int("CONTROLLED_MAX_PDF_PAGES_PER_SOURCE", 6)
@@ -4802,6 +5537,56 @@ def render_pptx_slide_screenshots(data: bytes, source_name: str, slide_texts: Li
             return []
 
 
+def balanced_source_excerpt(text: str, budget: int) -> str:
+    """Keep long sources representative without sending the entire file."""
+    value = (text or "").strip()
+    budget = max(1200, int(budget or 0))
+    if len(value) <= budget:
+        return value
+
+    signal_pattern = re.compile(
+        r"\b(table|figure|fig\.|graph|chart|plot|correlation|experiment|study|results?|data|mean|median|"
+        r"percentage|rate|comparison|versus|vs|method|sample|case|example|formula|calculation|"
+        r"genotype|phenotype|heritability|maoa|pku|gwas|flynn|iq|twin|ultimatum|dictator|chimp|bonobo)\b"
+        r"|图|表|数据|实验|结果|对比|案例|公式|基因|遗传|相关",
+        flags=re.I,
+    )
+    seen = set()
+    signal_blocks: List[str] = []
+    for block in re.split(r"\n{2,}", value):
+        clean = normalise_space(block)
+        if len(clean) < 50 or not signal_pattern.search(clean):
+            continue
+        key = sha256_text(clean[:600])
+        if key in seen:
+            continue
+        seen.add(key)
+        signal_blocks.append(truncate_text(block.strip(), 900))
+        if len("\n\n".join(signal_blocks)) >= int(budget * 0.38):
+            break
+
+    signal_text = truncate_text("\n\n".join(signal_blocks), int(budget * 0.38)) if signal_blocks else ""
+    remaining = budget - len(signal_text) - 220
+    if remaining < 2400:
+        return truncate_text(value, budget)
+
+    head_len = max(700, remaining // 3)
+    mid_len = max(700, remaining // 3)
+    tail_len = max(700, remaining - head_len - mid_len)
+    midpoint = max(0, len(value) // 2 - mid_len // 2)
+
+    chunks = [
+        "[Opening excerpt]\n" + value[:head_len].strip(),
+    ]
+    if signal_text:
+        chunks.append("[High-signal source excerpts: tables, figures, studies, examples]\n" + signal_text.strip())
+    chunks.extend([
+        "[Middle excerpt]\n" + value[midpoint: midpoint + mid_len].strip(),
+        "[Ending excerpt]\n" + value[-tail_len:].strip(),
+    ])
+    return truncate_text("\n\n".join(chunk for chunk in chunks if chunk.strip()), budget)
+
+
 def _v22_source_context(source_units: List[dict]) -> str:
     """Balanced source context so every source is represented without huge prompts."""
     units = source_units or []
@@ -4812,7 +5597,7 @@ def _v22_source_context(source_units: List[dict]) -> str:
     blocks = []
     for i, unit in enumerate(units, start=1):
         title = unit.get("title_candidate") or unit.get("display_name") or f"Source {i}"
-        text = truncate_text(unit.get("text_excerpt") or "", per_source)
+        text = balanced_source_excerpt(unit.get("text_excerpt") or "", per_source)
         visual_count = len([p for p in unit.get("visual_parts") or [] if isinstance(p, dict) and p.get("type") == "image_url"])
         blocks.append(
             f"SOURCE {i}: {title}\n"
@@ -5134,7 +5919,10 @@ def health_v22():
 RELEVANT_VISUAL_MODE = os.getenv("RELEVANT_VISUAL_MODE", "true").lower() not in {"0", "false", "no"}
 RELEVANT_VISUAL_POOL_LIMIT = env_int("RELEVANT_VISUAL_POOL_LIMIT", 10)
 RELEVANT_VISUAL_MIN_SCORE = env_int("RELEVANT_VISUAL_MIN_SCORE", 8)
-CACHE_VERSION = "source_identity_mindmap_v37_richer_mindmap"
+PDF_VISUAL_CANDIDATE_LIMIT = env_int("PDF_VISUAL_CANDIDATE_LIMIT", max(10, RELEVANT_VISUAL_POOL_LIMIT, CONTROLLED_MAX_PDF_PAGES_PER_SOURCE))
+RICH_INLINE_MIN_OUTPUT_UNITS = env_int("RICH_INLINE_MIN_OUTPUT_UNITS", 3400)
+ADVANCED_NOTES_MIN_TABLES = env_int("ADVANCED_NOTES_MIN_TABLES", 2)
+ADVANCED_NOTES_MIN_HEADINGS = env_int("ADVANCED_NOTES_MIN_HEADINGS", 7)
 
 
 def source_figure_labels(preferred_language: str) -> dict:
@@ -5177,6 +5965,7 @@ def clean_source_figure_caption(text: str) -> str:
     value = re.sub(r"\b(?:Actual source screenshot|Actual rendered slide screenshot)\s+selected\s+for\s+.+?\.\s*", "", value, flags=re.I)
     value = re.sub(r"\bThis is an image extracted from the slide, not the full slide screenshot\.?\s*", "", value, flags=re.I)
     value = re.sub(r"\bTeaching-signal-count=\d+;\s*decorative-signal-count=\d+\.?\s*", "", value, flags=re.I)
+    value = re.sub(r"\bImage-count=\d+;\s*drawing-count=\d+;\s*visual-score=-?\d+\.?\s*", "", value, flags=re.I)
     value = re.sub(r"\bUse only if the actual image is\b.*$", "", value, flags=re.I)
     value = re.sub(r"\b(?:Current slide text preview|Nearby slide context|Page text preview|Slide text preview)\s*:\s*", "", value, flags=re.I)
     return normalise_space(value)
@@ -5187,9 +5976,10 @@ def _v23_scoring_text(text: str) -> str:
     value = re.sub(r"^(?:IN-TEXT SOURCE FIGURE|VISUAL EVIDENCE)\s+FROM\s+.+?\s+—\s+", "", value, flags=re.I)
     value = re.sub(r"Use only if the image is .*?$", "", value, flags=re.I)
     value = re.sub(r"Use only if the actual image is .*?$", "", value, flags=re.I)
-    value = re.sub(r"Actual source screenshot selected for its likely .*? value\.", "", value, flags=re.I)
+    value = re.sub(r"Actual source screenshot selected for .*? value\.", "", value, flags=re.I)
     value = re.sub(r"Actual rendered slide screenshot selected for .*? value\.", "", value, flags=re.I)
     value = re.sub(r"Teaching-signal-count=\d+;\s*decorative-signal-count=\d+\.", "", value, flags=re.I)
+    value = re.sub(r"Image-count=\d+;\s*drawing-count=\d+;\s*visual-score=-?\d+\.", "", value, flags=re.I)
     value = re.sub(r"This is an image extracted from the slide, not the full slide screenshot\.", "", value, flags=re.I)
     return normalise_space(value)
 
@@ -5198,12 +5988,16 @@ def _v23_signal_counts(text: str) -> dict:
     value = _v23_scoring_text(text).lower()
     teaching_patterns = [
         r"\b(table|figure|fig\.|graph|chart|plot|diagram|schema|schematic|model|flow|process|timeline)\b",
+        r"\b(map|anatomy|structure|cycle|pathway|network|framework|architecture|flowchart|decision tree)\b",
         r"\b(data|results?|statistics?|mean|median|weighted|correlation|axis|axes|distribution|percentage|rate)\b",
+        r"\b(regression|histogram|boxplot|scatter|sample|cohort|survey|risk|ratio|odds|confidence interval|p[- ]?value)\b",
         r"\b(experiment|method|procedure|trial|task|condition|control|sample|participant|stimulus|response)\b",
+        r"\b(case study|worked example|source evidence|primary evidence|dataset|measurement|variables?)\b",
         r"\b(event|habituation|observed|possible|impossible|violation|looking time|occlusion|screen|object permanence)\b",
         r"\b(ultimatum|dictator|proposer|responder|equal split|selfish split|fairness|chimp|banana|token|warfare mortality|bowles|gintis)\b",
         r"\b(formula|equation|calculation|matrix|vector|mri|fmri|eeg|bold|action potential|resting potential|synapse)\b",
         r"\b(comparison|compare|versus|vs|difference|contrast|mechanism|evidence|case study)\b",
+        r"\b(gene|genotype|phenotype|allele|chromosome|dna|snp|maoa|pku|phenylketonuria|heritability|monozygotic|dizygotic|twin|iq|flynn|gwas|genome-wide|lewontin|maltreatment)\b",
         r"(图|表|图表|统计|数据|结果|实验|流程|步骤|机制|模型|公式|对比|比较|證據|證据|坐标|曲线)",
     ]
     decorative_patterns = [
@@ -5216,6 +6010,21 @@ def _v23_signal_counts(text: str) -> dict:
     teaching = sum(len(re.findall(pattern, value, flags=re.I)) for pattern in teaching_patterns)
     decorative = sum(len(re.findall(pattern, value, flags=re.I)) for pattern in decorative_patterns)
     return {"teaching": teaching, "decorative": decorative, "text_len": len(value)}
+
+
+def _has_strong_visual_teaching_terms(value: str) -> bool:
+    return bool(re.search(
+        r"\b("
+        r"table|figure|fig\.|graph|chart|plot|diagram|schema|schematic|map|timeline|flowchart|"
+        r"data|results?|statistics?|mean|median|percentage|rate|regression|histogram|boxplot|scatter|distribution|axis|axes|"
+        r"experiment|method|procedure|protocol|trial|task|condition|control|sample|participant|stimulus|response|measurement|"
+        r"formula|equation|calculation|matrix|vector|model|mechanism|pathway|network|architecture|"
+        r"process|flow|cycle|framework|structure|anatomy|comparison|compare|versus|vs|difference|contrast|"
+        r"case study|worked example|source evidence|primary evidence|dataset|variables?|classification|taxonomy"
+        r")\b|图|表|图表|统计|数据|结果|实验|流程|机制|模型|公式|地图|时间线|案例",
+        value or "",
+        flags=re.I,
+    ))
 
 
 def score_visual_text(text: str, index: int = 0) -> int:
@@ -5231,12 +6040,36 @@ def score_visual_text(text: str, index: int = 0) -> int:
         score -= 3
     if "table" in value and re.search(r"\b(mean|median|rate|data|results?|percentage|weighted|arithmetic)\b", value):
         score += 10
+    if re.search(r"\b(graph|chart|plot|diagram|schema|schematic|flowchart|map|timeline|model|mechanism|pathway|network)\b", value):
+        score += 10
+    if re.search(r"\b(regression|histogram|boxplot|scatter|distribution|axis|axes|confidence interval|p[- ]?value|odds ratio|risk ratio)\b", value):
+        score += 12
+    if re.search(r"\b(experiment|method|procedure|protocol|trial|task|condition|control|participant|stimulus|response|measurement)\b", value):
+        score += 10
+    if re.search(r"\b(formula|equation|calculation|matrix|model|simulation|worked example|case study)\b", value):
+        score += 10
+    if re.search(r"\b(comparison|compare|versus|vs|difference|contrast|classification|taxonomy|structure|anatomy)\b", value):
+        score += 8
     if re.search(r"\b(habituation|possible event|impossible event|observed by all infants|violation)\b", value):
         score += 14
     if re.search(r"\b(ultimatum|dictator|equal split|selfish split|proposer|responder|fairness|chimp)\b", value):
         score += 16
+    if re.search(r"\b(dna|chromosome|allele|locus|genotype|phenotype|homozygous|heterozygous|dominant|recessive)\b", value):
+        score += 14
+    if re.search(r"\b(maoa|warrior gene|maltreatment|childhood experience|antisocial|serotonin|dopamine)\b", value):
+        score += 16
+    if re.search(r"\b(heritability|monozygotic|dizygotic|identical twins?|adoption|shared genes|iq)\b", value):
+        score += 14
+    if re.search(r"\b(gwas|genome-wide|snp|single nucleotide polymorphisms?|association)\b", value):
+        score += 16
+    if re.search(r"\b(flynn effect|iq gain|lewontin|within-group|between-group|within vs between|different causes)\b", value):
+        score += 16
+    if re.search(r"\b(correlation|causation|scatter|height|weight|axis|axes)\b", value):
+        score += 12
     if re.search(r"\b(title slide|cover|about me|lecturer|email|contact)\b", value):
         score -= 12
+    if re.search(r"\b(learning objectives?|lecture plan|outline|agenda|overview checklist)\b", value) and not _has_strong_visual_teaching_terms(value):
+        score = min(score - 60, -12)
     return score
 
 
@@ -5347,8 +6180,7 @@ def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, L
     if full_slide_parts:
         return "\n\n".join(slide_texts).strip(), full_slide_parts
 
-    embedded_parts: List[dict] = []
-    embedded_count = 0
+    embedded_candidates: List[dict] = []
     embedded_limit = max(MAX_VISUAL_IMAGES_PER_SOURCE, RELEVANT_VISUAL_POOL_LIMIT)
 
     for idx, info in enumerate(slide_infos):
@@ -5357,38 +6189,171 @@ def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, L
         next_preview = truncate_text(normalise_space(slide_infos[idx + 1].get("text") or ""), 360) if idx + 1 < len(slide_infos) else ""
         context_preview = normalise_space(" ".join(part for part in (prev_preview, current_preview, next_preview) if part))
         signal = _v23_signal_counts(context_preview or current_preview)
-        for blob, content_type in info.get("images") or []:
-            if embedded_count >= embedded_limit:
-                break
-            embedded_count += 1
+        slide_score = score_visual_text(context_preview or current_preview, idx)
+        for image_index, (blob, content_type) in enumerate(info.get("images") or [], start=1):
             label = (
                 f"IN-TEXT SOURCE FIGURE FROM {source_name} — embedded image on PPT slide {info['index']}. "
                 f"Current slide text preview: {current_preview}. "
                 f"Nearby slide context: previous={prev_preview}; next={next_preview}. "
-                f"Teaching-signal-count={signal['teaching']}; decorative-signal-count={signal['decorative']}. "
+                f"Teaching-signal-count={signal['teaching']}; decorative-signal-count={signal['decorative']}; visual-score={slide_score}. "
                 "Use only if the actual image is a relevant teaching figure, chart, data display, diagram, experiment sequence, or method/result image."
             )
-            embedded_parts.append({"type": "text", "text": label})
-            embedded_parts.append(image_part_from_bytes(blob, content_type))
+            embedded_candidates.append({
+                "slide_index": info["index"],
+                "image_index": image_index,
+                "score": slide_score,
+                "label": label,
+                "blob": blob,
+                "content_type": content_type,
+            })
+
+    selected_embedded = sorted(
+        embedded_candidates,
+        key=lambda item: (-item["score"], item["slide_index"], item["image_index"]),
+    )[:embedded_limit]
+    selected_embedded = sorted(selected_embedded, key=lambda item: (item["slide_index"], item["image_index"]))
+    embedded_parts: List[dict] = []
+    for item in selected_embedded:
+        embedded_parts.append({"type": "text", "text": item["label"]})
+        embedded_parts.append(image_part_from_bytes(item["blob"], item["content_type"]))
 
     return "\n\n".join(slide_texts).strip(), embedded_parts
 
 
 def _v23_visual_kind(label: str) -> str:
     value = _v23_scoring_text(label).lower()
-    if re.search(r"\b(table|mean|median|rate|statistics?|data|results?)\b|表|统计|数据|结果", value):
+    if re.search(r"\b(table|mean|median|rate|statistics?|data|results?|percentage|sample|cohort|survey|risk ratio|odds ratio|confidence interval|p[- ]?value)\b|表|统计|数据|结果", value):
         return "data/table"
-    if re.search(r"\b(graph|chart|plot|axis|distribution|curve)\b|图表|坐标|曲线", value):
+    if re.search(r"\b(graph|chart|plot|axis|axes|distribution|curve|regression|histogram|boxplot|scatter)\b|图表|坐标|曲线", value):
         return "graph/chart"
-    if re.search(r"\b(diagram|model|process|flow|mechanism|schema|schematic)\b|模型|机制|流程", value):
+    if re.search(r"\b(correlation|scatter|height|weight|iq gain|flynn effect|gwas|genome-wide|snp|association)\b", value):
+        return "graph/chart"
+    if re.search(r"\b(diagram|model|process|flow|mechanism|schema|schematic|map|timeline|flowchart|cycle|pathway|network|framework|architecture|structure|anatomy|classification|taxonomy)\b|模型|机制|流程", value):
         return "diagram/model"
-    if re.search(r"\b(experiment|trial|task|event|habituation|possible|impossible|observed|violation|ultimatum|dictator|proposer|responder|equal split|selfish split|fairness|chimp|token)\b|实验|事件", value):
+    if re.search(r"\b(dna|chromosome|allele|locus|genotype|phenotype|homozygous|heterozygous|dominant|recessive|pku|phenylketonuria)\b", value):
+        return "diagram/model"
+    if re.search(r"\b(experiment|method|procedure|protocol|trial|task|event|condition|control|participant|stimulus|response|measurement|habituation|possible|impossible|observed|violation|ultimatum|dictator|proposer|responder|equal split|selfish split|fairness|chimp|token)\b|实验|事件", value):
         return "experiment/event"
+    if re.search(r"\b(maoa|warrior gene|maltreatment|childhood experience|antisocial|role of genotype|environment)\b", value):
+        return "method/result figure"
+    if re.search(r"\b(heritability|monozygotic|dizygotic|identical twins?|adoption|shared genes|lewontin|within-group|between-group)\b", value):
+        return "method/result figure"
     if re.search(r"\b(formula|equation|calculation|matrix|vector)\b|公式", value):
         return "formula/calculation"
     if re.search(r"\b(mri|fmri|eeg|bold|activation|neuroimaging|brain scan|biomarker|network|applications? in research)\b|脑成像|神经影像|激活", value):
         return "method/result figure"
     return "unknown"
+
+
+def _pdf_page_visual_counts(page) -> Tuple[int, int]:
+    try:
+        image_count = len(page.get_images(full=True))
+    except Exception:
+        image_count = 0
+    try:
+        drawing_count = len(page.get_drawings())
+    except Exception:
+        drawing_count = 0
+    return image_count, drawing_count
+
+
+def _is_overview_or_admin_page(text: str) -> bool:
+    value = normalise_space(text or "").lower()
+    return bool(re.search(r"\b(learning objectives?|lecture plan|agenda|outline|overview checklist|course information|contact)\b", value))
+
+
+def score_pdf_page_visual_value(page, text: str, index: int = 0) -> Tuple[int, int, int]:
+    """Rank rendered PDF pages by real teaching-image value, not by page order."""
+    image_count, drawing_count = _pdf_page_visual_counts(page)
+    if _is_overview_or_admin_page(text) and image_count == 0 and drawing_count <= 4:
+        return -60, image_count, drawing_count
+    text_score = score_visual_text(text, index)
+    visual_bonus = min(image_count, 6) * 6 + min(max(drawing_count - 2, 0), 90) // 5
+    value = normalise_space(text or "").lower()
+    has_teaching_terms = _has_strong_visual_teaching_terms(value)
+
+    if image_count >= 1 and has_teaching_terms:
+        visual_bonus += 10
+    if drawing_count >= 8 and has_teaching_terms:
+        visual_bonus += 10
+    if image_count >= 1 and not _is_overview_or_admin_page(text) and len(normalise_space(text or "")) < 120:
+        # Some useful lecture figures are a mostly image-only PDF page.
+        # Keep them in the candidate pool so the vision model can judge them.
+        visual_bonus += 8
+    if drawing_count >= 18 and not _is_overview_or_admin_page(text):
+        visual_bonus += 8
+    if image_count >= 1 and re.search(r"\b(dna|chromosome|allele|maoa|gwas|snp|flynn|iq|heritability|correlation|lewontin|pku|maltreatment)\b", value):
+        visual_bonus += 12
+    if drawing_count >= 20 and re.search(r"\b(correlation|plot|axis|height|weight|iq|curve|regression|scatter|histogram|boxplot|distribution)\b", value):
+        visual_bonus += 18
+    if re.search(r"\b(fig\.|figure|table|graph|chart|plot|diagram|schema|schematic|correlation|experiment|procedure|model|mechanism|pathway|timeline|flowchart|role of genotype|genome-wide|flynn effect|within vs between|shared genes)\b", value):
+        visual_bonus += 10
+    if image_count >= 2 and re.search(r"\b(gwas|genome-wide complex trait analysis|snp-based associations?|manhattan plot)\b", value):
+        visual_bonus += 42
+    if len(normalise_space(text or "")) < 25 and image_count == 0 and drawing_count < 8:
+        visual_bonus -= 18
+    return text_score + visual_bonus, image_count, drawing_count
+
+
+def selected_pdf_visual_indices(doc, limit: int) -> List[int]:
+    scored: List[Tuple[int, int, int, int, str]] = []
+    for index, page in enumerate(doc):
+        try:
+            text = page.get_text("text") or ""
+        except Exception:
+            text = ""
+        score, image_count, drawing_count = score_pdf_page_visual_value(page, text, index)
+        if _is_overview_or_admin_page(text) and score < 20:
+            continue
+        scored.append((score, index, image_count, drawing_count, text))
+
+    threshold = max(RELEVANT_VISUAL_MIN_SCORE, 12)
+    useful = [item for item in scored if item[0] >= threshold]
+    ranked = useful if useful else scored
+    selected = [
+        index for score, index, image_count, drawing_count, text in sorted(
+            ranked,
+            key=lambda item: (-item[0], item[1]),
+        )[:limit]
+    ]
+    return sorted(selected)
+
+
+def render_pdf_visual_parts(data: bytes, source_name: str, max_pages: Optional[int] = None) -> List[dict]:
+    """v39: scan the whole PDF and render the pages with the strongest teaching visuals."""
+    if fitz is None:
+        return []
+    requested_pages = int(max_pages or MAX_VISUAL_IMAGES_PER_SOURCE)
+    max_pages_to_render = min(
+        max(requested_pages, CONTROLLED_MAX_PDF_PAGES_PER_SOURCE, RELEVANT_VISUAL_POOL_LIMIT),
+        PDF_VISUAL_CANDIDATE_LIMIT,
+    )
+    if max_pages_to_render <= 0:
+        return []
+    parts: List[dict] = []
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+        selected = selected_pdf_visual_indices(doc, max_pages_to_render)
+        matrix = fitz.Matrix(max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72), max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72))
+        for idx in selected:
+            page = doc.load_page(idx)
+            page_text = page.get_text("text") or ""
+            score, image_count, drawing_count = score_pdf_page_visual_value(page, page_text, idx)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            img_bytes = pix.tobytes("jpeg")
+            preview = truncate_text(normalise_space(page_text), 680)
+            label = (
+                f"IN-TEXT SOURCE FIGURE FROM {source_name} — PDF page {idx + 1}. "
+                f"Actual source screenshot selected for its teaching figure/graph/data value. "
+                f"Image-count={image_count}; drawing-count={drawing_count}; visual-score={score}. "
+                f"Page text preview: {preview}"
+            )
+            parts.append({"type": "text", "text": label})
+            parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+        doc.close()
+    except Exception:
+        return []
+    return parts
 
 
 def iter_visual_candidates(source_units: List[dict]) -> List[dict]:
@@ -5411,7 +6376,14 @@ def iter_visual_candidates(source_units: List[dict]) -> List[dict]:
                 continue
             visual_number += 1
             _, location = visual_source_location_from_label(label)
-            score = score_visual_text(f"{label} {title}", visual_number)
+            label_score = re.search(r"\bvisual-score=(-?\d+)\b", label, flags=re.I)
+            if label_score:
+                try:
+                    score = int(label_score.group(1))
+                except Exception:
+                    score = score_visual_text(f"{label} {title}", visual_number)
+            else:
+                score = score_visual_text(f"{label} {title}", visual_number)
             kind = _v23_visual_kind(label)
             signals = _v23_signal_counts(label)
             is_unusable_unknown = kind == "unknown" and signals["teaching"] <= 0
@@ -5451,19 +6423,38 @@ def select_visual_candidates_for_argument(source_units: List[dict], limit: Optio
     if not pool:
         return []
 
+    def location_key(cand: dict) -> Tuple[int, str]:
+        location = normalise_space(cand.get("location") or cand.get("caption") or "")
+        return int(cand.get("source_index") or 0), location.lower()[:120]
+
+    def append_unique(cand: dict, selected: List[dict], seen_locations: set) -> bool:
+        key = location_key(cand)
+        if key in seen_locations:
+            return False
+        selected.append(cand)
+        seen_locations.add(key)
+        return True
+
+    ranked = sorted(pool, key=lambda c: (-c.get("score", 0), c.get("source_index", 0), c.get("location", "")))
     selected: List[dict] = []
     seen_sources = set()
-    for cand in sorted(pool, key=lambda c: (-c.get("score", 0), c.get("source_index", 0))):
-        if cand["source_index"] not in seen_sources:
-            selected.append(cand)
+    seen_locations = set()
+
+    # First pass: give each uploaded source a fair chance, but do not let one
+    # slide/page with several extracted images fill the whole vision budget.
+    for cand in ranked:
+        if cand["source_index"] not in seen_sources and append_unique(cand, selected, seen_locations):
             seen_sources.add(cand["source_index"])
         if len(selected) >= limit:
             return selected[:limit]
-    for cand in sorted(pool, key=lambda c: (-c.get("score", 0), c.get("source_index", 0))):
+
+    # Second pass: add the best remaining distinct page/slide from any source.
+    for cand in ranked:
         if cand not in selected:
-            selected.append(cand)
+            append_unique(cand, selected, seen_locations)
         if len(selected) >= limit:
             break
+
     return selected[:limit]
 
 
@@ -5486,10 +6477,13 @@ def _v23_parse_relevant_visual_cards(raw: str, candidates: List[dict], labels: d
         if cand.get("is_likely_decorative") or cand.get("visual_kind") == "unknown":
             continue
         useful = item.get("is_useful")
-        if useful is False:
+        if useful is not True:
             continue
         reason = normalise_space(item.get("why_relevant") or item.get("argument_supported") or "")
-        if not reason and cand.get("is_likely_decorative"):
+        if not reason or re.search(r"\b(direct support|nearby concept|uploaded material|source figure|visual evidence)\b", reason, flags=re.I):
+            continue
+        visible = normalise_space(item.get("what_shows") or "")
+        if not visible or re.search(r"\b(image|picture|source figure|visual)\b$", visible, flags=re.I):
             continue
         card = {
             "index": len(cards),
@@ -5500,10 +6494,10 @@ def _v23_parse_relevant_visual_cards(raw: str, candidates: List[dict], labels: d
             "url": cand.get("url", ""),
             "title": normalise_space(item.get("title") or f"{labels['figure_title']} {len(cards) + 1}"),
             "what_shows": normalise_space(item.get("what_shows") or clean_source_figure_caption(cand.get("caption", ""))),
-            "argument_supported": normalise_space(item.get("argument_supported") or reason or "This source figure provides direct evidence from the uploaded material."),
-            "cross_source_connection": normalise_space(item.get("cross_source_connection") or "Connect this source figure to the nearby concept in the notes."),
+            "argument_supported": normalise_space(item.get("argument_supported") or reason),
+            "cross_source_connection": normalise_space(item.get("cross_source_connection") or ""),
             "how_to_read": normalise_space(item.get("how_to_read") or "Read the labels/title first, then identify the relationship, comparison, sequence, or values."),
-            "exam_use": normalise_space(item.get("exam_use") or "Use it as source evidence when explaining this concept."),
+            "exam_use": normalise_space(item.get("exam_use") or ""),
             "visual_kind": cand.get("visual_kind", ""),
         }
         cards.append(card)
@@ -5521,8 +6515,8 @@ def generate_visual_argument_cards(source_units: List[dict], source_digest_block
         return existing
 
     labels = source_figure_labels(preferred_language)
-    hard_limit = max(1, min(max(CONTROLLED_MAX_VISUALS, VISUAL_ARGUMENT_CARD_LIMIT), MAX_MULTI_SOURCE_VISUAL_IMAGES))
-    candidate_pool = select_visual_candidates_for_argument(source_units, max(hard_limit, RELEVANT_VISUAL_POOL_LIMIT))
+    hard_limit = max(1, min(CONTROLLED_MAX_VISUALS, VISUAL_ARGUMENT_CARD_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
+    candidate_pool = select_visual_candidates_for_argument(source_units, hard_limit)
     if not candidate_pool:
         return []
 
@@ -5547,6 +6541,8 @@ Choose ONLY source figures that help students understand:
 
 Reject images that are mainly:
 - cover/title slides, portraits, lecturer photos, logos, stock photos, decorative backgrounds, contact/about-me slides, or generic pictures without teaching value.
+- literal photos of a child/person using an object, product photos, phone photos, landscape photos, and generic illustrative photos, even if the surrounding slide text mentions an important concept.
+- images that merely decorate a concept. The image itself must contain teachable structure: labels, axes, values, experimental layout, steps, comparison, formula, or a source-data display.
 
 Source context:
 {context}
@@ -5561,6 +6557,9 @@ Rules:
 - Return at most {hard_limit} cards.
 - Do not include decorative images.
 - Prefer data/charts/diagrams/experiment sequences over photos.
+- If an image is a generic stock/product/person photo, set is_useful=false or omit it.
+- If the image does not visibly add information beyond nearby text, set is_useful=false or omit it.
+- why_relevant must name the specific concept/data relationship shown; generic phrases such as "supports the nearby concept" are invalid.
 - Titles should name the concept shown in the figure, not the page/slide number.
 - For PDF/PPT pages, treat the attached image as the source screenshot that should be placed into the notes.
 - Keep the same order as their educational usefulness, not necessarily candidate order.
@@ -5583,21 +6582,7 @@ Rules:
         cards = []
 
     if not cards:
-        deterministic = [
-            cand for cand in candidate_pool
-            if cand.get("score", 0) >= RELEVANT_VISUAL_MIN_SCORE
-            and not cand.get("is_likely_decorative")
-            and cand.get("visual_kind") != "unknown"
-        ][:hard_limit]
-        if not deterministic:
-            deterministic = [
-                cand for cand in candidate_pool
-                if not cand.get("is_likely_decorative") and cand.get("visual_kind") != "unknown"
-            ][:hard_limit]
-        cards = [fallback_visual_card(cand, idx, labels) for idx, cand in enumerate(deterministic)]
-        for idx, card in enumerate(cards):
-            card["index"] = idx
-            card["visual_kind"] = deterministic[idx].get("visual_kind", "")
+        cards = _v23_fallback_visual_cards(candidate_pool, labels, preferred_language)
 
     if source_units:
         source_units[0]["visual_argument_cards"] = cards
@@ -5646,13 +6631,182 @@ def _v23_remove_visible_slide_refs(text: str) -> str:
     return normalise_space(cleaned) if "\n" not in cleaned else cleaned
 
 
-def _v23_marker_block(card: dict, marker_index: int, preferred_language: str) -> str:
-    labels = source_figure_labels(preferred_language)
-    return (
-        f"\n\n[[VISUAL:{marker_index}]]\n\n"
-        f"**{labels['what_shows']}:** {card.get('what_shows','')}\n\n"
-        f"**{labels['argument']}:** {card.get('argument_supported','')}\n\n"
+def _v23_meaningful_card_text(value: str) -> str:
+    text = normalise_space(value or "")
+    if not text:
+        return ""
+    if re.search(
+        r"\b("
+        r"direct support|nearby concept|uploaded material|source figure|visual evidence|"
+        r"connect this source figure|main concept|other uploaded materials|read the labels/title first"
+        r")\b",
+        text,
+        flags=re.I,
+    ):
+        return ""
+    return clean_source_figure_caption(text)
+
+
+def _v23_default_how_to_read(kind: str, preferred_language: str) -> str:
+    key = normalise_language_key(preferred_language)
+    kind = normalise_space(kind or "")
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        mapping = {
+            "data/table": "先看行列分别在比较什么，再抓住最大/最小值、均值/比例和组间差异；最后问这些数字支持或限制了哪个论点。",
+            "graph/chart": "先读标题和坐标轴，再看趋势方向、组间差异、异常点和变量关系；不要只记图形，要说清它证明了什么。",
+            "diagram/model": "按标签、箭头或空间位置读图：先确定组成部分，再解释它们之间的关系和机制。",
+            "experiment/event": "先分清参与者、条件、步骤和结果，再说明这个实验设计如何检验一个理论假设。",
+            "formula/calculation": "先识别每个变量代表什么，再看公式如何把变量关系转化为可计算的结论。",
+            "method/result figure": "先看研究方法或测量对象，再把结果与讲义中的理论主张连接起来，同时注意样本和方法限制。",
+        }
+    elif key == "traditional_chinese":
+        mapping = {
+            "data/table": "先看行列分別在比較什麼，再抓住最大/最小值、均值/比例和組間差異；最後問這些數字支持或限制了哪個論點。",
+            "graph/chart": "先讀標題和座標軸，再看趨勢方向、組間差異、異常點和變量關係；不要只記圖形，要說清它證明了什麼。",
+            "diagram/model": "按標籤、箭頭或空間位置讀圖：先確定組成部分，再解釋它們之間的關係和機制。",
+            "experiment/event": "先分清參與者、條件、步驟和結果，再說明這個實驗設計如何檢驗一個理論假設。",
+            "formula/calculation": "先識別每個變量代表什麼，再看公式如何把變量關係轉化為可計算的結論。",
+            "method/result figure": "先看研究方法或測量對象，再把結果與講義中的理論主張連接起來，同時注意樣本和方法限制。",
+        }
+    else:
+        mapping = {
+            "data/table": "Read the rows and columns first, then identify the key values, contrasts, and limits. Ask what claim the numbers support or qualify.",
+            "graph/chart": "Read the title and axes first, then describe the trend, group difference, outlier, or variable relationship before interpreting it.",
+            "diagram/model": "Follow the labels, arrows, or spatial layout: identify the parts, then explain the relationship or mechanism between them.",
+            "experiment/event": "Identify the participants, conditions, sequence, and result, then explain how the design tests the theory.",
+            "formula/calculation": "Identify what each variable means, then explain how the formula turns the relationship into a usable conclusion.",
+            "method/result figure": "Read the method or measurement first, then connect the result to the lecture claim and note any sample or method limit.",
+        }
+    return mapping.get(kind, mapping.get("diagram/model", "Read the labels and relationship first, then connect the visual to the claim it is meant to support."))
+
+
+def _v23_source_figure_note_block(card: dict, marker_index: int, preferred_language: str) -> str:
+    key = normalise_language_key(preferred_language)
+    title = _v23_meaningful_card_text(card.get("title")) or (f"来源图表 {marker_index + 1}" if key in {"simplified_chinese", "mixed_chinese_english"} else f"Source figure {marker_index + 1}")
+    what = _v23_meaningful_card_text(card.get("what_shows")) or _v23_meaningful_card_text(card.get("caption"))
+    why = _v23_meaningful_card_text(card.get("argument_supported")) or _v23_meaningful_card_text(card.get("cross_source_connection"))
+    how = _v23_meaningful_card_text(card.get("how_to_read")) or _v23_default_how_to_read(card.get("visual_kind"), preferred_language)
+    exam = _v23_meaningful_card_text(card.get("exam_use"))
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        lines = [f"**源内图表讲解：{title}**", f"[[VISUAL:{marker_index}]]"]
+        if what:
+            lines.append(f"- **图表在说明什么：** {what}")
+        lines.append(f"- **怎么读：** {how}")
+        if why:
+            lines.append(f"- **为什么放在这里：** {why}")
+        if exam:
+            lines.append(f"- **复习/考试用法：** {exam}")
+    elif key == "traditional_chinese":
+        lines = [f"**源內圖表講解：{title}**", f"[[VISUAL:{marker_index}]]"]
+        if what:
+            lines.append(f"- **圖表在說明什麼：** {what}")
+        lines.append(f"- **怎麼讀：** {how}")
+        if why:
+            lines.append(f"- **為什麼放在這裡：** {why}")
+        if exam:
+            lines.append(f"- **複習/考試用法：** {exam}")
+    else:
+        lines = [f"**Source-figure reading note: {title}**", f"[[VISUAL:{marker_index}]]"]
+        if what:
+            lines.append(f"- **What the figure shows:** {what}")
+        lines.append(f"- **How to read it:** {how}")
+        if why:
+            lines.append(f"- **Why it matters here:** {why}")
+        if exam:
+            lines.append(f"- **Exam / revision use:** {exam}")
+    return "\n\n" + "\n".join(lines) + "\n\n"
+
+
+def ensure_markdown_note_headings(summary: str, preferred_language: str) -> str:
+    """Promote common note labels to markdown headings so navigation is stable."""
+    if not summary:
+        return summary
+    heading_pattern = re.compile(
+        r"^\s*(?:"
+        r"Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Core argument|Key ideas?|Concepts? explained|"
+        r"Sources? \(|Sources?:|Source evidence|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|"
+        r"Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|"
+        r"学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
+        r"考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論"
+        r")\b.*$",
+        flags=re.I,
     )
+    lines: List[str] = []
+    heading_count = 0
+    for raw_line in summary.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if re.match(r"^#{1,4}\s+", stripped):
+            heading_count += 1
+            lines.append(line)
+            continue
+        if heading_pattern.match(stripped) and len(stripped) <= 140:
+            heading_count += 1
+            lines.append(f"## {stripped}")
+        else:
+            lines.append(line)
+
+    text = "\n".join(lines).strip()
+    if heading_count <= 1:
+        key = normalise_language_key(preferred_language)
+        heading = "## 核心笔记" if key in {"simplified_chinese", "mixed_chinese_english"} else "## Core Notes"
+        first_heading = re.search(r"^#\s+.+$", text, flags=re.M)
+        if first_heading:
+            insert_at = first_heading.end()
+            text = text[:insert_at] + "\n\n" + heading + text[insert_at:]
+        else:
+            text = heading + "\n\n" + text
+    return text
+
+
+def _v23_fallback_visual_cards(candidates: List[dict], labels: dict, preferred_language: str = "auto") -> List[dict]:
+    """Guarantee source figures render when the vision filter is overly cautious."""
+    cards: List[dict] = []
+    for cand in candidates or []:
+        if cand.get("is_likely_decorative") or cand.get("visual_kind") == "unknown" or not cand.get("url"):
+            continue
+        caption = clean_source_figure_caption(cand.get("caption") or "")
+        kind = normalise_space(cand.get("visual_kind") or "")
+        location = normalise_space(cand.get("location") or "")
+        title_bits = [bit for bit in (kind.replace("/", " / ").title(), location) if bit]
+        title = " — ".join(title_bits) or f"{labels['figure_title']} {len(cards) + 1}"
+        cards.append({
+            "index": len(cards),
+            "source_index": cand.get("source_index"),
+            "source_title": cand.get("source_title", ""),
+            "location": location,
+            "caption": caption,
+            "url": cand.get("url", ""),
+            "title": title,
+            "what_shows": caption,
+            "argument_supported": "Use this source figure to read the source evidence directly, then connect the visible data, labels, or comparison back to the nearby concept in the notes.",
+            "cross_source_connection": "",
+            "how_to_read": _v23_default_how_to_read(kind, preferred_language),
+            "exam_use": "Use the figure as source evidence: describe what is visible, interpret it, then state the limitation or implication.",
+            "visual_kind": kind,
+        })
+        if len(cards) >= CONTROLLED_MAX_VISUALS:
+            break
+    return cards
+
+
+def _v23_marker_block(card: dict, marker_index: int, preferred_language: str) -> str:
+    return _v23_source_figure_note_block(card, marker_index, preferred_language)
+
+
+def _v23_ensure_visual_note_blocks(summary: str, cards: List[dict], preferred_language: str) -> str:
+    """Replace bare visual markers with inline source-figure reading notes."""
+    text = summary or ""
+    for marker_index, card in enumerate(cards or []):
+        marker = f"[[VISUAL:{marker_index}]]"
+        if marker not in text:
+            continue
+        pos = text.find(marker)
+        window_before = text[max(0, pos - 360):pos]
+        if re.search(r"Source-figure reading note|源内图表讲解|源內圖表講解", window_before, flags=re.I):
+            continue
+        text = text.replace(marker, _v23_source_figure_note_block(card, marker_index, preferred_language).strip(), 1)
+    return text
 
 
 def remove_standalone_visual_diagram_headings(summary: str) -> str:
@@ -5732,33 +6886,112 @@ def _v22_ensure_visual_markers(summary: str, cards: List[dict], preferred_langua
     return "".join(blocks).strip()
 
 
+def expand_sparse_inline_summary(
+    summary: str,
+    source_context: str,
+    visual_context: str,
+    preferred_language: str,
+    min_units: int,
+    force: bool = False,
+    quality_gaps: Optional[List[str]] = None,
+) -> str:
+    """Expand notes only when the first pass became too thin after adding visuals."""
+    if not summary or (not force and count_readable_units(summary) >= min_units):
+        return summary
+    language_rule = language_instruction_for(preferred_language)
+    prompt = f"""
+You are Synapse, improving a source-grounded study-note page.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+Problem:
+The current notes may be too thin, too image-dependent, or missing useful comparison/evidence tables from the source.
+Detected quality gaps: {", ".join(quality_gaps or []) if quality_gaps else "not enough advanced tutor detail"}
+
+Your task:
+- Expand the notes into a richer tutor-style study guide while keeping the same clean notes-page feel.
+- Preserve every existing [[VISUAL:n]] marker exactly. Do not delete, rename, renumber, or move markers far away from the concept they explain.
+- Do not add new visual markers.
+- Do not create a separate visual gallery or "Visual evidence" section.
+- Do not merely restate the visual card caption. Add real teaching text: definitions, reasoning, worked examples, comparisons, source evidence, exam use, and common mistakes.
+- Keep images as supporting evidence. The prose must still be understandable if the image card is temporarily unavailable.
+- Add enough detail for a student to revise from the page: concept -> source evidence -> interpretation -> why it matters -> exam/application.
+- Use markdown tables where a comparison or evidence summary would make the explanation clearer.
+- Upgrade short bullet lists into proper teaching notes: explain mechanisms, causal logic, assumptions, limitations, and what students usually confuse.
+- For each major concept, include a source-grounded example or data point when the source provides one.
+- Add at least one comparison/evidence table and one revision/exam-use table when the source supports it.
+- Avoid shallow one-line entries such as "Definition / Why / Exam use" without explanation.
+
+Source context:
+{truncate_text(source_context, 45000)}
+
+Available visual card context:
+{visual_context if visual_context else 'No visual card metadata.'}
+
+Current notes to expand:
+{summary}
+
+Return the expanded final markdown only.
+"""
+    try:
+        expanded = generate_chat(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=CONTROLLED_OUTPUT_TOKENS,
+        ).strip()
+        original_units = count_readable_units(summary)
+        expanded_units = count_readable_units(expanded)
+        original_markers = set(re.findall(r"\[\[VISUAL:\d+\]\]", summary))
+        expanded_markers = set(re.findall(r"\[\[VISUAL:\d+\]\]", expanded))
+        minimum_units = max(int(min_units * 0.85), int(original_units * 0.9)) if force else max(original_units + 500, int(min_units * 0.85))
+        if (
+            expanded
+            and not is_refusal_or_useless_response(expanded)
+            and expanded_units >= minimum_units
+            and original_markers.issubset(expanded_markers)
+        ):
+            return expanded
+    except Exception:
+        pass
+    return summary
+
+
 def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict) -> str:
     """v23: controlled notes with relevant in-text diagrams/tables/charts only."""
-    language_rule = language_instruction_for(preferred_language)
     source_context = _v22_source_context(source_units)
-    visual_cards = generate_visual_argument_cards(source_units, source_context, preferred_language)
+    generation_language = resolve_generation_language_key(preferred_language, source_context)
+    language_rule = language_instruction_for_generation(preferred_language, source_context)
+    recommended_structure = note_structure_for_language(generation_language, source_context)
+    visual_cards = generate_visual_argument_cards(source_units, source_context, generation_language)
     visual_context = _v22_visual_context_for_prompt(visual_cards)
     source_list = "\n".join(
         f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
         for i, u in enumerate(source_units or [], start=1)
     )
     prompt = f"""
-You are Synapse, a source-grounded study-note generator.
+You are Synapse, an advanced study tutor and source-grounded lecturer.
 
 Language requirement: {language_rule}
 Never translate the product name Synapse.
 
-The user wants the output style to mimic a clean lecture-note page:
-- write compact, scan-friendly notes with short headings, bullets, and small explanation blocks;
-- explain one concept at a time, then place the relevant source screenshot directly below that concept;
-- use screenshots/figures ONLY from the user's uploaded files;
-- use [[VISUAL:n]] as the image placeholder exactly where the screenshot should appear in the content;
-- never create a separate visual evidence/gallery/source figures section;
-- never merely say "slide 30", "p.11", or "PDF page 30" when an image exists. Put the image there.
+Mission:
+Create a genuinely useful lecture-notes page, not a summary report. The page should feel like a sharp tutor has read the uploaded source, decided what the student actually needs to understand, and then taught the ideas in the right order.
+
+Style:
+- write like real class notes: concept title, short definition, explanation in your own words, source example/data, implication, limitation/misunderstanding, and exam use;
+- clear lecture-note page, with short headings, compact paragraphs, bullets only where they help, and tables for comparison/evidence;
+- explain every major idea in detail: definition -> why it matters -> evidence/example -> limitation/mistake -> exam use;
+- do not only list facts. Show the reasoning chain and the relationships between ideas;
+- do not jump straight to overview tables. Teach the ideas first, then use tables to consolidate them;
+- do not overuse slide/page numbers. Teach the concept directly.
 
 Source-image rules:
 - Use images for diagrams, data tables, charts, scatter plots, correlation figures, genotype/environment graphs, experiment setups, game-theory examples, method/result figures, or formulas.
 - Reject decorative cover photos, portraits, logos, stock photos, lecturer/contact slides, and random pictures.
+- If selected source figures exist, use them as source-reading moments inside the notes. Insert [[VISUAL:n]] only where the figure actually helps.
+- Around every [[VISUAL:n]], write an inline source-figure explanation: what question the figure answers, how to read the figure/table/graph, what evidence it gives, and what a student should remember.
 - The page/slide number is internal provenance only. Do not put it in headings.
 
 Sources:
@@ -5773,26 +7006,34 @@ Relevant in-text source figures selected from the uploaded files:
 Output requirements:
 - Return final markdown only.
 - Write in the selected language.
-- Use the same "notes page" feel as the reference image: concise headings, bullet points, bold labels, short paragraphs, and source screenshots embedded in the flow.
+- Use the same "notes page" feel as the reference image: clean headings, strong paragraphs, helpful tables, and source screenshots embedded only when useful.
+- This is the Notes tab, not only the Summary section. It should be detailed enough to study from directly.
+- Do not shrink the summary because images are present. Images should add evidence; they must not replace definitions, reasoning, examples, or source interpretation.
 - Insert [[VISUAL:n]] immediately after the concept/example/data point it explains. Use each available source figure at most once.
-- After each marker, write 2-4 concise bullets:
-  - "图中显示 / What it shows"
-  - "怎么理解 / How to read it"
-  - "为什么重要 / Why it matters"
-  - "考试用法 / Exam use" when relevant
+- Before each [[VISUAL:n]], write enough concept text for the student to know what problem/question the image answers.
+- After each [[VISUAL:n]], continue the explanation naturally with what the source figure teaches. Do not leave a bare image without explanation.
 - Do not use page/slide numbers as the visible teaching device.
-- Use markdown tables for comparisons, definitions, and evidence summaries.
+- Include at least two markdown tables when supported by the source:
+  1. a concept comparison table;
+  2. a source evidence / example table with columns like concept, source evidence, interpretation, limitation, exam use.
 - Mention every usable source at least once.
 - Do not include "Visual evidence", "图像证据", "Source Figures", or a standalone image section title.
+- Target richer content than a quick summary: include the core claim, key terms, source evidence, worked examples, limitations/misunderstandings, and exam/application use when the source supports them.
+- Avoid generic filler such as "this is important". Every point must say what the student should understand or do.
+- For every major idea, teach it in depth: define the concept, explain the mechanism or reasoning chain, show the source example/data, state what the evidence can and cannot prove, then give exam/revision use.
+- Do not compress a complex lecture into a list of one-line bullets. Use short paragraphs under bullets when needed.
+- If the source contains named studies, theorists, experiments, cases, graphs, or tables, explain what each one contributes to the argument rather than merely naming it.
+- Build table(s) from source material when it helps: theory comparison, evidence matrix, key term table, case/example table, or exam-use table.
+- Include "common student mistake" notes for concepts that are easy to confuse.
+- End with a practical revision checklist that tells the student what they should be able to explain, compare, calculate, or critique.
 
 Recommended structure:
-# [specific topic title]
-## 学习目标 / What this section teaches
-## 核心概念 / Key concepts
-## 来源例子与证据 / Source examples and evidence
-## 概念对比表 / Comparison table
-## 考试复习重点 / Exam revision
-## 常见误区 / Common mistakes
+{recommended_structure}
+
+Quality bar:
+- A student should be able to answer "what is the point?", "what evidence supports it?", "what can be confused?", and "how do I use this in an exam?" after reading the page.
+- If the source contains a table/data/example like animal language, Piaget tasks, correlations, genetics, methods, or case studies, reconstruct it as a markdown table even if no image is used.
+- Prefer source-grounded explanation over broad general textbook filler.
 """
     try:
         result = generate_chat(
@@ -5801,8 +7042,34 @@ Recommended structure:
             temperature=0,
             max_tokens=CONTROLLED_OUTPUT_TOKENS,
         ).strip()
-        if not result or is_refusal_or_useless_response(result) or count_readable_units(result) < env_int("CONTROLLED_MIN_OUTPUT_UNITS", 1200):
+        if not result or is_refusal_or_useless_response(result):
             raise RuntimeError("Relevant visual notes were too short or unusable.")
+        if count_readable_units(result) < env_int("CONTROLLED_MIN_OUTPUT_UNITS", 1200):
+            raise RuntimeError("Relevant visual notes were too short or unusable.")
+        source_has_table_or_data = bool(re.search(
+            r"\b(table|figure|fig\.|graph|chart|plot|correlation|experiment|study|results?|data|mean|median|percentage|rate|comparison)\b|图|表|数据|实验|结果|对比",
+            source_context,
+            flags=re.I,
+        ))
+        table_count = markdown_table_count(result)
+        quality_gaps = advanced_notes_quality_flags(result, source_context)
+        should_expand = (
+            os.getenv("ENABLE_CONDITIONAL_NOTE_EXPANSION", "true").lower() not in {"0", "false", "no"}
+            and (
+                bool(quality_gaps)
+                or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES)
+            )
+        )
+        if should_expand:
+            result = expand_sparse_inline_summary(
+                result,
+                source_context,
+                visual_context,
+                generation_language,
+                RICH_INLINE_MIN_OUTPUT_UNITS,
+                force=bool(quality_gaps) or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES),
+                quality_gaps=quality_gaps,
+            )
     except Exception:
         rows = []
         for i, unit in enumerate(source_units or [], start=1):
@@ -5819,9 +7086,13 @@ Recommended structure:
             result += (
                 f"### {card.get('title')}\n\n"
                 f"The following source figure is included because it supports the nearby concept rather than acting as decoration."
-                f"{_v23_marker_block(card, i, preferred_language)}"
+                f"{_v23_marker_block(card, i, generation_language)}"
             )
-    return _v22_ensure_visual_markers(result, visual_cards, preferred_language)
+    result = remove_auto_bilingual_heading_leakage(result, preferred_language, source_context)
+    result = ensure_markdown_note_headings(result, generation_language)
+    final_result = _v22_ensure_visual_markers(result, visual_cards, generation_language)
+    final_result = _v23_ensure_visual_note_blocks(final_result, visual_cards, generation_language)
+    return remove_standalone_visual_diagram_headings(final_result)
 
 
 def attach_visual_argument_section(summary: str, source_units: List[dict], preferred_language: str) -> str:
@@ -5842,6 +7113,8 @@ def health_v23():
         "html_css_changed": False,
         "relevant_visual_mode": RELEVANT_VISUAL_MODE,
         "candidate_pool_limit": RELEVANT_VISUAL_POOL_LIMIT,
+        "pdf_visual_candidate_limit": PDF_VISUAL_CANDIDATE_LIMIT,
+        "rich_inline_min_output_units": RICH_INLINE_MIN_OUTPUT_UNITS,
         "min_score": RELEVANT_VISUAL_MIN_SCORE,
         "max_in_text_visuals": CONTROLLED_MAX_VISUALS,
         "rejects_decorative_visuals": True,
@@ -5872,7 +7145,7 @@ def _v23_card_is_teaching_figure(card: dict) -> bool:
     if card.get("is_likely_decorative") or card.get("visual_kind") == "unknown":
         return False
     text = _v23_card_text(card)
-    if re.search(r"visual evidence|图像证据|圖像證據", text, flags=re.I):
+    if re.search(r"\b(stock|dreamstime|getty|unsplash|product photo|phone photo|generic photo|decorative photo)\b", text, flags=re.I):
         return False
     kind = card.get("visual_kind")
     if kind in {"data/table", "graph/chart", "diagram/model", "experiment/event", "formula/calculation", "method/result figure"}:
@@ -5902,8 +7175,11 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
         item["title"] = normalise_space(item.get("title") or f"Source figure {len(cleaned) + 1}")
         item["caption"] = clean_source_figure_caption(item.get("caption") or item.get("what_shows") or "")
         item["what_shows"] = clean_source_figure_caption(item.get("what_shows") or item.get("caption") or "")
-        item["argument_supported"] = clean_source_figure_caption(item.get("argument_supported") or "")
-        item["cross_source_connection"] = clean_source_figure_caption(item.get("cross_source_connection") or "")
+        # Keep inline cards lightweight. The full explanation belongs in the
+        # surrounding notes, not repeated in the figure chrome.
+        item["argument_supported"] = ""
+        item["cross_source_connection"] = ""
+        item["exam_use"] = ""
         cleaned.append(item)
         if len(cleaned) >= max_items:
             break

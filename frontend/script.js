@@ -26,6 +26,14 @@ const assistant = document.getElementById("assistant");
 const openAssistantBtn = document.getElementById("openAssistant");
 const chatMessages = document.getElementById("chatMessages");
 const questionInput = document.getElementById("questionInput");
+const voiceMessages = document.getElementById("voiceMessages");
+const voiceTutorState = document.getElementById("voiceTutorState");
+const voiceTutorDiagnosis = document.getElementById("voiceTutorDiagnosis");
+const voiceTutorMastery = document.getElementById("voiceTutorMastery");
+const voiceTutorMasteryFill = document.getElementById("voiceTutorMasteryFill");
+const voiceRecordBtn = document.getElementById("voiceRecordBtn");
+const voiceMuteBtn = document.getElementById("voiceMuteBtn");
+const voiceTextInput = document.getElementById("voiceTextInput");
 const contextLabel = document.getElementById("contextLabel");
 const mindMapCanvas = document.getElementById("mindMapCanvas");
 const generateBtn = document.getElementById("generateBtn");
@@ -34,11 +42,15 @@ const detailLevel = document.getElementById("detailLevel");
 const historyNav = document.getElementById("historyNav");
 const historyList = document.getElementById("historyList");
 const historySearch = document.getElementById("historySearch");
+const mobileHistoryList = document.getElementById("mobileHistoryList");
+const mobileHistorySearch = document.getElementById("mobileHistorySearch");
 
 const HISTORY_STORAGE_KEY = "synapse.generated.history.v6";
 const ACTIVE_HISTORY_KEY = "synapse.active.generated.v6";
 const TUTOR_CHAT_STORAGE_KEY = "synapse.tutor.chat.history.v1";
 const TUTOR_CHAT_HISTORY_LIMIT = 80;
+const VOICE_TUTOR_STORAGE_KEY = "synapse.voice.tutor.history.v1";
+const VOICE_TUTOR_HISTORY_LIMIT = 80;
 const VISUAL_DB_NAME = "synapse.visual.assets.v1";
 const VISUAL_DB_STORE = "visualGalleries";
 const VISUAL_DB_VERSION = 1;
@@ -53,6 +65,33 @@ let activeTool = "mindmap";
 let activeMindBranchIndex = 0;
 let activeMindPointIndex = 0;
 let visualGalleryData = [];
+let voiceTutorHistory = [];
+let voiceTutorLastState = null;
+let voiceTutorBusy = false;
+let voiceRealtimePeer = null;
+let voiceRealtimeChannel = null;
+let voiceRealtimeStream = null;
+let voiceRealtimeAudio = null;
+let voiceRealtimeConnected = false;
+let voiceRealtimeConnecting = false;
+let voiceRealtimeMuted = false;
+let voiceRealtimeAssistantDraft = "";
+let voiceRealtimeResponseActive = false;
+let voiceRealtimeTranscriptCommitted = false;
+let voiceRealtimeLastTranscriptText = "";
+let voiceRealtimeLastTranscriptAt = 0;
+let voiceRealtimeLastSpeechAt = 0;
+let voiceRealtimeNoTranscriptTimer = null;
+
+function safeSetLocalStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn(`Could not save ${key} to localStorage:`, error);
+    return false;
+  }
+}
 
 const TIMELINE_STORAGE_KEY = "synapse.timeline.path.v1";
 const TIMELINE_TYPE_OPTIONS = [
@@ -170,8 +209,20 @@ function isRelevantLearningFigure(item) {
   const text = sourceFigureText(item);
   if (!text) return false;
 
-  // Hard-delete legacy visual-evidence cards from cached notes.
-  if (/visual evidence|图像证据|圖像證據/i.test(text)) return false;
+  if (/unavailable in this cached view|regenerate from the source files/i.test(text)) return false;
+  if (/\b(stock|dreamstime|getty|unsplash|product photo|phone photo|generic photo|decorative photo)\b/i.test(text)) {
+    return false;
+  }
+
+  const trustedKinds = new Set([
+    "data/table",
+    "graph/chart",
+    "diagram/model",
+    "experiment/event",
+    "formula/calculation",
+    "method/result figure"
+  ]);
+  if (trustedKinds.has(String(item.visual_kind || "").toLowerCase())) return true;
 
   const teachingSignals = countSourceFigureSignals(text, [
     /\b(table|figure|fig\.|graph|chart|plot|scatter|correlation|axis|axes|curve|diagram|schema|schematic|model|flow|process|timeline)\b/i,
@@ -185,11 +236,12 @@ function isRelevantLearningFigure(item) {
   const decorativeSignals = countSourceFigureSignals(text, [
     /\b(title slide|cover|agenda|outline|contents|today|welcome|overview|learning objectives?)\b/i,
     /\b(lecturer|professor|dr\.|email|contact|office|university|department|course code|canvas)\b/i,
-    /\b(photo|photograph|portrait|headshot|people|person|children|landscape|stock|getty|unsplash|logo|decorative|background)\b/i,
+    /\b(photo|photograph|portrait|headshot|people|person|children|child|boy|girl|landscape|stock|getty|dreamstime|unsplash|logo|decorative|background|product photo|phone photo)\b/i,
     /(封面|目录|大纲|学习目标|照片|头像|人物照|风景|装饰|背景|作者|讲师|联系方式|邮箱|学校|标志)/
   ]);
 
   if (teachingSignals <= 0) return false;
+  if (decorativeSignals > 0 && teachingSignals < 3) return false;
   if (decorativeSignals > teachingSignals) return false;
   return true;
 }
@@ -203,6 +255,8 @@ function sanitizeLearningFigures(items) {
 function getLearningFigureByMarker(index) {
   const markerIndex = Number(index);
   if (!Number.isFinite(markerIndex)) return null;
+  const byStoredIndex = (visualGalleryData || []).find(item => Number(item?.index) === markerIndex);
+  if (isRelevantLearningFigure(byStoredIndex)) return byStoredIndex;
   const direct = (visualGalleryData || [])[markerIndex];
   if (isRelevantLearningFigure(direct)) return direct;
   return sanitizeLearningFigures(visualGalleryData).find(item => Number(item.index) === markerIndex) || null;
@@ -213,11 +267,96 @@ function cleanSourceFigureDisplayText(value) {
     .replace(/\b(?:IN-TEXT SOURCE FIGURE|VISUAL EVIDENCE)\s+FROM\s+.+?\s+—\s+/gi, "")
     .replace(/\b(?:embedded image on\s+)?(?:PPT slide|PDF page|slide|page)\s+\d+\s*\.?\s*/gi, "")
     .replace(/\b(?:Current slide text preview|Nearby slide context|Page text preview|Slide text preview)\s*:\s*/gi, "")
-    .replace(/\bTeaching-signal-count=\d+;\s*decorative-signal-count=\d+\.?/gi, "")
+    .replace(/\bTeaching-signal-count=\d+;\s*decorative-signal-count=\d+(?:;\s*visual-score=-?\d+)?\.?/gi, "")
+    .replace(/\bImage-count=\d+;\s*drawing-count=\d+;\s*visual-score=-?\d+\.?/gi, "")
     .replace(/\bUse only if the actual image is\b.*$/gi, "")
     .replace(/\bThis is an image extracted from the slide, not the full slide screenshot\.?/gi, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const NOTE_SECTION_LABEL_PATTERN = /^(Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources?\s*(?:\(|:)|Core argument|Key ideas?|Concepts? explained|Source evidence|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|核心論點|关键概念|關鍵概念|源内证据|源內證據|证据矩阵|證據矩陣|例子与证据|例子與證據|概念比较表|概念比較表|考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論)\b.*$/i;
+
+function normalizeSectionTitle(title) {
+  return String(title || "")
+    .replace(/^#{1,4}\s+/, "")
+    .replace(/\*\*/g, "")
+    .trim();
+}
+
+function hydrateSectionsFromSummary(existingSections, summary) {
+  const existing = existingSections && typeof existingSections === "object" && !Array.isArray(existingSections) ? existingSections : {};
+  if (Object.keys(existing).length > 1 || !summary) return existing;
+
+  const parsed = {};
+  let currentTitle = "";
+  let currentContent = [];
+
+  function commitSection() {
+    const title = normalizeSectionTitle(currentTitle);
+    const content = currentContent.join("\n").trim();
+    if (title && content) parsed[title] = content;
+  }
+
+  String(summary || "").split("\n").forEach(rawLine => {
+    const line = rawLine.replace(/\s+$/g, "");
+    const trimmed = line.trim();
+    const markdownHeading = trimmed.match(/^#{1,3}\s+(.+?)\s*$/);
+    const promotedHeading = !markdownHeading && NOTE_SECTION_LABEL_PATTERN.test(trimmed) && trimmed.length <= 150;
+
+    if (markdownHeading || promotedHeading) {
+      const nextTitle = normalizeSectionTitle(markdownHeading ? markdownHeading[1] : trimmed);
+      if (nextTitle) {
+        commitSection();
+        currentTitle = nextTitle;
+        currentContent = [];
+        return;
+      }
+    }
+
+    currentContent.push(line);
+  });
+
+  commitSection();
+  return Object.keys(parsed).length > 1 ? parsed : existing;
+}
+
+function isMostlyEnglishText(text) {
+  const value = String(text || "");
+  const latinWords = (value.match(/\b[A-Za-z]{3,}\b/g) || []).length;
+  const cjkChars = (value.match(/[\u4e00-\u9fff]/g) || []).length;
+  return latinWords >= 30 && cjkChars < latinWords * 0.35;
+}
+
+function removeAutoBilingualHeadings(summary, language = "auto") {
+  if (String(language || "auto") !== "auto" || !isMostlyEnglishText(summary)) {
+    return summary || "";
+  }
+  return String(summary || "").split("\n").map(line => {
+    const match = line.match(/^(\s*#{1,4}\s+)(.+?)\s*$/);
+    if (!match) return line;
+    const [, prefix, heading] = match;
+    if (!heading.includes("/")) return line;
+    const [left, right] = heading.split("/", 2).map(part => part.trim());
+    if (/[A-Za-z]/.test(left) && /[\u4e00-\u9fff]/.test(right)) {
+      return `${prefix}${left}`;
+    }
+    return line;
+  }).join("\n");
+}
+
+function cleanAutoLanguageSectionTitles(sectionMap, summary, language = "auto") {
+  if (String(language || "auto") !== "auto" || !isMostlyEnglishText(summary)) {
+    return sectionMap || {};
+  }
+  return Object.fromEntries(Object.entries(sectionMap || {}).map(([title, content]) => {
+    if (!String(title).includes("/")) return [title, content];
+    const [left, right] = String(title).split("/", 2).map(part => part.trim());
+    if (/[A-Za-z]/.test(left) && /[\u4e00-\u9fff]/.test(right)) {
+      return [left, content];
+    }
+    return [title, content];
+  }));
 }
 
 function openFilePicker() {
@@ -352,9 +491,10 @@ async function analyzeMaterials() {
       throw new Error(data.error || `Analysis failed with status ${response.status}.`);
     }
 
-    fullSummary = data.summary || "";
+    const outputLanguage = preferredLanguage ? preferredLanguage.value : "auto";
+    fullSummary = removeAutoBilingualHeadings(data.summary || "", outputLanguage);
     storedTitle = data.title || makeHistoryTitle(fullSummary) || "Study Notes";
-    sections = data.sections || {};
+    sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(data.sections || {}, fullSummary), fullSummary, outputLanguage);
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
     visualGalleryData = sanitizeLearningFigures(data.visual_gallery);
@@ -363,6 +503,7 @@ async function analyzeMaterials() {
     resetTimelineState();
     resetQuizState();
     resetFlashcardState();
+    resetVoiceTutorState();
     activeMindBranchIndex = 0;
     activeMindPointIndex = 0;
     currentSourceFingerprint = data.source_fingerprint || currentSourceFingerprint;
@@ -388,7 +529,7 @@ async function analyzeMaterials() {
       mindMap: currentMindMap,
       // Do not store base64 slide images in localStorage; they can exceed browser quota.
       visualGallery: [],
-      language: preferredLanguage ? preferredLanguage.value : "auto",
+      language: data.output_language || outputLanguage,
       detailLevel: data.detail_level || data.generation_depth || "auto",
       depthLabel: data.depth_label || data.generation_depth || data.detail_level || "Auto",
       depthReason: data.depth_reason || "",
@@ -401,7 +542,7 @@ async function analyzeMaterials() {
     });
     if (savedEntry && savedEntry.id) {
       currentHistoryId = savedEntry.id;
-      localStorage.setItem(ACTIVE_HISTORY_KEY, savedEntry.id);
+      safeSetLocalStorage(ACTIVE_HISTORY_KEY, savedEntry.id);
       await saveVisualGalleryAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint, visualGalleryData);
       if (!visualGalleryData.length) {
         const restoredVisuals = await loadVisualGalleryAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint);
@@ -415,6 +556,7 @@ async function analyzeMaterials() {
     loadQuizHistoryForCurrentNote();
     loadFlashcardsForCurrentNote();
     loadTutorChatHistoryForCurrentNote();
+    loadVoiceTutorHistoryForCurrentNote();
     typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
     requestAnimationFrame(() => renderMindMap(currentMindMap));
   } catch (error) {
@@ -486,11 +628,7 @@ function openVisualModal(index) {
   if (!item || !item.url) return;
   const title = cleanSourceFigureDisplayText(item.title) || `Source figure ${Number(index) + 1}`;
   const sourceTitle = cleanSourceFigureDisplayText(item.source_title || `Source ${item.source_index || ""}`);
-  const whatShows = cleanSourceFigureDisplayText(item.what_shows || item.caption || "");
-  const argument = cleanSourceFigureDisplayText(item.argument_supported || "");
-  const connection = cleanSourceFigureDisplayText(item.cross_source_connection || "");
-  const howToRead = cleanSourceFigureDisplayText(item.how_to_read || "");
-  const examUse = cleanSourceFigureDisplayText(item.exam_use || "");
+  const caption = cleanSourceFigureDisplayText(item.caption || item.what_shows || "");
   const overlay = document.createElement("div");
   overlay.className = "visual-modal";
   overlay.innerHTML = `
@@ -500,11 +638,7 @@ function openVisualModal(index) {
       <div class="visual-modal-caption">
         <strong>${escapeHTML(sourceTitle)}</strong>
         ${title ? `<h4>${escapeHTML(title)}</h4>` : ""}
-        ${whatShows ? `<p>${escapeHTML(whatShows)}</p>` : ""}
-        ${argument ? `<p><strong>Argument:</strong> ${escapeHTML(argument)}</p>` : ""}
-        ${connection ? `<p><strong>Connection:</strong> ${escapeHTML(connection)}</p>` : ""}
-        ${howToRead ? `<p><strong>How to read:</strong> ${escapeHTML(howToRead)}</p>` : ""}
-        ${examUse ? `<p><strong>Exam use:</strong> ${escapeHTML(examUse)}</p>` : ""}
+        ${caption ? `<p>${escapeHTML(caption)}</p>` : ""}
       </div>
     </div>
   `;
@@ -522,10 +656,7 @@ function renderInlineVisualCard(index) {
   }
   const title = cleanSourceFigureDisplayText(item.title) || `Source figure ${Number(index) + 1}`;
   const source = cleanSourceFigureDisplayText(item.source_title || `Source ${item.source_index || ""}`);
-  const whatShows = cleanSourceFigureDisplayText(item.what_shows || "");
-  const argument = cleanSourceFigureDisplayText(item.argument_supported || "");
-  const connection = cleanSourceFigureDisplayText(item.cross_source_connection || "");
-  const examUse = cleanSourceFigureDisplayText(item.exam_use || "");
+  const caption = cleanSourceFigureDisplayText(item.caption || item.what_shows || "");
   return `
     <figure class="inline-visual-card" onclick="openVisualModal(${Number(index)})">
       <div class="inline-visual-image-wrap">
@@ -535,10 +666,7 @@ function renderInlineVisualCard(index) {
         <div class="inline-visual-kicker">In-text source</div>
         <h4>${escapeHTML(title)}</h4>
         <p><strong>${escapeHTML(source)}</strong></p>
-        ${whatShows ? `<p><span>What it shows:</span> ${escapeHTML(whatShows)}</p>` : ""}
-        ${argument ? `<p><span>Argument:</span> ${escapeHTML(argument)}</p>` : ""}
-        ${connection ? `<p><span>Connection:</span> ${escapeHTML(connection)}</p>` : ""}
-        ${examUse ? `<p><span>Exam use:</span> ${escapeHTML(examUse)}</p>` : ""}
+        ${caption ? `<p>${escapeHTML(shorten(caption, 180))}</p>` : ""}
       </figcaption>
     </figure>
   `;
@@ -571,6 +699,7 @@ function createSectionButton(title, isMobile = false) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "section-btn";
+  btn.title = title;
   btn.innerHTML = `<i class="bi bi-chevron-right"></i><span>${escapeHTML(title)}</span>`;
 
   btn.addEventListener("click", () => {
@@ -597,7 +726,7 @@ function createSectionButton(title, isMobile = false) {
 
 function showFullSummary() {
   selectedSection = "";
-  sectionTitle.innerText = "Summary";
+  sectionTitle.innerText = "Study Notes";
   contextLabel.textContent = "Current Notes";
   document.querySelectorAll(".section-btn").forEach(button => button.classList.remove("active"));
   typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
@@ -856,7 +985,7 @@ function getTimelineStore() {
 }
 
 function setTimelineStore(store) {
-  localStorage.setItem(TIMELINE_STORAGE_KEY, JSON.stringify(store || {}));
+  return safeSetLocalStorage(TIMELINE_STORAGE_KEY, JSON.stringify(store || {}));
 }
 
 function normalizeTimelineEvent(event, index) {
@@ -1667,7 +1796,7 @@ function getQuizHistoryStore() {
 }
 
 function setQuizHistoryStore(store) {
-  localStorage.setItem(QUIZ_HISTORY_STORAGE_KEY, JSON.stringify(store || {}));
+  return safeSetLocalStorage(QUIZ_HISTORY_STORAGE_KEY, JSON.stringify(store || {}));
 }
 
 function makeQuizHistoryId() {
@@ -2160,7 +2289,7 @@ function saveQuizSettingsFromModal(shouldGenerate) {
   if (!quizSettingsDraft) return;
   if (!validateQuizSettingsDraft(true)) return;
   quizSettings = normalizeQuizSettings(quizSettingsDraft);
-  localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(quizSettings));
+  safeSetLocalStorage(QUIZ_STORAGE_KEY, JSON.stringify(quizSettings));
   closeQuizSettingsModal();
   renderQuizPanel();
   if (shouldGenerate) generateQuiz();
@@ -2531,7 +2660,7 @@ function getFlashcardStore() {
 }
 
 function setFlashcardStore(store) {
-  localStorage.setItem(FLASHCARD_STORAGE_KEY, JSON.stringify(store || {}));
+  return safeSetLocalStorage(FLASHCARD_STORAGE_KEY, JSON.stringify(store || {}));
 }
 
 function normalizeClientFlashcard(card, index) {
@@ -2722,18 +2851,18 @@ function renderFlashcardStudyView() {
 
 function setFlashcardCountMode(mode) {
   flashcardSettings = normalizeFlashcardSettings({ ...flashcardSettings, countMode: mode });
-  localStorage.setItem(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
+  safeSetLocalStorage(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
   renderFlashcardPanel();
 }
 
 function updateFlashcardCustomCount(value) {
   flashcardSettings = normalizeFlashcardSettings({ ...flashcardSettings, customCount: value, countMode: "custom" });
-  localStorage.setItem(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
+  safeSetLocalStorage(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
 }
 
 function updateFlashcardLanguage(value) {
   flashcardSettings = normalizeFlashcardSettings({ ...flashcardSettings, preferredLanguage: value });
-  localStorage.setItem(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
+  safeSetLocalStorage(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
 }
 
 function clearFlashcardsAndShowBuilder() {
@@ -2751,7 +2880,7 @@ async function generateFlashcards() {
   }
 
   flashcardSettings = normalizeFlashcardSettings(flashcardSettings);
-  localStorage.setItem(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
+  safeSetLocalStorage(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
   isFlashcardGenerating = true;
   flashcardError = "";
   currentFlashcards = [];
@@ -3335,7 +3464,7 @@ function getTutorChatStore() {
 }
 
 function setTutorChatStore(store) {
-  localStorage.setItem(TUTOR_CHAT_STORAGE_KEY, JSON.stringify(store || {}));
+  return safeSetLocalStorage(TUTOR_CHAT_STORAGE_KEY, JSON.stringify(store || {}));
 }
 
 function normaliseTutorChatMessages(messages) {
@@ -3390,11 +3519,836 @@ function renderTutorChatHistory() {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+function getVoiceTutorKey() {
+  if (currentHistoryId) return `history:${currentHistoryId}`;
+  if (currentSourceFingerprint) return `fingerprint:${currentSourceFingerprint}`;
+  return "";
+}
+
+function getVoiceTutorStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VOICE_TUTOR_STORAGE_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setVoiceTutorStore(store) {
+  return safeSetLocalStorage(VOICE_TUTOR_STORAGE_KEY, JSON.stringify(store || {}));
+}
+
+function normaliseVoiceTutorHistory(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter(item => item && ["user", "assistant"].includes(item.role) && String(item.text || "").trim())
+    .slice(-VOICE_TUTOR_HISTORY_LIMIT)
+    .map(item => ({
+      role: item.role,
+      text: String(item.text || ""),
+      state: item.state || "",
+      mastery: Number.isFinite(Number(item.mastery)) ? Number(item.mastery) : null,
+      diagnosis: item.diagnosis || "",
+      createdAt: item.createdAt || new Date().toISOString()
+    }));
+}
+
+function persistVoiceTutorHistory() {
+  const key = getVoiceTutorKey();
+  if (!key) return;
+  const store = getVoiceTutorStore();
+  store[key] = normaliseVoiceTutorHistory(voiceTutorHistory);
+  setVoiceTutorStore(store);
+}
+
+function deleteVoiceTutorHistory(historyId, sourceFingerprint = "") {
+  const store = getVoiceTutorStore();
+  delete store[`history:${historyId}`];
+  if (sourceFingerprint) delete store[`fingerprint:${sourceFingerprint}`];
+  setVoiceTutorStore(store);
+}
+
+function loadVoiceTutorHistoryForCurrentNote() {
+  const store = getVoiceTutorStore();
+  const keys = [
+    currentHistoryId ? `history:${currentHistoryId}` : "",
+    currentSourceFingerprint ? `fingerprint:${currentSourceFingerprint}` : ""
+  ].filter(Boolean);
+  const saved = keys.map(key => store[key]).find(items => Array.isArray(items));
+  voiceTutorHistory = normaliseVoiceTutorHistory(saved || []);
+  voiceTutorLastState = [...voiceTutorHistory].reverse().find(item => item.role === "assistant") || null;
+  renderVoiceTutorHistory();
+}
+
+function resetVoiceTutorState() {
+  stopRealtimeVoiceTutor({ silent: true });
+  voiceTutorHistory = [];
+  voiceTutorLastState = null;
+  voiceTutorBusy = false;
+  renderVoiceTutorHistory();
+}
+
+function resetVoiceTutorSession() {
+  stopRealtimeVoiceTutor({ silent: true });
+  voiceTutorHistory = [];
+  voiceTutorLastState = null;
+  persistVoiceTutorHistory();
+  renderVoiceTutorHistory();
+}
+
+function renderVoiceTutorHistory() {
+  if (!voiceMessages) return;
+  voiceMessages.innerHTML = "";
+  if (!voiceTutorHistory.length) {
+    voiceMessages.innerHTML = `
+      <div class="assistant-empty voice-empty">
+        <i class="bi bi-mic"></i>
+        <p>Start with what you already understand. Synapse will adapt the questions until you are ready.</p>
+      </div>`;
+  } else {
+    voiceTutorHistory.forEach(item => renderVoiceTutorMessage(item.role, item.text, { persist: false, state: item.state, mastery: item.mastery }));
+  }
+  updateVoiceTutorStatus(voiceTutorLastState);
+  updateVoiceTutorControls();
+  voiceMessages.scrollTop = voiceMessages.scrollHeight;
+}
+
+function renderVoiceTutorMessage(role, text, options = {}) {
+  if (!voiceMessages) return;
+  voiceMessages.querySelector(".assistant-empty")?.remove();
+  const div = document.createElement("div");
+  div.className = `voice-message ${role}`;
+  const meta = role === "assistant" && (options.state || Number.isFinite(Number(options.mastery)))
+    ? `<div class="voice-message-meta">${escapeHTML(options.state || "Tutor")} ${Number.isFinite(Number(options.mastery)) ? `· ${Math.round(Number(options.mastery))}%` : ""}</div>`
+    : "";
+  div.innerHTML = `
+    <strong>${role === "user" ? "You" : "Synapse Voice Tutor"}</strong>
+    ${meta}
+    <div>${markdownToHTML(text)}</div>`;
+  voiceMessages.appendChild(div);
+  renderMath();
+  voiceMessages.scrollTop = voiceMessages.scrollHeight;
+}
+
+function estimateVoiceTutorProgress(candidateRole = "", candidateText = "") {
+  const candidate = candidateRole && String(candidateText || "").trim()
+    ? [{ role: candidateRole, text: String(candidateText || ""), createdAt: new Date().toISOString() }]
+    : [];
+  const items = normaliseVoiceTutorHistory([...voiceTutorHistory, ...candidate]);
+  const userTexts = items
+    .filter(item => item.role === "user")
+    .map(item => String(item.text || "").trim())
+    .filter(Boolean);
+  const assistantTexts = items
+    .filter(item => item.role === "assistant" && item.state !== "error")
+    .map(item => String(item.text || "").trim())
+    .filter(Boolean);
+  const stuckPattern = /\b(no idea|don't know|do not know|not sure|idk|lost|confused|答不上|不知道|不会|不懂|没懂|沒懂)\b/i;
+  const substantiveAnswers = userTexts.filter(text => text.length >= 28 && !stuckPattern.test(text));
+  const stuckCount = userTexts.filter(text => stuckPattern.test(text) || text.length < 10).length;
+
+  let mastery = 0;
+  if (assistantTexts.length) mastery += 8;
+  mastery += Math.min(28, userTexts.length * 7);
+  mastery += Math.min(36, substantiveAnswers.length * 12);
+  if (substantiveAnswers.length >= 1 && assistantTexts.length >= 2) mastery += 6;
+  if (substantiveAnswers.length >= 3) mastery += 10;
+  mastery -= Math.min(18, stuckCount * 6);
+
+  const cap = userTexts.length === 0
+    ? 12
+    : substantiveAnswers.length === 0
+      ? 30
+      : substantiveAnswers.length < 2
+        ? 55
+        : substantiveAnswers.length < 4
+          ? 78
+          : 94;
+  const previous = Number.isFinite(Number(voiceTutorLastState?.mastery)) ? Number(voiceTutorLastState.mastery) : 0;
+  const rounded = Math.round(Math.max(previous, Math.max(0, Math.min(cap, mastery))));
+  const state = rounded >= 85
+    ? "review_ready"
+    : rounded >= 65
+      ? "applying"
+      : rounded >= 35
+        ? "learning"
+        : userTexts.length
+          ? "warming_up"
+          : "live";
+  const diagnosis = rounded >= 85
+    ? "Strong progress. The tutor will keep checking application and source-evidence use before ending."
+    : rounded >= 65
+      ? "Good progress. Keep answering application questions to confirm transfer."
+      : rounded >= 35
+        ? "Progress is building. Keep explaining in your own words."
+        : "Start by saying what you understand, even if it is partial.";
+  return { mastery: rounded, state, diagnosis };
+}
+
+function addVoiceTutorMessage(role, text, extras = {}) {
+  const progress = estimateVoiceTutorProgress(role, text);
+  const providedMastery = Number(extras.mastery);
+  const hasProvidedMastery = Number.isFinite(providedMastery) && (providedMastery > 0 || extras.state === "error" || extras.forceMastery);
+  const shouldUseEstimatedMastery = role === "assistant" && extras.state !== "error" && !hasProvidedMastery;
+  const item = {
+    role,
+    text,
+    state: extras.state || (role === "assistant" ? progress.state : ""),
+    mastery: hasProvidedMastery
+      ? providedMastery
+      : shouldUseEstimatedMastery
+        ? progress.mastery
+        : null,
+    diagnosis: extras.diagnosis || (role === "assistant" ? progress.diagnosis : ""),
+    createdAt: new Date().toISOString()
+  };
+  voiceTutorHistory.push(item);
+  voiceTutorHistory = normaliseVoiceTutorHistory(voiceTutorHistory);
+  if (role === "assistant") voiceTutorLastState = item;
+  persistVoiceTutorHistory();
+  renderVoiceTutorMessage(role, text, { state: item.state, mastery: item.mastery });
+  updateVoiceTutorStatus(voiceTutorLastState);
+  updateVoiceTutorControls();
+}
+
+function updateVoiceTutorStatus(stateItem) {
+  const mastery = Math.max(0, Math.min(100, Math.round(Number(stateItem?.mastery || 0))));
+  const state = voiceRealtimeConnecting ? "connecting" : (voiceRealtimeConnected ? "live" : (stateItem?.state || (voiceTutorHistory.length ? "saved" : "ready")));
+  if (voiceTutorState) voiceTutorState.textContent = state.replace(/_/g, " ");
+  if (voiceTutorDiagnosis) {
+    voiceTutorDiagnosis.textContent = voiceRealtimeConnected
+      ? "Live GPT Realtime tutor is listening. Speak naturally, or type a fallback message below."
+      : stateItem?.diagnosis || (
+          voiceTutorHistory.length
+            ? "Start a live tutor call to continue this note-specific voice session."
+            : "Start a live diagnostic session for the current notes."
+        );
+  }
+  if (voiceTutorMastery) voiceTutorMastery.textContent = `${mastery}%`;
+  if (voiceTutorMasteryFill) voiceTutorMasteryFill.style.width = `${mastery}%`;
+}
+
+function updateVoiceTutorControls() {
+  const hasNotes = Boolean(fullSummary && fullSummary.trim());
+  const requiresSession = document.querySelectorAll("[data-voice-requires-session]");
+  requiresSession.forEach(button => {
+    button.disabled = !voiceRealtimeConnected || voiceTutorBusy;
+  });
+  if (voiceRecordBtn) {
+    voiceRecordBtn.disabled = !hasNotes || (voiceTutorBusy && !voiceRealtimeConnecting && !voiceRealtimeConnected);
+    voiceRecordBtn.classList.toggle("recording", voiceRealtimeConnected || voiceRealtimeConnecting);
+    voiceRecordBtn.innerHTML = voiceRealtimeConnecting
+      ? `<i class="bi bi-hourglass-split me-1"></i>Connecting...`
+      : voiceRealtimeConnected
+        ? `<i class="bi bi-telephone-x-fill me-1"></i>End live tutor`
+        : `<i class="bi bi-telephone-fill me-1"></i>Start live tutor`;
+  }
+  if (voiceMuteBtn) {
+    voiceMuteBtn.disabled = !voiceRealtimeConnected || !voiceRealtimeStream;
+    voiceMuteBtn.classList.toggle("recording", voiceRealtimeMuted);
+    voiceMuteBtn.innerHTML = voiceRealtimeMuted
+      ? `<i class="bi bi-mic-fill me-1"></i>Unmute mic`
+      : `<i class="bi bi-mic-mute me-1"></i>Mute mic`;
+  }
+}
+
+function setVoiceTutorBusy(isBusy) {
+  voiceTutorBusy = Boolean(isBusy);
+  updateVoiceTutorControls();
+}
+
+function trimVoiceTopicText(value, limit = 9000) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function getActiveMindMapVoiceContext() {
+  if (activeTool !== "mindmap") return null;
+  const data = getMindMapData(currentMindMap);
+  const branch = data.branches[activeMindBranchIndex] || data.branches[0];
+  if (!branch) return null;
+  const point = branch.points[activeMindPointIndex] || null;
+  const sectionText = sections[branch.section] || sections[branch.label] || "";
+  const title = point?.label
+    ? `${branch.label}: ${point.label}`
+    : branch.label;
+  const context = [
+    `Mind map branch: ${branch.label}`,
+    branch.summary ? `Branch summary: ${branch.summary}` : "",
+    point ? `Selected point: ${point.label}\nPoint detail: ${point.detail}` : "",
+    sectionText ? `Related generated note section:\n${sectionText}` : ""
+  ].filter(Boolean).join("\n\n");
+  return {
+    title,
+    context: trimVoiceTopicText(context),
+    scope: point ? "current mind map point" : "current mind map branch"
+  };
+}
+
+function getCurrentVoiceTutorTopicContext() {
+  if (selectedSection && sections[selectedSection]) {
+    return {
+      title: selectedSection,
+      context: trimVoiceTopicText(sections[selectedSection]),
+      scope: "selected generated note section"
+    };
+  }
+
+  const visibleTitle = sectionTitle?.innerText?.trim() || "";
+  if (visibleTitle && visibleTitle !== "Study Notes" && summaryContent?.textContent?.trim()) {
+    return {
+      title: visibleTitle,
+      context: trimVoiceTopicText(summaryContent.textContent),
+      scope: "currently visible generated topic"
+    };
+  }
+
+  const preferredOverviewTitle = Object.keys(sections).find(title => /overview|learning question|core/i.test(title));
+  const overviewContext = preferredOverviewTitle ? sections[preferredOverviewTitle] : "";
+  if ((storedTitle && storedTitle !== "Study Notes") || overviewContext || fullSummary) {
+    const resolvedNoteTitle = storedTitle && storedTitle !== "Study Notes"
+      ? storedTitle
+      : makeHistoryTitle(fullSummary || overviewContext || preferredOverviewTitle || "", preferredOverviewTitle || "Current generated topic");
+    return {
+      title: resolvedNoteTitle,
+      context: trimVoiceTopicText(overviewContext || fullSummary, 6500),
+      scope: overviewContext ? "current note overview" : "current generated notes"
+    };
+  }
+
+  const mindMapContext = getActiveMindMapVoiceContext();
+  if (mindMapContext?.context) return mindMapContext;
+
+  return {
+    title: storedTitle || "Current generated topic",
+    context: trimVoiceTopicText(fullSummary, 6500),
+    scope: "current generated notes"
+  };
+}
+
+function getVoiceTutorStarterSentence(title) {
+  const safeTitle = trimVoiceTopicText(title || storedTitle || "this topic", 120);
+  return `Hi, I'm your Synapse tutor for ${safeTitle}. We'll build this step by step.`;
+}
+
+function buildRealtimeTutorTopicInstruction(extraInstruction = "") {
+  const topic = getCurrentVoiceTutorTopicContext();
+  const title = topic.title || storedTitle || "Current generated topic";
+  const scope = topic.scope || "current generated topic";
+  const context = trimVoiceTopicText(topic.context || fullSummary || "", 5200);
+  const extra = String(extraInstruction || "").trim();
+  const starter = getVoiceTutorStarterSentence(title);
+  return [
+    `CURRENT TOPIC LOCK: You are tutoring only this generated topic: "${title}".`,
+    `Topic scope: ${scope}.`,
+    context ? `Topic context:\n${context}` : "",
+    `Common first spoken sentence: On the first assistant turn in this live session, start exactly with: "${starter}"`,
+    "Do not ask what subject, course, material, or topic the learner is working on. You already know it from CURRENT TOPIC LOCK.",
+    "If the learner says they have no idea, says they are lost, or gives a very short answer, immediately start from the basics of this exact topic with a 2-3 sentence explanation, then ask one simple check question.",
+    "If the learner asks outside this topic, briefly redirect back to the current topic.",
+    "Every assistant turn must end with exactly one clear next step: either a short question for the learner to answer, a prompt to continue explaining, or an invitation to try a mini-example. Never end a tutoring turn with only a statement.",
+    extra
+  ].filter(Boolean).join("\n\n");
+}
+
+function buildVoiceTutorSessionFormData(sdp) {
+  const formData = new FormData();
+  const topic = getCurrentVoiceTutorTopicContext();
+  formData.append("sdp", sdp);
+  formData.append("history", JSON.stringify(voiceTutorHistory.map(item => ({
+    role: item.role,
+    text: item.text,
+    state: item.state,
+    mastery: item.mastery
+  }))));
+  formData.append("title", storedTitle || "Current Notes");
+  formData.append("summary", fullSummary || "");
+  formData.append("sections", JSON.stringify(sections || {}));
+  formData.append("selected_section", selectedSection || "");
+  formData.append("topic_title", topic.title || storedTitle || "Current generated topic");
+  formData.append("topic_context", topic.context || "");
+  formData.append("topic_scope", topic.scope || "current generated topic");
+  formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
+  formData.append("source_identity", currentPrimarySourceIdentity || "");
+  return formData;
+}
+
+function normaliseVoiceSpeechText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[\s"'“”‘’`.,!?;:，。！？；：()[\]{}<>/\\|-]+/g, " ")
+    .trim();
+}
+
+function getRecentVoiceMessage(role) {
+  return [...voiceTutorHistory].reverse().find(item => item.role === role && String(item.text || "").trim()) || null;
+}
+
+function isDuplicateVoiceUserTranscript(text, windowMs = 8000) {
+  const normalised = normaliseVoiceSpeechText(text);
+  if (!normalised) return true;
+  const lastUser = getRecentVoiceMessage("user");
+  if (!lastUser) return false;
+  const lastCreatedAt = Date.parse(lastUser.createdAt || "");
+  const recentlyAdded = Number.isFinite(lastCreatedAt) ? Date.now() - lastCreatedAt < windowMs : true;
+  return recentlyAdded && normaliseVoiceSpeechText(lastUser.text) === normalised;
+}
+
+function isLikelyVoiceAssistantEcho(text) {
+  const normalised = normaliseVoiceSpeechText(text);
+  if (!normalised || normalised.length < 8) return false;
+  const lastAssistant = getRecentVoiceMessage("assistant");
+  const assistantText = normaliseVoiceSpeechText(`${voiceRealtimeAssistantDraft || ""} ${lastAssistant?.text || ""}`);
+  if (!assistantText) return false;
+  return assistantText.includes(normalised) || (
+    normalised.length > 30 && normalised.includes(assistantText.slice(0, Math.min(assistantText.length, 80)))
+  );
+}
+
+function clearVoiceNoTranscriptTimer() {
+  if (voiceRealtimeNoTranscriptTimer) {
+    clearTimeout(voiceRealtimeNoTranscriptTimer);
+    voiceRealtimeNoTranscriptTimer = null;
+  }
+}
+
+function scheduleVoiceNoTranscriptNotice() {
+  clearVoiceNoTranscriptTimer();
+  voiceRealtimeNoTranscriptTimer = setTimeout(() => {
+    if (!voiceRealtimeConnected) return;
+    if (Date.now() - voiceRealtimeLastTranscriptAt < 4500) return;
+    if (voiceTutorDiagnosis) {
+      voiceTutorDiagnosis.textContent = "I heard audio activity but did not receive a transcript. Check the browser microphone permission, or type your answer below.";
+    }
+  }, 5200);
+}
+
+function sendRealtimeEvent(event) {
+  if (!voiceRealtimeChannel || voiceRealtimeChannel.readyState !== "open") return false;
+  try {
+    voiceRealtimeChannel.send(JSON.stringify(event));
+    return true;
+  } catch (error) {
+    console.error("Failed to send Realtime event", error);
+    return false;
+  }
+}
+
+function requestRealtimeTutorResponse(instructions = "") {
+  if (voiceRealtimeResponseActive) return false;
+  const response = {
+    output_modalities: ["audio"]
+  };
+  response.instructions = buildRealtimeTutorTopicInstruction(instructions);
+  const sent = sendRealtimeEvent({
+    type: "response.create",
+    response
+  });
+  if (sent) voiceRealtimeResponseActive = true;
+  return sent;
+}
+
+function extractRealtimeResponseTranscript(response) {
+  const fragments = [];
+  const outputItems = Array.isArray(response?.output) ? response.output : [];
+  outputItems.forEach(item => {
+    const contentItems = Array.isArray(item?.content) ? item.content : [];
+    contentItems.forEach(part => {
+      if (typeof part?.transcript === "string") fragments.push(part.transcript);
+      else if (typeof part?.text === "string") fragments.push(part.text);
+    });
+  });
+  if (!fragments.length && typeof response?.output_text === "string") {
+    fragments.push(response.output_text);
+  }
+  return fragments.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function sendRealtimeTextMessage(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  if (voiceRealtimeResponseActive) {
+    addVoiceTutorMessage("assistant", "One moment. I am finishing the current explanation, then you can send your next answer.", {
+      state: "live",
+      mastery: voiceTutorLastState?.mastery || 0
+    });
+    return false;
+  }
+  const sent = sendRealtimeEvent({
+    type: "conversation.item.create",
+    item: {
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text: value }]
+    }
+  });
+  if (sent) {
+    addVoiceTutorMessage("user", value);
+    requestRealtimeTutorResponse(
+      `The learner just said: "${value}". Respond as the live tutor for the locked current topic. If this means they do not know the answer, begin teaching the locked topic directly instead of asking what subject they are studying. Keep it conversational and ask one next question.`
+    );
+  }
+  return sent;
+}
+
+function handleRealtimeTutorEvent(rawEvent) {
+  let event;
+  try {
+    event = JSON.parse(rawEvent.data);
+  } catch {
+    return;
+  }
+  if (event.type === "error") {
+    const message = event.error?.message || "Realtime voice session error.";
+    console.error(event);
+    voiceRealtimeResponseActive = false;
+    setVoiceTutorBusy(false);
+    addVoiceTutorMessage("assistant", `Error: ${message}`, { state: "error", mastery: voiceTutorLastState?.mastery || 0 });
+    return;
+  }
+  if (event.type === "response.created") {
+    voiceRealtimeResponseActive = true;
+    voiceRealtimeTranscriptCommitted = false;
+    clearVoiceNoTranscriptTimer();
+    return;
+  }
+  if (event.type === "input_audio_buffer.speech_started") {
+    voiceRealtimeLastSpeechAt = Date.now();
+    clearVoiceNoTranscriptTimer();
+    if (voiceTutorDiagnosis) voiceTutorDiagnosis.textContent = "Listening to your answer...";
+    return;
+  }
+  if (event.type === "input_audio_buffer.speech_stopped" || event.type === "input_audio_buffer.committed") {
+    if (voiceTutorDiagnosis) voiceTutorDiagnosis.textContent = "Processing what you said...";
+    scheduleVoiceNoTranscriptNotice();
+    return;
+  }
+  if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
+    const transcript = String(event.transcript || "").trim();
+    clearVoiceNoTranscriptTimer();
+    voiceRealtimeLastTranscriptText = transcript;
+    voiceRealtimeLastTranscriptAt = Date.now();
+    if (isLikelyVoiceAssistantEcho(transcript)) {
+      if (voiceTutorDiagnosis) {
+        voiceTutorDiagnosis.textContent = "Ignored echo from the tutor audio. Speak again when you are ready, or type below.";
+      }
+      return;
+    }
+    if (!isDuplicateVoiceUserTranscript(transcript)) {
+      addVoiceTutorMessage("user", transcript);
+    }
+    window.setTimeout(() => {
+      if (!voiceRealtimeConnected || voiceRealtimeResponseActive) return;
+      requestRealtimeTutorResponse(
+        `The learner just said aloud: "${transcript}". Respond as the live tutor for the locked current topic. Diagnose their answer, then ask one focused follow-up. If they are stuck, teach the basics of this exact topic instead of asking what subject they are studying.`
+      );
+    }, 350);
+    return;
+  }
+  if (event.type === "conversation.item.input_audio_transcription.failed") {
+    const message = event.error?.message || "I could not transcribe that clearly. Please try again or type the answer below.";
+    addVoiceTutorMessage("assistant", message, {
+      state: "listening",
+      mastery: voiceTutorLastState?.mastery || 0
+    });
+    return;
+  }
+  if ((event.type === "response.audio_transcript.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.text.delta") && event.delta) {
+    voiceRealtimeAssistantDraft += event.delta;
+    return;
+  }
+  if (event.type === "response.audio_transcript.done" || event.type === "response.output_audio_transcript.done") {
+    const transcript = event.transcript || voiceRealtimeAssistantDraft;
+    voiceRealtimeAssistantDraft = "";
+    if (transcript && transcript.trim()) {
+      voiceRealtimeTranscriptCommitted = true;
+      addVoiceTutorMessage("assistant", transcript.trim(), {
+        state: "live",
+        mastery: voiceTutorLastState?.mastery || 0,
+        diagnosis: "Realtime tutor responded from the current note context."
+      });
+    }
+    return;
+  }
+  if (event.type === "response.done") {
+    const failedMessage = event.response?.status === "failed"
+      ? (event.response?.status_details?.error?.message || "Realtime voice response failed.")
+      : "";
+    const transcript = voiceRealtimeTranscriptCommitted
+      ? ""
+      : (voiceRealtimeAssistantDraft.trim() || extractRealtimeResponseTranscript(event.response));
+    voiceRealtimeAssistantDraft = "";
+    voiceRealtimeResponseActive = false;
+    if (failedMessage) {
+      addVoiceTutorMessage("assistant", `Error: ${failedMessage}`, {
+        state: "error",
+        mastery: voiceTutorLastState?.mastery || 0
+      });
+      setVoiceTutorBusy(false);
+      return;
+    }
+    if (transcript) {
+      voiceRealtimeTranscriptCommitted = true;
+      addVoiceTutorMessage("assistant", transcript, {
+        state: "live",
+        mastery: voiceTutorLastState?.mastery || 0,
+        diagnosis: "Realtime tutor responded from the current note context."
+      });
+    }
+    setVoiceTutorBusy(false);
+    return;
+  }
+  if (event.type === "response.cancelled" || event.type === "response.failed") {
+    voiceRealtimeResponseActive = false;
+    setVoiceTutorBusy(false);
+    if (event.type === "response.failed") {
+      addVoiceTutorMessage("assistant", `Error: ${event.error?.message || "Realtime voice response failed."}`, {
+        state: "error",
+        mastery: voiceTutorLastState?.mastery || 0,
+        diagnosis: "The live tutor response failed before it could finish."
+      });
+    }
+    return;
+  }
+  if (event.type === "response.output_text.delta" && event.delta) {
+    voiceRealtimeAssistantDraft += event.delta;
+  }
+}
+
+function createRealtimeAudioElement() {
+  if (voiceRealtimeAudio) return voiceRealtimeAudio;
+  const audio = document.createElement("audio");
+  audio.autoplay = true;
+  audio.playsInline = true;
+  audio.style.display = "none";
+  document.body.appendChild(audio);
+  voiceRealtimeAudio = audio;
+  return audio;
+}
+
+async function waitForIceGathering(peer) {
+  if (peer.iceGatheringState === "complete") return;
+  await new Promise(resolve => {
+    const timeout = setTimeout(resolve, 1200);
+    peer.addEventListener("icegatheringstatechange", () => {
+      if (peer.iceGatheringState === "complete") {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  });
+}
+
+function getVoiceTutorConnectionErrorMessage(error) {
+  const name = error?.name || "";
+  const message = error?.message || "Realtime voice session failed.";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Microphone permission is off. Please allow microphone access in Chrome/system settings, then start the live tutor again.";
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "No microphone was found. Connect or enable a microphone, then start the live tutor again.";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "The microphone is being used by another app or cannot start. Close other mic apps, then try again.";
+  }
+  return message;
+}
+
+async function startRealtimeVoiceTutor() {
+  if (!fullSummary || !fullSummary.trim()) {
+    alert("Generate notes first, then start Voice Tutor.");
+    return;
+  }
+  if (voiceRealtimeConnected || voiceRealtimeConnecting || voiceTutorBusy) return;
+  if (!navigator.mediaDevices || !window.RTCPeerConnection) {
+    alert("Realtime voice needs microphone and WebRTC support. Try a modern Chrome browser.");
+    return;
+  }
+
+  setVoiceTutorBusy(true);
+  voiceRealtimeConnecting = true;
+  updateVoiceTutorStatus(voiceTutorLastState);
+  try {
+    voiceRealtimePeer = new RTCPeerConnection();
+    voiceRealtimeAudio = createRealtimeAudioElement();
+    voiceRealtimePeer.ontrack = event => {
+      const [stream] = event.streams;
+      if (stream) voiceRealtimeAudio.srcObject = stream;
+    };
+    voiceRealtimePeer.onconnectionstatechange = () => {
+      const state = voiceRealtimePeer?.connectionState || "";
+      if (["failed", "disconnected", "closed"].includes(state)) {
+        voiceRealtimeResponseActive = false;
+        setVoiceTutorBusy(false);
+        updateVoiceTutorStatus(voiceTutorLastState);
+        updateVoiceTutorControls();
+      }
+    };
+    voiceRealtimeStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+    const micTracks = voiceRealtimeStream.getAudioTracks();
+    if (!micTracks.length) {
+      throw new Error("No microphone audio track was available. Check browser microphone permission.");
+    }
+    micTracks.forEach(track => {
+      track.enabled = true;
+      track.onended = () => {
+        voiceRealtimeMuted = true;
+        updateVoiceTutorControls();
+        if (voiceTutorDiagnosis) voiceTutorDiagnosis.textContent = "Microphone stopped. Restart the live tutor to continue speaking.";
+      };
+      voiceRealtimePeer.addTrack(track, voiceRealtimeStream);
+    });
+
+    voiceRealtimeChannel = voiceRealtimePeer.createDataChannel("oai-events");
+    voiceRealtimeChannel.onmessage = handleRealtimeTutorEvent;
+    voiceRealtimeChannel.onopen = () => {
+      voiceRealtimeConnecting = false;
+      voiceRealtimeConnected = true;
+      voiceRealtimeMuted = false;
+      setVoiceTutorBusy(false);
+      updateVoiceTutorStatus({ state: "live", mastery: voiceTutorLastState?.mastery || 0 });
+      updateVoiceTutorControls();
+      sendRealtimeEvent({
+        type: "session.update",
+        session: {
+          type: "realtime",
+          instructions: buildRealtimeTutorTopicInstruction(
+            "Begin the live tutoring session now. Start with the common first spoken sentence exactly once, then ask what the learner already understands about that exact topic. Never ask what subject they are working on."
+          )
+        }
+      });
+      requestRealtimeTutorResponse(
+        "Begin now. Start with the common first spoken sentence exactly once, then ask what the learner already understands about this topic. Do not ask what subject they are working on."
+      );
+    };
+    voiceRealtimeChannel.onclose = () => {
+      voiceRealtimeConnected = false;
+      voiceRealtimeConnecting = false;
+      updateVoiceTutorStatus(voiceTutorLastState);
+      updateVoiceTutorControls();
+    };
+
+    const offer = await voiceRealtimePeer.createOffer();
+    await voiceRealtimePeer.setLocalDescription(offer);
+    await waitForIceGathering(voiceRealtimePeer);
+    const response = await fetch(`${API_BASE}/voice-tutor/realtime-call`, {
+      method: "POST",
+      body: buildVoiceTutorSessionFormData(voiceRealtimePeer.localDescription.sdp)
+    });
+    const answerSdp = await response.text();
+    if (!response.ok) {
+      let message = answerSdp || "Realtime voice session failed.";
+      try {
+        const parsed = JSON.parse(answerSdp);
+        message = parsed.error || message;
+      } catch {}
+      throw new Error(message);
+    }
+    await voiceRealtimePeer.setRemoteDescription({
+      type: "answer",
+      sdp: answerSdp
+    });
+  } catch (error) {
+    console.error(error);
+    addVoiceTutorMessage("assistant", `Error: ${getVoiceTutorConnectionErrorMessage(error)}`, { state: "error", mastery: voiceTutorLastState?.mastery || 0 });
+    stopRealtimeVoiceTutor({ silent: true });
+    setVoiceTutorBusy(false);
+    voiceRealtimeConnecting = false;
+    updateVoiceTutorStatus(voiceTutorLastState);
+    updateVoiceTutorControls();
+  }
+}
+
+function startVoiceTutorSession() {
+  if (!fullSummary || !fullSummary.trim()) {
+    alert("Generate notes first, then start Voice Tutor.");
+    return;
+  }
+  if (voiceRealtimeConnected || voiceRealtimeConnecting) {
+    stopRealtimeVoiceTutor();
+    return;
+  }
+  startRealtimeVoiceTutor();
+}
+
+function sendVoiceTutorText(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  if (!voiceRealtimeConnected) {
+    alert("Start the live tutor first, then type or speak your answer.");
+    return false;
+  }
+  return sendRealtimeTextMessage(value);
+}
+
+function sendVoiceTutorTypedAnswer() {
+  const value = voiceTextInput ? voiceTextInput.value.trim() : "";
+  if (!value) return;
+  if (sendVoiceTutorText(value) && voiceTextInput) {
+    voiceTextInput.value = "";
+  }
+}
+
+function toggleVoiceTutorMute() {
+  if (!voiceRealtimeStream) return;
+  voiceRealtimeMuted = !voiceRealtimeMuted;
+  voiceRealtimeStream.getAudioTracks().forEach(track => {
+    track.enabled = !voiceRealtimeMuted;
+  });
+  if (voiceRealtimeMuted) {
+    if (voiceTutorDiagnosis) voiceTutorDiagnosis.textContent = "Microphone muted. Unmute when you want to answer aloud.";
+  } else {
+    if (voiceTutorDiagnosis) voiceTutorDiagnosis.textContent = "Microphone unmuted. Speak naturally, or type a fallback message below.";
+  }
+  updateVoiceTutorControls();
+}
+
+function stopRealtimeVoiceTutor({ silent = false } = {}) {
+  clearVoiceNoTranscriptTimer();
+  if (voiceRealtimeChannel) {
+    try { voiceRealtimeChannel.close(); } catch {}
+  }
+  if (voiceRealtimePeer) {
+    try { voiceRealtimePeer.close(); } catch {}
+  }
+  if (voiceRealtimeStream) {
+    voiceRealtimeStream.getTracks().forEach(track => track.stop());
+  }
+  if (voiceRealtimeAudio) {
+    voiceRealtimeAudio.pause();
+    voiceRealtimeAudio.srcObject = null;
+    voiceRealtimeAudio.remove();
+  }
+  voiceRealtimePeer = null;
+  voiceRealtimeChannel = null;
+  voiceRealtimeStream = null;
+  voiceRealtimeAudio = null;
+  voiceRealtimeConnected = false;
+  voiceRealtimeConnecting = false;
+  voiceRealtimeMuted = false;
+  voiceRealtimeAssistantDraft = "";
+  voiceRealtimeResponseActive = false;
+  voiceRealtimeTranscriptCommitted = false;
+  voiceRealtimeLastTranscriptText = "";
+  voiceRealtimeLastTranscriptAt = 0;
+  voiceRealtimeLastSpeechAt = 0;
+  if (!silent && voiceTutorLastState?.state !== "error") {
+    updateVoiceTutorStatus(voiceTutorLastState);
+  }
+  updateVoiceTutorControls();
+}
+
 function switchTab(tabName, clickedBtn) {
   document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.remove("active"));
   document.querySelectorAll(".asst-tab").forEach(button => button.classList.remove("active"));
   document.getElementById(`tab-${tabName}`).classList.add("active");
   clickedBtn?.classList.add("active");
+  if (tabName === "voice") updateVoiceTutorControls();
 }
 
 function closeAssistant() {
@@ -3660,7 +4614,7 @@ function getHistory() {
 }
 
 function setHistory(items) {
-  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(items.slice(0, 20)));
+  return safeSetLocalStorage(HISTORY_STORAGE_KEY, JSON.stringify(items.slice(0, 20)));
 }
 
 function openVisualDB() {
@@ -3721,6 +4675,7 @@ function compactVisualGalleryForStorage(items) {
       source_index: item.source_index,
       source_title: item.source_title || "",
       location: item.location || "",
+      visual_kind: item.visual_kind || "",
       caption: item.caption || "",
       url: item.url,
       title: item.title || "",
@@ -3935,19 +4890,23 @@ function findHistoryByFingerprint(fingerprint) {
 }
 
 function renderHistory(filter = "") {
-  if (!historyList) return;
   const query = String(filter || "").toLowerCase().trim();
   const items = getHistory().filter(item => {
     const haystack = `${item.title || ""} ${item.summary || ""}`.toLowerCase();
     return !query || haystack.includes(query);
   });
 
+  const html = renderHistoryItemsHTML(items);
+  if (historyList) historyList.innerHTML = html;
+  if (mobileHistoryList) mobileHistoryList.innerHTML = html;
+}
+
+function renderHistoryItemsHTML(items) {
   if (!items.length) {
-    historyList.innerHTML = `<p class="history-empty">No matching generated notes yet.</p>`;
-    return;
+    return `<p class="history-empty">No matching generated notes yet.</p>`;
   }
 
-  historyList.innerHTML = items.map(item => `
+  return items.map(item => `
     <div class="history-item-wrap">
       <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
         <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
@@ -3961,6 +4920,13 @@ function renderHistory(filter = "") {
       </button>
     </div>
   `).join("");
+}
+
+function closeMobileNavIfOpen() {
+  const mobileNav = document.getElementById("mobileNav");
+  if (!mobileNav || typeof bootstrap === "undefined") return;
+  const instance = bootstrap.Offcanvas.getInstance(mobileNav);
+  if (instance) instance.hide();
 }
 
 async function deleteHistoryEntry(event, id) {
@@ -3982,16 +4948,18 @@ async function deleteHistoryEntry(event, id) {
   deleteTimelinePath(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   deleteQuizHistory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   deleteFlashcardDeck(id, target?.sourceFingerprint || target?.clientFingerprint || "");
+  deleteVoiceTutorHistory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   renderHistory(historySearch ? historySearch.value : "");
 }
 
 async function loadHistoryEntry(id, options = {}) {
   const item = getHistory().find(entry => entry.id === id);
   if (!item) return;
+  closeMobileNavIfOpen();
 
-  fullSummary = item.summary || "";
+  fullSummary = removeAutoBilingualHeadings(item.summary || "", item.language || "auto");
   storedTitle = item.title || makeHistoryTitle(fullSummary) || "Study Notes";
-  sections = item.sections || {};
+  sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(item.sections || {}, fullSummary), fullSummary, item.language || "auto");
   connectionsData = item.connections || [];
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
   currentHistoryId = item.id;
@@ -4000,10 +4968,10 @@ async function loadHistoryEntry(id, options = {}) {
   const restoredVisuals = await loadVisualGalleryAssets(id, currentSourceFingerprint);
   visualGalleryData = sanitizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);
 
-  localStorage.setItem(ACTIVE_HISTORY_KEY, id);
+  safeSetLocalStorage(ACTIVE_HISTORY_KEY, id);
   showAnalysisView({ scrollToTop: !options.preserveScroll });
 
-  sectionTitle.innerText = "Summary";
+  sectionTitle.innerText = "Study Notes";
   contextLabel.textContent = "Current Notes";
   renderSections();
   renderConnections();
@@ -4013,6 +4981,7 @@ async function loadHistoryEntry(id, options = {}) {
   resetQuizState();
   loadQuizHistoryForCurrentNote();
   loadFlashcardsForCurrentNote();
+  loadVoiceTutorHistoryForCurrentNote();
   activeMindBranchIndex = 0;
   activeMindPointIndex = 0;
   switchTool("mindmap");
@@ -4053,6 +5022,12 @@ function cleanExistingHistoryTitles() {
 if (historySearch) {
   historySearch.addEventListener("input", event => renderHistory(event.target.value));
 }
+if (mobileHistorySearch) {
+  mobileHistorySearch.addEventListener("input", event => {
+    if (historySearch) historySearch.value = event.target.value;
+    renderHistory(event.target.value);
+  });
+}
 cleanExistingHistoryTitles();
 renderHistory();
 setupTimelineTool();
@@ -4070,3 +5045,12 @@ if (questionInput) questionInput.addEventListener("keydown", (event) => {
     askAI();
   }
 });
+
+if (voiceTextInput) voiceTextInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    sendVoiceTutorTypedAnswer();
+  }
+});
+
+renderVoiceTutorHistory();
