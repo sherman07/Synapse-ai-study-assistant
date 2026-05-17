@@ -1,18 +1,22 @@
 import base64
 import hashlib
+import html
 import json
 import mimetypes
 import ssl
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
+import textwrap
 import time
 import urllib.request
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
@@ -109,6 +113,20 @@ VISUAL_ARGUMENT_CARD_LIMIT = int(os.getenv("VISUAL_ARGUMENT_CARD_LIMIT", "18"))
 VISUAL_ARGUMENT_TOKENS = int(os.getenv("VISUAL_ARGUMENT_TOKENS", "1100"))
 VISUAL_RENDER_DPI = int(os.getenv("VISUAL_RENDER_DPI", "170"))
 ENABLE_PPTX_SLIDE_RENDER = os.getenv("ENABLE_PPTX_SLIDE_RENDER", "true").lower() not in {"0", "false", "no"}
+ENABLE_SOURCE_PPTX_PREVIEW_RENDER = os.getenv("ENABLE_SOURCE_PPTX_PREVIEW_RENDER", "true").lower() not in {"0", "false", "no"}
+# Production must not depend on local desktop apps. Keep the old env name as a
+# compatibility alias, but default it off and prefer LibreOffice/server renderers.
+ENABLE_LOCAL_PPTX_APP_RENDER = (
+    os.getenv("ENABLE_LOCAL_PPTX_APP_RENDER", os.getenv("ENABLE_SOURCE_PPTX_APP_RENDER", "false")).lower()
+    not in {"0", "false", "no"}
+)
+SOURCE_PREVIEW_MAX_SLIDES = int(os.getenv("SOURCE_PREVIEW_MAX_SLIDES", "80"))
+SOURCE_PREVIEW_MAX_PDF_PAGES = int(os.getenv("SOURCE_PREVIEW_MAX_PDF_PAGES", "160"))
+SOURCE_PREVIEW_MAX_EMBEDDED_IMAGES = int(os.getenv("SOURCE_PREVIEW_MAX_EMBEDDED_IMAGES", "120"))
+SOURCE_PREVIEW_RENDER_DPI = int(os.getenv("SOURCE_PREVIEW_RENDER_DPI", "120"))
+SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT = int(
+    os.getenv("SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT", os.getenv("SOURCE_PREVIEW_PPTX_APP_TIMEOUT", "120"))
+)
 ENABLE_MULTI_SOURCE_DIGESTS = os.getenv("ENABLE_MULTI_SOURCE_DIGESTS", "true").lower() not in {"0", "false", "no"}
 MULTISOURCE_SOURCE_DIGEST_TOKENS = int(os.getenv("MULTISOURCE_SOURCE_DIGEST_TOKENS", "9000"))
 MULTISOURCE_SOURCE_CHARS = int(os.getenv("MULTISOURCE_SOURCE_CHARS", "500000"))
@@ -148,6 +166,9 @@ def health():
         "visual_argument_card_limit": VISUAL_ARGUMENT_CARD_LIMIT,
         "visual_render_dpi": VISUAL_RENDER_DPI,
         "pptx_slide_render_enabled": ENABLE_PPTX_SLIDE_RENDER,
+        "source_pptx_preview_render_enabled": ENABLE_SOURCE_PPTX_PREVIEW_RENDER,
+        "source_pptx_server_renderer": bool(find_libreoffice_binary()),
+        "source_pptx_local_app_fallback_enabled": ENABLE_LOCAL_PPTX_APP_RENDER,
     }
 
 
@@ -348,7 +369,8 @@ DEPTH_CONFIG = {
         "max_output_tokens": int(os.getenv("FOCUSED_MAX_OUTPUT_TOKENS", "1800")),
         "source_chars": int(os.getenv("FOCUSED_SOURCE_CHARS", "9000")),
         "mindmap_branches": 5,
-        "mindmap_points": 4,
+        "mindmap_points": 5,
+        "mindmap_children": 3,
         "instruction": (
             "Create a focused, easy-to-understand study note. Do not pad the answer. "
             "Cover the actual idea, the essential steps, one useful example if needed, and common mistakes. "
@@ -360,8 +382,9 @@ DEPTH_CONFIG = {
         "label": "Standard",
         "max_output_tokens": int(os.getenv("STANDARD_MAX_OUTPUT_TOKENS", "4200")),
         "source_chars": int(os.getenv("STANDARD_SOURCE_CHARS", "24000")),
-        "mindmap_branches": 7,
-        "mindmap_points": 5,
+        "mindmap_branches": 8,
+        "mindmap_points": 6,
+        "mindmap_children": 4,
         "instruction": (
             "Create clear study notes with moderate detail. Explain the key concepts, source structure, examples, "
             "step-by-step logic, and likely misunderstandings. Avoid unnecessary expansion, but include all important source-supported points."
@@ -372,8 +395,9 @@ DEPTH_CONFIG = {
         "label": "Detailed",
         "max_output_tokens": int(os.getenv("DETAILED_MAX_OUTPUT_TOKENS", "8000")),
         "source_chars": int(os.getenv("DETAILED_SOURCE_CHARS", "65000")),
-        "mindmap_branches": 9,
-        "mindmap_points": 7,
+        "mindmap_branches": 11,
+        "mindmap_points": 8,
+        "mindmap_children": 5,
         "instruction": (
             "Create a detailed source-faithful study guide. Preserve important subpoints, examples, definitions, formulas, evidence, "
             "and reasoning. Explain not only what the source says, but how a student should understand and apply it."
@@ -384,8 +408,9 @@ DEPTH_CONFIG = {
         "label": "Comprehensive",
         "max_output_tokens": int(os.getenv("COMPREHENSIVE_MAX_OUTPUT_TOKENS", "20000")),
         "source_chars": int(os.getenv("COMPREHENSIVE_SOURCE_CHARS", "500000")),
-        "mindmap_branches": 11,
-        "mindmap_points": 8,
+        "mindmap_branches": 14,
+        "mindmap_points": 10,
+        "mindmap_children": 6,
         "instruction": (
             "Create a comprehensive high-detail study guide. Use this only when the source is long, dense, technical, legal, academic, "
             "or multi-section. Cover structure, definitions, exceptions, procedures, implications, examples, verification checks, and learning strategy."
@@ -2184,7 +2209,70 @@ def first_good_sentence(text: str, limit: int = 190) -> str:
     return short_mindmap_text(value, limit)
 
 
-def extract_branch_items(section_text: str, max_points: int = 5) -> List[dict]:
+def split_mindmap_subpoints(text: str, max_children: int = 4) -> List[dict]:
+    """Create compact child leaves from a point's detail text when no explicit children exist."""
+    value = clean_mindmap_text(text)
+    if not value:
+        return []
+
+    raw_parts = re.split(
+        r"(?:\s*[;；]\s*|\s+→\s+|\s+--\s+|\s+—\s+|(?<=[.!?。！？])\s+|\s+\b(?:because|therefore|however|for example|e\.g\.)\b\s+)",
+        value,
+        flags=re.I,
+    )
+    seen = set()
+    children: List[dict] = []
+    for part in raw_parts:
+        clean = clean_mindmap_text(part)
+        if len(clean) < 14 or len(clean) > 260:
+            continue
+        key = re.sub(r"\W+", "", clean.lower())[:80]
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        label_source = re.split(r"[:：,，]", clean, maxsplit=1)[0].strip()
+        if len(label_source) < 5 or len(label_source) > 64:
+            label_source = clean
+        label = short_mindmap_text(label_source, 46)
+        detail = short_mindmap_text(clean, 240)
+        if label:
+            children.append({
+                "id": sha256_text(label + detail)[:10],
+                "label": label,
+                "detail": detail,
+            })
+        if len(children) >= max_children:
+            break
+    return children
+
+
+def normalise_mindmap_children(raw_children: Any, parent_text: str, max_children: int = 4) -> List[dict]:
+    children: List[dict] = []
+    if isinstance(raw_children, list):
+        for child in raw_children[:max_children]:
+            if isinstance(child, str):
+                label_text = child
+                detail_text = child
+            elif isinstance(child, dict):
+                label_text = child.get("label") or child.get("title") or child.get("text") or child.get("detail") or ""
+                detail_text = child.get("detail") or child.get("explanation") or child.get("text") or label_text
+            else:
+                continue
+            label = short_mindmap_text(label_text, 46)
+            detail = short_mindmap_text(detail_text, 260)
+            if label:
+                children.append({
+                    "id": sha256_text(label + detail)[:10],
+                    "label": label,
+                    "detail": detail or label,
+                })
+
+    if not children:
+        children = split_mindmap_subpoints(parent_text, max_children=max_children)
+    return children[:max_children]
+
+
+def extract_branch_items(section_text: str, max_points: int = 5, max_children: int = 4) -> List[dict]:
     """
     Fallback structured mind-map point extractor.
     Returns point objects instead of raw strings so the frontend can display clean labels + details.
@@ -2192,7 +2280,7 @@ def extract_branch_items(section_text: str, max_points: int = 5) -> List[dict]:
     if not section_text:
         return []
 
-    lines = [line.strip() for line in str(section_text).splitlines() if line.strip()]
+    lines = [line.rstrip() for line in str(section_text).splitlines() if line.strip()]
     items: List[dict] = []
     current: Optional[dict] = None
 
@@ -2203,22 +2291,38 @@ def extract_branch_items(section_text: str, max_points: int = 5) -> List[dict]:
         label = short_mindmap_text(current.get("label") or current.get("detail") or "", 58)
         detail = short_mindmap_text(current.get("detail") or current.get("label") or "", 260)
         if label:
-            items.append({
+            explicit_children = current.get("children") if isinstance(current.get("children"), list) else []
+            children = normalise_mindmap_children(explicit_children, detail, max_children=max_children)
+            item = {
                 "id": sha256_text(label + detail)[:10],
                 "label": label,
                 "detail": detail,
-            })
+            }
+            if children:
+                item["children"] = children
+            items.append(item)
         current = None
 
     for raw in lines:
+        raw_indent = len(raw) - len(raw.lstrip(" \t"))
         line = clean_mindmap_text(raw)
         if not line or line.startswith("#"):
             continue
 
+        nested_bullet = bool(current and raw_indent >= 2 and re.match(r"^\s*(?:[\-•*]|\d+[.)])\s+", raw))
         line = re.sub(r"^[\-•*]\s*", "", line).strip()
         numbered = re.match(r"^\d+[.)]\s*(.+)$", line)
         heading_like = line.endswith((":", "：")) and len(line) < 95
         formula_like = any(token in raw for token in ["\\", "=", "^", "_", "sqrt", "frac", "√"])
+
+        if nested_bullet:
+            child_text = numbered.group(1).strip() if numbered else line
+            if child_text:
+                current.setdefault("children", []).append({
+                    "label": child_text,
+                    "detail": child_text,
+                })
+            continue
 
         if numbered:
             push_current()
@@ -2256,6 +2360,7 @@ def extract_branch_items(section_text: str, max_points: int = 5) -> List[dict]:
                 "id": sha256_text(sentence)[:10],
                 "label": short_mindmap_text(sentence, 58),
                 "detail": short_mindmap_text(sentence, 260),
+                "children": split_mindmap_subpoints(sentence, max_children=max_children),
             })
             if len(items) >= max_points:
                 break
@@ -2312,6 +2417,7 @@ def generate_mind_map(title: str, sections: Dict[str, str], depth: str = "detail
     limits = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["detailed"])
     max_branches = int(limits.get("mindmap_branches", 6))
     max_points = int(limits.get("mindmap_points", 5))
+    max_children = int(limits.get("mindmap_children", 4))
 
     branches = []
     for section_name in ordered_names[:max_branches]:
@@ -2322,7 +2428,7 @@ def generate_mind_map(title: str, sections: Dict[str, str], depth: str = "detail
             "label": short_mindmap_text(label, 48),
             "section": section_name,
             "summary": first_good_sentence(section_text, 190),
-            "points": extract_branch_items(section_text, max_points=max_points),
+            "points": extract_branch_items(section_text, max_points=max_points, max_children=max_children),
         })
 
     center_title = short_mindmap_text(title or "Study Notes", 80) or "Study Notes"
@@ -2363,6 +2469,7 @@ def normalise_ai_mind_map(raw_map: dict, fallback_map: dict, depth: str = "detai
     limits = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["detailed"])
     max_branches = int(limits.get("mindmap_branches", 6))
     max_points = int(limits.get("mindmap_points", 5))
+    max_children = int(limits.get("mindmap_children", 4))
 
     branches: List[dict] = []
     for index, branch in enumerate(raw_branches[:max_branches]):
@@ -2382,16 +2489,29 @@ def normalise_ai_mind_map(raw_map: dict, fallback_map: dict, depth: str = "detai
             elif isinstance(point, dict):
                 label_text = point.get("label") or point.get("title") or point.get("text") or point.get("detail") or ""
                 detail_text = point.get("detail") or point.get("explanation") or point.get("text") or label_text
+                raw_children = (
+                    point.get("children")
+                    or point.get("subpoints")
+                    or point.get("leaves")
+                    or point.get("items")
+                    or []
+                )
             else:
                 continue
+            if isinstance(point, str):
+                raw_children = []
             label_clean = short_mindmap_text(label_text, 58)
             detail_clean = short_mindmap_text(detail_text, 420)
             if label_clean:
-                points.append({
+                children = normalise_mindmap_children(raw_children, detail_clean, max_children=max_children)
+                normalized_point = {
                     "id": sha256_text(section + label_clean + detail_clean)[:10],
                     "label": label_clean,
                     "detail": detail_clean or label_clean,
-                })
+                }
+                if children:
+                    normalized_point["children"] = children
+                points.append(normalized_point)
         if not points:
             points = fallback_branch.get("points", [])[:max_points]
 
@@ -2422,6 +2542,7 @@ def generate_ai_mind_map(title: str, sections: Dict[str, str], preferred_languag
     limits = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["detailed"])
     max_branches = int(limits.get("mindmap_branches", 6))
     max_points = int(limits.get("mindmap_points", 5))
+    max_children = int(limits.get("mindmap_children", 4))
     section_limit = max(7, min(max_branches + 2, 12))
 
     compact_sections = []
@@ -2440,13 +2561,20 @@ Important design rules:
 - Use no more than {max_branches} main branches.
 - Use more branches when the notes contain distinct concepts, methods, evidence, examples, or exam themes.
 - Each branch should have no more than {max_points} points. Use fewer points only if the source truly has less material.
+- Each point may include up to {max_children} children/subpoints. Use children for small teachable pieces under a main idea: definition parts, evidence details, example steps, limitation checks, exam-use reminders, or source figure details.
+- Design it as a real knowledge tree: center topic -> first-level concept branches -> point nodes -> child/subpoint leaves.
+- Prefer concept-level branches over copied section labels when that is clearer.
+- Treat overview/framework ideas as first-level branches, not hidden bullet points. For example, if the notes contain "Developmental approach", "Developmental approach overview", "Big picture", "Framework", or "Source and argument map", make that a branch with its own leaves.
+- A branch should represent a learnable cluster such as an approach, theory, method, evidence type, worked example, misconception, or exam strategy.
 - Each point needs a short label and 1-2 concrete detail sentences with source substance: definition, mechanism, evidence, example, common confusion, or exam use.
+- Children must be smaller than the parent point and must not repeat the parent wording. They should make the branch useful to open and explore.
 - For math/technical content, DO NOT output Markdown bold, raw LaTeX, or escaped delimiters like \\( ... \\).
 - Convert formulas into readable plain text, for example: r'(t)=<1,2,6t>, √(180)=6√(5), curvature k = |r'×r''| / |r'|^3. For matrices, use compact readable notation like v=[v₁; v₂; …; vₘ] or v+w=[v₁+w₁; v₂+w₂; …; vₘ+wₘ]. Never output bmatrix, pmatrix, begin/end matrix text, or plain sqrt(180).
 - Point labels must be human-readable phrase titles in the selected language, not raw formulas. Put formulas in detail only when needed.
 - Branch labels, point labels, summaries, and details must follow the selected language.
 - Never translate the brand name Synapse. If you need a summary branch, use the selected-language equivalent of Overview/Summary, not a translation of Synapse.
 - The map should be simple first, then expandable by clicking points.
+- Keep enough detail in the leaves that clicking a branch teaches something, not just navigation.
 - Return JSON only. No markdown.
 
 JSON schema:
@@ -2458,7 +2586,13 @@ JSON schema:
       "section": "matching section name from notes",
       "summary": "one sentence branch summary",
       "points": [
-        {{"label": "short point", "detail": "more detail shown after clicking"}}
+        {{
+          "label": "short point",
+          "detail": "more detail shown after clicking",
+          "children": [
+            {{"label": "small subpoint", "detail": "specific source-grounded detail"}}
+          ]
+        }}
       ]
     }}
   ]
@@ -2587,6 +2721,7 @@ def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
             "display_name": meta.get("url") or url,
             "source_identity": meta["source_identity"],
             "title_candidate": meta["detected_title"],
+            "url": meta.get("url") or canonicalize_youtube_watch_url(url),
             "content_hash": meta["content_hash"],
             "text_excerpt": transcript,
         }
@@ -2821,6 +2956,52 @@ def resolve_generation_language_key(preferred_language: str, source_text: str = 
     if key != "auto":
         return key
     return detect_dominant_source_language_key(source_text)
+
+
+REALTIME_TRANSCRIPTION_LANGUAGE_CODES = {
+    "english": "en",
+    "simplified_chinese": "zh",
+    "traditional_chinese": "zh",
+    "japanese": "ja",
+    "korean": "ko",
+    "french": "fr",
+    "spanish": "es",
+    "german": "de",
+    "italian": "it",
+    "portuguese": "pt",
+    "arabic": "ar",
+    "hindi": "hi",
+    "vietnamese": "vi",
+    "thai": "th",
+    "indonesian": "id",
+    "malay": "ms",
+    "russian": "ru",
+}
+
+
+def realtime_transcription_language_code(
+    preferred_language: str,
+    source_text: str = "",
+    explicit_language: str = "",
+) -> str:
+    """
+    Return an ISO-639-1 language hint for Realtime input transcription.
+    Auto uses the current note/source language; mixed mode stays automatic so
+    genuinely bilingual learners are not forced into a single recognizer.
+    """
+    explicit = normalise_space(explicit_language).lower().replace("_", "-")
+    if explicit in set(REALTIME_TRANSCRIPTION_LANGUAGE_CODES.values()):
+        return explicit
+    explicit_key = normalise_language_key(explicit_language)
+    if explicit_language and explicit_key != "auto":
+        return REALTIME_TRANSCRIPTION_LANGUAGE_CODES.get(explicit_key, "")
+
+    key = normalise_language_key(preferred_language)
+    if key == "mixed_chinese_english":
+        return ""
+    if key == "auto":
+        key = detect_dominant_source_language_key(source_text)
+    return REALTIME_TRANSCRIPTION_LANGUAGE_CODES.get(key, "")
 
 
 def language_instruction_for_generation(preferred_language: str, source_text: str = "") -> str:
@@ -3301,6 +3482,9 @@ Consistency requirement:
                     "display_name": unit.get("display_name", ""),
                     "title_candidate": unit.get("title_candidate", ""),
                     "source_identity": unit.get("source_identity", ""),
+                    "url": unit.get("url", "") or unit.get("embedded_url", ""),
+                    "embedded_url": unit.get("embedded_url", ""),
+                    "text_excerpt": truncate_text(unit.get("text_excerpt", ""), 60000),
                 }
                 for i, unit in enumerate(source_units)
             ],
@@ -3591,7 +3775,14 @@ def realtime_tutor_instructions(
     focused_topic = normalise_space(topic_title) or normalise_space(title) or "current study topic"
     focused_context = str(topic_context or "").strip() or str(section_context or "").strip()
     language_source_text = focused_context or note_summary or section_context
-    language_name = target_language_name(resolve_generation_language_key(preferred_language, language_source_text))
+    resolved_language_key = resolve_generation_language_key(preferred_language, language_source_text)
+    language_name = target_language_name(resolved_language_key)
+    different_script_warning = (
+        "If the transcript is a very short word in Chinese, Japanese, Korean, Arabic, or another writing system, "
+        "treat it as a likely speech-recognition mistake. Ask the learner to repeat in English or type it."
+        if resolved_language_key == "english" else
+        "If a very short transcript appears in a different writing system from the lesson language, treat it as a likely speech-recognition mistake and ask the learner to repeat or type it."
+    )
     recent_history = "\n".join(
         f"{turn.get('role', 'user')}: {normalise_space(str(turn.get('text', '')))}"
         for turn in history[-10:]
@@ -3609,7 +3800,9 @@ Voice persona:
 
 Language:
 - Speak in {language_name}.
-- Match the learner's language if they speak differently, but do not randomly mix languages.
+- Keep the session in {language_name}. Only switch languages if the learner gives a clear full sentence in another language.
+- Do not switch languages because of one short anomalous transcript.
+- {different_script_warning}
 - Never translate the product name Synapse.
 
 Current note:
@@ -3665,6 +3858,7 @@ async def voice_tutor_realtime_call(
     topic_context: str = Form(default=""),
     topic_scope: str = Form(default=""),
     preferred_language: str = Form(default="auto"),
+    voice_input_language: str = Form(default=""),
     source_identity: str = Form(default=""),
 ):
     try:
@@ -3681,6 +3875,15 @@ async def voice_tutor_realtime_call(
             )
 
         section_context = voice_tutor_context_from_sections(sections_dict, selected_section)
+        language_source_text = focused_topic_context or section_context or note_summary
+        transcription_language = realtime_transcription_language_code(
+            preferred_language=preferred_language,
+            source_text=language_source_text,
+            explicit_language=voice_input_language,
+        )
+        transcription_config = {"model": TRANSCRIBE_MODEL}
+        if transcription_language:
+            transcription_config["language"] = transcription_language
         session_config = {
             "type": "realtime",
             "model": REALTIME_MODEL,
@@ -3699,7 +3902,7 @@ async def voice_tutor_realtime_call(
             "audio": {
                 "output": {"voice": REALTIME_VOICE},
                 "input": {
-                    "transcription": {"model": TRANSCRIBE_MODEL},
+                    "transcription": transcription_config,
                     "noise_reduction": {"type": "near_field"},
                     "turn_detection": {
                         "type": "server_vad",
@@ -3865,6 +4068,36 @@ Return JSON only:
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     return await analyze_materials(files=[file], links="[]", free_text="", preferred_language="auto", client_fingerprint="")
+
+
+@app.post("/source-preview")
+async def source_preview(file: UploadFile = File(...)):
+    """Return a browser-friendly preview for source formats Chrome cannot open."""
+    try:
+        name = file.filename or "uploaded source"
+        content_type = file.content_type or mimetypes.guess_type(name)[0] or ""
+        data = await file.read()
+        lower_name = name.lower()
+
+        if lower_name.endswith(".pdf") or content_type == "application/pdf":
+            return build_pdf_source_preview(data, name)
+        if lower_name.endswith(".pptx") or content_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+            return build_pptx_source_preview(data, name)
+        if lower_name.endswith(".docx") or content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            return build_docx_source_preview(data, name)
+        if content_type.startswith("text/") or lower_name.endswith((".txt", ".md", ".csv", ".tsv")):
+            return {
+                "kind": "text",
+                "title": name,
+                "text": truncate_text(extract_text_file(data), 160000),
+            }
+        return {
+            "kind": "file",
+            "title": name,
+            "error": "This file type is not readable in the source viewer yet. PDFs, PPTX, DOCX, and text are converted to readable previews.",
+        }
+    except Exception as error:
+        return {"error": str(error)}
 
 
 @app.post("/ask")
@@ -6220,6 +6453,607 @@ def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, L
     return "\n\n".join(slide_texts).strip(), embedded_parts
 
 
+def source_preview_image_url(data: bytes, content_type: str = "image/jpeg") -> str:
+    encoded = base64.b64encode(data).decode("utf-8")
+    return f"data:{content_type};base64,{encoded}"
+
+
+def source_preview_title_from_text(text: str, fallback: str) -> str:
+    for line in str(text or "").splitlines():
+        title = normalise_space(line)
+        if len(title) >= 3:
+            return truncate_text(title, 90)
+    return fallback
+
+
+def pptx_emu_to_px(value: Any) -> float:
+    try:
+        return round(float(value or 0) / 914400 * 96, 2)
+    except Exception:
+        return 0.0
+
+
+def svg_escape(value: Any) -> str:
+    return html.escape(str(value or ""), quote=True)
+
+
+def pptx_color_to_hex(value: Any, fallback: str) -> str:
+    try:
+        rgb = getattr(value, "rgb", None)
+        if rgb:
+            return f"#{str(rgb)}"
+    except Exception:
+        pass
+    return fallback
+
+
+def pptx_shape_fill_hex(shape: Any, fallback: str = "transparent") -> str:
+    try:
+        fill = getattr(shape, "fill", None)
+        if not fill or not getattr(fill, "type", None):
+            return fallback
+        return pptx_color_to_hex(fill.fore_color, fallback)
+    except Exception:
+        return fallback
+
+
+def pptx_shape_line_hex(shape: Any, fallback: str = "transparent") -> str:
+    try:
+        line = getattr(shape, "line", None)
+        if not line or not getattr(line, "color", None):
+            return fallback
+        return pptx_color_to_hex(line.color, fallback)
+    except Exception:
+        return fallback
+
+
+def pptx_text_font_px(shape: Any, box_height: float) -> float:
+    try:
+        text_frame = getattr(shape, "text_frame", None)
+        for paragraph in getattr(text_frame, "paragraphs", []) or []:
+            for run in getattr(paragraph, "runs", []) or []:
+                size = getattr(getattr(run, "font", None), "size", None)
+                if size:
+                    return max(9.0, min(64.0, float(size.pt) * 96 / 72))
+    except Exception:
+        pass
+    return max(11.0, min(32.0, (box_height or 96) / 5.5))
+
+
+def pptx_text_fill_hex(shape: Any, fallback: str = "#111827") -> str:
+    try:
+        text_frame = getattr(shape, "text_frame", None)
+        for paragraph in getattr(text_frame, "paragraphs", []) or []:
+            for run in getattr(paragraph, "runs", []) or []:
+                color = getattr(getattr(run, "font", None), "color", None)
+                rgb = getattr(color, "rgb", None)
+                if rgb:
+                    return f"#{str(rgb)}"
+    except Exception:
+        pass
+    return fallback
+
+
+def render_svg_wrapped_text(
+    text: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    font_px: float,
+    fill: str = "#111827",
+    weight: str = "500",
+) -> str:
+    value = str(text or "").strip()
+    if not value or width <= 4 or height <= 4:
+        return ""
+
+    max_chars = max(8, int(width / max(font_px * 0.52, 1)))
+    line_height = max(font_px * 1.22, font_px + 3)
+    cursor_y = y + font_px
+    lines: List[str] = []
+    for raw_line in value.splitlines():
+        raw_line = normalise_space(raw_line)
+        if not raw_line:
+            cursor_y += line_height * 0.55
+            continue
+        break_long = " " not in raw_line and len(raw_line) > max_chars
+        wrapped = textwrap.wrap(raw_line, width=max_chars, break_long_words=break_long, replace_whitespace=False) or [raw_line]
+        for line in wrapped:
+            if cursor_y > y + height - 2:
+                return "".join(lines)
+            lines.append(
+                f'<text x="{x:.2f}" y="{cursor_y:.2f}" font-family="Inter, Arial, sans-serif" '
+                f'font-size="{font_px:.2f}" font-weight="{weight}" fill="{fill}">{svg_escape(line)}</text>'
+            )
+            cursor_y += line_height
+    return "".join(lines)
+
+
+def render_pptx_table_svg(shape: Any, x: float, y: float, width: float, height: float) -> str:
+    try:
+        table = shape.table
+        rows = list(table.rows)
+        cols = list(table.columns)
+    except Exception:
+        return ""
+    if not rows or not cols:
+        return ""
+
+    row_count = len(rows)
+    col_count = len(cols)
+    cell_w = width / max(col_count, 1)
+    cell_h = height / max(row_count, 1)
+    font_px = max(8.0, min(16.0, cell_h * 0.28))
+    parts = []
+    for row_index, row in enumerate(rows):
+        for col_index, cell in enumerate(row.cells):
+            cx = x + col_index * cell_w
+            cy = y + row_index * cell_h
+            fill = "#f8fafc" if row_index == 0 else "#ffffff"
+            parts.append(
+                f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" '
+                f'fill="{fill}" stroke="#d8e0ef" stroke-width="1"/>'
+            )
+            cell_text = normalise_space(getattr(cell, "text", "") or "")
+            if cell_text:
+                parts.append(
+                    render_svg_wrapped_text(
+                        cell_text,
+                        cx + 5,
+                        cy + 5,
+                        max(2, cell_w - 10),
+                        max(2, cell_h - 10),
+                        font_px,
+                        "#1f2937",
+                        "700" if row_index == 0 else "500",
+                    )
+                )
+    return "".join(parts)
+
+
+def render_pptx_chart_placeholder_svg(shape: Any, x: float, y: float, width: float, height: float, slide_index: int) -> str:
+    chart_text = pptx_chart_to_text(shape, slide_index)
+    if not chart_text:
+        return ""
+    title = chart_text.splitlines()[0].replace(f"[PPT SLIDE {slide_index} CHART]", "").strip() or "Chart"
+    body = "\n".join(chart_text.splitlines()[1:])[:900]
+    parts = [
+        f'<rect x="{x:.2f}" y="{y:.2f}" width="{width:.2f}" height="{height:.2f}" rx="10" '
+        'fill="#f8fbff" stroke="#9db7ff" stroke-width="2"/>',
+        render_svg_wrapped_text(title, x + 14, y + 16, width - 28, max(28, height * 0.22), max(14, min(24, height * 0.08)), "#1d4ed8", "800"),
+        render_svg_wrapped_text(body, x + 14, y + max(52, height * 0.25), width - 28, height * 0.7, max(10, min(15, height * 0.045)), "#334155", "500"),
+    ]
+    return "".join(parts)
+
+
+def render_pptx_slide_as_svg(slide: Any, slide_width_px: float, slide_height_px: float, slide_index: int) -> str:
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{slide_width_px:.0f}" height="{slide_height_px:.0f}" '
+        f'viewBox="0 0 {slide_width_px:.2f} {slide_height_px:.2f}">',
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+    ]
+
+    for shape in slide.shapes:
+        x = pptx_emu_to_px(getattr(shape, "left", 0))
+        y = pptx_emu_to_px(getattr(shape, "top", 0))
+        width = max(1.0, pptx_emu_to_px(getattr(shape, "width", 0)))
+        height = max(1.0, pptx_emu_to_px(getattr(shape, "height", 0)))
+
+        if hasattr(shape, "image"):
+            try:
+                image = shape.image
+                content_type = image.content_type or "image/png"
+                encoded = base64.b64encode(image.blob).decode("utf-8")
+                parts.append(
+                    f'<image x="{x:.2f}" y="{y:.2f}" width="{width:.2f}" height="{height:.2f}" '
+                    f'href="data:{content_type};base64,{encoded}" preserveAspectRatio="xMidYMid meet"/>'
+                )
+                continue
+            except Exception:
+                pass
+
+        if getattr(shape, "has_table", False):
+            table_svg = render_pptx_table_svg(shape, x, y, width, height)
+            if table_svg:
+                parts.append(table_svg)
+                continue
+
+        chart_svg = render_pptx_chart_placeholder_svg(shape, x, y, width, height, slide_index)
+        if chart_svg:
+            parts.append(chart_svg)
+            continue
+
+        fill = pptx_shape_fill_hex(shape)
+        stroke = pptx_shape_line_hex(shape)
+        text = str(getattr(shape, "text", "") or "").strip()
+        if fill != "transparent" or stroke != "transparent" or text:
+            rect_fill = fill if fill != "transparent" else "none"
+            rect_stroke = stroke if stroke != "transparent" else "none"
+            if fill != "transparent" or rect_stroke != "none":
+                parts.append(
+                    f'<rect x="{x:.2f}" y="{y:.2f}" width="{width:.2f}" height="{height:.2f}" rx="4" '
+                    f'fill="{rect_fill}" stroke="{rect_stroke}" stroke-width="1"/>'
+                )
+        if text:
+            font_px = pptx_text_font_px(shape, height)
+            font_fill = pptx_text_fill_hex(shape)
+            weight = "800" if font_px >= 24 else "600"
+            parts.append(
+                render_svg_wrapped_text(text, x + 6, y + 6, max(2, width - 12), max(2, height - 12), font_px, font_fill, weight)
+            )
+
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def render_pptx_source_preview_svg_images(prs: Any, max_slides: int) -> Dict[int, str]:
+    """Best-effort complete slide-page fallback when native PPTX rendering is unavailable."""
+    if not prs or max_slides <= 0:
+        return {}
+    slide_width_px = max(320.0, pptx_emu_to_px(getattr(prs, "slide_width", 0)) or 1280.0)
+    slide_height_px = max(240.0, pptx_emu_to_px(getattr(prs, "slide_height", 0)) or 720.0)
+    rendered: Dict[int, str] = {}
+    for slide_index, slide in enumerate(prs.slides, start=1):
+        if slide_index > max_slides:
+            break
+        try:
+            svg = render_pptx_slide_as_svg(slide, slide_width_px, slide_height_px, slide_index)
+            rendered[slide_index] = source_preview_image_url(svg.encode("utf-8"), "image/svg+xml")
+        except Exception:
+            continue
+    return rendered
+
+
+def render_pdf_path_to_source_preview_images(pdf_path: Path, max_pages: int) -> Dict[int, str]:
+    if fitz is None or max_pages <= 0 or not pdf_path.exists():
+        return {}
+    doc = None
+    try:
+        doc = fitz.open(str(pdf_path))
+        matrix = fitz.Matrix(max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72), max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72))
+        rendered: Dict[int, str] = {}
+        for page_index in range(min(len(doc), max_pages)):
+            page = doc.load_page(page_index)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            rendered[page_index + 1] = source_preview_image_url(pix.tobytes("jpeg"), "image/jpeg")
+        return rendered
+    except Exception:
+        return {}
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
+
+
+def macos_app_exists(app_name: str) -> bool:
+    if sys.platform != "darwin":
+        return False
+    candidates = [
+        Path("/Applications") / app_name,
+        Path("/System/Applications") / app_name,
+        Path.home() / "Applications" / app_name,
+    ]
+    return any(candidate.exists() for candidate in candidates)
+
+
+def convert_pptx_to_pdf_with_powerpoint(pptx_path: Path, pdf_path: Path) -> Tuple[bool, str]:
+    if sys.platform != "darwin" or not shutil.which("osascript") or not macos_app_exists("Microsoft PowerPoint.app"):
+        return False, ""
+    script = [
+        'on run argv',
+        'set inputPath to item 1 of argv',
+        'set outputPath to item 2 of argv',
+        'tell application "Microsoft PowerPoint"',
+        'with timeout of 1200 seconds',
+        'open POSIX file inputPath',
+        'delay 1',
+        'set thePresentation to active presentation',
+        'save thePresentation in POSIX file outputPath as save as PDF',
+        'close thePresentation saving no',
+        'end timeout',
+        'end tell',
+        'end run',
+    ]
+    command: List[str] = ["osascript"]
+    for line in script:
+        command.extend(["-e", line])
+    command.extend([str(pptx_path), str(pdf_path)])
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=max(20, SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT),
+        )
+        if pdf_path.exists() and pdf_path.stat().st_size > 0:
+            return True, "powerpoint"
+    except Exception:
+        pass
+    return False, ""
+
+
+def convert_pptx_to_pdf_with_keynote(pptx_path: Path, pdf_path: Path) -> Tuple[bool, str]:
+    if sys.platform != "darwin" or not shutil.which("osascript") or not macos_app_exists("Keynote.app"):
+        return False, ""
+    script = [
+        'on run argv',
+        'set inputPath to item 1 of argv',
+        'set outputPath to item 2 of argv',
+        'tell application "Keynote"',
+        'with timeout of 1200 seconds',
+        'set docRef to open POSIX file inputPath',
+        'export docRef to POSIX file outputPath as PDF',
+        'close docRef saving no',
+        'end timeout',
+        'end tell',
+        'end run',
+    ]
+    command: List[str] = ["osascript"]
+    for line in script:
+        command.extend(["-e", line])
+    command.extend([str(pptx_path), str(pdf_path)])
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=max(20, SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT),
+        )
+        if pdf_path.exists() and pdf_path.stat().st_size > 0:
+            return True, "keynote"
+    except Exception:
+        pass
+    return False, ""
+
+
+def convert_pptx_to_pdf_with_macos_app(pptx_path: Path, pdf_path: Path) -> Tuple[bool, str]:
+    for converter in (convert_pptx_to_pdf_with_powerpoint, convert_pptx_to_pdf_with_keynote):
+        ok, mode = converter(pptx_path, pdf_path)
+        if ok:
+            return True, mode
+    return False, ""
+
+
+def render_pptx_source_preview_images(data: bytes, prs: Any, max_slides: int) -> Tuple[Dict[int, str], str]:
+    """Render PPTX slides for the interactive source viewer.
+
+    This is separate from generation-time slide rendering. The user explicitly
+    opened a source, so a short on-demand conversion is worth the cost. The
+    production path is LibreOffice/headless PPTX-to-PDF conversion, which can run
+    in a deployed server or container. Local desktop apps are an explicit
+    developer-only fallback and are disabled by default. If native conversion is
+    unavailable, keep the reader useful by returning complete SVG slide canvases
+    instead of fragmented extracted text/images.
+    """
+    if max_slides <= 0:
+        return {}, ""
+
+    if ENABLE_SOURCE_PPTX_PREVIEW_RENDER:
+        soffice = find_libreoffice_binary()
+        if fitz is not None and soffice:
+            with tempfile.TemporaryDirectory() as tmp:
+                tmpdir = Path(tmp)
+                pptx_path = tmpdir / "source-preview.pptx"
+                pptx_path.write_bytes(data)
+                try:
+                    subprocess.run(
+                        [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(tmpdir), str(pptx_path)],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=max(20, SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT),
+                    )
+                    pdf_candidates = list(tmpdir.glob("*.pdf"))
+                    if pdf_candidates:
+                        rendered = render_pdf_path_to_source_preview_images(pdf_candidates[0], max_slides)
+                        if rendered:
+                            return rendered, "libreoffice"
+                except Exception:
+                    pass
+
+        if fitz is not None and ENABLE_LOCAL_PPTX_APP_RENDER:
+            with tempfile.TemporaryDirectory() as tmp:
+                tmpdir = Path(tmp)
+                pptx_path = tmpdir / "source-preview.pptx"
+                pdf_path = tmpdir / "source-preview-local-app.pdf"
+                pptx_path.write_bytes(data)
+                ok, app_mode = convert_pptx_to_pdf_with_macos_app(pptx_path, pdf_path)
+                if ok:
+                    rendered = render_pdf_path_to_source_preview_images(pdf_path, max_slides)
+                    if rendered:
+                        return rendered, f"local-{app_mode}"
+
+    svg_rendered = render_pptx_source_preview_svg_images(prs, max_slides)
+    if svg_rendered:
+        return svg_rendered, "server-svg"
+    return {}, ""
+
+
+def build_pdf_source_preview(data: bytes, source_name: str) -> dict:
+    if fitz is None:
+        return {
+            "kind": "pdf",
+            "title": source_name,
+            "error": "PDF page preview requires PyMuPDF on the backend.",
+        }
+
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+    except Exception:
+        return {
+            "kind": "pdf",
+            "title": source_name,
+            "error": "This PDF could not be opened for preview.",
+        }
+
+    try:
+        page_count = len(doc)
+        page_limit = max(1, min(SOURCE_PREVIEW_MAX_PDF_PAGES, page_count))
+        matrix = fitz.Matrix(max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72), max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72))
+        pages: List[dict] = []
+
+        for page_index in range(page_limit):
+            page = doc.load_page(page_index)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            pages.append({
+                "number": page_index + 1,
+                "image": source_preview_image_url(pix.tobytes("jpeg"), "image/jpeg"),
+            })
+
+        warning = ""
+        if page_count > page_limit:
+            warning = f"Showing the first {page_limit} of {page_count} pages for browser performance."
+
+        return {
+            "kind": "pdf",
+            "title": source_name,
+            "page_count": page_count,
+            "shown_count": len(pages),
+            "warning": warning,
+            "pages": pages,
+        }
+    except Exception as error:
+        return {
+            "kind": "pdf",
+            "title": source_name,
+            "error": f"PDF preview could not be rendered: {error}",
+        }
+    finally:
+        try:
+            doc.close()
+        except Exception:
+            pass
+
+
+def build_pptx_source_preview(data: bytes, source_name: str) -> dict:
+    if Presentation is None:
+        return {
+            "kind": "presentation",
+            "title": source_name,
+            "error": "PPTX preview requires python-pptx on the backend.",
+        }
+    try:
+        prs = Presentation(BytesIO(data))
+    except Exception:
+        return {
+            "kind": "presentation",
+            "title": source_name,
+            "error": "This PPTX could not be parsed. Try exporting it to PDF and uploading the PDF.",
+        }
+
+    slide_limit = max(1, min(SOURCE_PREVIEW_MAX_SLIDES, len(prs.slides)))
+    rendered_slides, render_mode = render_pptx_source_preview_images(data, prs, slide_limit)
+    embedded_image_count = 0
+    slides: List[dict] = []
+
+    for slide_index, slide in enumerate(prs.slides, start=1):
+        if slide_index > slide_limit:
+            break
+        lines: List[str] = []
+        images: List[dict] = []
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text and shape.text.strip():
+                lines.append(shape.text.strip())
+            if getattr(shape, "has_table", False):
+                table_md = pptx_table_to_markdown(shape.table)
+                if table_md:
+                    lines.append(f"Table on slide {slide_index}\n{table_md}")
+            chart_text = pptx_chart_to_text(shape, slide_index)
+            if chart_text:
+                lines.append(chart_text)
+            if (
+                not rendered_slides
+                and hasattr(shape, "image")
+                and embedded_image_count < SOURCE_PREVIEW_MAX_EMBEDDED_IMAGES
+            ):
+                try:
+                    blob = shape.image.blob
+                    content_type = shape.image.content_type or "image/png"
+                    embedded_image_count += 1
+                    images.append({
+                        "alt": f"Embedded image {len(images) + 1} on slide {slide_index}",
+                        "url": source_preview_image_url(blob, content_type),
+                    })
+                except Exception:
+                    pass
+
+        slide_text = "\n\n".join(part for part in lines if part).strip()
+        slides.append({
+            "number": slide_index,
+            "title": source_preview_title_from_text(slide_text, f"Slide {slide_index}"),
+            "text": slide_text,
+            "screenshot": rendered_slides.get(slide_index, ""),
+            "images": images,
+        })
+
+    warning = ""
+    if len(prs.slides) > slide_limit:
+        warning = f"Showing the first {slide_limit} of {len(prs.slides)} slides for browser performance."
+    elif not rendered_slides:
+        warning = "Full slide-page previews are unavailable. Install LibreOffice on the server for production PPTX rendering, or upload/export this presentation as PDF."
+
+    return {
+        "kind": "presentation",
+        "title": source_name,
+        "slide_count": len(prs.slides),
+        "shown_count": len(slides),
+        "render_mode": render_mode,
+        "rendered_slide_pages": bool(rendered_slides),
+        "warning": warning,
+        "slides": slides,
+    }
+
+
+def build_docx_source_preview(data: bytes, source_name: str) -> dict:
+    if Document is None:
+        return {
+            "kind": "document",
+            "title": source_name,
+            "error": "DOCX preview requires python-docx on the backend.",
+        }
+    try:
+        document = Document(BytesIO(data))
+    except Exception:
+        return {
+            "kind": "document",
+            "title": source_name,
+            "error": "This DOCX could not be parsed.",
+        }
+
+    blocks: List[str] = []
+    for paragraph in document.paragraphs:
+        text = normalise_space(paragraph.text)
+        if text:
+            blocks.append(text)
+    for table in document.tables:
+        rows: List[List[str]] = []
+        for row in table.rows:
+            cells = [normalise_space(cell.text).replace("|", "/") for cell in row.cells]
+            if any(cells):
+                rows.append(cells)
+        if rows:
+            width = max(len(row) for row in rows)
+            rows = [row + [""] * (width - len(row)) for row in rows]
+            table_lines = [
+                "| " + " | ".join(rows[0]) + " |",
+                "| " + " | ".join(["---"] * width) + " |",
+            ]
+            table_lines.extend("| " + " | ".join(row) + " |" for row in rows[1:])
+            blocks.append("\n".join(table_lines))
+
+    text = "\n\n".join(blocks).strip()
+    return {
+        "kind": "document",
+        "title": source_preview_title_from_text(text, source_name),
+        "text": truncate_text(text, 160000),
+    }
+
+
 def _v23_visual_kind(label: str) -> str:
     value = _v23_scoring_text(label).lower()
     if re.search(r"\b(table|mean|median|rate|statistics?|data|results?|percentage|sample|cohort|survey|risk ratio|odds ratio|confidence interval|p[- ]?value)\b|表|统计|数据|结果", value):
@@ -6480,10 +7314,8 @@ def _v23_parse_relevant_visual_cards(raw: str, candidates: List[dict], labels: d
         if useful is not True:
             continue
         reason = normalise_space(item.get("why_relevant") or item.get("argument_supported") or "")
-        if not reason or re.search(r"\b(direct support|nearby concept|uploaded material|source figure|visual evidence)\b", reason, flags=re.I):
-            continue
-        visible = normalise_space(item.get("what_shows") or "")
-        if not visible or re.search(r"\b(image|picture|source figure|visual)\b$", visible, flags=re.I):
+        visible = normalise_space(item.get("what_shows") or clean_source_figure_caption(cand.get("caption", "")))
+        if not visible or re.fullmatch(r"(?:image|picture|source figure|visual|figure)", visible, flags=re.I):
             continue
         card = {
             "index": len(cards),
@@ -6500,21 +7332,89 @@ def _v23_parse_relevant_visual_cards(raw: str, candidates: List[dict], labels: d
             "exam_use": normalise_space(item.get("exam_use") or ""),
             "visual_kind": cand.get("visual_kind", ""),
         }
-        cards.append(card)
+        cards.append(_v23_enrich_visual_card_details(card, labels))
         if len(cards) >= CONTROLLED_MAX_VISUALS:
             break
     return cards
 
 
+def _v23_visual_detail_is_generic(value: str) -> bool:
+    text = normalise_space(value or "")
+    if not text:
+        return True
+    if len(text) < 18:
+        return True
+    return bool(re.search(
+        r"\b("
+        r"direct support|nearby concept|uploaded material|source figure|visual evidence|"
+        r"connect this source figure|main concept|other uploaded materials|refer to this source figure|"
+        r"read alongside|actual screenshot from the source"
+        r")\b",
+        text,
+        flags=re.I,
+    ))
+
+
+def _v23_visual_detail_fallbacks(card: dict, labels: dict) -> dict:
+    kind = normalise_space(card.get("visual_kind") or "")
+    caption = clean_source_figure_caption(card.get("caption") or card.get("what_shows") or "")
+    title = normalise_space(card.get("title") or labels.get("figure_title") or "Source figure")
+    source = normalise_space(card.get("source_title") or "")
+    key_text = caption or title
+    chinese = any(re.search(r"[\u4e00-\u9fff]", str(labels.get(k, ""))) for k in labels)
+
+    if chinese:
+        base = {
+            "what_shows": key_text,
+            "why_relevant": f"这个图表不是装饰图；它把“{title}”这个知识点变成可以观察的证据，让学生能看到变量、步骤、比较或数据关系。",
+            "argument_supported": "它支持正文中的论点，因为学生可以从图中直接指出实验条件、数据模式、机制结构或关键对比，而不是只背结论。",
+            "cross_source_connection": "把这个图表和相邻知识点一起读：先说图中证据，再解释它如何支持、限制或修正正文中的概念。",
+            "how_to_read": _v23_default_how_to_read(kind, "simplified_chinese"),
+            "exam_use": "答题时先描述图中可见内容，再解释它证明了什么、不能证明什么，并把它连接到核心概念或研究方法。",
+        }
+    else:
+        base = {
+            "what_shows": key_text,
+            "why_relevant": f"This is not decoration: it turns the idea of {title} into inspectable source evidence, so the student can see the variables, sequence, comparison, or data relationship.",
+            "argument_supported": "It supports the surrounding explanation by making the method, pattern, mechanism, or contrast visible rather than asking the student to memorise an abstract claim.",
+            "cross_source_connection": "Read it with the nearby concept: describe the visible evidence first, then explain how it supports, limits, or sharpens the claim in the notes.",
+            "how_to_read": _v23_default_how_to_read(kind, "english"),
+            "exam_use": "In an answer, describe what is visible, interpret the source evidence, state the limit or implication, and connect it back to the concept.",
+        }
+
+    if source and not base["cross_source_connection"].startswith(source):
+        base["cross_source_connection"] = f"{source}: {base['cross_source_connection']}"
+    return base
+
+
+def _v23_enrich_visual_card_details(card: dict, labels: dict, preferred_language: str = "auto") -> dict:
+    """Ensure every in-text source figure has teachable explanation fields."""
+    enriched = dict(card or {})
+    fallback = _v23_visual_detail_fallbacks(enriched, labels)
+    for key in ("caption", "title", "what_shows", "why_relevant", "argument_supported", "cross_source_connection", "how_to_read", "exam_use"):
+        if key in enriched:
+            enriched[key] = clean_source_figure_caption(enriched.get(key, ""))
+    for key in ("what_shows", "why_relevant", "argument_supported", "cross_source_connection", "how_to_read", "exam_use"):
+        if _v23_visual_detail_is_generic(enriched.get(key, "")):
+            enriched[key] = fallback.get(key, "")
+    if _v23_visual_detail_is_generic(enriched.get("what_shows", "")) and enriched.get("caption"):
+        enriched["what_shows"] = clean_source_figure_caption(enriched.get("caption", ""))
+    return enriched
+
+
 def generate_visual_argument_cards(source_units: List[dict], source_digest_block: str, preferred_language: str) -> List[dict]:
     """v23 override: model filters decorative candidates and keeps only teaching images."""
+    labels = source_figure_labels(preferred_language)
     existing = []
     for unit in source_units or []:
         existing.extend(unit.get("visual_argument_cards") or [])
     if existing:
-        return existing
+        return [
+            _v23_enrich_visual_card_details(card, labels, preferred_language)
+            for card in existing
+            if isinstance(card, dict)
+        ]
 
-    labels = source_figure_labels(preferred_language)
     hard_limit = max(1, min(CONTROLLED_MAX_VISUALS, VISUAL_ARGUMENT_CARD_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
     candidate_pool = select_visual_candidates_for_argument(source_units, hard_limit)
     if not candidate_pool:
@@ -6560,6 +7460,15 @@ Rules:
 - If an image is a generic stock/product/person photo, set is_useful=false or omit it.
 - If the image does not visibly add information beyond nearby text, set is_useful=false or omit it.
 - why_relevant must name the specific concept/data relationship shown; generic phrases such as "supports the nearby concept" are invalid.
+- For every useful card, write concrete teaching text in every explanation field:
+  - what_shows: 1-2 sentences naming the visible variables, conditions, labels, sequence, pattern, or values.
+  - why_relevant: explain the exact concept/question this figure helps answer.
+  - argument_supported: explain how the figure supports, limits, or tests the surrounding argument.
+  - cross_source_connection: connect the figure to another idea, source, limitation, or exam theme when possible.
+  - how_to_read: give a practical reading method for this specific figure, not a generic label-reading sentence.
+  - exam_use: say how a student should use the figure in an answer.
+- Do not simply copy OCR text. Interpret the source screenshot as a tutor would.
+- Do not use generic phrases like "direct support", "nearby concept", "uploaded materials", or "read the labels/title first" unless followed by specific details from the figure.
 - Titles should name the concept shown in the figure, not the page/slide number.
 - For PDF/PPT pages, treat the attached image as the source screenshot that should be placed into the notes.
 - Keep the same order as their educational usefulness, not necessarily candidate order.
@@ -6785,6 +7694,7 @@ def _v23_fallback_visual_cards(candidates: List[dict], labels: dict, preferred_l
             "exam_use": "Use the figure as source evidence: describe what is visible, interpret it, then state the limitation or implication.",
             "visual_kind": kind,
         })
+        cards[-1] = _v23_enrich_visual_card_details(cards[-1], labels, preferred_language)
         if len(cards) >= CONTROLLED_MAX_VISUALS:
             break
     return cards
@@ -6978,6 +7888,7 @@ Never translate the product name Synapse.
 
 Mission:
 Create a genuinely useful lecture-notes page, not a summary report. The page should feel like a sharp tutor has read the uploaded source, decided what the student actually needs to understand, and then taught the ideas in the right order.
+The target is an advanced study tutor: a student should be able to revise, answer exam questions, interpret source figures, and explain the reasoning chain without reopening the original file.
 
 Style:
 - write like real class notes: concept title, short definition, explanation in your own words, source example/data, implication, limitation/misunderstanding, and exam use;
@@ -6986,6 +7897,8 @@ Style:
 - do not only list facts. Show the reasoning chain and the relationships between ideas;
 - do not jump straight to overview tables. Teach the ideas first, then use tables to consolidate them;
 - do not overuse slide/page numbers. Teach the concept directly.
+- never let source screenshots replace teaching. The text must explain the idea before and after the image.
+- when the source contains a graph, table, experiment setup, diagram, or data display, explicitly teach how to read it: variables/labels -> pattern/result -> interpretation -> limitation -> exam use.
 
 Source-image rules:
 - Use images for diagrams, data tables, charts, scatter plots, correlation figures, genotype/environment graphs, experiment setups, game-theory examples, method/result figures, or formulas.
@@ -7008,6 +7921,7 @@ Output requirements:
 - Write in the selected language.
 - Use the same "notes page" feel as the reference image: clean headings, strong paragraphs, helpful tables, and source screenshots embedded only when useful.
 - This is the Notes tab, not only the Summary section. It should be detailed enough to study from directly.
+- Build the page as deep notes, not a short executive summary: include mechanisms, examples, evidence, caveats, exam framing, and memory hooks where supported.
 - Do not shrink the summary because images are present. Images should add evidence; they must not replace definitions, reasoning, examples, or source interpretation.
 - Insert [[VISUAL:n]] immediately after the concept/example/data point it explains. Use each available source figure at most once.
 - Before each [[VISUAL:n]], write enough concept text for the student to know what problem/question the image answers.
@@ -7026,6 +7940,8 @@ Output requirements:
 - Build table(s) from source material when it helps: theory comparison, evidence matrix, key term table, case/example table, or exam-use table.
 - Include "common student mistake" notes for concepts that are easy to confuse.
 - End with a practical revision checklist that tells the student what they should be able to explain, compare, calculate, or critique.
+- Add a "how to use this source evidence" moment for major experiments, figures, tables, or named studies so students learn how to write about them, not just recognise them.
+- If the uploaded material has multiple related ideas, preserve the teaching progression instead of flattening everything into one table.
 
 Recommended structure:
 {recommended_structure}
@@ -7071,21 +7987,39 @@ Quality bar:
                 quality_gaps=quality_gaps,
             )
     except Exception:
+        is_chinese_fallback = generation_language in {"simplified_chinese", "traditional_chinese", "mixed_chinese_english"}
         rows = []
         for i, unit in enumerate(source_units or [], start=1):
             title = unit.get("title_candidate") or unit.get("display_name") or f"Source {i}"
             excerpt = truncate_text(normalise_space(unit.get("text_excerpt") or ""), 850)
-            rows.append(f"| Source {i} | {title} | {excerpt or 'Readable text limited; use extracted source figures if available.'} |")
-        result = (
-            "# Integrated Study Guide\n\n"
-            "## Big Picture\n\nSynapse extracted source text and will place useful uploaded screenshots directly beside the concepts they explain.\n\n"
-            "## Source Evidence Table\n\n| Source | Topic | Useful evidence |\n|---|---|---|\n" + "\n".join(rows) + "\n\n"
-            "## Source Examples and Evidence\n\n"
-        )
+            fallback_excerpt = "可读文本有限；请结合已提取的源内图表、表格或实验截图阅读。" if is_chinese_fallback else "Readable text was limited; use the extracted source figures, tables, or experiment screenshots as evidence."
+            rows.append(f"| Source {i} | {title} | {excerpt or fallback_excerpt} |")
+        if is_chinese_fallback:
+            result = (
+                "# 综合学习笔记\n\n"
+                "## 核心框架\n\nSynapse 已提取可读来源内容，并会把真正有教学价值的源内图表、表格、实验流程或数据截图放进相关概念旁边。阅读时先理解概念，再用来源证据检验这个概念。\n\n"
+                "## 来源证据表\n\n| 来源 | 主题 | 可用证据 |\n|---|---|---|\n" + "\n".join(rows) + "\n\n"
+                "## 源内例子与证据\n\n"
+            )
+        else:
+            result = (
+                "# Integrated Study Guide\n\n"
+                "## Big Picture\n\nSynapse extracted the readable source content and will place useful uploaded figures, tables, experiment setups, or data screenshots beside the concepts they explain. Read the concept first, then use the source evidence to test and sharpen it.\n\n"
+                "## Source Evidence Table\n\n| Source | Topic | Useful evidence |\n|---|---|---|\n" + "\n".join(rows) + "\n\n"
+                "## Source Examples and Evidence\n\n"
+            )
         for i, card in enumerate(visual_cards or []):
+            title = card.get("title") or ("来源图表" if is_chinese_fallback else "Source figure")
+            what = card.get("what_shows") or card.get("caption") or ""
+            why = card.get("argument_supported") or card.get("why_relevant") or ""
+            lead = (
+                f"这个来源图表值得放在正文中，因为它展示了：{normalise_space(what)}。它支持或限定的论点是：{normalise_space(why)}。"
+                if is_chinese_fallback else
+                f"This source figure belongs in the notes because it shows: {normalise_space(what)}. The claim it supports or limits is: {normalise_space(why)}."
+            )
             result += (
-                f"### {card.get('title')}\n\n"
-                f"The following source figure is included because it supports the nearby concept rather than acting as decoration."
+                f"### {title}\n\n"
+                f"{lead}"
                 f"{_v23_marker_block(card, i, generation_language)}"
             )
     result = remove_auto_bilingual_heading_leakage(result, preferred_language, source_context)
@@ -7167,7 +8101,8 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
     for card in cards or []:
         if not _v23_card_is_teaching_figure(card):
             continue
-        item = dict(card)
+        card_language = "simplified_chinese" if re.search(r"[\u4e00-\u9fff]", _v23_card_text(card)) else "english"
+        item = _v23_enrich_visual_card_details(dict(card), source_figure_labels(card_language), card_language)
         try:
             item["index"] = int(item.get("index", len(cleaned)))
         except Exception:
@@ -7175,15 +8110,97 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
         item["title"] = normalise_space(item.get("title") or f"Source figure {len(cleaned) + 1}")
         item["caption"] = clean_source_figure_caption(item.get("caption") or item.get("what_shows") or "")
         item["what_shows"] = clean_source_figure_caption(item.get("what_shows") or item.get("caption") or "")
-        # Keep inline cards lightweight. The full explanation belongs in the
-        # surrounding notes, not repeated in the figure chrome.
-        item["argument_supported"] = ""
-        item["cross_source_connection"] = ""
-        item["exam_use"] = ""
+        for detail_key in ("why_relevant", "argument_supported", "cross_source_connection", "how_to_read", "exam_use"):
+            item[detail_key] = clean_source_figure_caption(item.get(detail_key) or "")
         cleaned.append(item)
         if len(cleaned) >= max_items:
             break
     return cleaned
+
+
+@app.post("/translate-notes")
+async def translate_notes(payload: Dict):
+    """Translate an already generated notes page without losing source markers.
+
+    The frontend renders [[VISUAL:n]] markers as in-text source cards, so this
+    endpoint treats those markers as protected tokens and returns sections for
+    navigation after translation.
+    """
+    try:
+        require_openai()
+        if not isinstance(payload, dict):
+            return {"error": "Invalid translation request."}
+
+        summary = str(payload.get("summary") or "").strip()
+        if not summary:
+            return {"error": "No notes were provided for translation."}
+
+        target_language = payload.get("target_language") or "english"
+        language_key = normalise_language_key(target_language)
+        if language_key == "auto":
+            language_key = resolve_generation_language_key("auto", summary)
+        language_rule = language_instruction_for(language_key)
+        title = normalise_space(str(payload.get("title") or "Study Notes"))
+        original_markers = re.findall(r"\[\[VISUAL:\d+\]\]", summary)
+
+        prompt = f"""
+You are translating a Synapse study-note page for a student.
+
+Language requirement: {language_rule}
+Never translate the product name Synapse.
+
+Critical preservation rules:
+- Preserve the markdown structure: headings, bullets, numbered lists, tables, bold text, formulas, and paragraph order.
+- Preserve every in-text source marker exactly, for example [[VISUAL:0]]. Do not translate, delete, renumber, or move these markers away from the nearby concept.
+- Do not summarise or shorten the notes. Translate the existing detail faithfully.
+- Keep source names, researcher names, article titles, file names, formulas, data values, and academic terms accurate. If a key term is better left in English, keep it and explain around it in the target language.
+- Do not add new factual claims.
+
+Return strict JSON:
+{{
+  "title": "translated title",
+  "summary": "translated markdown notes"
+}}
+
+Title:
+{title}
+
+Notes:
+{summary}
+"""
+        raw = generate_chat(
+            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+            model=model_for_depth("detailed"),
+            temperature=0,
+            max_tokens=CONTROLLED_OUTPUT_TOKENS,
+        ).strip()
+        parsed = extract_json_object(raw)
+        translated = str(parsed.get("summary") or raw or "").strip()
+        translated_title = normalise_space(str(parsed.get("title") or title))
+
+        if translated.startswith("```"):
+            translated = re.sub(r"^```(?:json|markdown)?\s*|\s*```$", "", translated, flags=re.I | re.S).strip()
+        if is_refusal_or_useless_response(translated):
+            return {"error": "Translation response was not usable."}
+
+        missing_markers = [marker for marker in original_markers if marker not in translated]
+        if missing_markers:
+            translated = f"{translated.rstrip()}\n\n" + "\n\n".join(missing_markers)
+
+        translated = protect_synapse_brand_and_first_heading(translated, language_key)
+        translated = ensure_markdown_note_headings(translated, language_key)
+        translated = normalise_plain_sqrt_text(translated)
+        sections = parse_sections(translated)
+        translated_title = localise_title_if_needed(translated_title, language_key)
+
+        return {
+            "title": translated_title,
+            "summary": translated,
+            "sections": sections,
+            "output_language": language_key,
+        }
+    except Exception as error:
+        return {"error": str(error)}
 
 
 # -----------------------------------------------------------------------------
@@ -7543,7 +8560,7 @@ def fallback_timeline_from_context(title: str, sections: Dict[str, str], context
             "section": name,
             "summary": summary,
             "detail": summary,
-            "task": f"Read this part and write a two-sentence explanation of: {summary[:120]}",
+            "task": f"Read the section \"{short_mindmap_text(name, 80)}\" and write a two-sentence explanation. First state the main idea; then connect it to one source detail, example, or limitation from the notes.",
             "active_prompt": f"Without looking, explain the key idea from {name}.",
             "practice_question": practice_question,
             "deliverable": "A short explanation in your own words.",
@@ -7693,6 +8710,9 @@ Rules:
 - Every task must include practice_question. This is the explicit short question the student sees first, so it must make the student know exactly what to answer.
 - Use a varied mix of practice_question types. Do not default to multiple choice. Prefer short_answer, case_analysis, compare, diagram_prompt, and essay_outline when those are better for understanding; use single_choice, multiple_choice, and true_false only when options genuinely help.
 - Practice questions should be answerable from the notes and should be shorter than the supporting explanation.
+- The "task" field must be a complete student-facing instruction in 1 to 3 full sentences. It must not end with ellipses, a colon, or a dangling word such as "and", "or", "with", "about", "of", or "to".
+- The "task" field should say exactly what to read/do and what mini-output to produce. Do not simply repeat the section title.
+- The "deliverable" and "mastery_check" fields must be concrete enough to display as completion criteria in the UI.
 - Use realistic estimated_minutes values from 5 to 25.
 - Do not invent dates. If no real date exists, use Step markers.
 - Use exact course concepts, named researchers, experiments, diagrams, tables, and data only when they appear in the notes context.
