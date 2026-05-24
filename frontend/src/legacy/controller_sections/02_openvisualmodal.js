@@ -112,22 +112,6 @@ function renderSections() {
   });
 }
 
-function sectionsToMarkdown(sectionMap) {
-  return Object.entries(sectionMap || {})
-    .map(([title, content]) => {
-      const body = String(content || "").trim();
-      if (!body) return "";
-      return `## ${title}\n\n${body}`;
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function ensureRenderableSummary(summary, sectionMap = sections) {
-  const value = String(summary || "").trim();
-  return value || sectionsToMarkdown(sectionMap);
-}
-
 function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are available for this section.") {
   if (!summaryContent) return;
   const source = String(markdown || "").trim();

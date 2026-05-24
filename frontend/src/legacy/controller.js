@@ -29,6 +29,7 @@ import {
   pruneCacheRecords,
   transactCacheStore
 } from "./indexedDbStore.js";
+import { ensureRenderableSummary } from "./notesContent.js";
 import {
   cleanMindText,
   configureMarkdownRenderer,
@@ -72,6 +73,7 @@ const controllerLoader = new LegacyControllerLoader({
     cleanMindText,
     escapeAttr,
     escapeHTML,
+    ensureRenderableSummary,
     formatBytes,
     getYouTubeVideoIdClient,
     getYoutubeTranscriptState,
