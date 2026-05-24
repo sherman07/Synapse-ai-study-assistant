@@ -112,6 +112,45 @@ function renderSections() {
   });
 }
 
+function sectionsToMarkdown(sectionMap) {
+  return Object.entries(sectionMap || {})
+    .map(([title, content]) => {
+      const body = String(content || "").trim();
+      if (!body) return "";
+      return `## ${title}\n\n${body}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function ensureRenderableSummary(summary, sectionMap = sections) {
+  const value = String(summary || "").trim();
+  return value || sectionsToMarkdown(sectionMap);
+}
+
+function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are available for this section.") {
+  if (!summaryContent) return;
+  const source = String(markdown || "").trim();
+  if (!source) {
+    summaryContent.innerHTML = `<div class="notes-empty-state">${escapeHTML(emptyMessage)}</div>`;
+    return;
+  }
+  typeInto(summaryContent, markdownToHTML(source), renderMath);
+}
+
+function renderFullNotes() {
+  sectionTitle.innerText = "Study Notes";
+  contextLabel.textContent = "Current Notes";
+  renderNotesMarkdown(ensureRenderableSummary(fullSummary, sections), "No generated notes are available yet.");
+}
+
+function renderSectionNotes(title) {
+  selectedSection = title;
+  sectionTitle.innerText = title;
+  contextLabel.textContent = shorten(title, 22);
+  renderNotesMarkdown(sections[title], `No notes were generated for ${title}.`);
+}
+
 function createSectionButton(title, isMobile = false) {
   const btn = document.createElement("button");
   btn.type = "button";
@@ -120,16 +159,12 @@ function createSectionButton(title, isMobile = false) {
   btn.innerHTML = `<i class="bi bi-chevron-right"></i><span>${escapeHTML(title)}</span>`;
 
   btn.addEventListener("click", () => {
-    selectedSection = title;
-    sectionTitle.innerText = title;
-    contextLabel.textContent = shorten(title, 22);
+    renderSectionNotes(title);
 
     document.querySelectorAll(".section-btn").forEach(button => {
       const label = button.querySelector("span")?.textContent?.trim() || button.textContent.trim();
       button.classList.toggle("active", label === title);
     });
-
-    typeInto(summaryContent, markdownToHTML(sections[title]), renderMath);
 
     if (isMobile) {
       const mobileNav = document.getElementById("mobileNav");
@@ -143,10 +178,8 @@ function createSectionButton(title, isMobile = false) {
 
 function showFullSummary() {
   selectedSection = "";
-  sectionTitle.innerText = "Study Notes";
-  contextLabel.textContent = "Current Notes";
   document.querySelectorAll(".section-btn").forEach(button => button.classList.remove("active"));
-  typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
+  renderFullNotes();
 }
 
 function printableSourceListHTML() {
@@ -284,7 +317,7 @@ async function translateCurrentNotes(targetLanguage) {
   if (downloadNotesBtn) downloadNotesBtn.disabled = true;
 
   try {
-    const response = await fetch(`${API_BASE}/translate-notes`, {
+    const response = await apiClient.fetch("/translate-notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -302,11 +335,10 @@ async function translateCurrentNotes(targetLanguage) {
     fullSummary = data.summary || fullSummary;
     storedTitle = data.title || storedTitle;
     sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(data.sections || {}, fullSummary), fullSummary, language);
+    fullSummary = ensureRenderableSummary(fullSummary, sections);
     selectedSection = "";
-    sectionTitle.innerText = "Study Notes";
-    contextLabel.textContent = "Current Notes";
     renderSections();
-    typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
+    renderFullNotes();
 
     const savedEntry = saveHistoryEntry({
       title: storedTitle,

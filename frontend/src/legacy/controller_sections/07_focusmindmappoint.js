@@ -54,7 +54,7 @@ async function askAI() {
   const typingId = addTypingIndicator();
 
   try {
-    const response = await fetch(`${API_BASE}/ask`, {
+    const response = await apiClient.fetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

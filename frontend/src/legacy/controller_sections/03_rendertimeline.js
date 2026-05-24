@@ -379,7 +379,7 @@ async function checkStudyPathAnswer(eventId) {
   }, true);
 
   try {
-    const response = await fetch(`${API_BASE}/timeline/check-answer`, {
+    const response = await apiClient.fetch("/timeline/check-answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -484,7 +484,7 @@ async function generateTimeline(force = false) {
   renderTimelinePanel();
 
   try {
-    const response = await fetch(`${API_BASE}/timeline/generate`, {
+    const response = await apiClient.fetch("/timeline/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

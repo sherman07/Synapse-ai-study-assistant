@@ -178,7 +178,7 @@ async function generateFlashcards() {
   renderFlashcardPanel();
 
   try {
-    const response = await fetch(`${API_BASE}/flashcards/generate`, {
+    const response = await apiClient.fetch("/flashcards/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -828,10 +828,7 @@ function activateSectionFromMap(sectionName) {
   if (target) {
     target.click();
   } else {
-    selectedSection = exact;
-    sectionTitle.innerText = exact;
-    contextLabel.textContent = shorten(exact, 22);
-    typeInto(summaryContent, markdownToHTML(sections[exact]), renderMath);
+    renderSectionNotes(exact);
   }
   document.getElementById("summaryContent")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }

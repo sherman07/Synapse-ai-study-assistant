@@ -28,37 +28,61 @@ class LegacyControllerLoader {
     return `${url.href}?v=${this.version}`;
   }
 
-  loadScript(fileName) {
-    return new Promise((resolve, reject) => {
-      const script = this.documentRef.createElement("script");
-      script.src = this.sectionUrl(fileName);
-      script.dataset.synapseControllerSection = fileName;
-      script.async = false;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error(`Could not load ${fileName}`));
-      this.documentRef.body.appendChild(script);
-    });
+  async fetchSection(fileName) {
+    const response = await fetch(this.sectionUrl(fileName));
+    if (!response.ok) {
+      throw new Error(`Could not load ${fileName}: ${response.status}`);
+    }
+    return {
+      fileName,
+      source: await response.text()
+    };
   }
 
-  configureMarkdownHooks() {
+  configureMarkdownHooks = () => {
     this.configureMarkdownRenderer({
       getLearningFigureByMarker: this.globalScope.getLearningFigureByMarker,
       renderInlineVisualCard: this.globalScope.renderInlineVisualCard,
       renderInlineVisualReference: this.globalScope.renderInlineVisualReference
     });
+  };
+
+  combinedSource(definitionSections, bootSection) {
+    const definitionSource = definitionSections
+      .map(({ fileName, source }) => `\n/* ${fileName} */\n${source}`)
+      .join("\n");
+    return [
+      definitionSource,
+      "window.__synapseConfigureMarkdownHooks && window.__synapseConfigureMarkdownHooks();",
+      `\n/* ${bootSection.fileName} */\n${bootSection.source}`,
+      "\n//# sourceURL=synapse-legacy-controller-combined.js"
+    ].join("\n");
   }
 
-  async loadDefinitions() {
+  executeCombinedScript(source) {
+    const script = this.documentRef.createElement("script");
+    script.dataset.synapseControllerSection = "combined";
+    script.textContent = source;
+    this.documentRef.body.appendChild(script);
+  }
+
+  async loadCombinedController() {
+    const definitionSections = [];
     for (const fileName of this.definitionFiles) {
-      await this.loadScript(fileName);
+      definitionSections.push(await this.fetchSection(fileName));
+    }
+    const bootSection = await this.fetchSection(this.bootFile);
+    this.globalScope.__synapseConfigureMarkdownHooks = this.configureMarkdownHooks;
+    try {
+      this.executeCombinedScript(this.combinedSource(definitionSections, bootSection));
+    } finally {
+      delete this.globalScope.__synapseConfigureMarkdownHooks;
     }
   }
 
   async load() {
     this.exposeUtilities();
-    await this.loadDefinitions();
-    this.configureMarkdownHooks();
-    await this.loadScript(this.bootFile);
+    await this.loadCombinedController();
   }
 }
 

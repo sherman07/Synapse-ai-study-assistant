@@ -74,7 +74,7 @@ async function fetchSourcePreview(item) {
 
   const formData = new FormData();
   formData.append("file", item.blob, item.name || item.displayName || "source");
-  const response = await fetch(`${API_BASE}/source-preview`, {
+  const response = await apiClient.fetch("/source-preview", {
     method: "POST",
     body: formData
   });
@@ -577,6 +577,7 @@ async function loadHistoryEntry(id, options = {}) {
   fullSummary = removeAutoBilingualHeadings(item.summary || "", item.language || "auto");
   storedTitle = item.title || makeHistoryTitle(fullSummary) || "Study Notes";
   sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(item.sections || {}, fullSummary), fullSummary, item.language || "auto");
+  fullSummary = ensureRenderableSummary(fullSummary, sections);
   connectionsData = item.connections || [];
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
   currentHistoryId = item.id;
@@ -590,8 +591,6 @@ async function loadHistoryEntry(id, options = {}) {
   safeSetLocalStorage(ACTIVE_HISTORY_KEY, id);
   showAnalysisView({ scrollToTop: !options.preserveScroll });
 
-  sectionTitle.innerText = "Study Notes";
-  contextLabel.textContent = "Current Notes";
   renderSections();
   renderConnections();
   currentMindMap = item.mindMap || item.mind_map || item.brainstorm || null;
@@ -612,7 +611,7 @@ async function loadHistoryEntry(id, options = {}) {
   renderMindMap(currentMindMap);
   renderVisualGallery();
   loadTutorChatHistoryForCurrentNote();
-  typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
+  renderFullNotes();
 }
 
 function formatHistoryDate(value) {

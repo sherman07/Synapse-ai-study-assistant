@@ -48,6 +48,7 @@ class AnalysisCacheStore:
                 payload = json.dumps(cleaned, ensure_ascii=False, separators=(",", ":"))
             else:
                 payload = json.dumps(cleaned, ensure_ascii=False, indent=2)
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(payload, encoding="utf-8")
         except Exception:
             pass

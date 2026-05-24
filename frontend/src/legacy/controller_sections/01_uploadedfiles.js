@@ -668,7 +668,7 @@ async function analyzeMaterials() {
   formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
-    const response = await fetch(`${API_BASE}/analyze`, {
+    const response = await apiClient.fetch("/analyze", {
       method: "POST",
       body: formData
     });
@@ -688,6 +688,7 @@ async function analyzeMaterials() {
     fullSummary = removeAutoBilingualHeadings(data.summary || "", outputLanguage);
     storedTitle = data.title || makeHistoryTitle(fullSummary) || "Study Notes";
     sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(data.sections || {}, fullSummary), fullSummary, outputLanguage);
+    fullSummary = ensureRenderableSummary(fullSummary, sections);
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
     visualGalleryData = sanitizeLearningFigures(data.visual_gallery);
@@ -758,7 +759,7 @@ async function analyzeMaterials() {
     loadFlashcardsForCurrentNote();
     loadTutorChatHistoryForCurrentNote();
     loadVoiceTutorHistoryForCurrentNote();
-    typeInto(summaryContent, markdownToHTML(fullSummary), renderMath);
+    renderFullNotes();
     requestAnimationFrame(() => renderMindMap(currentMindMap));
   } catch (error) {
     console.error(error);

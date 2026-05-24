@@ -30,7 +30,7 @@ async function generateVisualGuide(force = false) {
   renderVisualGuidePanel();
 
   try {
-    const response = await fetch(`${API_BASE}/visual-guide/generate`, {
+    const response = await apiClient.fetch("/visual-guide/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

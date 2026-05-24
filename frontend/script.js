@@ -2,7 +2,7 @@
   function load() {
     if (document.querySelector("script[data-synapse-controller]")) return;
 
-    const version = "math-regex-v2";
+    const version = "class-loader-v8";
     const controllerScript = document.createElement("script");
     controllerScript.type = "module";
     controllerScript.src = `./src/legacy/controller.js?v=${version}`;

@@ -1,0 +1,26 @@
+{
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/venv/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.synapse_runtime/**": true,
+    "**/backend/synapse_analysis_cache.json": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/venv": true,
+    "**/__pycache__": true,
+    "**/.synapse_runtime": true,
+    "**/backend/synapse_analysis_cache.json": true
+  },
+  "liveServer.settings.ignoreFiles": [
+    "**/.venv/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/.pytest_cache/**",
+    "**/.synapse_runtime/**",
+    "**/backend/synapse_analysis_cache.json",
+    "**/*.pyc"
+  ]
+}

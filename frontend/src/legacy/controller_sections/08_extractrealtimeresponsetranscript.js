@@ -291,7 +291,7 @@ async function startRealtimeVoiceTutor() {
     const offer = await voiceRealtimePeer.createOffer();
     await voiceRealtimePeer.setLocalDescription(offer);
     await waitForIceGathering(voiceRealtimePeer);
-    const response = await fetch(`${API_BASE}/voice-tutor/realtime-call`, {
+    const response = await apiClient.fetch("/voice-tutor/realtime-call", {
       method: "POST",
       body: buildVoiceTutorSessionFormData(voiceRealtimePeer.localDescription.sdp)
     });
@@ -450,7 +450,65 @@ window.addEventListener("resize", syncAssistantMobileState);
 
 function resetWorkspace() {
   safeRemoveLocalStorage(ACTIVE_HISTORY_KEY);
-  location.reload();
+  stopRealtimeVoiceTutor({ silent: true });
+  revokeSourceObjectURLs();
+
+  uploadedFiles = [];
+  uploadedLinks = [];
+  sections = {};
+  fullSummary = "";
+  selectedSection = "";
+  chatHistory = [];
+  connectionsData = [];
+  currentSourceFingerprint = "";
+  currentHistoryId = "";
+  currentPrimarySourceIdentity = "";
+  currentMindMap = null;
+  storedTitle = "Study Notes";
+  activeTool = "mindmap";
+  visualGalleryData = [];
+  sourceViewerItems = [];
+  sourceViewerOpen = false;
+  activeSourceItemId = "";
+  sourceViewerZoom = 100;
+  assistantExpanded = false;
+
+  if (assetUpload) assetUpload.value = "";
+  if (linkInput) linkInput.value = "";
+  if (sourceInput) sourceInput.value = "";
+  if (summaryContent) summaryContent.innerHTML = "";
+  if (sectionsContainer) sectionsContainer.innerHTML = "";
+  if (visualGallery) {
+    visualGallery.innerHTML = "";
+    visualGallery.classList.add("d-none");
+  }
+  if (sourceViewerPanel) sourceViewerPanel.classList.add("d-none");
+  if (loadingBox) loadingBox.classList.add("d-none");
+  if (resultGrid) resultGrid.classList.add("d-none");
+  if (analysisStage) analysisStage.classList.add("d-none");
+  if (uploadStage) uploadStage.classList.remove("d-none");
+  if (assistant) assistant.classList.add("hidden");
+  if (openAssistantBtn) openAssistantBtn.style.display = "none";
+
+  resetTimelineState();
+  resetVisualGuideState();
+  resetQuizState();
+  resetFlashcardState();
+  resetVoiceTutorState();
+  renderFilePreview();
+  renderLinkPreview();
+  renderSourceViewer();
+  setupVisualGuideTool();
+  setupTimelineTool();
+  setupQuizTool();
+  setupFlashcardTool();
+
+  appLayout.classList.remove("analysis-ready", "loading-state");
+  appLayout.classList.add("initial-state", "assistant-closed");
+  requestAnimationFrame(() => {
+    const target = uploadStage || document.body;
+    target.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  });
 }
 
 async function buildClientFingerprint(rawSource, sourceLinks = []) {

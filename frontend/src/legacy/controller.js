@@ -1,4 +1,5 @@
 import { API_BASE } from "./apiConfig.js";
+import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -39,9 +40,9 @@ import {
   shorten,
   typeInto
 } from "./markdownRenderer.js";
-import { LegacyControllerLoader } from "./controllerLoader.js";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "sectioned-v2";
+const CONTROLLER_VERSION = "sectioned-v7";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -54,6 +55,7 @@ const CONTROLLER_DEFINITION_FILES = [
   "09_togglesourceviewer.js",
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
+const apiClient = new SynapseApiClient(API_BASE);
 
 const controllerLoader = new LegacyControllerLoader({
   baseUrl: import.meta.url,
@@ -63,6 +65,8 @@ const controllerLoader = new LegacyControllerLoader({
   globalScope: window,
   utilities: {
     API_BASE,
+    ApiConnectionError,
+    apiClient,
     cacheRecordKeys,
     cleanAutoLanguageSectionTitles,
     cleanMindText,

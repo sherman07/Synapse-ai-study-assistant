@@ -1,6 +1,37 @@
 # Synapse-ai-study-assistant
 An AI-powered personal academic brain that remembers everything you learn, connects ideas across time, and actively helps you think, not just summarize.
 
+## Local Development
+
+Start the backend with the project runner, not a raw `uvicorn --reload` command:
+
+```bash
+.venv/bin/python run_backend.py
+```
+
+The runner watches only `backend/`. This prevents the reload loop caused by
+Uvicorn watching `.venv/lib/.../site-packages`.
+
+If you prefer the raw command, include `--reload-dir backend`:
+
+```bash
+.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8001 --reload --reload-dir backend
+```
+
+For the static frontend, use the project server and browse to
+`http://localhost:5173/frontend/`.
+
+```bash
+.venv/bin/python run_frontend.py
+```
+
+This static server does not inject auto-refresh code, so the browser will not
+reload while you are typing or dropping sources.
+
+VS Code Live Server on port `5500` injects a reload WebSocket. Synapse now blocks
+that reload message in local development, but the project server above is still
+the cleanest way to test source uploads.
+
 ## Production Source Preview
 
 Synapse should render uploaded sources on the server, not by relying on a local desktop app. For full PPTX slide previews in the Sources panel, install LibreOffice in the production image/server and keep local desktop fallbacks disabled.
