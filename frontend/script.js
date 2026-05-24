@@ -2,8 +2,10 @@
   function load() {
     if (document.querySelector("script[data-synapse-controller]")) return;
 
+    const version = "math-regex-v2";
     const controllerScript = document.createElement("script");
-    controllerScript.src = "./src/legacy/controller.js";
+    controllerScript.type = "module";
+    controllerScript.src = `./src/legacy/controller.js?v=${version}`;
     controllerScript.dataset.synapseController = "true";
     controllerScript.async = false;
     document.body.appendChild(controllerScript);

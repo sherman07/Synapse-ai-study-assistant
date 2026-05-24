@@ -1,8 +1,10 @@
 export function loadLegacyController() {
   if (document.querySelector("script[data-synapse-controller]")) return;
 
+  const version = "math-regex-v2";
   const controllerScript = document.createElement("script");
-  controllerScript.src = new URL("./controller.js", import.meta.url).href;
+  controllerScript.type = "module";
+  controllerScript.src = `${new URL("./controller.js", import.meta.url).href}?v=${version}`;
   controllerScript.dataset.synapseController = "true";
   controllerScript.async = false;
   document.body.appendChild(controllerScript);

@@ -28,7 +28,21 @@ export function UploadStage() {
         <div id="filePreview" class="file-preview d-none"></div>
 
         <div class="source-box">
-          <label for="sourceInput" class="form-label">Paste links, video links, or text</label>
+          <label for="linkInput" class="form-label">Add online sources</label>
+          <div class="multi-link-adder">
+            <div class="multi-link-input-wrap">
+              <i class="bi bi-link-45deg"></i>
+              <input id="linkInput" class="multi-link-input" type="text" placeholder="Paste one or many links, then press Enter or Add">
+            </div>
+            <button id="addLinkBtn" class="btn btn-outline-primary multi-link-add-btn" type="button" onclick="addLinksFromInput()">
+              <i class="bi bi-plus-lg"></i>
+              Add
+            </button>
+          </div>
+          <div id="linkPreview" class="link-preview d-none" aria-live="polite"></div>
+          <p class="source-helper source-helper-tight">Supports multiple YouTube, webpage, video, and article links. Paste links separated by spaces, commas, or new lines.</p>
+
+          <label for="sourceInput" class="form-label mt-3">Optional pasted notes or mixed source text</label>
           <div class="source-input-wrap">
             <div class="source-hints">
               <span><i class="bi bi-youtube"></i> YouTube link</span>
@@ -39,7 +53,7 @@ export function UploadStage() {
               <span>/</span>
               <span><i class="bi bi-file-text"></i> Free text</span>
             </div>
-            <textarea id="sourceInput" class="source-input" rows="5" placeholder="Paste a YouTube link, webpage URL, video link, or your own notes/text here..."></textarea>
+            <textarea id="sourceInput" class="source-input" rows="5" placeholder="Paste extra notes here, or paste links directly if you do not want to add them one by one..."></textarea>
           </div>
           <p class="source-helper">YouTube links pasted here or found inside uploaded PDFs/PPTs are expanded into transcript sources for analysis.</p>
         </div>

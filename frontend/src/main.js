@@ -1,5 +1,5 @@
 import { App } from "./react/App.js";
-import { loadLegacyController } from "./legacy/loadLegacyController.js";
+import { loadLegacyController } from "./legacy/loadLegacyController.js?v=math-regex-v2";
 
 const root = document.getElementById("root");
 
