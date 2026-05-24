@@ -158,6 +158,56 @@ const cases = [
     not: ["\\(50 and"]
   },
   {
+    name: "quantity theory formula stops before prose",
+    input: "Core theories used in the source: Quantity theory of money M × V = P × Y; Fisher effect (nominal ≈ real + expected inflation); Loanable-funds market and its distinction.",
+    must: ["\\(M \\times V=P \\times Y\\); Fisher effect", "nominal ≈ real + expected inflation", "Loanable-funds market"],
+    not: ["Fishereffect", "expectedinflation", "Loanable-fun\\,ds"]
+  },
+  {
+    name: "quantity identity keeps following words outside math",
+    input: "Caveat: thus MV = PY is a useful identity. For MV = PY questions, check whether V is held constant.",
+    must: ["\\(MV=PY\\) is a useful identity", "For \\(MV=PY\\) questions, check whether"],
+    not: ["isauseful", "questions,checkwhether", "PY questions"]
+  },
+  {
+    name: "quantity identity stops before infinitive prose",
+    input: "Use M × V = P × Y to calculate required changes in M when V or Y changes.",
+    must: ["Use \\(M \\times V=P \\times Y\\) to calculate"],
+    not: ["tocalculate", "M × \\(V=P\\) × Y"]
+  },
+  {
+    name: "quantity memory hook keeps prose readable",
+    input: "MV = PY: remember velocity moved a lot in 2020 → central banks had to increase base money.",
+    must: ["\\(MV=PY\\): remember velocity moved"],
+    not: ["remembervelocity", "centralbankshad"]
+  },
+  {
+    name: "fisher approximation wraps whole equation",
+    input: "Fisher equation: i ≈ r + π^e.",
+    must: ["\\(i \\approx r+π^{e}\\)."],
+    not: ["i ≈ r + \\(π"]
+  },
+  {
+    name: "broken display delimiter is repaired",
+    input: String.raw`\[
+i \approx r + (\pi^e\)
+\]`,
+    must: ["\\[\ni \\approx r + \\pi^e\n\\]"],
+    not: [String.raw`(\pi^e\)`, String.raw`\)\n\]`]
+  },
+  {
+    name: "currency suffix does not start dollar math",
+    input: "LSAP adds reserves -> potential $1T if r = 0.1 and $x$ is a variable.",
+    must: ["potential $1T", "\\(r=0.1\\)", "\\(x\\)"],
+    not: ["\\(1T if", "potential1T"]
+  },
+  {
+    name: "generated econ glued words are repaired",
+    input: "Example: D=1,000, r = 0.5 → totaldeposits 2,000. Module 9 LSAP 100b → potential1T example.",
+    must: ["\\(D=1,000\\)", "total deposits", "potential $1T"],
+    not: ["totaldeposits", "potential1T"]
+  },
+  {
     name: "URLs stay text",
     input: "Source: https://example.com/a/b?x=1 and f(x)=x^2.",
     must: ["https://example.com/a/b?x=1", "f(x)=x^{2}"],

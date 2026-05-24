@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ensureRenderableSummary, sectionsToMarkdown } from "../src/legacy/notesContent.js";
+import { cleanReadableSectionTitle } from "../src/legacy/sectionUtils.js";
 
 const sectionMap = {
   "Learning Question": "What is animal cognition?",
@@ -25,5 +26,6 @@ assert.equal(
 );
 
 assert.equal(sectionsToMarkdown({ Empty: "   " }), "");
+assert.equal(cleanReadableSectionTitle("Source evidence / example matrix"), "Worked Examples and Evidence");
 
 console.log("notes content regression passed");

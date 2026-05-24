@@ -19,6 +19,7 @@ Object.assign(window, {
   deleteHistoryEntry,
   deleteQuizHistoryRecord,
   downloadNotesPDF,
+  downloadVisualImageGuidePNG,
   expandAssistant,
   exportVisualGuidePDF,
   exportVisualGuidePNG,

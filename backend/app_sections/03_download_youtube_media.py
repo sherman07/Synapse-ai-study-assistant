@@ -94,7 +94,7 @@ def parse_sections(summary: str) -> Dict[str, str]:
     promoted_heading_pattern = re.compile(
         r"^\s*(?:"
         r"Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources? \(|Sources?:|Core argument|Key ideas?|Concepts? explained|"
-        r"Source evidence|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|"
+        r"Source evidence(?:\s*/\s*example matrix)?|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|"
         r"Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|"
         r"学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
         r"考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論"

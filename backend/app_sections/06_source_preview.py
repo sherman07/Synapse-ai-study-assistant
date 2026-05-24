@@ -4,7 +4,7 @@ async def source_preview(file: UploadFile = File(...)):
     try:
         name = file.filename or "uploaded source"
         content_type = file.content_type or mimetypes.guess_type(name)[0] or ""
-        data = await file.read()
+        data = await read_upload_bytes(file, MAX_UPLOAD_BYTES, name)
         lower_name = name.lower()
 
         if lower_name.endswith(".pdf") or content_type == "application/pdf":

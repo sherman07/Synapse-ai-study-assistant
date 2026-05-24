@@ -119,13 +119,21 @@ function renderTutorChatMessage(role, text, options = {}) {
   chatMessages.appendChild(div);
   const body = document.getElementById(bodyId);
 
+  let html = "";
+  try {
+    html = markdownToHTML(text);
+  } catch (error) {
+    console.error("Could not render tutor markdown:", error);
+    html = `<pre class="notes-render-fallback">${escapeHTML(text)}</pre>`;
+  }
+
   if (role === "assistant" && options.animate) {
-    typeInto(body, markdownToHTML(text), () => {
+    typeInto(body, html, () => {
       renderMath();
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }, 8);
   } else {
-    body.innerHTML = markdownToHTML(text);
+    body.innerHTML = html;
     renderMath();
   }
 

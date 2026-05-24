@@ -1,4 +1,4 @@
-const NOTE_SECTION_LABEL_PATTERN = /^(Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources?\s*(?:\(|:)|Core argument|Key ideas?|Concepts? explained|Source evidence|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|核心論點|关键概念|關鍵概念|源内证据|源內證據|证据矩阵|證據矩陣|例子与证据|例子與證據|概念比较表|概念比較表|考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論)\b.*$/i;
+const NOTE_SECTION_LABEL_PATTERN = /^(Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources?\s*(?:\(|:)|Core argument|Key ideas?|Concepts? explained|Source evidence(?:\s*\/\s*example matrix)?|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|核心論點|关键概念|關鍵概念|源内证据|源內證據|证据矩阵|證據矩陣|例子与证据|例子與證據|概念比较表|概念比較表|考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論)\b.*$/i;
 
 function cleanReadableSectionTitle(title) {
   const value = String(title || "")
@@ -14,7 +14,7 @@ function cleanReadableSectionTitle(title) {
     [/^Key terms(?: and mechanisms)?\b/i, "Key Terms and Mechanisms"],
     [/^Concepts? explained(?: with source evidence)?\b/i, "Concepts Explained With Source Evidence"],
     [/^Reading the source evidence\b/i, "Reading the Source Evidence"],
-    [/^Worked examples?(?: and evidence matrix)?\b/i, "Worked Examples and Evidence"],
+    [/^Worked examples?(?: and evidence matrix)?\b|^Source evidence\s*\/\s*example matrix\b/i, "Worked Examples and Evidence"],
     [/^Exam strategy(?: and common student mistakes)?\b/i, "Exam Strategy and Common Mistakes"],
     [/^How to use major pieces of source evidence\b|^Using source evidence\b/i, "Using Source Evidence"],
     [/^Revision checklist\b/i, "Revision Checklist"]

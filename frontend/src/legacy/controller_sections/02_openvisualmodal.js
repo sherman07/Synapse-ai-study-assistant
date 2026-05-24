@@ -119,10 +119,16 @@ function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are av
     summaryContent.innerHTML = `<div class="notes-empty-state">${escapeHTML(emptyMessage)}</div>`;
     return;
   }
-  typeInto(summaryContent, markdownToHTML(source), renderMath);
+  try {
+    typeInto(summaryContent, markdownToHTML(source), renderMath);
+  } catch (error) {
+    console.error("Could not render notes markdown:", error);
+    summaryContent.innerHTML = `<pre class="notes-render-fallback">${escapeHTML(source)}</pre>`;
+  }
 }
 
 function renderFullNotes() {
+  selectedSection = "";
   sectionTitle.innerText = "Study Notes";
   contextLabel.textContent = "Current Notes";
   renderNotesMarkdown(ensureRenderableSummary(fullSummary, sections), "No generated notes are available yet.");

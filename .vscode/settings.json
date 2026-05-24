@@ -22,5 +22,6 @@
     "**/.synapse_runtime/**",
     "**/backend/synapse_analysis_cache.json",
     "**/*.pyc"
-  ]
+  ],
+  "liveServer.settings.port": 5501
 }

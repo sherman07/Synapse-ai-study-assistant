@@ -93,6 +93,7 @@ def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
             "text_excerpt": transcript,
         }
 
+    url = normalize_public_http_url(url, "source URL")
     parsed = urlparse(url)
     lower_path = parsed.path.lower()
     if lower_path.endswith((".mp3", ".m4a", ".wav", ".mp4", ".webm", ".mov", ".avi", ".mkv")):
@@ -470,7 +471,7 @@ def polish_note_readability_markdown(summary: str, preferred_language: str = "au
         (r"Key terms(?: and mechanisms)?|关键术语与机制|關鍵術語與機制", "Key Terms and Mechanisms", "关键术语与机制", "關鍵術語與機制"),
         (r"Concepts? explained(?: with source evidence)?|结合源内证据讲解概念|結合源內證據講解概念", "Concepts Explained With Source Evidence", "结合源内证据讲解概念", "結合源內證據講解概念"),
         (r"Reading the source evidence|源内证据怎么读|源內證據怎麼讀", "Reading the Source Evidence", "源内证据怎么读", "源內證據怎麼讀"),
-        (r"Worked examples?(?: and evidence matrix)?|例子与证据表|例子與證據表", "Worked Examples and Evidence", "例子与证据", "例子與證據"),
+        (r"Worked examples?(?: and evidence matrix)?|Source evidence\s*/\s*example matrix|例子与证据表|例子與證據表", "Worked Examples and Evidence", "例子与证据", "例子與證據"),
         (r"Exam strategy(?: and common student mistakes)?|考试策略与常见错误|考試策略與常見錯誤", "Exam Strategy and Common Mistakes", "考试策略与常见错误", "考試策略與常見錯誤"),
         (r"How to use major pieces of source evidence|Using source evidence|使用源内证据|使用源內證據", "Using Source Evidence", "使用源内证据", "使用源內證據"),
         (r"Revision checklist|复习清单|複習清單", "Revision Checklist", "复习清单", "複習清單"),
@@ -518,7 +519,7 @@ def polish_note_readability_markdown(summary: str, preferred_language: str = "au
     template_heading_pattern = re.compile(
         r"^\s*(?P<hashes>#{1,4}\s*)?(?P<title>"
         r"Learning question|Source and argument map|Core notes?|Key terms(?: and mechanisms)?|Concepts? explained(?: with source evidence)?|"
-        r"Reading the source evidence|Worked examples?(?: and evidence matrix)?|Exam strategy(?: and common student mistakes)?|"
+        r"Reading the source evidence|Worked examples?(?: and evidence matrix)?|Source evidence\s*/\s*example matrix|Exam strategy(?: and common student mistakes)?|"
         r"How to use major pieces of source evidence|Revision checklist|"
         r"学习问题|來源與論點地圖|来源与论点地图|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|复习清单|複習清單"
         r")\b.*$",

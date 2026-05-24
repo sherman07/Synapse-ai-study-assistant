@@ -16,6 +16,11 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+def env_list(name: str, default: str = "") -> list:
+    raw = os.getenv(name, default)
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND_DIR / ".env")
 load_dotenv()
@@ -39,6 +44,9 @@ CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
 REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2")
 REALTIME_VOICE = os.getenv("OPENAI_REALTIME_VOICE", "marin")
+VISUAL_IMAGE_GUIDE_MODEL = os.getenv("OPENAI_VISUAL_IMAGE_GUIDE_MODEL", "gpt-image-1.5")
+VISUAL_IMAGE_GUIDE_SIZE = os.getenv("OPENAI_VISUAL_IMAGE_GUIDE_SIZE", "1024x1536")
+VISUAL_IMAGE_GUIDE_QUALITY = os.getenv("OPENAI_VISUAL_IMAGE_GUIDE_QUALITY", "high")
 
 ENABLE_TUTOR_WEB_RESEARCH = env_bool("ENABLE_TUTOR_WEB_RESEARCH", "true")
 MAX_TUTOR_SEARCH_RESULTS = env_int("MAX_TUTOR_SEARCH_RESULTS", 4)
@@ -50,6 +58,7 @@ VOICE_TUTOR_REALTIME_CONTEXT_CHARS = env_int("VOICE_TUTOR_REALTIME_CONTEXT_CHARS
 
 MAX_AUDIO_BYTES = env_int("MAX_AUDIO_BYTES", 24 * 1024 * 1024)
 MAX_VIDEO_BYTES = env_int("MAX_VIDEO_BYTES", 60 * 1024 * 1024)
+MAX_UPLOAD_BYTES = env_int("MAX_UPLOAD_BYTES", 100 * 1024 * 1024)
 MAX_SOURCE_CHARS = env_int("MAX_SOURCE_CHARS", 90000)
 MAX_VIDEO_FRAMES = env_int("MAX_VIDEO_FRAMES", 8)
 MAX_VISUAL_IMAGES_PER_SOURCE = env_int("MAX_VISUAL_IMAGES_PER_SOURCE", 10)
@@ -90,6 +99,30 @@ try:
 except Exception:
     CACHE_PATH = DEFAULT_CACHE_PATH
 CACHE_VERSION = "source_identity_mindmap_v61_math_regex_guard"
+
+CORS_ALLOW_ORIGINS = env_list(
+    "SYNAPSE_CORS_ALLOW_ORIGINS",
+    ",".join(
+        [
+            "http://127.0.0.1:8001",
+            "http://localhost:8001",
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+            "http://127.0.0.1:5500",
+            "http://localhost:5500",
+            "http://127.0.0.1:5501",
+            "http://localhost:5501",
+        ]
+    ),
+)
+CORS_ALLOW_ORIGIN_REGEX = (
+    os.getenv(
+        "SYNAPSE_CORS_ALLOW_ORIGIN_REGEX",
+        r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
+    ).strip()
+    or None
+)
+CORS_ALLOW_CREDENTIALS = env_bool("SYNAPSE_CORS_ALLOW_CREDENTIALS", "false")
 
 
 def model_for_depth(depth: str) -> str:

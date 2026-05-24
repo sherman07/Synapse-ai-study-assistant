@@ -32,6 +32,9 @@ from core.config import (
     CACHE_PATH,
     CACHE_VERSION,
     CHAT_MODEL,
+    CORS_ALLOW_CREDENTIALS,
+    CORS_ALLOW_ORIGIN_REGEX,
+    CORS_ALLOW_ORIGINS,
     ENABLE_LOCAL_PPTX_APP_RENDER,
     ENABLE_MULTI_SOURCE_DIGESTS,
     ENABLE_PPTX_SLIDE_RENDER,
@@ -43,6 +46,7 @@ from core.config import (
     MAX_SOURCE_CHARS,
     MAX_TUTOR_RESEARCH_CHARS,
     MAX_TUTOR_SEARCH_RESULTS,
+    MAX_UPLOAD_BYTES,
     MAX_VIDEO_BYTES,
     MAX_VIDEO_FRAMES,
     MAX_VISUAL_IMAGES_PER_SOURCE,
@@ -64,6 +68,9 @@ from core.config import (
     TRANSCRIBE_MODEL,
     VISUAL_ARGUMENT_CARD_LIMIT,
     VISUAL_ARGUMENT_TOKENS,
+    VISUAL_IMAGE_GUIDE_MODEL,
+    VISUAL_IMAGE_GUIDE_QUALITY,
+    VISUAL_IMAGE_GUIDE_SIZE,
     VISUAL_RENDER_DPI,
     VOICE_TUTOR_CONTEXT_CHARS,
     VOICE_TUTOR_HISTORY_LIMIT,
@@ -75,6 +82,7 @@ from core.config import (
     model_for_depth,
     require_openai,
 )
+from core.request_limits import read_upload_bytes
 from core.section_loader import AppSectionLoader
 from core.source_extractors import (
     extract_docx,
@@ -82,6 +90,7 @@ from core.source_extractors import (
     extract_text_file,
     source_unit_visual_parts,
 )
+from core.url_security import normalize_public_http_url
 from core.text_utils import (
     canonicalize_youtube_watch_url,
     clean_detected_url,
@@ -155,8 +164,9 @@ del _latex_env_name
 app = FastAPI(title="Synapse Backend")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_origin_regex=CORS_ALLOW_ORIGIN_REGEX,
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

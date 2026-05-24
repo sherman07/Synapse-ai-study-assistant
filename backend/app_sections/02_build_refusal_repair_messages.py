@@ -87,7 +87,8 @@ Important: include source-by-source detail, named studies/examples, visual expla
 # URL / source identity helpers
 # -------------------------
 def canonicalize_url(url: str) -> Tuple[str, str]:
-    parsed = urlparse((url or "").strip())
+    normalized_url = normalize_public_http_url(url, "source URL")
+    parsed = urlparse(normalized_url)
     scheme = parsed.scheme or "https"
     netloc = parsed.netloc.lower()
     path = re.sub(r"/+", "/", parsed.path or "/")
@@ -258,6 +259,11 @@ def urlopen_bytes(request_or_url, timeout: int = 20, max_bytes: Optional[int] = 
     This fixes macOS/Python CERTIFICATE_VERIFY_FAILED issues while still trying
     normal certificate verification first.
     """
+    target_url = request_or_url.full_url if isinstance(request_or_url, urllib.request.Request) else str(request_or_url)
+    parsed_target = urlparse(target_url)
+    if parsed_target.scheme.lower() not in {"http", "https"}:
+        raise ValueError("Only http and https URLs can be fetched.")
+
     contexts = []
     if certifi is not None:
         try:
@@ -275,7 +281,8 @@ def urlopen_bytes(request_or_url, timeout: int = 20, max_bytes: Optional[int] = 
             kwargs = {"timeout": timeout}
             if context is not None:
                 kwargs["context"] = context
-            with urllib.request.urlopen(request_or_url, **kwargs) as response:
+            # URL scheme is validated above before urllib receives the request.
+            with urllib.request.urlopen(request_or_url, **kwargs) as response:  # nosec B310
                 return response.read(max_bytes) if max_bytes else response.read()
         except Exception as error:
             last_error = error

@@ -643,6 +643,69 @@ function normalizeVisualGuideType(value) {
     : "concept";
 }
 
+function normalizeVisualImageGuide(data) {
+  const source = data && typeof data === "object" ? data : {};
+  const imageDataUrl = String(source.image_data_url || source.imageDataUrl || source.data_url || "").trim();
+  return {
+    title: cleanVisualGuideGeneratedText(source.title || storedTitle || "Visual Image Guide"),
+    imageDataUrl,
+    model: cleanVisualGuideGeneratedText(source.model || "gpt-image-1.5"),
+    size: cleanVisualGuideGeneratedText(source.size || ""),
+    quality: cleanVisualGuideGeneratedText(source.quality || ""),
+    created: source.created || new Date().toISOString(),
+  };
+}
+
+const VISUAL_GUIDE_HEADING_ONLY_PATTERN = /^(?:#{1,4}\s*)?(?:Learning Question|Source and Argument Map|Core Notes|Key Terms(?: and Mechanisms)?|Concepts Explained(?: With Source Evidence)?|Reading the Source Evidence|Worked Examples(?: and Evidence)?|Source Evidence(?:\s*\/\s*Example Matrix)?|Evidence Matrix|Exam Strategy(?: and Common Mistakes)?|Revision Checklist)\s*$/i;
+
+function cleanVisualGuideGeneratedText(value) {
+  return String(value || "")
+    .replace(/\btotaldeposits\b/gi, "total deposits")
+    .replace(/\bpotential(\d+(?:\.\d+)?\s*[KMBT])\b/gi, "potential $$$1")
+    .replace(/\b(\d+(?:\.\d+)?)\s*([KMBT])\b/g, "$1$2")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function isVisualGuideHeadingOnly(value) {
+  return VISUAL_GUIDE_HEADING_ONLY_PATTERN.test(cleanVisualGuideGeneratedText(value));
+}
+
+function visualGuideWorkedExampleSeed() {
+  const sectionEntries = Object.entries(sections || {});
+  const workedEntry = sectionEntries.find(([title]) => /worked examples?|example matrix|source evidence/i.test(title));
+  const sourceText = cleanVisualGuideGeneratedText(
+    workedEntry?.[1]
+    || sectionEntries.map(([title, content]) => `${title}\n${content}`).join("\n")
+    || fullSummary
+  );
+  if (!sourceText || !/(worked example|examples? from source|source exercise|if\s+[A-Z]|D\s*=|V\s+fell|r\s*=|≈|%|→)/i.test(sourceText)) {
+    return null;
+  }
+  const lines = sourceText
+    .split(/\n+/)
+    .map(line => cleanVisualGuideGeneratedText(line.replace(/^[-*]\s+/, "").replace(/^#{1,4}\s+/, "")))
+    .filter(line => line && !isVisualGuideHeadingOnly(line) && line.length >= 18 && line.length <= 180);
+  const exampleLines = lines.filter(line => /(example|exercise|if\s+[A-Z]|D\s*=|V\s+fell|r\s*=|≈|%|→|\d+\s*[+\-*/]\s*\d+)/i.test(line));
+  const body = exampleLines[0] || lines[0] || "";
+  if (!body) return null;
+  return {
+    id: "vg-panel-worked-example",
+    kicker: "Worked example",
+    title: "Worked Example",
+    body: shorten(cleanVisualGuideGeneratedText(body), 220),
+    keyPoints: (exampleLines.length ? exampleLines.slice(1, 3) : lines.slice(1, 3)).map(line => shorten(line, 110)),
+    sourceEvidence: workedEntry ? "Worked/example section in generated notes" : "Generated notes examples",
+    visualType: "case",
+    visualPrompt: "Show a small worked calculation card with givens, operation arrow, and result.",
+    formula: "",
+    sourceRefs: workedEntry ? [cleanVisualGuideGeneratedText(workedEntry[0])] : [],
+    sourceFigureIndexes: [],
+    webImageIndexes: [],
+    accent: ""
+  };
+}
+
 function normalizeVisualGuide(data) {
   const source = data && typeof data === "object" ? data : {};
   const panels = Array.isArray(source.panels) ? source.panels : [];
@@ -651,17 +714,18 @@ function normalizeVisualGuide(data) {
     : (Array.isArray(source.sourceMap) ? source.sourceMap : []);
   const normalizedPanels = panels.map((panel, index) => {
     const item = panel && typeof panel === "object" ? panel : {};
+    const sourceEvidence = cleanVisualGuideGeneratedText(item.source_evidence || item.sourceEvidence || item.evidence || "");
     return {
       id: item.id || `vg-panel-${index + 1}`,
-      kicker: item.kicker || item.label || `Part ${index + 1}`,
-      title: item.title || `Key idea ${index + 1}`,
-      body: item.body || item.explanation || "",
-      keyPoints: normalizeVisualGuideList(item.key_points || item.keyPoints || item.points, 5),
-      sourceEvidence: item.source_evidence || item.sourceEvidence || item.evidence || "",
+      kicker: cleanVisualGuideGeneratedText(item.kicker || item.label || `Part ${index + 1}`),
+      title: cleanVisualGuideGeneratedText(item.title || `Key idea ${index + 1}`),
+      body: cleanVisualGuideGeneratedText(item.body || item.explanation || ""),
+      keyPoints: normalizeVisualGuideList(item.key_points || item.keyPoints || item.points, 5).map(cleanVisualGuideGeneratedText),
+      sourceEvidence: isVisualGuideHeadingOnly(sourceEvidence) ? "" : sourceEvidence,
       visualType: normalizeVisualGuideType(item.visual_type || item.visualType || item.type),
-      visualPrompt: item.visual_prompt || item.visualPrompt || item.visual || "",
-      formula: item.formula || "",
-      sourceRefs: normalizeVisualGuideList(item.source_refs || item.sourceRefs || item.source_references, 5),
+      visualPrompt: cleanVisualGuideGeneratedText(item.visual_prompt || item.visualPrompt || item.visual || ""),
+      formula: cleanVisualGuideGeneratedText(item.formula || ""),
+      sourceRefs: normalizeVisualGuideList(item.source_refs || item.sourceRefs || item.source_references, 5).map(cleanVisualGuideGeneratedText),
       sourceFigureIndexes: normalizeVisualGuideList(item.source_figure_indexes || item.sourceFigureIndexes || item.figure_indexes, 4)
         .map(value => Number.parseInt(value, 10))
         .filter(value => Number.isInteger(value) && value >= 0),
@@ -682,6 +746,12 @@ function normalizeVisualGuide(data) {
       if (!fallbackFigures.length || (panel.sourceFigureIndexes || []).length) return;
       panel.sourceFigureIndexes = [fallbackFigures.shift()];
     });
+  }
+
+  const workedExamplePanel = visualGuideWorkedExampleSeed();
+  const hasWorkedExamplePanel = normalizedPanels.some(panel => /worked examples?/i.test(panel.title || ""));
+  if (workedExamplePanel && !hasWorkedExamplePanel) {
+    normalizedPanels.push(workedExamplePanel);
   }
 
   return {
@@ -732,7 +802,7 @@ function loadVisualGuideForCurrentNote() {
     currentSourceFingerprint ? `fingerprint:${currentSourceFingerprint}` : ""
   ].filter(Boolean);
   const saved = keys.map(key => store[key]).find(item => item && typeof item === "object");
-  currentVisualGuide = saved ? normalizeVisualGuide(saved) : null;
+  currentVisualGuide = saved ? normalizeVisualImageGuide(saved) : null;
   visualGuideError = "";
   isVisualGuideGenerating = false;
   renderVisualGuidePanel();
@@ -744,7 +814,7 @@ function setupVisualGuideTool() {
     const mindButton = document.getElementById("toolBtnMindMap");
     const buttonHTML = `
       <button id="toolBtnVisualGuide" class="tool-switch-btn" type="button" onclick="switchTool('visualguide', this)">
-        <i class="bi bi-layout-text-window-reverse me-1"></i>Visual Guide
+        <i class="bi bi-image me-1"></i>Image Guide
       </button>
     `;
     if (mindButton) {
@@ -761,11 +831,11 @@ function setupVisualGuideTool() {
       <div id="toolPanelVisualGuide" class="tool-panel">
         <div class="tool-panel-head d-flex align-items-start justify-content-between gap-3 mb-3">
           <div>
-            <h3>Visual Guide</h3>
-            <p>Generate a source-wide infographic-style guide that explains the whole material with panels, evidence, formulas, and figure references.</p>
+            <h3>Visual Image Guide</h3>
+            <p>Generate one finished image poster from the current notes.</p>
           </div>
           <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="generateVisualGuide(true)">
-            <i class="bi bi-stars me-1"></i>Generate
+            <i class="bi bi-image me-1"></i>Generate image
           </button>
         </div>
         <div id="visualGuidePanelContent"></div>
@@ -818,7 +888,7 @@ function renderVisualGuidePanel() {
         <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
         <div>
           <strong>Building visual guide...</strong>
-          <p>Synapse is turning the source into a connected infographic with source evidence and revision cues.</p>
+          <p>Synapse is generating a single image poster with GPT Image. This can take a minute.</p>
         </div>
       </div>
     `;
@@ -828,13 +898,13 @@ function renderVisualGuidePanel() {
   if (visualGuideError) {
     panel.innerHTML = `
       <div class="alert alert-danger">
-        <strong>Visual guide generation failed.</strong><br>${escapeHTML(visualGuideError)}
+        <strong>Visual image guide generation failed.</strong><br>${escapeHTML(visualGuideError)}
       </div>
       ${renderVisualGuideLaunch()}
     `;
     return;
   }
 
-  panel.innerHTML = currentVisualGuide ? renderVisualGuide(currentVisualGuide) : renderVisualGuideLaunch();
+  panel.innerHTML = currentVisualGuide ? renderVisualImageGuide(currentVisualGuide) : renderVisualGuideLaunch();
   renderMath();
 }

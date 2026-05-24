@@ -181,7 +181,7 @@ let timelineCompletedIds = new Set();
 let timelinePracticeAnswers = {};
 let timelineCompletionCelebrated = false;
 
-const VISUAL_GUIDE_STORAGE_KEY = "synapse.visual.guide.v1";
+const VISUAL_GUIDE_STORAGE_KEY = "synapse.visual.image.guide.v2";
 let currentVisualGuide = null;
 let visualGuideError = "";
 let isVisualGuideGenerating = false;
@@ -675,9 +675,17 @@ async function analyzeMaterials() {
 
     let data = null;
     try {
+      const contentType = response.headers?.get("content-type") || "";
+      if (!contentType.toLowerCase().includes("application/json")) {
+        const body = await response.text().catch(() => "");
+        const preview = body ? ` Response preview: ${shorten(body.replace(/\s+/g, " "), 180)}` : "";
+        throw new Error(
+          `Backend returned ${contentType || "non-JSON"} from ${response.url || apiClient.endpoint("/analyze")} (HTTP ${response.status}). Make sure the Python backend is running at ${apiClient.baseUrl}.${preview}`
+        );
+      }
       data = await response.json();
-    } catch {
-      throw new Error("Backend returned non-JSON response. Check the Python terminal.");
+    } catch (error) {
+      throw new Error(error?.message || "Backend returned non-JSON response. Check the Python terminal.");
     }
 
     if (!response.ok || data.error) {

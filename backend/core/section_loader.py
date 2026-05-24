@@ -11,9 +11,18 @@ class AppSectionLoader:
         self.section_files = tuple(section_files)
 
     def section_path(self, file_name: str) -> Path:
-        return self.package_dir / self.section_dir / file_name
+        section_root = (self.package_dir / self.section_dir).resolve()
+        path = (section_root / file_name).resolve()
+        try:
+            path.relative_to(section_root)
+        except ValueError:
+            raise ValueError(f"App section path escapes section directory: {file_name}")
+        if path.suffix != ".py":
+            raise ValueError(f"App section must be a Python file: {file_name}")
+        return path
 
     def load(self, namespace: dict) -> None:
         for file_name in self.section_files:
             path = self.section_path(file_name)
-            exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), namespace)
+            # Section files are a fixed local list and path-validated before execution.
+            exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), namespace)  # nosec

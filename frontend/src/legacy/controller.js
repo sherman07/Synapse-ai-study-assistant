@@ -43,7 +43,7 @@ import {
 } from "./markdownRenderer.js";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "sectioned-v7";
+const CONTROLLER_VERSION = "sectioned-v13";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",

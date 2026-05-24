@@ -3,12 +3,12 @@ function renderVisualGuideLaunch() {
   return `
     <div class="visual-guide-launch">
       <div class="visual-guide-launch-copy">
-        <span class="visual-guide-kicker">Infographic study map</span>
-        <h4>Turn the whole source into a visual learning guide</h4>
-        <p>${hasNotes ? "Creates a poster-like guide with concept panels, source evidence, figure references, formulas, and review prompts." : "Generate notes first, then build a visual guide from them."}</p>
+        <span class="visual-guide-kicker">Generated image poster</span>
+        <h4>Create a visual image guide</h4>
+        <p>${hasNotes ? "Generates one finished PNG infographic from your notes using GPT Image." : "Generate notes first, then create a visual image guide."}</p>
       </div>
       <button class="btn btn-primary visual-guide-generate-btn" type="button" onclick="generateVisualGuide(true)" ${hasNotes ? "" : "disabled"}>
-        <i class="bi bi-stars me-1"></i>Generate visual guide
+        <i class="bi bi-image me-1"></i>Generate image guide
       </button>
     </div>
   `;
@@ -16,7 +16,7 @@ function renderVisualGuideLaunch() {
 
 async function generateVisualGuide(force = false) {
   if (!fullSummary || !fullSummary.trim()) {
-    alert("Generate notes first, then create a visual guide.");
+    alert("Generate notes first, then create a visual image guide.");
     return;
   }
   if (currentVisualGuide && !force) {
@@ -30,7 +30,7 @@ async function generateVisualGuide(force = false) {
   renderVisualGuidePanel();
 
   try {
-    const response = await apiClient.fetch("/visual-guide/generate", {
+    const response = await apiClient.fetch("/visual-image-guide/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -45,13 +45,13 @@ async function generateVisualGuide(force = false) {
     });
     const data = await response.json();
     if (!response.ok || data.error) {
-      throw new Error(data.error || `Visual guide generation failed with status ${response.status}.`);
+      throw new Error(data.error || `Visual image guide generation failed with status ${response.status}.`);
     }
-    currentVisualGuide = normalizeVisualGuide(data);
+    currentVisualGuide = normalizeVisualImageGuide(data);
     persistVisualGuideForCurrentNote();
   } catch (error) {
     console.error(error);
-    visualGuideError = error.message || "Visual guide generation failed.";
+    visualGuideError = error.message || "Visual image guide generation failed.";
   } finally {
     isVisualGuideGenerating = false;
     renderVisualGuidePanel();
@@ -224,6 +224,19 @@ async function renderVisualGuideToCanvas() {
 
 function canvasToBlob(canvas, type = "image/png", quality = 0.95) {
   return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+}
+
+function downloadVisualImageGuidePNG() {
+  if (!currentVisualGuide?.imageDataUrl) {
+    alert("Generate a visual image guide before downloading.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = currentVisualGuide.imageDataUrl;
+  link.download = visualGuideFileBaseName("png");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function bytesFromBase64(base64) {
@@ -546,7 +559,7 @@ function renderVisualGuideFigureLinks(indexes = []) {
 }
 
 function renderVisualGuide(guide) {
-  const panels = (guide.panels || []).slice(0, 6);
+  const panels = (guide.panels || []).slice(0, 8);
   const flow = guide.flow || [];
   const sourceMap = guide.sourceMap || [];
   const reviewPrompts = guide.reviewPrompts || [];
@@ -634,6 +647,31 @@ function renderVisualGuide(guide) {
           ${reviewPrompts.slice(0, 2).map(prompt => `<span>${markdownToHTML(prompt)}</span>`).join("")}
         </footer>
       </article>
+    </div>
+  `;
+}
+
+function renderVisualImageGuide(guide) {
+  const imageUrl = guide?.imageDataUrl || "";
+  if (!imageUrl) return renderVisualGuideLaunch();
+  const meta = [guide.model, guide.size, guide.quality].filter(Boolean).join(" · ");
+  return `
+    <div class="visual-image-guide-shell">
+      <div class="visual-guide-toolbar">
+        <button class="btn btn-outline-primary btn-sm" type="button" onclick="generateVisualGuide(true)">
+          <i class="bi bi-arrow-clockwise me-1"></i>Regenerate image
+        </button>
+        <button class="btn btn-outline-primary btn-sm" type="button" onclick="downloadVisualImageGuidePNG()">
+          <i class="bi bi-download me-1"></i>PNG
+        </button>
+      </div>
+      <figure class="visual-image-guide-card">
+        <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(guide.title || "Visual image guide")}" loading="lazy" decoding="async">
+        <figcaption>
+          <strong>${escapeHTML(guide.title || "Visual Image Guide")}</strong>
+          ${meta ? `<span>${escapeHTML(meta)}</span>` : ""}
+        </figcaption>
+      </figure>
     </div>
   `;
 }

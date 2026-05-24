@@ -108,8 +108,151 @@ def visual_guide_figure_context(data: dict) -> str:
     return "\n".join(rows)
 
 
+def visual_image_guide_diagram_rules(context: str) -> str:
+    rules = []
+    if re.search(r"\bmoney market\b|money demand|money supply|quantity of money|\bM_d\b|\bM_s\b", context or "", flags=re.I):
+        rules.append(
+            "Money market graph: vertical axis must be Interest rate (i), horizontal axis must be Quantity of money (M). "
+            "Draw money supply as a vertical line labelled Ms. Draw money demand as a downward-sloping curve labelled Md. "
+            "Never label the downward-sloping money-demand curve as Ms. If showing a supply shift, use Ms and Ms' only for vertical supply lines."
+        )
+    if re.search(r"loanable funds|real interest|saving|investment", context or "", flags=re.I):
+        rules.append(
+            "Loanable-funds graph: vertical axis must be Real interest rate (r), horizontal axis must be Loanable funds. "
+            "Draw supply/saving as an upward-sloping curve labelled S and demand/investment as a downward-sloping curve labelled D."
+        )
+    if re.search(r"fisher effect|nominal|expected inflation|π|inflation", context or "", flags=re.I):
+        rules.append(
+            "Fisher effect: show i ≈ r + πe or i ≈ r + π^e, with i as nominal rate, r as real rate, and πe as expected inflation. "
+            "Do not replace πe with unrelated letters."
+        )
+    if re.search(r"MV\s*=|quantity theory|velocity|nominal GDP|price.*output", context or "", flags=re.I):
+        rules.append(
+            "Quantity theory: show MV = PY with M = money supply, V = velocity, P = price level, and Y = real output. "
+            "Keep these four labels distinct."
+        )
+    if re.search(r"reserve|multiplier|deposit|fractional", context or "", flags=re.I):
+        rules.append(
+            "Money multiplier: if shown, use multiplier = 1/r and deposit expansion = D/r or ΔM = D/r. "
+            "Make r the reserve ratio, not the interest rate, in this specific block."
+        )
+    if not rules:
+        return "Use any diagrams from the source accurately. Check every axis, curve, arrow, symbol, and label before finalizing the image."
+    return "\n".join(f"- {rule}" for rule in rules)
+
+
+def visual_image_guide_prompt(title: str, context: str, source_context: str, figure_context: str, preferred_language: str) -> str:
+    language_rule = quiz_language_instruction(preferred_language)
+    diagram_rules = visual_image_guide_diagram_rules(context)
+    return f"""
+Create a single finished educational visual image guide as a highly detailed polished portrait poster.
+
+This is NOT an HTML card layout and NOT a wireframe. The output should be one real generated image: a coherent study poster / infographic that visually teaches the source.
+
+Language requirement for any visible text: {language_rule}
+Topic/title: {title}
+
+Mandatory diagram accuracy rules:
+{diagram_rules}
+
+Design goals:
+- Use a clean modern academic infographic style, suitable for a university study guide, with rich visual hierarchy and a premium textbook-poster feel.
+- Make the image information-rich and visually explanatory: layered diagrams, arrows, formula tiles, mini charts, icon metaphors, callouts, flow relationships, and small annotated scenes.
+- Include 8-10 core ideas from the notes, arranged as a connected visual map rather than isolated boxes.
+- Use concise readable labels, not paragraphs. Text should be large enough to read; never use tiny dense footnotes.
+- Add multiple visual detail zones: a central concept map, a process/causal flow, a formula/equation strip, a source-evidence strip, and a quick revision checklist.
+- If formulas are important, show the most essential formulas, such as MV = PY or i ≈ r + πᵉ, as large clean formula tiles with nearby visual annotations.
+- Include a clearly labelled worked-example area if examples/calculations exist in the notes, with givens, operation arrow, and result.
+- Use subject-specific imagery and micro-illustrations, not generic decoration. For economics, prefer money-market curves, reserves/banking flows, central-bank policy arrows, quantity-theory formula blocks, Fisher-effect rate arrows, and loanable-funds contrasts when supported by the notes.
+- Do not imitate the current website UI. Do not draw browser chrome, buttons, cards from the app, or screenshots.
+- Avoid malformed mathematical notation. Keep equations short, clean, and visually separated.
+- Before finalizing, visually audit labels for diagram correctness. If a graph contains both supply and demand, make sure their labels are not duplicated or swapped.
+- Use source-grounded content only; do not invent facts outside the notes.
+
+Generated notes:
+{truncate_text(context, env_int("VISUAL_IMAGE_GUIDE_CONTEXT_CHARS", 18000))}
+
+Source metadata / excerpts:
+{truncate_text(source_context or "No separate source metadata supplied.", 5000)}
+
+Available source figures:
+{truncate_text(figure_context or "No source figures supplied.", 3500)}
+""".strip()
+
+
+@app.post("/visual-image-guide/generate")
+async def generate_visual_image_guide(data: dict):
+    try:
+        require_openai()
+        data = data or {}
+        title = clean_quiz_string(data.get("title"), stored_title or "Study Material")
+        context = quiz_summary_context(data)
+        if not context:
+            return {"error": "No generated notes are available for visual image guide generation yet."}
+
+        requested_language = data.get("preferred_language", "auto")
+        preferred_language = (
+            resolve_generation_language_key("auto", context)
+            if normalise_language_key(requested_language) == "auto"
+            else normalise_quiz_language(requested_language)
+        )
+        source_context = visual_guide_source_context(data)
+        figure_context = visual_guide_figure_context(data)
+        prompt = visual_image_guide_prompt(title, context, source_context, figure_context, preferred_language)
+
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        if OPENAI_ORG_ID:
+            headers["OpenAI-Organization"] = OPENAI_ORG_ID
+        if OPENAI_PROJECT_ID:
+            headers["OpenAI-Project"] = OPENAI_PROJECT_ID
+
+        payload = {
+            "model": VISUAL_IMAGE_GUIDE_MODEL,
+            "prompt": prompt,
+            "n": 1,
+            "size": VISUAL_IMAGE_GUIDE_SIZE,
+            "quality": VISUAL_IMAGE_GUIDE_QUALITY,
+            "output_format": "png",
+        }
+        response = requests.post(
+            "https://api.openai.com/v1/images/generations",
+            headers=headers,
+            json=payload,
+            timeout=env_int("VISUAL_IMAGE_GUIDE_TIMEOUT_SECONDS", 240),
+        )
+        if not response.ok:
+            try:
+                detail = response.json()
+            except Exception:
+                detail = response.text
+            return {"error": f"Image generation failed with status {response.status_code}: {truncate_text(str(detail), 800)}"}
+
+        parsed = response.json()
+        image_items = parsed.get("data") if isinstance(parsed, dict) else []
+        image_b64 = ""
+        if isinstance(image_items, list) and image_items:
+            image_b64 = str((image_items[0] or {}).get("b64_json") or "").strip()
+        if not image_b64:
+            return {"error": "Image generation response did not include image data."}
+
+        return {
+            "title": title,
+            "image_data_url": f"data:image/png;base64,{image_b64}",
+            "model": VISUAL_IMAGE_GUIDE_MODEL,
+            "size": VISUAL_IMAGE_GUIDE_SIZE,
+            "quality": VISUAL_IMAGE_GUIDE_QUALITY,
+            "created": parsed.get("created"),
+        }
+    except Exception as error:
+        return {"error": str(error)}
+
+
 def fetch_image_data_url(url: str, max_bytes: int = 320_000) -> str:
     try:
+        url = normalize_public_http_url(url, "visual guide image URL")
         data = urlopen_bytes(
             urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Synapse visual guide)"}),
             timeout=12,
@@ -231,19 +374,75 @@ def clean_visual_guide_list(value, limit: int = 6, item_limit: int = 180) -> Lis
     return cleaned[:limit]
 
 
+VISUAL_GUIDE_HEADING_ONLY_RE = re.compile(
+    r"^(?:#{1,4}\s*)?(?:Learning Question|Source and Argument Map|Core Notes|Key Terms(?: and Mechanisms)?|"
+    r"Concepts Explained(?: With Source Evidence)?|Reading the Source Evidence|Worked Examples(?: and Evidence)?|"
+    r"Source Evidence(?:\s*/\s*Example Matrix)?|Evidence Matrix|Exam Strategy(?: and Common Mistakes)?|Revision Checklist)\s*$",
+    flags=re.I,
+)
+
+
+def clean_visual_guide_text(value: str) -> str:
+    text = clean_quiz_rich_text(value, "")
+    text = re.sub(r"\btotaldeposits\b", "total deposits", text, flags=re.I)
+    text = re.sub(r"\bpotential(\d+(?:\.\d+)?\s*[KMBT])\b", r"potential $\1", text, flags=re.I)
+    return normalise_space(text)
+
+
+def is_visual_guide_heading_only(value: str) -> bool:
+    return bool(VISUAL_GUIDE_HEADING_ONLY_RE.match(clean_visual_guide_text(value)))
+
+
+def visual_guide_worked_example_panel(context: str) -> Optional[dict]:
+    if not re.search(r"worked example|examples? from source|source exercise|D\s*=|V\s+fell|r\s*=|≈|%", context or "", flags=re.I):
+        return None
+    lines = [
+        clean_visual_guide_text(re.sub(r"^\s*(?:#{1,4}|[-*])\s*", "", line))
+        for line in (context or "").splitlines()
+    ]
+    lines = [
+        line for line in lines
+        if 18 <= len(line) <= 180 and not is_visual_guide_heading_only(line)
+    ]
+    example_lines = [
+        line for line in lines
+        if re.search(r"example|exercise|if\s+[A-Z]|D\s*=|V\s+fell|r\s*=|≈|%|→|\d+\s*[+\-*/]\s*\d+", line, flags=re.I)
+    ]
+    body = (example_lines or lines or [""])[0]
+    if not body:
+        return None
+    return {
+        "id": "vg-panel-worked-example",
+        "kicker": "Worked example",
+        "title": "Worked Example",
+        "body": truncate_text(body, 240),
+        "key_points": [truncate_text(item, 90) for item in (example_lines[1:3] if example_lines else lines[1:3])],
+        "source_evidence": "Worked/example section in generated notes",
+        "visual_type": "case",
+        "visual_prompt": "small worked calculation card with givens, operation arrow, and result",
+        "formula": "",
+        "source_refs": ["Worked Examples and Evidence"],
+        "source_figure_indexes": [],
+        "web_image_indexes": [],
+        "accent": "",
+    }
+
+
 def normalise_visual_guide(parsed: dict, title: str, context: str, sources: List[dict], figures: List[dict], web_images: Optional[List[dict]] = None) -> dict:
     if not isinstance(parsed, dict):
         parsed = {}
     raw_panels = parsed.get("panels") if isinstance(parsed.get("panels"), list) else []
     panels: List[dict] = []
-    panel_limit = env_int("VISUAL_GUIDE_MAX_PANELS", 6)
+    panel_limit = max(env_int("VISUAL_GUIDE_MAX_PANELS", 6), 7)
     for index, raw in enumerate(raw_panels[:panel_limit]):
         if not isinstance(raw, dict):
             continue
-        panel_title = clean_quiz_string(raw.get("title"), f"Key idea {index + 1}")
-        body = clean_quiz_rich_text(raw.get("body") or raw.get("explanation"), "")
-        key_points = clean_visual_guide_list(raw.get("key_points") or raw.get("points"), 2, 90)
-        evidence = clean_quiz_rich_text(raw.get("source_evidence") or raw.get("evidence"), "")
+        panel_title = clean_quiz_string(clean_visual_guide_text(raw.get("title")), f"Key idea {index + 1}")
+        body = clean_visual_guide_text(raw.get("body") or raw.get("explanation"))
+        key_points = [clean_visual_guide_text(item) for item in clean_visual_guide_list(raw.get("key_points") or raw.get("points"), 2, 90)]
+        evidence = clean_visual_guide_text(raw.get("source_evidence") or raw.get("evidence"))
+        if is_visual_guide_heading_only(evidence):
+            evidence = ""
         if not panel_title or not (body or key_points or evidence):
             continue
         figure_indexes = []
@@ -256,19 +455,23 @@ def normalise_visual_guide(parsed: dict, title: str, context: str, sources: List
                 figure_indexes.append(figure_index)
         panels.append({
             "id": clean_quiz_string(raw.get("id"), f"vg-panel-{index + 1}"),
-            "kicker": truncate_text(clean_quiz_string(raw.get("kicker") or raw.get("label"), f"Part {index + 1}"), 28),
+            "kicker": truncate_text(clean_quiz_string(clean_visual_guide_text(raw.get("kicker") or raw.get("label")), f"Part {index + 1}"), 28),
             "title": truncate_text(panel_title, 58),
             "body": truncate_text(body, 240),
             "key_points": key_points,
             "source_evidence": truncate_text(evidence, 160),
             "visual_type": clamp_visual_guide_panel_type(raw.get("visual_type") or raw.get("type")),
-            "visual_prompt": truncate_text(clean_quiz_rich_text(raw.get("visual_prompt") or raw.get("visual"), ""), 130),
-            "formula": truncate_text(clean_quiz_rich_text(raw.get("formula"), ""), 140),
+            "visual_prompt": truncate_text(clean_visual_guide_text(raw.get("visual_prompt") or raw.get("visual")), 130),
+            "formula": truncate_text(clean_visual_guide_text(raw.get("formula")), 140),
             "source_refs": clean_visual_guide_list(raw.get("source_refs") or raw.get("source_references"), 3, 58),
             "source_figure_indexes": figure_indexes,
             "web_image_indexes": [],
             "accent": clean_quiz_string(raw.get("accent"), ""),
         })
+
+    worked_panel = visual_guide_worked_example_panel(context)
+    if worked_panel and not any(re.search(r"worked examples?", panel.get("title", ""), flags=re.I) for panel in panels):
+        panels.append(worked_panel)
 
     if figures and panels:
         image_slot_limit = max(0, min(len(figures), env_int("VISUAL_GUIDE_IMAGE_SLOTS", 8)))
@@ -434,6 +637,8 @@ Coverage rules:
 Visual design script rules:
 - Each panel must fit on an infographic card: title plus one short sentence, with at most two bullets.
 - Keep source_evidence to one short concrete phrase.
+- Do not put note section headings such as "Worked Examples and Evidence" or "Source evidence / example matrix" inside source_evidence; use the actual example, formula, data point, or claim instead.
+- If the notes contain worked examples, calculations, or source exercises, include one panel titled "Worked Example".
 - The visual_prompt should tell the frontend what to draw: source-image thumbnail, curve, arrows, comparison columns, evidence stack, process loop, formula tile, timeline, callout labels, or map.
 - Prefer visual prompts that make the idea memorable: contrast left/right, cause-to-effect arrows, before/after, method-result-meaning, or formula-to-example.
 - source_evidence must be concrete: a named concept, formula, example, visual/table/chart, study, quote idea, or source claim.

@@ -1,11 +1,18 @@
 import { replaceLatexReadableSymbols } from "./readableMath.js";
 
+const MATH_MARKDOWN_LATEX_FUNCTION_NAMES = [
+  "sin", "cos", "tan", "sec", "csc", "cot",
+  "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh",
+  "log", "ln", "lim", "max", "min", "sup", "inf",
+  "det", "rank", "tr", "dim", "ker", "span", "Pr"
+];
+
 function normalizeReadableMarkdown(text) {
   const source = String(text || "");
   if (!source.trim()) return source;
 
   const noteLabelPattern = /^(Definition(?:\/mechanism)?|Mechanism|Explanation|Worked example|Source example|Source evidence|Evidence|Implication|Limitation(?:\/(?:misunderstanding|mistake))?|Common mistake|Exam use|Memory hook|Why it matters|How to read it|What to remember|定义|定義|解释|解釋|来源例子|來源例子|源内证据|源內證據|证据|證據|含义|意義|局限|误区|誤區|考试用法|考試用法|常见错误|常見錯誤|记忆钩子|記憶鉤子|为什么重要|為什麼重要|怎么读|怎麼讀|需要记住)\s*[:：]\s*/i;
-  const templateHeadingPattern = /^\s*(#{1,4}\s*)?(Learning question|Source and argument map|Core notes?|Key terms(?: and mechanisms)?|Concepts? explained(?: with source evidence)?|Reading the source evidence|Worked examples?(?: and evidence matrix)?|Exam strategy(?: and common student mistakes)?|How to use major pieces of source evidence|Revision checklist|学习问题|來源與論點地圖|来源与论点地图|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|复习清单|複習清單)\b.*$/i;
+  const templateHeadingPattern = /^\s*(#{1,4}\s*)?(Learning question|Source and argument map|Core notes?|Key terms(?: and mechanisms)?|Concepts? explained(?: with source evidence)?|Reading the source evidence|Worked examples?(?: and evidence matrix)?|Source evidence\s*\/\s*example matrix|Exam strategy(?: and common student mistakes)?|How to use major pieces of source evidence|Revision checklist|学习问题|來源與論點地圖|来源与论点地图|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|复习清单|複習清單)\b.*$/i;
   const lines = source.split("\n");
 
   const hasTemplateLabel = (line) => {
@@ -25,7 +32,7 @@ function normalizeReadableMarkdown(text) {
       [/^Key terms(?: and mechanisms)?\b|^关键术语与机制\b|^關鍵術語與機制\b/i, "Key Terms and Mechanisms"],
       [/^Concepts? explained(?: with source evidence)?\b/i, "Concepts Explained With Source Evidence"],
       [/^Reading the source evidence\b/i, "Reading the Source Evidence"],
-      [/^Worked examples?(?: and evidence matrix)?\b/i, "Worked Examples and Evidence"],
+      [/^Worked examples?(?: and evidence matrix)?\b|^Source evidence\s*\/\s*example matrix\b/i, "Worked Examples and Evidence"],
       [/^Exam strategy(?: and common student mistakes)?\b/i, "Exam Strategy and Common Mistakes"],
       [/^How to use major pieces of source evidence\b|^Using source evidence\b/i, "Using Source Evidence"],
       [/^Revision checklist\b|^复习清单\b|^複習清單\b/i, "Revision Checklist"]
@@ -115,6 +122,33 @@ function normalizeLatexAliases(text) {
     .replace(/\\(?:leftarrow|gets)\b/g, "\\leftarrow");
 }
 
+function removeUnbalancedMathParentheses(value) {
+  const chars = [...String(value || "")];
+  const stack = [];
+  const remove = new Set();
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index];
+    const previous = chars[index - 1] || "";
+    if (char === "(" && previous !== "\\") {
+      stack.push(index);
+    } else if (char === ")" && previous !== "\\") {
+      if (stack.length) {
+        stack.pop();
+      } else {
+        remove.add(index);
+      }
+    }
+  }
+  stack.forEach(index => remove.add(index));
+  return chars.filter((_, index) => !remove.has(index)).join("");
+}
+
+function repairLatexDelimiterLeakage(value) {
+  const output = normalizeLatexAliases(String(value || ""))
+    .replace(/\\(?:\(|\)|\[|\])/g, "");
+  return removeUnbalancedMathParentheses(output);
+}
+
 function repairMergedMathProse(text) {
   return String(text || "")
     .replace(/(\\\)|\\\])(?=[A-Za-z])/g, "$1 ")
@@ -134,7 +168,9 @@ function repairMergedMathProse(text) {
     .replace(/\bpowerule\b/gi, "power rule")
     .replace(/\busingarea\b/gi, "using area")
     .replace(/\bcausingdivisionbyzero\b/gi, "causing division by zero")
-    .replace(/\bcorrectantiderivative\b/gi, "correct antiderivative");
+    .replace(/\bcorrectantiderivative\b/gi, "correct antiderivative")
+    .replace(/\btotaldeposits\b/gi, "total deposits")
+    .replace(/\bpotential(\d+(?:\.\d+)?\s*[KMBT])\b/gi, "potential $$$1");
 }
 
 function normalizePlainMathText(text) {
@@ -148,11 +184,13 @@ function normalizePlainMathText(text) {
 
 function isProseHeavyMathBody(body) {
   const value = String(body || "");
-  if (!/[=+\-*/^_|∫ΣΠ]|\\(?:int|frac|sqrt|lvert|rvert|ln|log)\b/.test(value)) return false;
+  if (!/[=+\-*/^_|∫ΣΠ≈≃≠≤≥<>×·⋅]|\\(?:int|frac|sqrt|lvert|rvert|ln|log|approx|sim|ne|le|ge)\b/.test(value)) return false;
+  const readableFraction = value.match(/^\s*([A-Za-z]{2,24})\s*\/\s*([A-Za-z]{2,24})\s*$/);
+  if (readableFraction && isReadableFractionPair(readableFraction[1], readableFraction[2])) return false;
   const words = value.match(/[A-Za-z]{3,}/g) || [];
   if (words.length < 2) return false;
   const allowed = new Set([
-    ...LATEX_FUNCTION_NAMES.map(item => item.toLowerCase()),
+    ...MATH_MARKDOWN_LATEX_FUNCTION_NAMES.map(item => item.toLowerCase()),
     "frac", "sqrt", "lvert", "rvert", "left", "right", "mathrm", "operatorname", "text",
     "begin", "end", "bmatrix", "pmatrix", "matrix"
   ]);
@@ -261,7 +299,7 @@ function convertSlashFractionsToLatex(value) {
 }
 
 function latexSafeMathText(value) {
-  const source = convertSlashFractionsToLatex(normalizeDeltaNotation(normalizeLatexAliases(String(value || ""))))
+  const source = convertSlashFractionsToLatex(normalizeDeltaNotation(repairLatexDelimiterLeakage(String(value || ""))))
     .trim()
     .replace(/[−–—]/g, "-")
     .replace(/\|([^|\n]{1,100})\|/g, "\\lvert $1 \\rvert")
@@ -274,6 +312,9 @@ function latexSafeMathText(value) {
     .replace(/÷/g, "\\div ")
     .replace(/[·⋅]/g, "\\cdot ")
     .replace(/×/g, "\\times ")
+    .replace(/≈/g, "\\approx ")
+    .replace(/≃/g, "\\simeq ")
+    .replace(/≡/g, "\\equiv ")
     .replace(/≠/g, "\\ne ")
     .replace(/≤/g, "\\le ")
     .replace(/≥/g, "\\ge ")
@@ -440,7 +481,11 @@ function splitFormulaTrailingText(value) {
   if (arrowToProse && arrowToProse.index > 0) {
     moveTrailing(arrowToProse.index);
   }
-  const chainedFormulaBoundary = formula.match(/[:;]\s*(?=(?:[A-Za-z][A-Za-z0-9]*'?\s*\(|[A-Za-z]\s*(?:=|≠|≤|≥|<|>)|tangent|slope|line|where|then|with|use|show|therefore)\b)/i);
+  const proseAfterRelationBoundary = formula.match(/[:;]\s+(?=(?:[A-Za-z][A-Za-z-]{2,}|[A-Z][A-Za-z0-9]*(?:\s|$)))/);
+  if (proseAfterRelationBoundary && proseAfterRelationBoundary.index > 0) {
+    moveTrailing(proseAfterRelationBoundary.index);
+  }
+  const chainedFormulaBoundary = formula.match(/[:;]\s*(?=(?:[A-Za-z][A-Za-z0-9]*'?\s*\(|[A-Za-z]\s*(?:=|≈|≃|≠|≤|≥|<|>)|tangent|slope|line|where|then|with|use|show|therefore|remember)\b)/i);
   if (chainedFormulaBoundary && chainedFormulaBoundary.index > 0) {
     moveTrailing(chainedFormulaBoundary.index + 1);
   }
@@ -448,17 +493,24 @@ function splitFormulaTrailingText(value) {
   if (questionSentenceBoundary && questionSentenceBoundary.index > 0) {
     moveTrailing(questionSentenceBoundary.index + 1);
   }
-  const relationValueThenProse = formula.match(/^([\s\S]*?[=≠≤≥<>]\s*(?:[-+]?\d+(?:\.\d+)?[A-Za-z]?|[A-Za-z](?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-=]+)?|\\frac\{[^{}]+\}\{[^{}]+\})(?:\s*[+\-]\s*(?:[-+]?\d+(?:\.\d+)?[A-Za-z]?|[A-Za-z](?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-=]+)?|\\frac\{[^{}]+\}\{[^{}]+\}))*)(\s+[A-Za-z][A-Za-z-]{2,}[\s\S]*)$/);
+  const relationValueThenProse = formula.match(/^([\s\S]*?[=≈≃≠≤≥<>]\s*(?:[-+]?\d+(?:\.\d+)?%?|[A-Za-z\u0370-\u03ff]{1,4}(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-=]+|_\{[^{}]+\}|_[A-Za-z0-9]{1,6})?|\\frac\{[^{}]+\}\{[^{}]+\})(?:\s*(?:[+\-*/×·⋅]|\\times|\\cdot)\s*(?:[-+]?\d+(?:\.\d+)?%?|[A-Za-z\u0370-\u03ff]{1,4}(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-=]+|_\{[^{}]+\}|_[A-Za-z0-9]{1,6})?|\\frac\{[^{}]+\}\{[^{}]+\}))*)(\s+[A-Za-z][A-Za-z-]{2,}[\s\S]*)$/);
   if (relationValueThenProse && relationValueThenProse[1].length > 0) {
     moveTrailing(relationValueThenProse[1].length);
   }
-  const mathTerm = String.raw`(?:[-+]?\d+(?:\.\d+)?[A-Za-z]?|[A-Za-z][A-Za-z0-9]*(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-=]+)?|\\frac\{[^{}]+\}\{[^{}]+\}|\([^()\n]{1,80}\))`;
+  const mathTerm = String.raw`(?:[-+]?\d+(?:\.\d+)?%?|[A-Za-z\u0370-\u03ff]{1,4}(?:[A-Za-z0-9]{0,3})?(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-=]+|_\{[^{}]+\}|_[A-Za-z0-9]{1,6})?|\\frac\{[^{}]+\}\{[^{}]+\}|\([^()\n]{1,80}\))`;
   const relationThenSentence = formula.match(new RegExp(
-    String.raw`^([\s\S]*?[=≠≤≥<>]\s*${mathTerm}(?:\s*[+\-*/]\s*${mathTerm})*)(\s+(?:the|a|an|this|that|which|where|when|because|since|so|then|and)\b[\s\S]*)$`,
+    String.raw`^([\s\S]*?[=≈≃≠≤≥<>]\s*${mathTerm}(?:\s*(?:[+\-*/×·⋅]|\\times|\\cdot)\s*${mathTerm})*)(\s+(?:is|are|was|were|be|being|questions?|the|a|an|this|that|which|where|when|because|since|so|then|and|but)\b[\s\S]*)$`,
     "i"
   ));
   if (relationThenSentence && relationThenSentence[1].length > 0) {
     moveTrailing(relationThenSentence[1].length);
+  }
+  const relationThenInfinitive = formula.match(new RegExp(
+    String.raw`^([\s\S]*?[=≈≃≠≤≥<>]\s*${mathTerm}(?:\s*(?:[+\-*/×·⋅]|\\times|\\cdot)\s*${mathTerm})*)(\s+to\s+(?:calculate|compute|find|solve|show|explain|keep|produce|derive|estimate|work|remember)\b[\s\S]*)$`,
+    "i"
+  ));
+  if (relationThenInfinitive && relationThenInfinitive[1].length > 0) {
+    moveTrailing(relationThenInfinitive[1].length);
   }
   const textParenthetical = formula.match(/\s+\(([^()]*)\)\s*$/);
   if (textParenthetical) {
@@ -506,15 +558,15 @@ function findPlainFormulaStart(value) {
     /(?:^|[^\w])((?:d\s*\/\s*d[A-Za-z]|(?:\\Delta|Δ)\s*[A-Za-z]\s*\/\s*(?:\\Delta|Δ)\s*[A-Za-z]|\[[^\[\]\n]{1,220}\]\s*\/\s*(?:(?:\\Delta|Δ)\s*[A-Za-z]|[A-Za-z][A-Za-z0-9]*)|\((?:[^()\n]|\([^()\n]*\)){1,220}\)\s*\/\s*(?:(?:\\Delta|Δ)\s*[A-Za-z]|[A-Za-z][A-Za-z0-9]*)))/,
     /(?:^|[^\w])(((?:[-+]?\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9_{}^\\-]*|\([^()\n]{1,40}\))\s*(?:\\cdot|·|⋅|×|\*)\s*)?\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\})/,
     /\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\}/,
-    /(?:^|[^\w])(\([^()\n]{0,80}(?:=|≠|≤|≥|<|>)[^()\n]{0,80}\))/,
-    /(?:^|[^\w])(\([^()\n]{1,80}\)\s*(?:=|≠|≤|≥|<|>))/,
-    /(?:^|[^\w])((?!(?:makes?|causes?|causing|requires?|explains?|shows?|means?|because|since|where|when|while|which|that|this)\b)[A-Za-z][A-Za-z0-9]*'?\s*\([^()\n]{1,36}\)\s*(?:=|≠|≤|≥|<|>))/i,
-    /(?:^|[^\w])((?:[-+]?\d+(?:\.\d+)?\s*)?[A-Za-z][A-Za-z0-9_{}^\\-]*(?:\s*(?:\+|-|−|–|—|·|⋅|×|\*|\/)\s*(?:[-+]?\d+(?:\.\d+)?\s*)?[A-Za-z0-9_{}^\\()+-]+)*\s*(?:=|≠|≤|≥|<|>))/,
-    /(?:^|[^\w])([A-Za-z]\s*(?:=|≠|≤|≥|<|>)\s*)/,
+    /(?:^|[^\w])(\([^()\n]{0,80}(?:=|≈|≃|≠|≤|≥|<|>)[^()\n]{0,80}\))/,
+    /(?:^|[^\w])(\([^()\n]{1,80}\)\s*(?:=|≈|≃|≠|≤|≥|<|>))/,
+    /(?:^|[^\w])((?!(?:makes?|causes?|causing|requires?|explains?|shows?|means?|because|since|where|when|while|which|that|this)\b)[A-Za-z][A-Za-z0-9]*'?\s*\([^()\n]{1,36}\)\s*(?:=|≈|≃|≠|≤|≥|<|>))/i,
+    /(?:^|[^\w])((?:[-+]?\d+(?:\.\d+)?\s*)?[A-Za-z][A-Za-z0-9_{}^\\-]*(?:\s*(?:\+|-|−|–|—|·|⋅|×|\*|\/)\s*(?:[-+]?\d+(?:\.\d+)?\s*)?[A-Za-z0-9_{}^\\()+-]+)*\s*(?:=|≈|≃|≠|≤|≥|<|>))/,
+    /(?:^|[^\w])([A-Za-z]\s*(?:=|≈|≃|≠|≤|≥|<|>)\s*)/,
     /(?:^|[^\w])(det\s*\()/i,
     /(?:^|[^\w])((?:ln|log)\s*\|[^|\n]{1,100}\|(?:\s*[+\-]\s*[A-Za-z])?)/i,
     /(?:^|[^\w])(\|[^|\n]{1,100}\|\s*(?:=|≠|≤|≥|<|>|[+\-]))/,
-    /(?:^|[^\w])([∫ΣΠ]\s*[A-Za-z0-9_{}^\\()+\-*/| ]{1,80}\s*(?:d[A-Za-z]\b|=))/,
+    /(?:^|[^\w])([∫ΣΠ]\s*[A-Za-z0-9_{}^\\()+\-*/| ]{1,80}\s*(?:d[A-Za-z]\b|=|≈|≃))/,
     /(?:^|[^\w])([A-Za-z][A-Za-z0-9]*\s*\^\s*\{[^{}]+\})/
   ];
   const starts = patterns
@@ -537,10 +589,11 @@ function shouldWrapFormula(formula) {
   if (parentheticalOnly) {
     const body = parentheticalOnly[1];
     const proseWords = body.match(/[A-Za-z]{3,}/g) || [];
-    const hasRealMath = /[≠≤≥<>^_∫ΣΠ√]|\\(?:frac|sqrt|int|sum|prod|lvert|rvert)\b|(?:^|[^A-Za-z])(?:[A-Za-z]\s*=|=\s*[-+]?\d|\d\s*[+\-*/]\s*\d)/.test(body);
+    const hasRealMath = /[≠≤≥<>^_∫ΣΠ√]|\\(?:frac|sqrt|int|sum|prod|lvert|rvert|approx|simeq)\b|(?:^|[^A-Za-z])(?:[A-Za-z]\s*(?:=|≈|≃)|(?:=|≈|≃)\s*[-+]?\d|\d\s*[+\-*/]\s*\d)/.test(body);
     if (proseWords.length >= 2 && !hasRealMath) return false;
   }
-  const relationMatch = value.match(/^\s*([A-Za-z][A-Za-z\s-]{3,})\s*(?:=|≠|≤|≥|<|>)/);
+  if (isProseHeavyMathBody(value)) return false;
+  const relationMatch = value.match(/^\s*([A-Za-z][A-Za-z\s-]{3,})\s*(?:=|≈|≃|≠|≤|≥|<|>)/);
   if (relationMatch && !/[()_^'\\∫ΣΠ√]/.test(relationMatch[1])) return false;
   if (/^\s*[A-Za-z]'\s*\([^()\n]{1,20}\)\s*$/.test(value)) return true;
   if (/\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\}/.test(value)) return true;
@@ -551,7 +604,7 @@ function shouldWrapFormula(formula) {
   if (readableFraction && isReadableFractionPair(readableFraction[1], readableFraction[2])) return true;
   if (/\|[^|\n]{1,100}\|/.test(value)) return true;
   if (/\b(?:ln|log)\s*(?:\\lvert|\|)/i.test(value)) return true;
-  if (/[=≠≤≥<>]|\\frac|\\sqrt|√|[∫ΣΠ]|[A-Za-z]\s*\^\s*(?:\{|\(|[A-Za-z0-9+\-=])|[A-Za-z]_\{?[A-Za-z0-9]/.test(value)) return true;
+  if (/[=≈≃≠≤≥<>]|\\frac|\\sqrt|√|[∫ΣΠ]|[A-Za-z]\s*\^\s*(?:\{|\(|[A-Za-z0-9+\-=])|[A-Za-z]_\{?[A-Za-z0-9]/.test(value)) return true;
   return /\bdet\s*\(/i.test(value);
 }
 
@@ -565,14 +618,14 @@ function latexFormula(value) {
     .replace(/\s*(\\(?:cdot|times|div|ne|le|ge|to)\s*)\s*/g, " $1 ")
     .replace(/\s+/g, " ")
     .trim();
-  LATEX_FUNCTION_NAMES.forEach(name => {
+  MATH_MARKDOWN_LATEX_FUNCTION_NAMES.forEach(name => {
     if (name === "Pr") return;
     output = output.replace(new RegExp(`(?<!\\\\)\\b${name}\\b`, "g"), `\\${name}`);
   });
   return output;
 }
 
-const DOLLAR_INLINE_MATH_PATTERN = /(^|[^\\])\$(?!\d+(?:\.\d{2})?(?=\s|$))([^\n$]{1,700}?)\$/g;
+const DOLLAR_INLINE_MATH_PATTERN = /(^|[^\\])\$(?!\d)([^\n$]{1,700}?)\$/g;
 
 function isDollarInlineMathBody(body) {
   const value = String(body || "").trim();
@@ -625,7 +678,7 @@ function wrapLooseInlineMath(value) {
         ? `${prefix}${stashFormula(`${numerator}/${denominator}`)}`
         : match
     ))
-    .replace(/(^|[^A-Za-z0-9_@])(\|[^|\n]{1,100}\|\s*(?:(?:=|≠|≤|≥|<|>)\s*[^,.;\n]{1,80}|(?:[+\-]\s*[A-Za-z0-9]+)?))/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
+    .replace(/(^|[^A-Za-z0-9_@])(\|[^|\n]{1,100}\|\s*(?:(?:=|≈|≃|≠|≤|≥|<|>)\s*[^,.;\n]{1,80}|(?:[+\-]\s*[A-Za-z0-9]+)?))/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
     .replace(/(^|[^A-Za-z0-9_@])(d\s*\/\s*d[A-Za-z])(?=\s*\)|\s+(?:vs|versus)\b|[,.;:]|$)/gi, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
     .replace(/(^|[^A-Za-z0-9_@])([A-Za-z]'\s*\([^()\n]{1,20}\))/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
     .replace(/(^|[^A-Za-z0-9_@])\b(derivative|antiderivative|gradient|slope|result|answer)\s*=\s*([-+]?\d+(?:\.\d+)?\s*[A-Za-z](?:\s*\^\s*(?:\{[^{}]+\}|[-+]?\d{1,4}|[A-Za-z]))?(?:\s*[+\-]\s*[-+]?\d+(?:\.\d+)?\s*[A-Za-z]?)?)/gi, (_, prefix, label, formula) => (
@@ -633,10 +686,10 @@ function wrapLooseInlineMath(value) {
     ))
     .replace(/(^|[^A-Za-z0-9_@])((?:ln|log)\s*\|[^|\n]{1,100}\|(?!\|)(?:\s*[+\-]\s*[A-Za-z])?)/gi, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
     .replace(/(^|[^A-Za-z0-9_@])((?:[-+]?\d+(?:\.\d+)?\s*)?[A-Za-z]\s*\^\s*(?:\{[^{}]+\}|\([^()\n]{1,60}\)|[A-Za-z0-9+\-=]{1,6})(?:\s*[+\-]\s*(?:(?:\d+(?:\.\d+)?\s*)?[A-Za-z](?:\s*\^\s*(?:\{[^{}]+\}|\([^()\n]{1,60}\)|[A-Za-z0-9+\-=]{1,6}))?|\d+(?:\.\d+)?)){1,})/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
-    .replace(/(^|[^A-Za-z0-9_@])((?!(?:makes?|causes?|causing|requires?|explains?|shows?|means?|because|since|where|when|while|which|that|this)\b)[A-Za-z][A-Za-z0-9]*'?\s*\([^()\n]{1,36}\)\s*(?:=|≠|≤|≥)\s*[^,.;\n]{1,160})/gi, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
-    .replace(/(^|[^A-Za-z0-9_@])(\([^()\n]{1,80}\)\s*(?:=|≠|≤|≥|<|>)\s*[^,.;\n]{1,120})/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
-    .replace(/(^|[^A-Za-z0-9_@])([A-Za-z]\s*(?:=|≠|≤|≥)\s*[-+]?[A-Za-z0-9.]+(?:\s*[+\-*/]\s*[-+]?[A-Za-z0-9.]+)*\)?)/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
-    .replace(/(^|[^A-Za-z0-9_@])([∫ΣΠ]\s*[A-Za-z0-9_{}^()+\-*/| ]{1,100}\s*(?:d[A-Za-z]\b|=\s*[^,.;\n]{1,100}))/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
+    .replace(/(^|[^A-Za-z0-9_@])((?!(?:makes?|causes?|causing|requires?|explains?|shows?|means?|because|since|where|when|while|which|that|this)\b)[A-Za-z][A-Za-z0-9]*'?\s*\([^()\n]{1,36}\)\s*(?:=|≈|≃|≠|≤|≥)\s*[^,.;\n]{1,160})/gi, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
+    .replace(/(^|[^A-Za-z0-9_@])(\([^()\n]{1,80}\)\s*(?:=|≈|≃|≠|≤|≥|<|>)\s*[^,.;\n]{1,120})/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
+    .replace(/(^|[^A-Za-z0-9_@])([A-Za-z]\s*(?:=|≈|≃|≠|≤|≥)\s*[-+]?(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?|[A-Za-z0-9.\u0370-\u03ff]+)(?:\s*[+\-*/]\s*[-+]?(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?|[A-Za-z0-9.\u0370-\u03ff]+)(?:\s*\^\s*(?:\{[^{}]+\}|[A-Za-z0-9+\-=]{1,6}))?)*\)?)/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
+    .replace(/(^|[^A-Za-z0-9_@])([∫ΣΠ]\s*[A-Za-z0-9_{}^()+\-*/| ]{1,100}\s*(?:d[A-Za-z]\b|(?:=|≈|≃)\s*[^,.;\n]{1,100}))/g, (_, prefix, formula) => `${prefix}${stashFormula(formula)}`)
     .replace(/(^|[^A-Za-z0-9_@])([A-Za-z\u0370-\u03ff][A-Za-z0-9\u0370-\u03ff]*)\s*\^\s*\{([^{}]+)\}/g, (_, prefix, base, exponent) => `${prefix}${stash(`\\(${base}^{${latexFormula(exponent)}}\\)`)}`)
     .replace(/(^|[^A-Za-z0-9_@])([A-Za-z\u0370-\u03ff][A-Za-z0-9\u0370-\u03ff]*)_\{([^{}]+)\}/g, (_, prefix, base, subscript) => `${prefix}${stash(`\\(${base}_{${latexFormula(subscript)}}\\)`)}`)
     .replace(/(^|[^A-Za-z0-9_@])([A-Za-z\u0370-\u03ff][A-Za-z0-9\u0370-\u03ff]*)\s*\^\s*\(([^()\n]{1,60})\)/g, (_, prefix, base, exponent) => `${prefix}${stash(`\\(${base}^{${latexFormula(exponent)}}\\)`)}`)
@@ -723,11 +776,12 @@ function wrapPlainMathLine(line, forceInline = false) {
 
 function prepareMathMarkdown(text) {
   const protectedSegments = protectNonMathSegments(convertPlainMatricesToLatex(normalizePlainMathText(text)));
-  const prepared = protectedSegments.text
+  const protectedMath = protectExistingMathSegments(protectedSegments.text);
+  const prepared = protectedMath.text
     .split("\n")
     .map(line => wrapPlainMathLine(line))
     .join("\n");
-  return protectedSegments.restore(prepared);
+  return protectedSegments.restore(protectedMath.restore(prepared));
 }
 
 export {
@@ -736,5 +790,6 @@ export {
   latexFormula,
   normalizeReadableMarkdown,
   prepareMathMarkdown,
+  repairLatexDelimiterLeakage,
   splitMarkdownTableCells
 };

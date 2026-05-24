@@ -5,16 +5,19 @@ from fastapi.middleware.cors import CORSMiddleware
 class FastApiAppBuilder:
     """Builds the HTTP app and owns cross-cutting middleware setup."""
 
-    def __init__(self, title: str, allow_origins=None):
+    def __init__(self, title: str, allow_origins=None, allow_origin_regex=None, allow_credentials: bool = False):
         self.title = title
-        self.allow_origins = allow_origins or ["*"]
+        self.allow_origins = allow_origins or []
+        self.allow_origin_regex = allow_origin_regex
+        self.allow_credentials = allow_credentials
 
     def build(self) -> FastAPI:
         app = FastAPI(title=self.title)
         app.add_middleware(
             CORSMiddleware,
             allow_origins=self.allow_origins,
-            allow_credentials=True,
+            allow_origin_regex=self.allow_origin_regex,
+            allow_credentials=self.allow_credentials,
             allow_methods=["*"],
             allow_headers=["*"],
         )

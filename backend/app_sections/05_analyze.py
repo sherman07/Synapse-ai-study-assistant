@@ -19,7 +19,7 @@ async def analyze_materials(
         seen_youtube_sources = set()
 
         for uploaded in files:
-            data = await uploaded.read()
+            data = await read_upload_bytes(uploaded, MAX_UPLOAD_BYTES, uploaded.filename or "uploaded file")
             if not data:
                 continue
             content_type = uploaded.content_type or mimetypes.guess_type(uploaded.filename or "")[0] or "application/octet-stream"
@@ -355,9 +355,10 @@ def fetch_research_result_text(result: dict, max_chars: int = 2200) -> dict:
     url = result.get("url") or ""
     output = dict(result)
     output["content"] = ""
-    if not url or not url.startswith(("http://", "https://")):
+    if not url:
         return output
     try:
+        url = normalize_public_http_url(url, "research result URL")
         raw = urlopen_bytes(
             urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}),
             timeout=15,
@@ -721,7 +722,7 @@ async def voice_tutor_respond(
 
         transcript_text = normalise_space(transcript)
         if audio is not None and audio.filename:
-            audio_bytes = await audio.read()
+            audio_bytes = await read_upload_bytes(audio, MAX_AUDIO_BYTES, audio.filename or "voice audio")
             if audio_bytes:
                 transcript_text = normalise_space(transcribe_media_bytes(audio.filename, audio_bytes))
         is_opening_turn = not transcript_text and not parsed_history

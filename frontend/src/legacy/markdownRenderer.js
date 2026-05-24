@@ -5,6 +5,7 @@ import {
   latexFormula,
   normalizeReadableMarkdown,
   prepareMathMarkdown,
+  repairLatexDelimiterLeakage,
   splitMarkdownTableCells
 } from "./mathMarkdown.js";
 
@@ -46,18 +47,18 @@ function markdownToHTML(text) {
   const inlineMath = [];
   safe = safe.replace(/\$\$([\s\S]*?)\$\$/g, (_, body) => {
     const id = `@@MATH_BLOCK_${mathBlocks.length}@@`;
-    mathBlocks.push(`\\[${body}\\]`);
+    mathBlocks.push(`\\[${repairLatexDelimiterLeakage(body)}\\]`);
     return id;
   });
   safe = safe.replace(/\\\[[\s\S]*?\\\]/g, (match) => {
     const id = `@@MATH_BLOCK_${mathBlocks.length}@@`;
-    mathBlocks.push(match);
+    mathBlocks.push(`\\[${repairLatexDelimiterLeakage(match.replace(/^\\\[/, "").replace(/\\\]$/, ""))}\\]`);
     return id;
   });
   // Protect inline math before markdown parsing
   safe = safe.replace(/\\\([\s\S]*?\\\)/g, (match) => {
     const id = `@@INLINE_MATH_${inlineMath.length}@@`;
-    inlineMath.push(match);
+    inlineMath.push(`\\(${repairLatexDelimiterLeakage(match.replace(/^\\\(/, "").replace(/\\\)$/, ""))}\\)`);
     return id;
   });
   const matrixEnvironmentPattern = new RegExp(
@@ -74,7 +75,7 @@ function markdownToHTML(text) {
   safe = safe.replace(DOLLAR_INLINE_MATH_PATTERN, (match, prefix, body) => {
     if (!isDollarInlineMathBody(body)) return match;
     const id = `@@INLINE_MATH_${inlineMath.length}@@`;
-    inlineMath.push(`\\(${body}\\)`);
+    inlineMath.push(`\\(${repairLatexDelimiterLeakage(body)}\\)`);
     return `${prefix}${id}`;
   });
 
@@ -466,6 +467,7 @@ export {
   inlineMarkdownHTML,
   markdownToHTML,
   prepareMathMarkdown,
+  repairLatexDelimiterLeakage,
   renderMath,
   shorten,
   splitMarkdownTableCells,
