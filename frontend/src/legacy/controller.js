@@ -40,7 +40,7 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js";
+} from "./markdownRenderer.js?v=probability-table-v1";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
 const CONTROLLER_VERSION = "sectioned-v13";

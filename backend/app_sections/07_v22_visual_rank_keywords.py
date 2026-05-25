@@ -8,13 +8,56 @@ def _v22_visual_rank_keywords() -> List[str]:
         "dictator", "ultimatum", "language", "tool", "natural selection", "图", "表", "统计", "数据", "曲线", "坐标",
         "模型", "实验", "研究", "结果", "对比", "比較", "机制", "機制", "步骤", "步驟", "案例", "公式",
     ]
+
+
+def _env_float(name: str, default: float) -> float:
     try:
-        from PIL import Image
+        return float(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
+def source_visual_render_dpi(default_dpi: int = 200) -> int:
+    return max(72, env_int("IMAGE_RENDER_DPI", int(default_dpi or 200)))
+
+
+def source_visual_render_matrix(default_dpi: int = 200):
+    dpi = source_visual_render_dpi(default_dpi)
+    return fitz.Matrix(max(1.0, dpi / 72), max(1.0, dpi / 72))
+
+
+def _v22_resize_image_bytes(data: bytes, content_type: str = "image/jpeg", max_width: Optional[int] = None, quality: Optional[int] = None) -> Tuple[bytes, str]:
+    """Prepare source screenshots for readable in-text display without generative changes."""
+    if not data or (content_type or "").lower() == "image/svg+xml":
+        return data, content_type or "image/jpeg"
+    try:
+        from PIL import Image, ImageEnhance, ImageFilter
+
+        output_format = (os.getenv("IMAGE_OUTPUT_FORMAT", "png") or "png").strip().lower()
+        if output_format not in {"png", "jpeg", "jpg", "webp"}:
+            output_format = "png"
+        max_width = int(max_width or env_int("IMAGE_MAX_WIDTH", 2200))
+        quality = int(quality or env_int("IMAGE_JPEG_QUALITY", 92))
         img = Image.open(BytesIO(data)).convert("RGB")
         if img.width > max_width:
             ratio = max_width / float(img.width)
-            img = img.resize((max_width, max(1, int(img.height * ratio))))
+            resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
+            img = img.resize((max_width, max(1, int(img.height * ratio))), resample)
+        if os.getenv("IMAGE_ENHANCE_LOCAL", "true").lower() not in {"0", "false", "no"}:
+            img = ImageEnhance.Contrast(img).enhance(_env_float("IMAGE_ENHANCE_CONTRAST", 1.12))
+            img = ImageEnhance.Sharpness(img).enhance(_env_float("IMAGE_ENHANCE_SHARPNESS", 1.18))
+            img = img.filter(ImageFilter.UnsharpMask(
+                radius=_env_float("IMAGE_UNSHARP_RADIUS", 1.1),
+                percent=env_int("IMAGE_UNSHARP_PERCENT", 105),
+                threshold=env_int("IMAGE_UNSHARP_THRESHOLD", 3),
+            ))
         out = BytesIO()
+        if output_format == "png":
+            img.save(out, format="PNG", optimize=True)
+            return out.getvalue(), "image/png"
+        if output_format == "webp":
+            img.save(out, format="WEBP", quality=quality, method=6)
+            return out.getvalue(), "image/webp"
         img.save(out, format="JPEG", quality=quality, optimize=True)
         return out.getvalue(), "image/jpeg"
     except Exception:
@@ -22,7 +65,7 @@ def _v22_visual_rank_keywords() -> List[str]:
 
 
 def image_part_from_bytes(data: bytes, content_type: str = "image/jpeg"):
-    """v22 override: keep visual payloads smaller without changing frontend code."""
+    """v22 override: render source screenshots clearly without changing frontend code."""
     data, content_type = _v22_resize_image_bytes(data, content_type)
     encoded = base64.b64encode(data).decode("utf-8")
     return {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{encoded}"}}
@@ -100,12 +143,12 @@ def render_pptx_slide_screenshots(data: bytes, source_name: str, slide_texts: Li
             doc = fitz.open(str(pdf_candidates[0]))
             selected = selected_indices_by_score(slide_texts or ["" for _ in range(len(doc))], max_slides)
             selected = [i for i in selected if i < len(doc)] or list(range(min(max_slides, len(doc))))
-            matrix = fitz.Matrix(max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72), max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72))
+            matrix = source_visual_render_matrix(CONTROLLED_VISUAL_RENDER_DPI)
             parts: List[dict] = []
             for idx in selected:
                 page = doc.load_page(idx)
                 pix = page.get_pixmap(matrix=matrix, alpha=False)
-                img_bytes = pix.tobytes("jpeg")
+                img_bytes = pix.tobytes("png")
                 preview = truncate_text(normalise_space(slide_texts[idx] if idx < len(slide_texts) else ""), 520)
                 label = (
                     f"IN-TEXT SOURCE FIGURE FROM {source_name} — PPT slide {idx + 1}. "
@@ -113,7 +156,7 @@ def render_pptx_slide_screenshots(data: bytes, source_name: str, slide_texts: Li
                     f"Slide text preview: {preview}"
                 )
                 parts.append({"type": "text", "text": label})
-                parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+                parts.append(image_part_from_bytes(img_bytes, "image/png"))
             doc.close()
             return parts
         except Exception:
@@ -258,12 +301,12 @@ def health_v22():
 # teaching visuals exist.
 
 RELEVANT_VISUAL_MODE = os.getenv("RELEVANT_VISUAL_MODE", "true").lower() not in {"0", "false", "no"}
-RELEVANT_VISUAL_POOL_LIMIT = env_int("RELEVANT_VISUAL_POOL_LIMIT", 10)
-RELEVANT_VISUAL_MIN_SCORE = env_int("RELEVANT_VISUAL_MIN_SCORE", 8)
+RELEVANT_VISUAL_POOL_LIMIT = env_int("RELEVANT_VISUAL_POOL_LIMIT", 18)
+RELEVANT_VISUAL_MIN_SCORE = env_int("RELEVANT_VISUAL_MIN_SCORE", 5)
 PDF_VISUAL_CANDIDATE_LIMIT = env_int("PDF_VISUAL_CANDIDATE_LIMIT", max(10, RELEVANT_VISUAL_POOL_LIMIT, CONTROLLED_MAX_PDF_PAGES_PER_SOURCE))
-RICH_INLINE_MIN_OUTPUT_UNITS = env_int("RICH_INLINE_MIN_OUTPUT_UNITS", 4600)
+RICH_INLINE_MIN_OUTPUT_UNITS = env_int("RICH_INLINE_MIN_OUTPUT_UNITS", 6200)
 ADVANCED_NOTES_MIN_TABLES = env_int("ADVANCED_NOTES_MIN_TABLES", 2)
-ADVANCED_NOTES_MIN_HEADINGS = env_int("ADVANCED_NOTES_MIN_HEADINGS", 7)
+ADVANCED_NOTES_MIN_HEADINGS = env_int("ADVANCED_NOTES_MIN_HEADINGS", 9)
 
 
 def source_figure_labels(preferred_language: str) -> dict:
@@ -330,18 +373,20 @@ def _v23_scoring_text(text: str) -> str:
 def _v23_signal_counts(text: str) -> dict:
     value = _v23_scoring_text(text).lower()
     teaching_patterns = [
-        r"\b(table|figure|fig\.|graph|chart|plot|diagram|schema|schematic|model|flow|process|timeline)\b",
-        r"\b(map|anatomy|structure|cycle|pathway|network|framework|architecture|flowchart|decision tree)\b",
+        r"\b(table|figure|fig\.|graph|chart|plot|diagram|schema|schematic|model|flow|process|timeline|slide figure)\b",
+        r"\b(map|concept map|mind map|anatomy|structure|cycle|pathway|network|framework|architecture|flowchart|decision tree)\b",
         r"\b(data|results?|statistics?|mean|median|weighted|correlation|axis|axes|distribution|percentage|rate)\b",
         r"\b(regression|histogram|boxplot|scatter|sample|cohort|survey|risk|ratio|odds|confidence interval|p[- ]?value)\b",
         r"\b(experiment|method|procedure|trial|task|condition|control|sample|participant|stimulus|response)\b",
-        r"\b(case study|worked example|source evidence|primary evidence|dataset|measurement|variables?)\b",
+        r"\b(case study|worked example|worked problem|source evidence|primary evidence|dataset|measurement|variables?)\b",
+        r"\b(exercise|example|annotated|labelled|labeled|labels?|step[- ]?by[- ]?step|workflow|pipeline|derivation|proof|classification|taxonomy)\b",
+        r"\b(curve|demand|supply|market|equilibrium|shift|money market|loanable funds|interest rate)\b",
         r"\b(event|habituation|observed|possible|impossible|violation|looking time|occlusion|screen|object permanence)\b",
         r"\b(ultimatum|dictator|proposer|responder|equal split|selfish split|fairness|chimp|banana|token|warfare mortality|bowles|gintis)\b",
         r"\b(formula|equation|calculation|matrix|vector|mri|fmri|eeg|bold|action potential|resting potential|synapse)\b",
         r"\b(comparison|compare|versus|vs|difference|contrast|mechanism|evidence|case study)\b",
         r"\b(gene|genotype|phenotype|allele|chromosome|dna|snp|maoa|pku|phenylketonuria|heritability|monozygotic|dizygotic|twin|iq|flynn|gwas|genome-wide|lewontin|maltreatment)\b",
-        r"(图|表|图表|统计|数据|结果|实验|流程|步骤|机制|模型|公式|对比|比较|證據|證据|坐标|曲线)",
+        r"(图|表|图表|统计|数据|结果|实验|流程|步骤|机制|模型|公式|对比|比较|證據|證据|坐标|曲线|例题|例子|标注|分类|框架)",
     ]
     decorative_patterns = [
         r"\b(title slide|cover|agenda|outline|contents|today|welcome|overview|learning objectives?)\b",
@@ -363,8 +408,9 @@ def _has_strong_visual_teaching_terms(value: str) -> bool:
         r"experiment|method|procedure|protocol|trial|task|condition|control|sample|participant|stimulus|response|measurement|"
         r"formula|equation|calculation|matrix|vector|model|mechanism|pathway|network|architecture|"
         r"process|flow|cycle|framework|structure|anatomy|comparison|compare|versus|vs|difference|contrast|"
-        r"case study|worked example|source evidence|primary evidence|dataset|variables?|classification|taxonomy"
-        r")\b|图|表|图表|统计|数据|结果|实验|流程|机制|模型|公式|地图|时间线|案例",
+        r"case study|worked example|worked problem|exercise|source evidence|primary evidence|dataset|variables?|classification|taxonomy|"
+        r"labelled|labeled|annotated|curve|equilibrium|demand|supply|workflow|pipeline|derivation|proof"
+        r")\b|图|表|图表|统计|数据|结果|实验|流程|机制|模型|公式|地图|时间线|案例|例题|标注|分类|框架",
         value or "",
         flags=re.I,
     ))
@@ -383,13 +429,13 @@ def score_visual_text(text: str, index: int = 0) -> int:
         score -= 3
     if "table" in value and re.search(r"\b(mean|median|rate|data|results?|percentage|weighted|arithmetic)\b", value):
         score += 10
-    if re.search(r"\b(graph|chart|plot|diagram|schema|schematic|flowchart|map|timeline|model|mechanism|pathway|network)\b", value):
+    if re.search(r"\b(graph|chart|plot|diagram|schema|schematic|flowchart|map|timeline|model|mechanism|pathway|network|concept map|mind map)\b", value):
         score += 10
     if re.search(r"\b(regression|histogram|boxplot|scatter|distribution|axis|axes|confidence interval|p[- ]?value|odds ratio|risk ratio)\b", value):
         score += 12
     if re.search(r"\b(experiment|method|procedure|protocol|trial|task|condition|control|participant|stimulus|response|measurement)\b", value):
         score += 10
-    if re.search(r"\b(formula|equation|calculation|matrix|model|simulation|worked example|case study)\b", value):
+    if re.search(r"\b(formula|equation|calculation|matrix|model|simulation|worked example|worked problem|exercise|case study)\b", value):
         score += 10
     if re.search(r"\b(comparison|compare|versus|vs|difference|contrast|classification|taxonomy|structure|anatomy)\b", value):
         score += 8
@@ -408,6 +454,10 @@ def score_visual_text(text: str, index: int = 0) -> int:
     if re.search(r"\b(flynn effect|iq gain|lewontin|within-group|between-group|within vs between|different causes)\b", value):
         score += 16
     if re.search(r"\b(correlation|causation|scatter|height|weight|axis|axes)\b", value):
+        score += 12
+    if re.search(r"\b(annotated|labelled|labeled|labels?|step[- ]?by[- ]?step|workflow|pipeline|derivation|proof|classification|taxonomy)\b", value):
+        score += 9
+    if re.search(r"\b(curve|equilibrium|demand|supply|money market|loanable funds|interest rate|quantity of money)\b", value):
         score += 12
     if re.search(r"\b(title slide|cover|about me|lecturer|email|contact)\b", value):
         score -= 12
@@ -564,6 +614,8 @@ def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, L
 
 
 def source_preview_image_url(data: bytes, content_type: str = "image/jpeg") -> str:
+    if (content_type or "").lower().startswith("image/") and (content_type or "").lower() != "image/svg+xml":
+        data, content_type = _v22_resize_image_bytes(data, content_type)
     encoded = base64.b64encode(data).decode("utf-8")
     return f"data:{content_type};base64,{encoded}"
 
@@ -821,12 +873,12 @@ def render_pdf_path_to_source_preview_images(pdf_path: Path, max_pages: int) -> 
     doc = None
     try:
         doc = fitz.open(str(pdf_path))
-        matrix = fitz.Matrix(max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72), max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72))
+        matrix = source_visual_render_matrix(SOURCE_PREVIEW_RENDER_DPI)
         rendered: Dict[int, str] = {}
         for page_index in range(min(len(doc), max_pages)):
             page = doc.load_page(page_index)
             pix = page.get_pixmap(matrix=matrix, alpha=False)
-            rendered[page_index + 1] = source_preview_image_url(pix.tobytes("jpeg"), "image/jpeg")
+            rendered[page_index + 1] = source_preview_image_url(pix.tobytes("png"), "image/png")
         return rendered
     except Exception:
         return {}

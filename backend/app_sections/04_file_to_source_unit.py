@@ -399,6 +399,7 @@ def note_structure_for_language(preferred_language: str, source_text: str = "") 
             "## 源内证据怎么读",
             "## 例子与证据表",
             "## 考试策略与常见错误",
+            "## 如何使用源内证据",
             "## 复习清单",
         ])
     if key == "traditional_chinese":
@@ -412,6 +413,7 @@ def note_structure_for_language(preferred_language: str, source_text: str = "") 
             "## 源內證據怎麼讀",
             "## 例子與證據表",
             "## 考試策略與常見錯誤",
+            "## 如何使用源內證據",
             "## 複習清單",
         ])
     return "\n".join([
@@ -424,6 +426,7 @@ def note_structure_for_language(preferred_language: str, source_text: str = "") 
         "## Reading the Source Evidence",
         "## Worked Examples and Evidence Matrix",
         "## Exam Strategy and Common Mistakes",
+        "## How To Use Source Evidence",
         "## Revision Checklist",
     ])
 

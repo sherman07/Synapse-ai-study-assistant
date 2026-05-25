@@ -203,8 +203,8 @@ DEPTH_CONFIG = {
         "mindmap_points": 6,
         "mindmap_children": 4,
         "instruction": (
-            "Create clear study notes with moderate detail. Explain the key concepts, source structure, examples, "
-            "step-by-step logic, and likely misunderstandings. Avoid unnecessary expansion, but include all important source-supported points."
+            "Create professional study notes with solid detail. Explain the key concepts, source structure, examples, "
+            "step-by-step logic, evidence, and likely misunderstandings. Avoid generic padding, but include all important source-supported points."
         ),
         "sections": ["Overview", "Core Argument", "Key Ideas", "Step-by-step Breakdown", "Worked Example / Evidence From Source", "Tutor Explanation", "Common Mistakes", "Critical Thinking"],
     },
@@ -216,8 +216,8 @@ DEPTH_CONFIG = {
         "mindmap_points": 8,
         "mindmap_children": 5,
         "instruction": (
-            "Create a detailed source-faithful study guide. Preserve important subpoints, examples, definitions, formulas, evidence, "
-            "and reasoning. Explain not only what the source says, but how a student should understand and apply it."
+            "Create a detailed, professional, source-faithful study guide. Preserve important subpoints, examples, definitions, formulas, evidence, "
+            "and reasoning. Explain not only what the source says, but how a student should understand, verify, apply, and critique it."
         ),
         "sections": ["Overview", "Core Argument", "Key Ideas", "Step-by-step Breakdown", "Worked Example / Evidence From Source", "External Real-World Example", "Tutor Explanation", "Common Mistakes", "Critical Thinking"],
     },
@@ -229,8 +229,9 @@ DEPTH_CONFIG = {
         "mindmap_points": 10,
         "mindmap_children": 6,
         "instruction": (
-            "Create a comprehensive high-detail study guide. Use this only when the source is long, dense, technical, legal, academic, "
-            "or multi-section. Cover structure, definitions, exceptions, procedures, implications, examples, verification checks, and learning strategy."
+            "Create a comprehensive high-detail professional study guide. Use this only when the source is long, dense, technical, legal, academic, "
+            "or multi-section. Cover structure, definitions, mechanisms, assumptions, exceptions, procedures, implications, examples, evidence, "
+            "verification checks, limitations, common mistakes, and learning strategy."
         ),
         "sections": ["Overview", "Core Argument", "Detailed Content Breakdown", "Definitions and Key Terms", "Step-by-step Breakdown", "Evidence From Source", "External Real-World Example", "Tutor Explanation", "Common Mistakes", "Critical Thinking", "Revision Checklist"],
     },

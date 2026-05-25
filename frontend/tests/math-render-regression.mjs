@@ -11,12 +11,12 @@ const readableMathSource = fs
   .replace(/\nexport\s+\{[\s\S]*?\};\s*$/, "");
 const mathMarkdownSource = fs
   .readFileSync(mathMarkdownPath, "utf8")
-  .replace(/^import\s+\{[\s\S]*?\}\s+from\s+\"\.\/readableMath\.js\";\s*/, "")
+  .replace(/^import\s+\{[\s\S]*?\}\s+from\s+\"\.\/readableMath\.js(?:\?[^"]*)?\";\s*/, "")
   .replace(/\nexport\s+\{[\s\S]*?\};\s*$/, "");
 const rendererSource = fs
   .readFileSync(rendererPath, "utf8")
-  .replace(/^import\s+\{[\s\S]*?\}\s+from\s+\"\.\/readableMath\.js\";\s*/, "")
-  .replace(/^import\s+\{[\s\S]*?\}\s+from\s+\"\.\/mathMarkdown\.js\";\s*/, "")
+  .replace(/^import\s+\{[\s\S]*?\}\s+from\s+\"\.\/readableMath\.js(?:\?[^"]*)?\";\s*/, "")
+  .replace(/^import\s+\{[\s\S]*?\}\s+from\s+\"\.\/mathMarkdown\.js(?:\?[^"]*)?\";\s*/, "")
   .replace(/\nexport\s+\{[\s\S]*?\};\s*$/, "");
 const source = `${readableMathSource}\n\n${mathMarkdownSource}\n\n${rendererSource}`;
 
@@ -186,6 +186,30 @@ const cases = [
     input: "Fisher equation: i ≈ r + π^e.",
     must: ["\\(i \\approx r+π^{e}\\)."],
     not: ["i ≈ r + \\(π"]
+  },
+  {
+    name: "probability chain with conditional mid",
+    input: String.raw`Relationship: P(A∩B)=P(A\\mid B)P(B)=P(B\\mid A)P(A).`,
+    must: ["\\(P(A \\cap B)=P(A \\mid B)P(B)=P(B \\mid A)P(A)\\)."],
+    not: [String.raw`P(A\mid B)`, "P(A∩B)="]
+  },
+  {
+    name: "set builder expression",
+    input: "Set-language: A ∩ B = {x : x ∈ A and x ∈ B}.",
+    must: ["\\(A \\cap B={x:x \\in A \\;\\text{and}\\;x \\in B}\\)."],
+    not: ["A ∩ \\(B=", "x ∈ A and"]
+  },
+  {
+    name: "conditional probability fraction",
+    input: "Definition: P(A | B) = P(A∩B) / P(B).",
+    must: ["\\(P(A \\mid B)=\\frac{P(A \\cap B)}{P(B)}\\)."],
+    not: ["P(A | B)", "\\frac{A∩B}{P}"]
+  },
+  {
+    name: "conditional probability table pipe",
+    input: "| Concept | Formula | Meaning |\n| --- | --- | --- |\n| Conditional | P(A | B) = P(A∩B) / P(B) | Restrict to B |",
+    must: ["<td>Conditional</td><td>\\(P(A \\mid B)=\\frac{P(A \\cap B)}{P(B)}\\)</td><td>Restrict to B</td>"],
+    not: ["<td>P(A</td>", "<td>B) ="]
   },
   {
     name: "broken display delimiter is repaired",

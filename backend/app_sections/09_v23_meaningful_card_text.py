@@ -275,11 +275,11 @@ Language requirement: {language_rule}
 Never translate the product name Synapse.
 
 Problem:
-The current notes may be too thin, too image-dependent, or missing useful comparison/evidence tables from the source.
+The current notes may be too thin, too image-dependent, too generic, or missing professional source-grounded explanation.
 Detected quality gaps: {", ".join(quality_gaps or []) if quality_gaps else "not enough advanced tutor detail"}
 
 Your task:
-- Expand the notes into a richer tutor-style study guide while keeping the same clean notes-page feel.
+- Expand the notes into a professional, detailed tutor-style study guide while keeping the same clean notes-page feel.
 - Preserve every existing [[VISUAL:n]] marker exactly. Do not delete, rename, renumber, or move markers far away from the concept they explain.
 - If the available visual card context lists Source figure n and the current notes forgot it, insert [[VISUAL:n]] exactly once after the concept, example, table, or evidence paragraph it supports. Do not invent markers beyond the listed figures.
 - Put each [[VISUAL:n]] marker on its own line between paragraphs. Never write "After [[VISUAL:n]]:" or put the marker inside a sentence.
@@ -289,11 +289,15 @@ Your task:
 - Keep images as supporting evidence. The prose must still be understandable if the image card is temporarily unavailable.
 - High quality means more source-specific teaching, not more clutter: keep headings readable, but restore depth, examples, mechanism, evidence, and revision value.
 - Add enough detail for a student to revise from the page: concept -> source evidence -> interpretation -> why it matters -> exam/application.
+- Make the writing feel like expert lecture notes: precise terminology, clear mechanism, source-specific examples, assumptions, caveats, and practical use.
 - Use markdown tables where a comparison or evidence summary would make the explanation clearer.
 - Keep mathematical notation renderable: write inline formulas with \\( ... \\), display equations with \\[ ... \\], and matrices with bmatrix/pmatrix environments rather than raw nested arrays.
 - Upgrade short bullet lists into proper teaching notes: explain mechanisms, causal logic, assumptions, limitations, and what students usually confuse.
 - For each major concept, include a source-grounded example or data point when the source provides one.
 - Add at least one comparison/evidence table and one revision/exam-use table when the source supports it.
+- Add professional connective tissue between sections: explain how each concept leads to the next and how evidence changes the interpretation.
+- Include worked examples, calculations, method/result explanations, or case analysis whenever the source provides material for them.
+- For figures and tables, include a specific reading method: what to look at first, what pattern or relationship matters, what conclusion is justified, and what cannot be concluded.
 - Avoid shallow one-line entries such as "Definition / Why / Exam use" without explanation.
 - Do not print the note-production template itself. Use readable concept headings and natural teaching paragraphs instead of repeated checklist blocks.
 - If the current notes contain a heading like "Core Notes (concept title -> short definition -> ...)", replace it with "Core Notes" and rewrite the section into polished study notes.
@@ -353,24 +357,25 @@ Language requirement: {language_rule}
 Never translate the product name Synapse.
 
 Mission:
-Create a genuinely useful lecture-notes page, not a summary report. The page should feel like a sharp tutor has read the uploaded source, decided what the student actually needs to understand, and then taught the ideas in the right order.
-The target is an advanced study tutor: a student should be able to revise, answer exam questions, interpret source figures, and explain the reasoning chain without reopening the original file.
-High quality means source-specific depth with clean editorial structure. Do not make the notes shorter or less detailed just to make them readable.
+Create a professional, detailed lecture-notes page, not a summary report. The page should feel like a sharp tutor has read the uploaded source, identified the real learning problem, and then taught the ideas in the right order.
+The target is an advanced study tutor: a student should be able to revise, answer exam questions, interpret source figures, explain the reasoning chain, and use source evidence without reopening the original file.
+High quality means source-specific depth with clean editorial structure. Do not make the notes shorter or less detailed just to make them readable. The result should be more like polished professor notes than a short AI summary.
 
 Style:
-- write like real class notes: each concept should have a short meaningful heading, a clear explanation in your own words, and source-grounded examples or caveats where useful;
+- write like real professional class notes: each concept should have a short meaningful heading, a precise explanation in your own words, and source-grounded examples or caveats where useful;
 - clear lecture-note page, with short headings, compact paragraphs, bullets only where they help, and tables for comparison/evidence;
-- explain every major idea in detail without exposing the template: define the idea, explain why it matters, connect source evidence/example, then add a mistake or exam use only when useful;
-- do not only list facts. Show the reasoning chain and the relationships between ideas;
+- explain every major idea in detail without exposing the template: define the idea, explain the mechanism or logic, connect source evidence/example, identify an assumption or limitation, then add a mistake or exam use when useful;
+- do not only list facts. Show the reasoning chain, causal structure, and relationships between ideas;
 - do not jump straight to overview tables. Teach the ideas first, then use tables to consolidate them;
 - do not overuse slide/page numbers. Teach the concept directly.
 - never let source screenshots replace teaching. The text must explain the idea before and after the image.
 - when the source contains a graph, table, experiment setup, diagram, or data display, explicitly teach how to read it: variables/labels -> pattern/result -> interpretation -> limitation -> exam use.
+- use discipline-aware explanation: for economics, include assumptions, curve shifts, formulas, worked calculations, and common graph-label mistakes; for psychology, use research question -> method -> result -> interpretation -> limitation; for law/policy, use rule -> element/test -> consequence -> application; for mathematics, use definitions -> theorem/condition -> worked method -> verification.
 
 Source-image rules:
 - Use images for diagrams, data tables, charts, scatter plots, correlation figures, genotype/environment graphs, experiment setups, game-theory examples, method/result figures, or formulas.
 - Reject decorative cover photos, portraits, logos, stock photos, lecturer/contact slides, and random pictures.
-- If selected source figures exist, use them as source-reading moments inside the notes. Insert [[VISUAL:n]] only where the figure actually helps.
+- If selected source figures exist, use them as source-reading moments inside the notes. Insert [[VISUAL:n]] where the figure materially helps the explanation, even if the source figure is a full slide/page screenshot.
 - Use every selected source figure exactly once unless the figure is genuinely impossible to connect. These selected figures have already passed the source-evidence filter.
 - Around every [[VISUAL:n]], write an inline source-figure explanation: what question the figure answers, how to read the figure/table/graph, what evidence it gives, and what a student should remember.
 - Put each visual marker on its own line, exactly like [[VISUAL:0]]. Never write "Visual 2", "After [[VISUAL:2]]", "Before [[VISUAL:2]]", or put a visual marker inside a sentence.
@@ -398,7 +403,8 @@ Output requirements:
 - Keep headings short and specific; avoid long headings that contain the whole note structure.
 - Use the same "notes page" feel as the reference image: clean headings, strong paragraphs, helpful tables, and source screenshots embedded only when useful.
 - This is the Notes tab, not only the Summary section. It should be detailed enough to study from directly.
-- Build the page as deep notes, not a short executive summary: include mechanisms, examples, evidence, caveats, exam framing, and memory hooks where supported.
+- Build the page as deep professional notes, not a short executive summary: include mechanisms, examples, evidence, caveats, exam framing, and memory hooks where supported.
+- For dense academic/technical sources, prefer richer subsections over compression. It is acceptable for the notes to be long if the extra detail is source-grounded and useful.
 - Do not shrink the summary because images are present. Images should add evidence; they must not replace definitions, reasoning, examples, or source interpretation.
 - Insert [[VISUAL:n]] immediately after the concept/example/data point it explains. Use each available source figure at most once.
 - When selected source figures exist, at least one must appear in the body near the relevant explanation; never produce a text-only page while source figures are available.
@@ -415,6 +421,7 @@ Output requirements:
 - Target richer content than a quick summary: include the core claim, key terms, source evidence, worked examples, limitations/misunderstandings, and exam/application use when the source supports them.
 - Avoid generic filler such as "this is important". Every point must say what the student should understand or do.
 - For every major idea, teach it in depth: define the concept, explain the mechanism or reasoning chain, show the source example/data, state what the evidence can and cannot prove, then give exam/revision use.
+- For every major graph/table/diagram, teach the reading protocol and the interpretation: labels/variables -> relationship/pattern -> conclusion -> limitation -> exam sentence.
 - Use every selected Source figure exactly once as an in-text learning moment. If a selected figure is a lecture slide screenshot, place it where the slide's concept is being taught.
 - Do not compress a complex lecture into a list of one-line bullets. Use short paragraphs under bullets when needed.
 - If the source contains named studies, theorists, experiments, cases, graphs, or tables, explain what each one contributes to the argument rather than merely naming it.

@@ -153,7 +153,7 @@ def build_pdf_source_preview(data: bytes, source_name: str) -> dict:
     try:
         page_count = len(doc)
         page_limit = max(1, min(SOURCE_PREVIEW_MAX_PDF_PAGES, page_count))
-        matrix = fitz.Matrix(max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72), max(1.0, SOURCE_PREVIEW_RENDER_DPI / 72))
+        matrix = source_visual_render_matrix(SOURCE_PREVIEW_RENDER_DPI)
         pages: List[dict] = []
 
         for page_index in range(page_limit):
@@ -161,7 +161,7 @@ def build_pdf_source_preview(data: bytes, source_name: str) -> dict:
             pix = page.get_pixmap(matrix=matrix, alpha=False)
             pages.append({
                 "number": page_index + 1,
-                "image": source_preview_image_url(pix.tobytes("jpeg"), "image/jpeg"),
+                "image": source_preview_image_url(pix.tobytes("png"), "image/png"),
             })
 
         warning = ""
@@ -427,13 +427,13 @@ def render_pdf_visual_parts(data: bytes, source_name: str, max_pages: Optional[i
     try:
         doc = fitz.open(stream=data, filetype="pdf")
         selected = selected_pdf_visual_indices(doc, max_pages_to_render)
-        matrix = fitz.Matrix(max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72), max(1.0, CONTROLLED_VISUAL_RENDER_DPI / 72))
+        matrix = source_visual_render_matrix(CONTROLLED_VISUAL_RENDER_DPI)
         for idx in selected:
             page = doc.load_page(idx)
             page_text = page.get_text("text") or ""
             score, image_count, drawing_count = score_pdf_page_visual_value(page, page_text, idx)
             pix = page.get_pixmap(matrix=matrix, alpha=False)
-            img_bytes = pix.tobytes("jpeg")
+            img_bytes = pix.tobytes("png")
             preview = truncate_text(normalise_space(page_text), 680)
             label = (
                 f"IN-TEXT SOURCE FIGURE FROM {source_name} — PDF page {idx + 1}. "
@@ -442,7 +442,7 @@ def render_pdf_visual_parts(data: bytes, source_name: str, max_pages: Optional[i
                 f"Page text preview: {preview}"
             )
             parts.append({"type": "text", "text": label})
-            parts.append(image_part_from_bytes(img_bytes, "image/jpeg"))
+            parts.append(image_part_from_bytes(img_bytes, "image/png"))
         doc.close()
     except Exception:
         return []
@@ -519,9 +519,13 @@ def _v23_candidate_has_source_teaching_value(cand: dict) -> bool:
         return True
     if score >= max(4, RELEVANT_VISUAL_MIN_SCORE // 2) and teaching_signals >= max(1, decorative_signals):
         return True
+    if score >= 2 and teaching_signals >= 1 and decorative_signals <= teaching_signals + 1:
+        return True
     return bool(re.search(
         r"IN-TEXT SOURCE FIGURE|PPT slide|PDF page|rendered slide|diagram|model|table|graph|chart|"
-        r"key terms|concepts|experiment|method|result|comparison|data|evidence|formula|figure|流程|模型|图表|数据|实验|概念",
+        r"key terms|concepts|experiment|method|result|comparison|data|evidence|formula|figure|"
+        r"workflow|pipeline|worked example|exercise|annotated|labelled|labeled|curve|axis|axes|"
+        r"demand|supply|equilibrium|classification|taxonomy|流程|模型|图表|数据|实验|概念|例题|标注|分类",
         text,
         flags=re.I,
     )) and teaching_signals >= decorative_signals
@@ -539,15 +543,27 @@ def select_visual_candidates_for_argument(source_units: List[dict], limit: Optio
         and not cand.get("is_likely_decorative")
         and cand.get("visual_kind") != "unknown"
     ]
-    non_decorative = [
-        cand for cand in candidates
-        if not cand.get("is_likely_decorative") and cand.get("visual_kind") != "unknown"
-    ]
     source_teaching = [
         cand for cand in candidates
         if _v23_candidate_has_source_teaching_value(cand)
     ]
-    pool = useful if useful else (non_decorative if non_decorative else source_teaching)
+    non_decorative = [
+        cand for cand in candidates
+        if not cand.get("is_likely_decorative") and cand.get("visual_kind") != "unknown"
+    ]
+    pool = []
+    seen_pool = set()
+    for group in (useful, source_teaching, non_decorative):
+        for cand in group:
+            key = (
+                cand.get("source_index"),
+                normalise_space(cand.get("location") or cand.get("caption") or "")[:180],
+                cand.get("url"),
+            )
+            if key in seen_pool:
+                continue
+            seen_pool.add(key)
+            pool.append(cand)
     if not pool:
         pool = [
             cand for cand in sorted(candidates, key=lambda c: (-c.get("score", 0), c.get("source_index", 0), c.get("location", "")))
@@ -737,6 +753,7 @@ Never translate the product name Synapse.
 
 Choose ONLY source figures that help students understand:
 - diagrams, experiment/event sequences, tables, charts, graphs, statistical evidence, formulas, process models, or method/result figures.
+- Be sensitive to teaching value: a slide/page does not need to be perfect to be useful. Include it when it contains labelled structure, axes, curves, variables, values, formulas, worked examples, classification boxes, process arrows, method steps, source evidence, or a concrete comparison that the notes can teach from.
 
 Reject images that are mainly:
 - cover/title slides, portraits, lecturer photos, logos, stock photos, decorative backgrounds, contact/about-me slides, or generic pictures without teaching value.
@@ -756,6 +773,7 @@ Rules:
 - Return at most {hard_limit} cards.
 - Do not include decorative images.
 - Prefer data/charts/diagrams/experiment sequences over photos.
+- When uncertain between including and excluding a non-decorative diagram/table/chart/worked example, include it if the notes can explain how to read it.
 - If an image is a generic stock/product/person photo, set is_useful=false or omit it.
 - If the image does not visibly add information beyond nearby text, set is_useful=false or omit it.
 - why_relevant must name the specific concept/data relationship shown; generic phrases such as "supports the nearby concept" are invalid.

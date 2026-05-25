@@ -192,7 +192,8 @@ function isProseHeavyMathBody(body) {
   const allowed = new Set([
     ...MATH_MARKDOWN_LATEX_FUNCTION_NAMES.map(item => item.toLowerCase()),
     "frac", "sqrt", "lvert", "rvert", "left", "right", "mathrm", "operatorname", "text",
-    "begin", "end", "bmatrix", "pmatrix", "matrix"
+    "begin", "end", "bmatrix", "pmatrix", "matrix",
+    "mid", "cup", "cap", "in", "notin", "and", "or", "given"
   ]);
   const proseWords = words.filter(word => !allowed.has(word.toLowerCase()));
   if (proseWords.some(word => word.length >= 14)) return true;
@@ -280,6 +281,7 @@ function convertSlashFractionsToLatex(value) {
   let output = protectedFractions.text
     .replace(/\bd\s*\/\s*d([A-Za-z])\b/g, "\\frac{d}{d$1}")
     .replace(/\\Delta\s*([A-Za-z])\s*\/\s*\\Delta\s*([A-Za-z])/g, "\\frac{\\Delta $1}{\\Delta $2}")
+    .replace(/\b([A-Za-z]{1,8}\s*\([^()\n]{1,120}\))\s*\/\s*([A-Za-z]{1,8}\s*\([^()\n]{1,120}\))/g, "\\frac{$1}{$2}")
     .replace(/\[([^\[\]\n]{1,220})\]\s*\/\s*(\\Delta\s*[A-Za-z]|[A-Za-z][A-Za-z0-9]*|\d+(?:\.\d+)?)/g, (_, numerator, denominator) => (
       `\\frac{${numerator.trim()}}{${denominator.trim()}}`
     ))
@@ -298,11 +300,22 @@ function convertSlashFractionsToLatex(value) {
   return output;
 }
 
+function normalizeConditionalProbabilityPipes(value) {
+  return String(value || "").replace(
+    /\b(P|Pr)\s*\(\s*([^()\n|]{1,100}?)\s*\|\s*([^()\n|]{1,100}?)\s*\)/g,
+    (_, fn, left, right) => `${fn}(${left.trim()} \\mid ${right.trim()})`
+  );
+}
+
 function latexSafeMathText(value) {
-  const source = convertSlashFractionsToLatex(normalizeDeltaNotation(repairLatexDelimiterLeakage(String(value || ""))))
+  const source = convertSlashFractionsToLatex(normalizeConditionalProbabilityPipes(normalizeDeltaNotation(repairLatexDelimiterLeakage(String(value || "")))))
     .trim()
     .replace(/[−–—]/g, "-")
     .replace(/\|([^|\n]{1,100})\|/g, "\\lvert $1 \\rvert")
+    .replace(/∪/g, "\\cup ")
+    .replace(/∩/g, "\\cap ")
+    .replace(/∈/g, "\\in ")
+    .replace(/∉/g, "\\notin ")
     .replace(/∫/g, "\\int ")
     .replace(/Σ/g, "\\sum ")
     .replace(/Π/g, "\\prod ")
@@ -320,6 +333,8 @@ function latexSafeMathText(value) {
     .replace(/≥/g, "\\ge ")
     .replace(/→/g, "\\to ")
     .replace(/\bdet\s*\(/gi, "\\det(")
+    .replace(/\band\b/gi, "\\;\\text{and}\\;")
+    .replace(/\bor\b/gi, "\\;\\text{or}\\;")
     .replace(/\bsqrt\s*\(\s*([^()\n]+?)\s*\)/gi, "\\sqrt{$1}")
     .replace(/√\s*\(\s*([^()\n]+?)\s*\)/g, "\\sqrt{$1}")
     .replace(/√\s*([0-9A-Za-z]+)/g, "\\sqrt{$1}")
@@ -400,6 +415,20 @@ function isMathAbsPipe(body, index) {
   return prevMath && nextMath && /(?:\\?ln|\\?log|\\?det|\\?frac|\\?sqrt|[=+\-*/^_(]|∫|Σ|Π|√)\s*[^|]*$/i.test(recent);
 }
 
+function isConditionalProbabilityPipe(body, index) {
+  const before = String(body || "").slice(0, index);
+  const after = String(body || "").slice(index + 1);
+  const openIndex = before.lastIndexOf("(");
+  const closeBefore = before.lastIndexOf(")");
+  if (openIndex < 0 || openIndex < closeBefore) return false;
+  if (!/(?:^|[^A-Za-z0-9_])(?:P|Pr)\s*$/i.test(before.slice(0, openIndex))) return false;
+  const closeAfter = after.indexOf(")");
+  if (closeAfter < 0) return false;
+  const left = before.slice(openIndex + 1).trim();
+  const right = after.slice(0, closeAfter).trim();
+  return Boolean(left && right && left.length <= 100 && right.length <= 100);
+}
+
 function splitMarkdownTableCells(value, expectedCount = 0) {
   let body = String(value || "").trim();
   if (body.startsWith("|")) body = body.slice(1);
@@ -435,7 +464,7 @@ function splitMarkdownTableCells(value, expectedCount = 0) {
       continue;
     }
 
-    if (char === "|" && !mathDelimiter && prev !== "\\" && !isMathAbsPipe(body, index)) {
+    if (char === "|" && !mathDelimiter && prev !== "\\" && !isMathAbsPipe(body, index) && !isConditionalProbabilityPipe(body, index)) {
       cells.push(cell.trim());
       cell = "";
       continue;
@@ -471,6 +500,12 @@ function splitFormulaTrailingText(value) {
     trailing = formula.slice(index) + trailing;
     formula = formula.slice(0, index).trimEnd();
   };
+  const setBuilder = formula.match(/^([A-Za-z]\s*(?:∩|∪|\\cap|\\cup)\s*[A-Za-z]\s*=\s*\{[^{}\n]{1,240}\})([.,;:]?[\s\S]*)$/);
+  if (setBuilder) {
+    formula = setBuilder[1];
+    trailing = setBuilder[2] + trailing;
+    return { formula, trailing };
+  }
   const derivativeOperatorOnly = formula.match(/^(d\s*\/\s*d[A-Za-z]|\\frac\{d\}\{d[A-Za-z]\})([\s\S]+)$/);
   if (derivativeOperatorOnly && /^(?:\s*\)|\s+(?:vs|versus)\b|[,.;:])/.test(derivativeOperatorOnly[2])) {
     formula = derivativeOperatorOnly[1];
@@ -555,6 +590,9 @@ function findPlainFormulaStart(value) {
   const body = String(value || "");
   const patterns = [
     /(?:^|[^\w])(\\(?:frac|tfrac|dfrac)\s*\{)/,
+    /(?:^|[^\w])((?:P|Pr)\s*\([^()\n]{1,120}\)\s*(?:=|≈|≃|≠|≤|≥|<|>)\s*)/i,
+    /(?:^|[^\w])([A-Za-z]\s*(?:∩|∪|\\cap|\\cup)\s*[A-Za-z]\s*=\s*\{)/,
+    /(?:^|[^\w])([A-Za-z]\s*(?:∩|∪|\\cap|\\cup)\s*[A-Za-z])/,
     /(?:^|[^\w])((?:d\s*\/\s*d[A-Za-z]|(?:\\Delta|Δ)\s*[A-Za-z]\s*\/\s*(?:\\Delta|Δ)\s*[A-Za-z]|\[[^\[\]\n]{1,220}\]\s*\/\s*(?:(?:\\Delta|Δ)\s*[A-Za-z]|[A-Za-z][A-Za-z0-9]*)|\((?:[^()\n]|\([^()\n]*\)){1,220}\)\s*\/\s*(?:(?:\\Delta|Δ)\s*[A-Za-z]|[A-Za-z][A-Za-z0-9]*)))/,
     /(?:^|[^\w])(((?:[-+]?\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9_{}^\\-]*|\([^()\n]{1,40}\))\s*(?:\\cdot|·|⋅|×|\*)\s*)?\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\})/,
     /\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Bmatrix|smallmatrix)\}/,
@@ -593,6 +631,8 @@ function shouldWrapFormula(formula) {
     if (proseWords.length >= 2 && !hasRealMath) return false;
   }
   if (isProseHeavyMathBody(value)) return false;
+  if (/\b(?:P|Pr)\s*\([^()\n]{1,120}\)/.test(value) && /[=≈≃≠≤≥<>]|\\mid|\||∩|∪/.test(value)) return true;
+  if (/[A-Za-z]\s*(?:∩|∪|\\cap|\\cup)\s*[A-Za-z]|\{[^{}\n]*(?:∈|\\in)[^{}\n]*\}/.test(value)) return true;
   const relationMatch = value.match(/^\s*([A-Za-z][A-Za-z\s-]{3,})\s*(?:=|≈|≃|≠|≤|≥|<|>)/);
   if (relationMatch && !/[()_^'\\∫ΣΠ√]/.test(relationMatch[1])) return false;
   if (/^\s*[A-Za-z]'\s*\([^()\n]{1,20}\)\s*$/.test(value)) return true;
@@ -615,7 +655,7 @@ function latexFormula(value) {
     .replace(/([A-Za-z0-9}\)])d([A-Za-z])\b/g, "$1\\,d$2")
     .replace(/\bln\b/g, "\\ln")
     .replace(/\blog\b/g, "\\log")
-    .replace(/\s*(\\(?:cdot|times|div|ne|le|ge|to)\s*)\s*/g, " $1 ")
+    .replace(/\s*(\\(?:cdot|times|div|ne|le|ge|to|mid|cup|cap|in|notin)\s*)\s*/g, " $1 ")
     .replace(/\s+/g, " ")
     .trim();
   MATH_MARKDOWN_LATEX_FUNCTION_NAMES.forEach(name => {

@@ -834,15 +834,16 @@ def health_token_optimization():
 # - Put useful PDF/PPT visuals directly inside the generated content with
 #   [[VISUAL:n]] markers; the existing frontend renderer turns those markers into
 #   inline image cards.
-# - Prefer fewer, better visuals and tighter writing over endless generation.
+# - Prefer relevant teaching visuals in context; keep decorative material out,
+#   but do not be timid about diagrams, tables, charts, workflows, or worked examples.
 
 CONTROLLED_INLINE_VISUAL_MODE = os.getenv("CONTROLLED_INLINE_VISUAL_MODE", "true").lower() not in {"0", "false", "no"}
-CONTROLLED_MAX_VISUALS = max(1, env_int("CONTROLLED_MAX_VISUALS", 5))
+CONTROLLED_MAX_VISUALS = max(1, env_int("CONTROLLED_MAX_VISUALS", 8))
 CONTROLLED_MAX_SOURCE_CONTEXT_CHARS = env_int("CONTROLLED_MAX_SOURCE_CONTEXT_CHARS", 110000)
 CONTROLLED_MAX_CHARS_PER_SOURCE = env_int("CONTROLLED_MAX_CHARS_PER_SOURCE", 18000)
-CONTROLLED_OUTPUT_TOKENS = env_int("CONTROLLED_OUTPUT_TOKENS", 12000)
-CONTROLLED_VISUAL_CARD_TOKENS = env_int("CONTROLLED_VISUAL_CARD_TOKENS", 2200)
+CONTROLLED_OUTPUT_TOKENS = env_int("CONTROLLED_OUTPUT_TOKENS", 16000)
+CONTROLLED_VISUAL_CARD_TOKENS = env_int("CONTROLLED_VISUAL_CARD_TOKENS", 3200)
 CONTROLLED_VISUAL_RENDER_DPI = env_int("CONTROLLED_VISUAL_RENDER_DPI", 115)
-CONTROLLED_MAX_PDF_PAGES_PER_SOURCE = env_int("CONTROLLED_MAX_PDF_PAGES_PER_SOURCE", 6)
-CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE = env_int("CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE", 6)
+CONTROLLED_MAX_PDF_PAGES_PER_SOURCE = env_int("CONTROLLED_MAX_PDF_PAGES_PER_SOURCE", 10)
+CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE = env_int("CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE", 10)
 CONTROLLED_INCLUDE_SOURCE_CARDS = os.getenv("CONTROLLED_INCLUDE_SOURCE_CARDS", "false").lower() not in {"0", "false", "no"}
