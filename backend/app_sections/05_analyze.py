@@ -1,3 +1,11 @@
+@app.get("/prompt-modes")
+def prompt_modes():
+    return {
+        "default": DEFAULT_NOTE_PROMPT_MODE,
+        "options": note_prompt_mode_options(),
+    }
+
+
 @app.post("/analyze")
 async def analyze_materials(
     files: List[UploadFile] = File(default=[]),
@@ -5,6 +13,7 @@ async def analyze_materials(
     free_text: str = Form(default=""),
     preferred_language: str = Form(default="auto"),
     detail_level: str = Form(default="auto"),
+    prompt_mode: str = Form(default=DEFAULT_NOTE_PROMPT_MODE),
     client_fingerprint: str = Form(default=""),
 ):
     del client_fingerprint  # server now uses stable source identity instead
@@ -96,6 +105,8 @@ async def analyze_materials(
             part.get("text", "") for part in content_parts
             if isinstance(part, dict) and part.get("type") == "text"
         )
+        selected_prompt_mode = normalise_note_prompt_mode(prompt_mode)
+        selected_prompt_label = note_prompt_mode_label(selected_prompt_mode)
         resolved_language_key = resolve_generation_language_key(preferred_language, combined_source_text)
         postprocess_language = resolved_language_key if normalise_language_key(preferred_language) == "auto" else preferred_language
         depth_plan = choose_learning_depth(combined_source_text, source_units, "auto")
@@ -108,7 +119,7 @@ async def analyze_materials(
             depth_plan["config"] = depth_config
             depth_plan["reason"] = (depth_plan.get("reason", "") + ", professor-level multi-source synthesis").strip(", ")
 
-        source_fingerprint = build_analysis_fingerprint(preferred_language, source_units, depth)
+        source_fingerprint = build_analysis_fingerprint(preferred_language, source_units, depth, selected_prompt_mode)
         cached_result = cache_get(source_fingerprint)
         if cached_result:
             # Rebuild live visual cards from the freshly uploaded files. The cache
@@ -131,7 +142,14 @@ async def analyze_materials(
             stored_mind_map = cached_result.get("mind_map", {})
             stored_title = cached_result.get("title", "Generated Study Notes")
             stored_source_identity = cached_result.get("primary_source_identity", "")
-            return {**cached_result, "cached": True, "source_fingerprint": source_fingerprint, "output_language": postprocess_language}
+            return {
+                **cached_result,
+                "cached": True,
+                "source_fingerprint": source_fingerprint,
+                "output_language": postprocess_language,
+                "prompt_mode": selected_prompt_mode,
+                "prompt_mode_label": selected_prompt_label,
+            }
 
         language_rule = language_instruction_for_generation(preferred_language, combined_source_text)
 
@@ -194,7 +212,7 @@ Consistency requirement:
 - If the source title says Partnership Law Act 2019, do NOT change it to Arms Legislation Act 2019 or any other act.
 """
 
-        stored_summary = generate_reference_style_multisource_notes(source_units, preferred_language, depth_plan)
+        stored_summary = generate_reference_style_multisource_notes(source_units, preferred_language, depth_plan, selected_prompt_mode)
 
         stored_summary = enforce_requested_language(stored_summary, preferred_language)
         stored_summary = finalize_generated_summary(
@@ -246,6 +264,8 @@ Consistency requirement:
             "depth_reason": depth_plan.get("reason", ""),
             "detail_plan": {k: v for k, v in depth_plan.items() if k != "config"},
             "output_language": postprocess_language,
+            "prompt_mode": selected_prompt_mode,
+            "prompt_mode_label": selected_prompt_label,
             "cached": False,
         }
         # Do not persist large base64 visual images in the JSON cache. The

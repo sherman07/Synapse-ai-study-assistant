@@ -1,6 +1,21 @@
 import { html } from "../html.js";
 import { languageOptions } from "./LanguageOptions.js";
 
+const promptModeOptions = [
+  ["quick_answer", "Quick Answer"],
+  ["detailed_explanation", "Detailed Explanation"],
+  ["professor_mode", "Professor Mode"],
+  ["tutor_mode", "Tutor Mode"],
+  ["source_strict_research_mode", "Source-Strict Research Mode"],
+  ["assignment_apa_mode", "Assignment / APA Mode"],
+];
+
+function promptModeOptionMarkup() {
+  return promptModeOptions.map(([value, label]) => html`
+    <option value="${value}" ${value === "professor_mode" ? "selected" : ""}>${label}</option>
+  `).join("");
+}
+
 export function UploadStage() {
   return html`
     <section id="uploadStage" class="upload-stage">
@@ -66,6 +81,14 @@ export function UploadStage() {
           </select>
         </div>
         <input type="hidden" id="detailLevel" value="auto" />
+
+        <div class="language-box prompt-mode-box">
+          <label for="promptMode" class="form-label">Prompt mode</label>
+          <p class="language-note">Choose how Synapse should shape the generated notes.</p>
+          <select id="promptMode" class="language-select prompt-mode-select" aria-label="Prompt mode">
+            ${promptModeOptionMarkup()}
+          </select>
+        </div>
 
         <div class="language-box auto-depth-box" aria-live="polite">
           <div class="auto-depth-icon"><i class="bi bi-lightning-charge-fill"></i></div>

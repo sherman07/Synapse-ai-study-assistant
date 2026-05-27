@@ -25,7 +25,16 @@ class HealthReporter:
             "project_id_loaded": bool(self._get("OPENAI_PROJECT_ID")),
             "analysis_model": self._get("ANALYSIS_MODEL"),
             "chat_model": self._get("CHAT_MODEL"),
+            "fallback_model": self._get("FALLBACK_MODEL"),
+            "mindmap_model": self._get("MINDMAP_MODEL"),
+            "title_model": self._get("TITLE_MODEL"),
             "transcribe_model": self._get("TRANSCRIBE_MODEL"),
+            "realtime_model": self._get("REALTIME_MODEL"),
+            "realtime_voice": self._get("REALTIME_VOICE"),
+            "visual_image_guide_model": self._get("VISUAL_IMAGE_GUIDE_MODEL"),
+            "visual_image_guide_size": self._get("VISUAL_IMAGE_GUIDE_SIZE"),
+            "visual_image_guide_quality": self._get("VISUAL_IMAGE_GUIDE_QUALITY"),
+            "openai_timeout_seconds": self._get("OPENAI_TIMEOUT_SECONDS"),
             "cache_version": self._get("CACHE_VERSION"),
             "tutor_web_research_enabled": self._get("ENABLE_TUTOR_WEB_RESEARCH"),
             "multi_source_digests_enabled": self._get("ENABLE_MULTI_SOURCE_DIGESTS"),
@@ -50,16 +59,23 @@ class HealthReporter:
     def openai_status(self) -> dict:
         try:
             self._get("require_openai")()
-            response = self._get("client").chat.completions.create(
-                model=self._get("CHAT_MODEL"),
-                messages=[{"role": "user", "content": "Reply with OK only."}],
-                temperature=0,
-                max_tokens=5,
-            )
+            messages = [{"role": "user", "content": "Reply with OK only."}]
+            generate_chat = self._get("generate_chat")
+            if callable(generate_chat):
+                reply = generate_chat(messages, model=self._get("CHAT_MODEL"), temperature=0, max_tokens=5).strip()
+            else:
+                response = self._get("client").chat.completions.create(
+                    model=self._get("CHAT_MODEL"),
+                    messages=messages,
+                    temperature=0,
+                    max_tokens=5,
+                )
+                reply = (response.choices[0].message.content or "").strip()
             return {
                 "status": "ok",
                 "model": self._get("CHAT_MODEL"),
-                "reply": (response.choices[0].message.content or "").strip(),
+                "fallback_model": self._get("FALLBACK_MODEL"),
+                "reply": reply,
                 "org_id_loaded": bool(self._get("OPENAI_ORG_ID")),
                 "project_id_loaded": bool(self._get("OPENAI_PROJECT_ID")),
             }

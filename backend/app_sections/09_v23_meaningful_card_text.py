@@ -263,16 +263,30 @@ def expand_sparse_inline_summary(
     min_units: int,
     force: bool = False,
     quality_gaps: Optional[List[str]] = None,
+    prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE,
 ) -> str:
     """Expand notes only when the first pass became too thin after adding visuals."""
+    if not note_prompt_mode_allows_expansion(prompt_mode):
+        return summary
     if not summary or (not force and count_readable_units(summary) >= min_units):
         return summary
     language_rule = language_instruction_for(preferred_language)
+    prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
+    prompt_mode_label = note_prompt_mode_label(prompt_mode_key)
+    prompt_mode_text = load_note_prompt_mode_text(prompt_mode_key)
     prompt = f"""
 You are Synapse, improving a source-grounded study-note page.
 
 Language requirement: {language_rule}
 Never translate the product name Synapse.
+
+Selected prompt mode: {prompt_mode_label} ({prompt_mode_key})
+Mode-specific prompt file:
+{prompt_mode_text}
+
+Mode priority rule:
+- Preserve the selected prompt mode's intended length, tone, section shape, and evidence discipline.
+- If a generic expansion rule conflicts with the selected prompt mode, follow the selected prompt mode.
 
 Problem:
 The current notes may be too thin, too image-dependent, too generic, or missing professional source-grounded explanation.
@@ -338,12 +352,16 @@ Return the expanded final markdown only.
     return summary
 
 
-def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict) -> str:
+def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict, prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE) -> str:
     """v23: controlled notes with relevant in-text diagrams/tables/charts only."""
     source_context = _v22_source_context(source_units)
     generation_language = resolve_generation_language_key(preferred_language, source_context)
     language_rule = language_instruction_for_generation(preferred_language, source_context)
     recommended_structure = note_structure_for_language(generation_language, source_context)
+    prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
+    prompt_mode_label = note_prompt_mode_label(prompt_mode_key)
+    prompt_mode_text = load_note_prompt_mode_text(prompt_mode_key)
+    mode_min_units = note_prompt_mode_min_units(prompt_mode_key, env_int("CONTROLLED_MIN_OUTPUT_UNITS", 2600))
     visual_cards = generate_visual_argument_cards(source_units, source_context, generation_language)
     visual_context = _v22_visual_context_for_prompt(visual_cards)
     source_list = "\n".join(
@@ -356,10 +374,19 @@ You are Synapse, an advanced study tutor and source-grounded lecturer.
 Language requirement: {language_rule}
 Never translate the product name Synapse.
 
+Selected prompt mode: {prompt_mode_label} ({prompt_mode_key})
+Mode-specific prompt file:
+{prompt_mode_text}
+
+Mode priority rule:
+- The selected prompt mode is the controlling instruction for output length, structure, tone, and evidence discipline.
+- If the default Synapse note style asks for more depth, more tables, or more expansion than the selected prompt mode wants, follow the selected prompt mode.
+- Always keep source identity, language, math rendering, and visual-marker rules intact.
+
 Mission:
-Create a professional, detailed lecture-notes page, not a summary report. The page should feel like a sharp tutor has read the uploaded source, identified the real learning problem, and then taught the ideas in the right order.
-The target is an advanced study tutor: a student should be able to revise, answer exam questions, interpret source figures, explain the reasoning chain, and use source evidence without reopening the original file.
-High quality means source-specific depth with clean editorial structure. Do not make the notes shorter or less detailed just to make them readable. The result should be more like polished professor notes than a short AI summary.
+Create the notes requested by the selected prompt mode. The page should feel like Synapse has read the uploaded source, identified the real learning problem, and then used the selected mode to present the right amount of explanation.
+The target is a useful study output: a student should be able to answer the immediate learning need, interpret source figures, explain the reasoning chain, and use source evidence without losing source accuracy.
+High quality means source-specific usefulness with clean editorial structure. Match the selected mode's depth: concise for Quick Answer, guided for Tutor Mode, formal for Assignment / APA Mode, evidence-disciplined for Source-Strict Research Mode, and comprehensive for Professor Mode.
 
 Style:
 - write like real professional class notes: each concept should have a short meaningful heading, a precise explanation in your own words, and source-grounded examples or caveats where useful;
@@ -448,7 +475,7 @@ Quality bar:
         ).strip()
         if not result or is_refusal_or_useless_response(result):
             raise RuntimeError("Relevant visual notes were too short or unusable.")
-        if count_readable_units(result) < env_int("CONTROLLED_MIN_OUTPUT_UNITS", 2600):
+        if count_readable_units(result) < mode_min_units:
             raise RuntimeError("Relevant visual notes were too short or unusable.")
         source_has_table_or_data = bool(re.search(
             r"\b(table|figure|fig\.|graph|chart|plot|correlation|experiment|study|results?|data|mean|median|percentage|rate|comparison)\b|图|表|数据|实验|结果|对比",
@@ -462,6 +489,7 @@ Quality bar:
             quality_gaps.append("selected in-text source figures were not used in the notes")
         should_expand = (
             os.getenv("ENABLE_CONDITIONAL_NOTE_EXPANSION", "true").lower() not in {"0", "false", "no"}
+            and note_prompt_mode_allows_expansion(prompt_mode_key)
             and (
                 bool(quality_gaps)
                 or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES)
@@ -476,6 +504,7 @@ Quality bar:
                 RICH_INLINE_MIN_OUTPUT_UNITS,
                 force=bool(quality_gaps) or missing_visual_markers or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES),
                 quality_gaps=quality_gaps,
+                prompt_mode=prompt_mode_key,
             )
     except Exception:
         is_chinese_fallback = generation_language in {"simplified_chinese", "traditional_chinese", "mixed_chinese_english"}
@@ -605,6 +634,21 @@ def _v23_card_is_teaching_figure(card: dict) -> bool:
     return signals["teaching"] > 0 and signals["decorative"] <= signals["teaching"]
 
 
+def _v23_selected_card_can_render(card: dict) -> bool:
+    """Keep the browser gallery aligned with the already-inserted marker cards."""
+    if not isinstance(card, dict) or not card.get("url"):
+        return False
+    text = _v23_card_text(card)
+    if re.search(r"\b(stock|dreamstime|getty|unsplash|product photo|phone photo|generic photo|decorative photo)\b", text, flags=re.I):
+        return False
+    if _v23_card_is_teaching_figure(card):
+        return True
+    signals = _v23_signal_counts(text)
+    if card.get("is_likely_decorative") and signals["decorative"] > signals["teaching"]:
+        return False
+    return signals["teaching"] > 0 and signals["decorative"] <= signals["teaching"] + 1
+
+
 def build_visual_gallery(source_units: List[dict]) -> List[dict]:
     """v23 final override: return only in-text source figures, never a raw gallery."""
     cards: List[dict] = []
@@ -615,16 +659,13 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
 
     cleaned: List[dict] = []
     max_items = max(0, min(CONTROLLED_MAX_VISUALS, MULTISOURCE_VISUAL_GALLERY_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
-    for card in cards or []:
-        if not _v23_card_is_teaching_figure(card):
+    for marker_index, card in enumerate(cards or []):
+        if not _v23_selected_card_can_render(card):
             continue
         card_language = "simplified_chinese" if re.search(r"[\u4e00-\u9fff]", _v23_card_text(card)) else "english"
         item = _v23_enrich_visual_card_details(dict(card), source_figure_labels(card_language), card_language)
-        try:
-            item["index"] = int(item.get("index", len(cleaned)))
-        except Exception:
-            item["index"] = len(cleaned)
-        item["title"] = normalise_space(item.get("title") or f"Source figure {len(cleaned) + 1}")
+        item["index"] = marker_index
+        item["title"] = normalise_space(item.get("title") or f"Source figure {marker_index + 1}")
         item["caption"] = clean_source_figure_caption(item.get("caption") or item.get("what_shows") or "")
         item["what_shows"] = clean_source_figure_caption(item.get("what_shows") or item.get("caption") or "")
         for detail_key in ("why_relevant", "argument_supported", "cross_source_connection", "how_to_read", "exam_use"):

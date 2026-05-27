@@ -16,37 +16,65 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+def env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
 def env_list(name: str, default: str = "") -> list:
     raw = os.getenv(name, default)
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def env_str(name: str, default: str = "") -> str:
+    value = (os.getenv(name) or "").strip()
+    return value or default
+
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-load_dotenv(BACKEND_DIR / ".env")
+PROJECT_ROOT = BACKEND_DIR.parent
+for env_path in (
+    BACKEND_DIR / ".env",
+    BACKEND_DIR / "core" / ".env",
+    PROJECT_ROOT / ".env",
+):
+    load_dotenv(env_path)
 load_dotenv()
 
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_ORG_ID = (os.getenv("OPENAI_ORG_ID") or "").strip() or None
 OPENAI_PROJECT_ID = (os.getenv("OPENAI_PROJECT_ID") or "").strip() or None
+OPENAI_TIMEOUT_SECONDS = max(30.0, env_float("OPENAI_TIMEOUT_SECONDS", 240.0))
 
 client = (
     OpenAI(
         api_key=OPENAI_API_KEY,
         organization=OPENAI_ORG_ID,
         project=OPENAI_PROJECT_ID,
+        timeout=OPENAI_TIMEOUT_SECONDS,
     )
     if OPENAI_API_KEY
     else None
 )
 
-ANALYSIS_MODEL = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-4o")
-CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
-REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2")
-REALTIME_VOICE = os.getenv("OPENAI_REALTIME_VOICE", "marin")
-VISUAL_IMAGE_GUIDE_MODEL = os.getenv("OPENAI_VISUAL_IMAGE_GUIDE_MODEL", "gpt-image-1.5")
-VISUAL_IMAGE_GUIDE_SIZE = os.getenv("OPENAI_VISUAL_IMAGE_GUIDE_SIZE", "1024x1536")
-VISUAL_IMAGE_GUIDE_QUALITY = os.getenv("OPENAI_VISUAL_IMAGE_GUIDE_QUALITY", "medium")
+DEFAULT_TEXT_MODEL = "gpt-5.4-mini"
+DEFAULT_REALTIME_MODEL = "gpt-realtime-mini"
+DEFAULT_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+DEFAULT_VISUAL_IMAGE_GUIDE_MODEL = "gpt-image-1.5"
+
+ANALYSIS_MODEL = env_str("OPENAI_ANALYSIS_MODEL", DEFAULT_TEXT_MODEL)
+CHAT_MODEL = env_str("OPENAI_CHAT_MODEL", DEFAULT_TEXT_MODEL)
+FALLBACK_MODEL = env_str("OPENAI_FALLBACK_MODEL", ANALYSIS_MODEL)
+MINDMAP_MODEL = env_str("OPENAI_MINDMAP_MODEL", ANALYSIS_MODEL)
+TITLE_MODEL = env_str("OPENAI_TITLE_MODEL", ANALYSIS_MODEL)
+TRANSCRIBE_MODEL = env_str("OPENAI_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIBE_MODEL)
+REALTIME_MODEL = env_str("OPENAI_REALTIME_MODEL", DEFAULT_REALTIME_MODEL)
+REALTIME_VOICE = env_str("OPENAI_REALTIME_VOICE", "marin")
+VISUAL_IMAGE_GUIDE_MODEL = env_str("OPENAI_VISUAL_IMAGE_GUIDE_MODEL", DEFAULT_VISUAL_IMAGE_GUIDE_MODEL)
+VISUAL_IMAGE_GUIDE_SIZE = env_str("OPENAI_VISUAL_IMAGE_GUIDE_SIZE", "1024x1536")
+VISUAL_IMAGE_GUIDE_QUALITY = env_str("OPENAI_VISUAL_IMAGE_GUIDE_QUALITY", "medium")
 
 ENABLE_TUTOR_WEB_RESEARCH = env_bool("ENABLE_TUTOR_WEB_RESEARCH", "true")
 MAX_TUTOR_SEARCH_RESULTS = env_int("MAX_TUTOR_SEARCH_RESULTS", 4)
@@ -98,7 +126,7 @@ try:
     CACHE_PATH = RUNTIME_DIR / "synapse_analysis_cache.json"
 except Exception:
     CACHE_PATH = DEFAULT_CACHE_PATH
-CACHE_VERSION = "source_identity_mindmap_v63_enhanced_source_screenshots"
+CACHE_VERSION = "source_identity_mindmap_v64_prompt_modes"
 
 CORS_ALLOW_ORIGINS = env_list(
     "SYNAPSE_CORS_ALLOW_ORIGINS",
@@ -127,12 +155,12 @@ CORS_ALLOW_CREDENTIALS = env_bool("SYNAPSE_CORS_ALLOW_CREDENTIALS", "false")
 
 def model_for_depth(depth: str) -> str:
     if depth == "focused":
-        return os.getenv("OPENAI_FOCUSED_MODEL", os.getenv("OPENAI_BRIEF_MODEL", ANALYSIS_MODEL))
+        return env_str("OPENAI_FOCUSED_MODEL", env_str("OPENAI_BRIEF_MODEL", ANALYSIS_MODEL))
     if depth == "standard":
-        return os.getenv("OPENAI_STANDARD_MODEL", ANALYSIS_MODEL)
+        return env_str("OPENAI_STANDARD_MODEL", ANALYSIS_MODEL)
     if depth == "detailed":
-        return os.getenv("OPENAI_DETAILED_MODEL", ANALYSIS_MODEL)
-    return os.getenv("OPENAI_COMPREHENSIVE_MODEL", os.getenv("OPENAI_DEEP_MODEL", ANALYSIS_MODEL))
+        return env_str("OPENAI_DETAILED_MODEL", ANALYSIS_MODEL)
+    return env_str("OPENAI_COMPREHENSIVE_MODEL", env_str("OPENAI_DEEP_MODEL", ANALYSIS_MODEL))
 
 
 def has_openai() -> bool:

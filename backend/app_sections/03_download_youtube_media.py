@@ -814,7 +814,7 @@ Notes:
         raw = generate_chat([
             {"role": "system", "content": "You create accurate, compact, visual study mind maps as strict JSON. Never use markdown bold or raw LaTeX in mind map labels. Never translate the brand name Synapse."},
             {"role": "user", "content": prompt},
-        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=5600)
+        ], model=MINDMAP_MODEL, temperature=0, max_tokens=5600)
         parsed = extract_json_object(raw)
         return normalise_ai_mind_map(parsed or {}, fallback, depth)
     except Exception:
@@ -834,5 +834,33 @@ def make_notes_title(summary: str, source_title_candidates: List[str]) -> str:
         match = re.search(pattern, text, flags=re.I)
         if match:
             return match.group(1).strip()[:72]
+
+    try:
+        title_candidate_text = ", ".join(str(item) for item in source_title_candidates[:6] if str(item).strip()) or "none"
+        raw = generate_chat([
+            {
+                "role": "system",
+                "content": (
+                    "Create concise, source-faithful study-note titles. "
+                    "Return only the title, with no markdown, quotes, or trailing punctuation."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Write a specific title for these generated study notes. "
+                    "Use explicit source evidence from the summary; do not invent a course name. "
+                    "Keep it under 72 characters and never translate the product name Synapse.\n\n"
+                    f"Source title candidates: {title_candidate_text}\n\n"
+                    f"Summary excerpt:\n{truncate_text(summary, 6000)}"
+                ),
+            },
+        ], model=TITLE_MODEL, temperature=0, max_tokens=80)
+        candidate = normalise_space(raw).strip(" #`'\".:;-")
+        if len(candidate) >= 8:
+            return candidate[:72]
+    except Exception:
+        pass
+
     first_sentence = next((part.strip() for part in re.split(r"[.!?。！？]", text) if len(part.strip()) > 8), "")
     return first_sentence[:72] if first_sentence else "Generated Study Notes"

@@ -52,6 +52,7 @@ const mindMapCanvas = document.getElementById("mindMapCanvas");
 const generateBtn = document.getElementById("generateBtn");
 const preferredLanguage = document.getElementById("preferredLanguage");
 const detailLevel = document.getElementById("detailLevel");
+const promptMode = document.getElementById("promptMode");
 const historyNav = document.getElementById("historyNav");
 const historyList = document.getElementById("historyList");
 const historySearch = document.getElementById("historySearch");
@@ -73,6 +74,7 @@ const SOURCE_DB_STORE = "sourceAssets";
 const SOURCE_DB_VERSION = 1;
 const SOURCE_HISTORY_LIMIT = 20;
 const MAX_SOURCE_PREVIEW_BYTES = 80 * 1024 * 1024;
+const ANALYSIS_TIMEOUT_MS = Number(window.SYNAPSE_ANALYSIS_TIMEOUT_MS || 8 * 60 * 1000);
 const SUMMARY_NAV_COLLAPSED_KEY = "synapse.summary.nav.collapsed.v1";
 const VISUAL_STORE_CONFIG = {
   dbName: VISUAL_DB_NAME,
@@ -665,12 +667,14 @@ async function analyzeMaterials() {
   formData.append("free_text", parsedSources.freeText);
   formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
   formData.append("detail_level", "auto");
+  formData.append("prompt_mode", promptMode ? promptMode.value : "professor_mode");
   formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
     const response = await apiClient.fetch("/analyze", {
       method: "POST",
-      body: formData
+      body: formData,
+      timeoutMs: ANALYSIS_TIMEOUT_MS
     });
 
     let data = null;
@@ -718,6 +722,7 @@ async function analyzeMaterials() {
       depth: data.generation_depth || data.detail_level,
       label: data.depth_label,
       reason: data.depth_reason,
+      promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
       cached: Boolean(data.cached)
     });
 
@@ -740,6 +745,8 @@ async function analyzeMaterials() {
       detailLevel: data.detail_level || data.generation_depth || "auto",
       depthLabel: data.depth_label || data.generation_depth || data.detail_level || "Auto",
       depthReason: data.depth_reason || "",
+      promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
+      promptModeLabel: data.prompt_mode_label || "",
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
       primarySourceIdentity: data.primary_source_identity || "",

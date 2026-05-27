@@ -767,6 +767,36 @@ def _v21_record_usage(response, model_name: str, purpose: str = "chat") -> None:
         return
 
 
+def _v21_unique_model_candidates(primary_model: str) -> List[str]:
+    candidates = []
+    for model_name in (primary_model or CHAT_MODEL, FALLBACK_MODEL):
+        model_name = normalise_space(model_name or "")
+        if model_name and model_name not in candidates:
+            candidates.append(model_name)
+    return candidates or [CHAT_MODEL]
+
+
+def _v21_is_payload_compatibility_error(message: str) -> bool:
+    return any(term in message for term in ("temperature", "max_tokens", "max_completion_tokens"))
+
+
+def _v21_is_model_availability_error(message: str) -> bool:
+    return any(
+        term in message
+        for term in (
+            "model",
+            "does not exist",
+            "not found",
+            "not have access",
+            "invalid_model",
+            "unsupported_model",
+            "deprecated",
+            "permission",
+            "404",
+        )
+    )
+
+
 # Override existing helper. Keeps backwards compatibility with old calls.
 def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: float = 0, max_tokens: int = 4500) -> str:
     if client is None:
@@ -777,33 +807,45 @@ def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: fl
 
     # Some newer models may reject temperature or prefer max_completion_tokens.
     # Try several compatible payload shapes, preserving the previous robustness.
-    payloads = [
-        {"model": model_name, "messages": optimised_messages, "temperature": temperature, "max_tokens": max_tokens},
-        {"model": model_name, "messages": optimised_messages, "max_tokens": max_tokens},
-        {"model": model_name, "messages": optimised_messages, "temperature": temperature, "max_completion_tokens": max_tokens},
-        {"model": model_name, "messages": optimised_messages, "max_completion_tokens": max_tokens},
-    ]
     last_error = None
-    for kwargs in payloads:
-        try:
-            response = client.chat.completions.create(**kwargs)
-            _v21_record_usage(response, model_name)
-            content = response.choices[0].message.content or ""
-            # If the task is JSON and the model still pretty-printed JSON, compact it.
-            if MINIFY_MODEL_JSON and _v21_is_json_task(optimised_messages):
-                try:
-                    parsed = extract_json_object(content)
-                    if isinstance(parsed, dict):
-                        return json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
-                except Exception:
-                    pass
-            return content
-        except Exception as exc:
-            last_error = exc
-            msg = str(exc).lower()
-            if "temperature" in msg or "max_tokens" in msg or "max_completion_tokens" in msg or "unsupported" in msg:
-                continue
-            raise
+    candidate_models = _v21_unique_model_candidates(model_name)
+    for model_index, candidate_model in enumerate(candidate_models):
+        payloads = [
+            {"model": candidate_model, "messages": optimised_messages, "temperature": temperature, "max_tokens": max_tokens},
+            {"model": candidate_model, "messages": optimised_messages, "max_tokens": max_tokens},
+            {"model": candidate_model, "messages": optimised_messages, "temperature": temperature, "max_completion_tokens": max_tokens},
+            {"model": candidate_model, "messages": optimised_messages, "max_completion_tokens": max_tokens},
+        ]
+        try_next_model = False
+        for kwargs in payloads:
+            try:
+                response = client.chat.completions.create(**kwargs)
+                _v21_record_usage(response, candidate_model)
+                content = response.choices[0].message.content or ""
+                # If the task is JSON and the model still pretty-printed JSON, compact it.
+                if MINIFY_MODEL_JSON and _v21_is_json_task(optimised_messages):
+                    try:
+                        parsed = extract_json_object(content)
+                        if isinstance(parsed, dict):
+                            return json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+                    except Exception:
+                        pass
+                return content
+            except Exception as exc:
+                last_error = exc
+                msg = str(exc).lower()
+                if _v21_is_payload_compatibility_error(msg):
+                    continue
+                if model_index + 1 < len(candidate_models) and _v21_is_model_availability_error(msg):
+                    try_next_model = True
+                    break
+                raise
+        if try_next_model:
+            continue
+        if last_error and model_index + 1 < len(candidate_models) and _v21_is_model_availability_error(str(last_error).lower()):
+            continue
+        if last_error:
+            raise last_error
     raise last_error if last_error else RuntimeError("OpenAI request failed.")
 
 

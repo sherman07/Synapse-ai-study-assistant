@@ -620,6 +620,17 @@
   box-shadow: 0 0 0 4px rgba(74,124,255,.12);
 }
 
+.prompt-mode-box {
+  padding: 14px;
+  border: 1px solid rgba(99, 125, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(248, 250, 255, 0.72);
+}
+
+.prompt-mode-select {
+  background-color: #fff;
+}
+
 .external-example-note {
   border-left: 4px solid var(--primary);
   background: var(--primary-soft);

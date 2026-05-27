@@ -182,8 +182,13 @@ def expand_embedded_youtube_sources(text: str, parent_meta: dict, seen_youtube_s
     return embedded_parts, embedded_units, embedded_titles
 
 
-def build_analysis_fingerprint(preferred_language: str, units: List[dict], depth: str = "auto") -> str:
-    identity_bits = [f"cache:{globals().get('CACHE_VERSION', 'v0')}", f"lang:{preferred_language or 'auto'}", f"depth:{depth or 'auto'}"]
+def build_analysis_fingerprint(preferred_language: str, units: List[dict], depth: str = "auto", prompt_mode: str = "professor_mode") -> str:
+    identity_bits = [
+        f"cache:{globals().get('CACHE_VERSION', 'v0')}",
+        f"lang:{preferred_language or 'auto'}",
+        f"depth:{depth or 'auto'}",
+        f"prompt_mode:{normalise_note_prompt_mode(prompt_mode)}",
+    ]
     for unit in units:
         source_identity = unit.get("source_identity") or ""
         content_hash = unit.get("content_hash") or ""
@@ -776,7 +781,7 @@ def localise_title_if_needed(title: str, preferred_language: str) -> str:
         result = generate_chat([
             {"role": "system", "content": "Translate or localise a short study-note title. Return only the title, no punctuation around it."},
             {"role": "user", "content": f"Translate/localise this title into {language_name}. Keep official legal act names understandable and concise. Never translate the brand name Synapse. Title: {title}"},
-        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=80)
+        ], model=TITLE_MODEL, temperature=0, max_tokens=80)
         return normalise_space(result)[:90] or title
     except Exception:
         return title

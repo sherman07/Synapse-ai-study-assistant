@@ -41,6 +41,7 @@ from core.config import (
     ENABLE_PPTX_SVG_FALLBACK_RENDER,
     ENABLE_SOURCE_PPTX_PREVIEW_RENDER,
     ENABLE_TUTOR_WEB_RESEARCH,
+    FALLBACK_MODEL,
     MAX_AUDIO_BYTES,
     MAX_MULTI_SOURCE_VISUAL_IMAGES,
     MAX_SOURCE_CHARS,
@@ -50,6 +51,7 @@ from core.config import (
     MAX_VIDEO_BYTES,
     MAX_VIDEO_FRAMES,
     MAX_VISUAL_IMAGES_PER_SOURCE,
+    MINDMAP_MODEL,
     MULTISOURCE_CONNECTION_TOKENS,
     MULTISOURCE_SOURCE_CHARS,
     MULTISOURCE_SOURCE_DIGEST_TOKENS,
@@ -58,6 +60,7 @@ from core.config import (
     OPENAI_API_KEY,
     OPENAI_ORG_ID,
     OPENAI_PROJECT_ID,
+    OPENAI_TIMEOUT_SECONDS,
     REALTIME_MODEL,
     REALTIME_VOICE,
     SOURCE_PREVIEW_MAX_EMBEDDED_IMAGES,
@@ -65,6 +68,7 @@ from core.config import (
     SOURCE_PREVIEW_MAX_SLIDES,
     SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT,
     SOURCE_PREVIEW_RENDER_DPI,
+    TITLE_MODEL,
     TRANSCRIBE_MODEL,
     VISUAL_ARGUMENT_CARD_LIMIT,
     VISUAL_ARGUMENT_TOKENS,
@@ -84,6 +88,15 @@ from core.config import (
 )
 from core.request_limits import read_upload_bytes
 from core.section_loader import AppSectionLoader
+from core.note_prompt_modes import (
+    DEFAULT_NOTE_PROMPT_MODE,
+    load_note_prompt_mode_text,
+    normalise_note_prompt_mode,
+    note_prompt_mode_allows_expansion,
+    note_prompt_mode_label,
+    note_prompt_mode_min_units,
+    note_prompt_mode_options,
+)
 from core.source_extractors import (
     extract_docx,
     extract_pdf,
