@@ -1,5 +1,5 @@
 import { App } from "./react/App.js";
-import { loadLegacyController } from "./legacy/loadLegacyController.js?v=class-loader-v16";
+import { loadLegacyController } from "./legacy/loadLegacyController.js?v=class-loader-v21";
 
 const root = document.getElementById("root");
 

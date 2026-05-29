@@ -17,6 +17,7 @@ const sourceInput = document.getElementById("sourceInput");
 const uploadStage = document.getElementById("uploadStage");
 const analysisStage = document.getElementById("analysisStage");
 const resultGrid = document.getElementById("resultGrid");
+const mainNotes = document.getElementById("mainNotes");
 const loadingBox = document.getElementById("loadingBox");
 const summaryNav = document.getElementById("summaryNav");
 const summaryNavToggle = document.getElementById("summaryNavToggle");
@@ -183,7 +184,8 @@ let timelineCompletedIds = new Set();
 let timelinePracticeAnswers = {};
 let timelineCompletionCelebrated = false;
 
-const VISUAL_GUIDE_STORAGE_KEY = "synapse.visual.image.guide.v2";
+const VISUAL_IMAGE_GUIDE_STYLE_VERSION = "grid-infographic-v5";
+const VISUAL_GUIDE_STORAGE_KEY = "synapse.visual.image.guide.v6";
 let currentVisualGuide = null;
 let visualGuideError = "";
 let isVisualGuideGenerating = false;

@@ -646,12 +646,16 @@ function normalizeVisualGuideType(value) {
 function normalizeVisualImageGuide(data) {
   const source = data && typeof data === "object" ? data : {};
   const imageDataUrl = String(source.image_data_url || source.imageDataUrl || source.data_url || "").trim();
+  const imageProcessing = source.image_processing || source.imageProcessing || {};
   return {
     title: cleanVisualGuideGeneratedText(source.title || storedTitle || "Visual Image Guide"),
     imageDataUrl,
     model: cleanVisualGuideGeneratedText(source.model || "gpt-image-1.5"),
     size: cleanVisualGuideGeneratedText(source.size || ""),
     quality: cleanVisualGuideGeneratedText(source.quality || ""),
+    styleVersion: cleanVisualGuideGeneratedText(source.style_version || source.styleVersion || ""),
+    blueprint: source.blueprint || null,
+    imageProcessing: imageProcessing && typeof imageProcessing === "object" ? imageProcessing : {},
     created: source.created || new Date().toISOString(),
   };
 }
@@ -802,7 +806,8 @@ function loadVisualGuideForCurrentNote() {
     currentSourceFingerprint ? `fingerprint:${currentSourceFingerprint}` : ""
   ].filter(Boolean);
   const saved = keys.map(key => store[key]).find(item => item && typeof item === "object");
-  currentVisualGuide = saved ? normalizeVisualImageGuide(saved) : null;
+  const normalized = saved ? normalizeVisualImageGuide(saved) : null;
+  currentVisualGuide = normalized?.styleVersion === VISUAL_IMAGE_GUIDE_STYLE_VERSION ? normalized : null;
   visualGuideError = "";
   isVisualGuideGenerating = false;
   renderVisualGuidePanel();
@@ -888,7 +893,7 @@ function renderVisualGuidePanel() {
         <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
         <div>
           <strong>Building visual guide...</strong>
-          <p>Synapse is generating a single image poster with GPT Image. This can take a minute.</p>
+          <p>Synapse is building a compact blueprint, generating the image, then locally sharpening the final PNG.</p>
         </div>
       </div>
     `;

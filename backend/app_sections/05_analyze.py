@@ -124,7 +124,10 @@ async def analyze_materials(
         if cached_result:
             # Rebuild live visual cards from the freshly uploaded files. The cache
             # intentionally does not store large base64 images, but the current
-            # request still has the source_units needed to recreate them.
+            # request still has the source_units needed to recreate them. Use the
+            # deterministic selector here so cache hits do not make fresh model calls.
+            if "rebuild_cached_visual_argument_cards" in globals():
+                rebuild_cached_visual_argument_cards(source_units, postprocess_language)
             cached_summary = finalize_generated_summary(
                 cached_result.get("summary", ""),
                 requested_language=preferred_language,

@@ -3,11 +3,16 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.app import build_analysis_fingerprint
 from backend.app import build_visual_gallery
+from backend.app import file_to_source_unit
+from backend.app import finalize_generated_summary
+from backend.app import rebuild_cached_visual_argument_cards
 from backend.core.analysis_cache import AnalysisCacheStore
 
 
@@ -47,6 +52,54 @@ class VisualGalleryTests(unittest.TestCase):
         self.assertEqual(len(gallery), 1)
         self.assertEqual(gallery[0]["index"], 0)
         self.assertEqual(gallery[0]["url"], "data:image/png;base64,AA==")
+
+    def test_cached_visual_rebuild_does_not_call_model(self):
+        source_units = [{
+            "display_name": "lecture.pdf",
+            "title_candidate": "Lecture data",
+            "visual_parts": [
+                {
+                    "type": "text",
+                    "text": (
+                        "IN-TEXT SOURCE FIGURE FROM lecture.pdf — PDF page 2. "
+                        "Page text preview: table graph data results comparison. "
+                        "Image-count=1; drawing-count=12; visual-score=28."
+                    ),
+                },
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+            ],
+        }]
+
+        with patch("backend.app.generate_chat", side_effect=AssertionError("model should not be called")):
+            cards = rebuild_cached_visual_argument_cards(source_units, "english")
+            summary = finalize_generated_summary(
+                "## Notes\n\nThe table compares the source results.",
+                requested_language="english",
+                generation_language="english",
+                source_context="",
+                source_units=source_units,
+                attach_visuals=True,
+            )
+            gallery = build_visual_gallery(source_units)
+
+        self.assertEqual(len(cards), 1)
+        self.assertIn("[[VISUAL:0]]", summary)
+        self.assertEqual(len(gallery), 1)
+        self.assertEqual(gallery[0]["url"], "data:image/png;base64,AA==")
+
+
+class SourceIdentityTests(unittest.TestCase):
+    def test_uploaded_file_identity_keeps_raw_bytes_when_extracted_text_matches(self):
+        with patch("backend.app.extract_pdf", return_value=""), patch("backend.app.render_pdf_visual_parts", return_value=[]):
+            _, first = file_to_source_unit("scan-a.pdf", "application/pdf", b"pdf bytes a")
+            _, second = file_to_source_unit("scan-b.pdf", "application/pdf", b"pdf bytes b")
+
+        self.assertNotEqual(first["source_identity"], second["source_identity"])
+        self.assertNotEqual(first["content_hash"], second["content_hash"])
+        self.assertNotEqual(
+            build_analysis_fingerprint("auto", [first], "detailed", "professor_mode"),
+            build_analysis_fingerprint("auto", [second], "detailed", "professor_mode"),
+        )
 
 
 class AnalysisCacheTests(unittest.TestCase):

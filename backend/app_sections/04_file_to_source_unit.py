@@ -4,11 +4,13 @@
 def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List[dict], dict]:
     lower_name = (name or "").lower()
     parts: List[dict] = []
+    raw_file_hash = sha256_bytes(data)
     source_meta = {
         "display_name": name or "uploaded file",
-        "source_identity": f"file:{sha256_bytes(data)}",
+        "source_identity": f"file:{raw_file_hash}",
         "title_candidate": name or "uploaded file",
-        "content_hash": sha256_bytes(data),
+        "content_hash": raw_file_hash,
+        "file_hash": raw_file_hash,
     }
 
     if content_type and content_type.startswith("image/"):
@@ -54,8 +56,8 @@ def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List
 
     detected_title = detect_legislation_title(text[:4000]) or detect_course_or_topic_title(text[:2500]) or (name or "uploaded file")
     source_meta["title_candidate"] = detected_title
-    source_meta["content_hash"] = sha256_text(text[:50000])
-    source_meta["source_identity"] = f"file_text:{source_meta['content_hash']}"
+    source_meta["content_hash"] = sha256_text(f"{raw_file_hash}\n{text[:50000]}")
+    source_meta["source_identity"] = f"file:{raw_file_hash}"
     source_meta["text_excerpt"] = truncate_text(text, 60000)
     source_meta["visual_parts"] = frame_parts
 

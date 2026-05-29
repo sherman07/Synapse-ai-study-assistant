@@ -263,6 +263,19 @@
   font-weight: 800;
 }
 
+.source-toolbar-link {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.source-toolbar-link:hover,
+.source-toolbar-link:focus-visible {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .source-viewer-body {
   flex: 1;
   min-height: 0;
@@ -396,6 +409,17 @@
   text-decoration: none;
 }
 
+.source-link-url {
+  max-width: min(100%, 560px);
+  overflow-wrap: anywhere;
+}
+
+.source-link-url a:hover,
+.source-link-url a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .source-open-actions {
   position: sticky;
   top: 10px;
@@ -410,6 +434,12 @@
 .source-image-stage .source-open-actions {
   width: 100%;
   padding: 0 0 12px;
+}
+
+.source-link-preview .source-open-actions {
+  position: static;
+  justify-content: center;
+  padding: 4px 0 0;
 }
 
 .source-open-action {

@@ -5,7 +5,7 @@ function renderVisualGuideLaunch() {
       <div class="visual-guide-launch-copy">
         <span class="visual-guide-kicker">Generated image poster</span>
         <h4>Create a visual image guide</h4>
-        <p>${hasNotes ? "Generates one finished PNG infographic from your notes using GPT Image." : "Generate notes first, then create a visual image guide."}</p>
+        <p>${hasNotes ? "Generates a detailed grid infographic from a compact source-grounded blueprint." : "Generate notes first, then create a visual image guide."}</p>
       </div>
       <button class="btn btn-primary visual-guide-generate-btn" type="button" onclick="generateVisualGuide(true)" ${hasNotes ? "" : "disabled"}>
         <i class="bi bi-image me-1"></i>Generate image guide
@@ -654,7 +654,6 @@ function renderVisualGuide(guide) {
 function renderVisualImageGuide(guide) {
   const imageUrl = guide?.imageDataUrl || "";
   if (!imageUrl) return renderVisualGuideLaunch();
-  const meta = [guide.model, guide.size, guide.quality].filter(Boolean).join(" · ");
   return `
     <div class="visual-image-guide-shell">
       <div class="visual-guide-toolbar">
@@ -669,7 +668,6 @@ function renderVisualImageGuide(guide) {
         <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(guide.title || "Visual image guide")}" loading="lazy" decoding="async">
         <figcaption>
           <strong>${escapeHTML(guide.title || "Visual Image Guide")}</strong>
-          ${meta ? `<span>${escapeHTML(meta)}</span>` : ""}
         </figcaption>
       </figure>
     </div>

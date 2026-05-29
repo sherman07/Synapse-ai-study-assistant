@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import uvicorn
@@ -11,23 +12,30 @@ class BackendDevServer:
         self.port = port
         self.project_root = Path(__file__).resolve().parents[1]
         self.backend_dir = self.project_root / "backend"
+        self.reload_enabled = os.getenv("SYNAPSE_BACKEND_RELOAD", "false").lower() not in {"0", "false", "no"}
 
     def run(self) -> None:
+        options = {
+            "host": self.host,
+            "port": self.port,
+            "reload": self.reload_enabled,
+        }
+        if self.reload_enabled:
+            options.update({
+                "reload_dirs": [str(self.backend_dir)],
+                "reload_excludes": [
+                    ".venv/*",
+                    "venv/*",
+                    "frontend/*",
+                    "logos/*",
+                    "**/__pycache__/*",
+                    "**/*.pyc",
+                    "backend/synapse_analysis_cache.json",
+                ],
+            })
         uvicorn.run(
             "backend.app:app",
-            host=self.host,
-            port=self.port,
-            reload=True,
-            reload_dirs=[str(self.backend_dir)],
-            reload_excludes=[
-                ".venv/*",
-                "venv/*",
-                "frontend/*",
-                "logos/*",
-                "**/__pycache__/*",
-                "**/*.pyc",
-                "backend/synapse_analysis_cache.json",
-            ],
+            **options,
         )
 
 

@@ -141,49 +141,803 @@ def visual_image_guide_diagram_rules(context: str) -> str:
     return "\n".join(f"- {rule}" for rule in rules)
 
 
-def visual_image_guide_prompt(title: str, context: str, source_context: str, figure_context: str, preferred_language: str) -> str:
+VISUAL_IMAGE_GUIDE_STYLE_VERSION = "grid-infographic-v5"
+
+
+def visual_image_guide_domain_guidance(title: str, context: str) -> str:
+    haystack = f"{title}\n{context}".lower()
+    if re.search(r"machine learning|deep learning|artificial intelligence|\bai\b|neural|training data|classification|regression|supervised|unsupervised", haystack):
+        return "\n".join([
+            "- Machine learning domain: use a Data -> Features -> Training -> Model -> Prediction -> Evaluation flow as the main visual spine.",
+            "- Use domain visuals such as datasets, feature columns, model blocks, neural-network nodes, decision boundary plots, confusion/evaluation mini charts, and bias/ethics warning callouts.",
+            "- In the middle mechanism, use only large labels such as Data, Features, Training, Model, Prediction, Evaluation. Do not write small words on data cards, faces, documents, gauges, or mini charts.",
+            "- Do not include formulas, graphs, or examples from unrelated subjects."
+        ])
+    if re.search(r"probability|conditional|union|intersection|venn|sample space|bayes|independent", haystack):
+        return "\n".join([
+            "- Probability domain: use Venn diagrams, sample-space rectangles, event tiles, conditional-probability arrows, and compact formula cards.",
+            "- Keep symbols exact: union A ∪ B, intersection A ∩ B, conditional P(A | B), and independence P(A ∩ B) = P(A)P(B).",
+            "- Do not turn the vertical conditional bar into a divider between unrelated words."
+        ])
+    if re.search(r"\bmoney market\b|fisher effect|loanable funds|quantity theory|central bank|inflation|reserve ratio|money multiplier|mv\s*=", haystack):
+        return "\n".join([
+            "- Economics domain: use money-market curves, reserve/banking flows, central-bank policy arrows, quantity-theory tiles, Fisher-effect rate arrows, and loanable-funds contrasts only when supported by the notes.",
+            "- Keep graph labels precise: Ms is money supply, Md is money demand, S is saving/supply of loanable funds, and D is investment/demand.",
+            "- Use worked calculation cards for reserve-ratio, velocity, inflation, or interest-rate examples when present."
+        ])
+    return "\n".join([
+        "- Use subject-specific diagrams and icons from the uploaded source; do not borrow examples from unrelated subjects.",
+        "- Represent detail visually with panels, icons, arrows, comparisons, timelines, small charts, and callouts rather than dense prose.",
+        "- Include formulas only if they are central to the uploaded notes."
+    ])
+
+
+def visual_image_fallback_panel_titles(title: str, context: str) -> List[str]:
+    headings = [
+        clean_visual_guide_text(match.group(1))
+        for match in re.finditer(r"^#{1,4}\s+(.+)$", context or "", flags=re.M)
+    ]
+    headings = [
+        truncate_text(item, 42)
+        for item in headings
+        if item and not is_visual_guide_heading_only(item)
+    ]
+    if len(headings) >= 6:
+        return headings[:10]
+    if re.search(r"machine learning|deep learning|artificial intelligence|\bai\b|training data|classification", f"{title}\n{context}", flags=re.I):
+        return ["Definition", "AI Relationship", "Traditional vs ML", "Data", "Features", "Training", "Model", "Prediction", "Evaluation", "Ethics"]
+    if re.search(r"probability|conditional|union|intersection|venn|sample space", f"{title}\n{context}", flags=re.I):
+        return ["Sample Space", "Union", "Intersection", "Conditional", "Independence", "Worked Example", "Common Mistakes", "Formula Check"]
+    if re.search(r"\bmoney market\b|fisher effect|loanable funds|quantity theory|inflation|money multiplier", f"{title}\n{context}", flags=re.I):
+        return ["Money Functions", "Money Market", "Banking Multiplier", "MV = PY", "Fisher Effect", "Loanable Funds", "Policy Tools", "Worked Example"]
+    return (headings + ["Core Idea", "Process", "Evidence", "Example", "Comparison", "Revision"])[:10]
+
+
+def visual_image_middle_focus(title: str, context: str) -> str:
+    haystack = f"{title}\n{context}"
+    if re.search(r"machine learning|deep learning|artificial intelligence|\bai\b|training data|classification|regression|supervised|unsupervised", haystack, flags=re.I):
+        return (
+            "Fill the central area with a mostly wordless model-learning mechanism: data table icons -> feature extraction symbols -> training loop arrows -> learned model -> prediction icons. "
+            "Only the six large labels Data, Features, Training, Model, Prediction, Evaluation may appear in this central mechanism; all other details should be icons, charts, arrows, or numbered badges."
+        )
+    if re.search(r"probability|conditional|union|intersection|venn|sample space", haystack, flags=re.I):
+        return (
+            "Fill the central area with a large sample-space rectangle containing overlapping A and B regions, then connect union, intersection, "
+            "and conditional probability callouts around it."
+        )
+    if re.search(r"\bmoney market\b|fisher effect|loanable funds|quantity theory|inflation|money multiplier", haystack, flags=re.I):
+        return (
+            "Fill the central area with a compact economics mechanism map: money market -> nominal rate -> Fisher equation -> loanable funds contrast, "
+            "with one worked calculation tile."
+        )
+    return "Fill the central area with the main mechanism diagram, surrounded by two comparison callouts and one evidence mini-chart."
+
+
+def visual_image_detail_fillers(title: str, context: str) -> List[str]:
+    haystack = f"{title}\n{context}"
+    if re.search(r"machine learning|deep learning|artificial intelligence|\bai\b|training data|classification|regression|supervised|unsupervised", haystack, flags=re.I):
+        return [
+            "train/test split",
+            "feature columns",
+            "loss curve",
+            "confusion matrix",
+            "overfitting gauge",
+            "supervised labels",
+            "NLP branch",
+            "ethics warning",
+            "business use case",
+        ]
+    if re.search(r"probability|conditional|union|intersection|venn|sample space", haystack, flags=re.I):
+        return [
+            "sample space",
+            "A union B",
+            "A intersection B",
+            "given B",
+            "overlap count",
+            "independence check",
+            "worked numbers",
+            "common mistake",
+        ]
+    if re.search(r"\bmoney market\b|fisher effect|loanable funds|quantity theory|inflation|money multiplier", haystack, flags=re.I):
+        return [
+            "money demand",
+            "money supply",
+            "bank reserves",
+            "multiplier",
+            "MV = PY",
+            "Fisher effect",
+            "loanable funds",
+            "policy lag",
+        ]
+    return ["key term", "evidence", "process arrow", "comparison", "worked example", "limitation", "revision check"]
+
+
+def visual_image_allowed_text_labels(blueprint: dict) -> List[str]:
+    labels: List[str] = []
+
+    def add(value: str):
+        text = clean_visual_guide_text(value)
+        if not text or len(text) > 42:
+            return
+        if text.lower() in {item.lower() for item in labels}:
+            return
+        labels.append(text)
+
+    add(blueprint.get("title") or "")
+    for panel in blueprint.get("panels") or []:
+        if not isinstance(panel, dict):
+            continue
+        add(panel.get("title") or "")
+        for label in clean_visual_guide_list(panel.get("labels"), 2, 30):
+            add(label)
+    for item in blueprint.get("formula_tiles") or []:
+        add(str(item))
+    for item in blueprint.get("bottom_strip") or []:
+        add(str(item))
+
+    # These common spine labels are stable enough to render as large text.
+    for item in ("Data", "Features", "Training", "Model", "Prediction", "Evaluation"):
+        if any(item.lower() in label.lower() for label in labels):
+            add(item)
+
+    return labels[:24]
+
+
+def visual_image_guide_fallback_blueprint(title: str, context: str) -> dict:
+    panel_titles = visual_image_fallback_panel_titles(title, context)
+    formulas = []
+    formula_patterns = [
+        r"\bMV\s*=\s*PY\b",
+        r"\bi\s*≈\s*r\s*\+\s*π\^?e\b",
+        r"\bP\([^)]+\)\s*=\s*[^.\n;]+",
+        r"\b\d+(?:\.\d+)?\s*[%]\s*[+\-]\s*\d+(?:\.\d+)?\s*[%]\s*=\s*\d+(?:\.\d+)?\s*[%]",
+    ]
+    for pattern in formula_patterns:
+        for match in re.finditer(pattern, context or "", flags=re.I):
+            formulas.append(truncate_text(clean_visual_guide_text(match.group(0)), 42))
+            if len(formulas) >= 4:
+                break
+        if len(formulas) >= 4:
+            break
+    blueprint = {
+        "title": truncate_text(clean_visual_guide_text(title), 62),
+        "subtitle": "A modern source-grounded overview",
+        "central_visual": "Large central flow linking the main concepts with arrows and icons.",
+        "middle_focus": visual_image_middle_focus(title, context),
+        "panels": [
+            {
+                "title": item,
+                "visual": "mini diagram, icon cluster, arrows, and one small chart where useful",
+                "labels": [item],
+                "detail": "Use the corresponding source concept as a visual panel."
+            }
+            for item in panel_titles[:10]
+        ],
+        "formula_tiles": formulas[:4],
+        "mini_charts": ["comparison bars", "process arrow", "evidence callout"],
+        "detail_fillers": visual_image_detail_fillers(title, context),
+        "allowed_text_labels": [],
+        "worked_example": "",
+        "bottom_strip": ["Key terms", "Evidence", "Revision prompts"],
+    }
+    blueprint["allowed_text_labels"] = visual_image_allowed_text_labels(blueprint)
+    return blueprint
+
+
+def normalise_visual_image_blueprint(parsed: dict, title: str, context: str) -> dict:
+    fallback = visual_image_guide_fallback_blueprint(title, context)
+    if not isinstance(parsed, dict):
+        parsed = {}
+
+    raw_panels = parsed.get("panels") if isinstance(parsed.get("panels"), list) else []
+    panels = []
+    for index, raw in enumerate(raw_panels[:10]):
+        if not isinstance(raw, dict):
+            continue
+        panel_title = truncate_text(clean_visual_guide_text(raw.get("title")), 42)
+        visual = truncate_text(clean_visual_guide_text(raw.get("visual") or raw.get("visual_prompt")), 120)
+        detail = truncate_text(clean_visual_guide_text(raw.get("detail") or raw.get("teaching_point")), 110)
+        labels = clean_visual_guide_list(raw.get("labels"), 4, 32)
+        labels = [clean_visual_guide_text(item) for item in labels if clean_visual_guide_text(item)]
+        if panel_title and panel_title not in labels:
+            labels.insert(0, panel_title)
+        labels = labels[:4]
+        if not panel_title:
+            continue
+        panels.append({
+            "title": panel_title,
+            "visual": visual or fallback["panels"][min(index, len(fallback["panels"]) - 1)]["visual"],
+            "labels": labels,
+            "detail": detail,
+        })
+
+    if len(panels) < 6:
+        used = {panel["title"].lower() for panel in panels}
+        for fallback_panel in fallback["panels"]:
+            if fallback_panel["title"].lower() in used:
+                continue
+            panels.append(fallback_panel)
+            if len(panels) >= 7:
+                break
+
+    formula_tiles = [
+        truncate_text(clean_visual_guide_text(item), 46)
+        for item in clean_visual_guide_list(parsed.get("formula_tiles") or parsed.get("formulas"), 4, 48)
+    ] or fallback["formula_tiles"]
+
+    normalised = {
+        "title": truncate_text(clean_visual_guide_text(parsed.get("title") or title), 62),
+        "subtitle": truncate_text(clean_visual_guide_text(parsed.get("subtitle") or fallback["subtitle"]), 70),
+        "central_visual": truncate_text(clean_visual_guide_text(parsed.get("central_visual") or parsed.get("centralVisual") or fallback["central_visual"]), 140),
+        "middle_focus": truncate_text(clean_visual_guide_text(parsed.get("middle_focus") or parsed.get("middleFocus") or fallback["middle_focus"]), 180),
+        "panels": panels[:10],
+        "formula_tiles": formula_tiles[:4],
+        "mini_charts": [
+            truncate_text(clean_visual_guide_text(item), 44)
+            for item in clean_visual_guide_list(parsed.get("mini_charts") or parsed.get("charts"), 4, 46)
+        ] or fallback["mini_charts"],
+        "detail_fillers": [
+            truncate_text(clean_visual_guide_text(item), 34)
+            for item in clean_visual_guide_list(parsed.get("detail_fillers") or parsed.get("fillers") or parsed.get("micro_details"), 10, 36)
+        ] or fallback["detail_fillers"],
+        "worked_example": truncate_text(clean_visual_guide_text(parsed.get("worked_example") or parsed.get("example")), 120),
+        "bottom_strip": [
+            truncate_text(clean_visual_guide_text(item), 38)
+            for item in clean_visual_guide_list(parsed.get("bottom_strip") or parsed.get("footer"), 4, 42)
+        ] or fallback["bottom_strip"],
+    }
+    normalised["allowed_text_labels"] = visual_image_allowed_text_labels(normalised)
+    return normalised
+
+
+def build_visual_image_guide_blueprint(title: str, context: str, source_context: str, figure_context: str, preferred_language: str) -> dict:
+    if os.getenv("VISUAL_IMAGE_GUIDE_BLUEPRINT", "true").lower() in {"0", "false", "no"}:
+        fallback = visual_image_guide_fallback_blueprint(title, context)
+        fallback["allowed_text_labels"] = visual_image_allowed_text_labels(fallback)
+        return fallback
+
+    language_rule = quiz_language_instruction(preferred_language)
+    domain_guidance = visual_image_guide_domain_guidance(title, context)
+    schema = """
+Return JSON only:
+{
+  "title": "short poster title",
+  "subtitle": "short subtitle",
+  "central_visual": "one sentence describing the central visual metaphor or flow",
+  "middle_focus": "specific content that must fill the central blank-prone area",
+  "panels": [
+    {
+      "title": "1-4 word panel title",
+      "visual": "specific drawing idea: diagram, icon group, chart, map, process arrow, or callout",
+      "labels": ["short visible label", "short visible label"],
+      "detail": "what this panel teaches"
+    }
+  ],
+  "formula_tiles": ["short exact formula if needed"],
+  "mini_charts": ["small chart or graph to include"],
+  "detail_fillers": ["tiny visual detail to place in leftover space"],
+  "worked_example": "one short worked-example visual if present",
+  "bottom_strip": ["short footer label"]
+}
+"""
+    prompt = f"""
+Create a concise content blueprint for a generated educational infographic image.
+This is NOT the final image prompt. It is the safe source-grounded content plan used by an image model.
+
+Language requirement for visible labels: {language_rule}
+Topic/title: {title}
+
+Domain rules:
+{domain_guidance}
+
+Blueprint rules:
+- Use only facts, concepts, formulas, examples, and relationships from the notes/source.
+- Design for a professional dense grid infographic like a textbook "modern overview" poster.
+- Choose 8-10 panels. Each panel needs a concrete visual, not just text.
+- Add a middle_focus item that explicitly fills the central area between major panels.
+- Add 6-10 detail_fillers that can be used as visual-only icons, mini charts, badges, arrows, or callouts in leftover space.
+- Visible labels must be short and spellable: usually 1-4 words, never paragraph sentences.
+- Keep total visible text under about 120 words. Prefer icons, arrows, charts, and diagrams for detail.
+- Include a worked-example visual if the notes contain calculations, examples, source exercises, or model answers.
+- Include exact formulas only when central; do not invent formulas from another subject.
+- Never include pseudo-text, filler text, browser UI, app buttons, or unrelated domain examples.
+{schema}
+
+Generated notes:
+{truncate_text(context, 9000)}
+
+Source metadata/excerpts:
+{truncate_text(source_context or "No separate source metadata supplied.", 2200)}
+
+Available source figures:
+{truncate_text(figure_context or "No source figures supplied.", 1800)}
+"""
+    try:
+        raw = generate_chat(
+            [
+                {"role": "system", "content": "You create concise infographic blueprints as strict JSON. Do not include markdown fences or prose outside JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            model=model_for_depth("standard"),
+            temperature=float(os.getenv("VISUAL_IMAGE_GUIDE_BLUEPRINT_TEMPERATURE", "0.18")),
+            max_tokens=env_int("VISUAL_IMAGE_GUIDE_BLUEPRINT_TOKENS", 3200),
+        )
+        parsed = extract_json_object(raw)
+        return normalise_visual_image_blueprint(parsed or {}, title, context)
+    except Exception:
+        fallback = visual_image_guide_fallback_blueprint(title, context)
+        fallback["allowed_text_labels"] = visual_image_allowed_text_labels(fallback)
+        return fallback
+
+
+def visual_image_blueprint_text(blueprint: dict) -> str:
+    panels = blueprint.get("panels") if isinstance(blueprint.get("panels"), list) else []
+    panel_lines = []
+    for index, panel in enumerate(panels[:10], start=1):
+        if not isinstance(panel, dict):
+            continue
+        labels = ", ".join(clean_visual_guide_list(panel.get("labels"), 4, 32))
+        label_text = f" Labels: {labels}." if labels else ""
+        detail = panel.get("detail") or ""
+        detail_text = f" Teaches: {detail}." if detail else ""
+        panel_lines.append(f"{index}. {panel.get('title')}: {panel.get('visual')}.{label_text}{detail_text}")
+    formulas = "; ".join(blueprint.get("formula_tiles") or [])
+    charts = "; ".join(blueprint.get("mini_charts") or [])
+    footer = "; ".join(blueprint.get("bottom_strip") or [])
+    allowed_labels = "; ".join(blueprint.get("allowed_text_labels") or visual_image_allowed_text_labels(blueprint))
+    return "\n".join([
+        f"Title: {blueprint.get('title')}",
+        f"Subtitle: {blueprint.get('subtitle')}",
+        f"Central visual: {blueprint.get('central_visual')}",
+        f"Middle focus: {blueprint.get('middle_focus')}",
+        "Panels:",
+        *panel_lines,
+        f"Formula tiles: {formulas or 'none'}",
+        f"Mini charts: {charts or 'source-specific small diagrams'}",
+        f"Detail fillers: {'; '.join(blueprint.get('detail_fillers') or []) or 'small source-specific icons and callouts'}",
+        f"Worked example: {blueprint.get('worked_example') or 'include only if clearly present'}",
+        f"Bottom strip: {footer or 'key takeaway labels'}",
+        f"Visible text whitelist (copy exactly or omit): {allowed_labels or 'title and large panel labels only'}",
+    ]).strip()
+
+
+def enhance_visual_image_guide_b64(image_b64: str) -> Tuple[str, dict]:
+    if os.getenv("VISUAL_IMAGE_GUIDE_ENHANCE_LOCAL", "true").lower() in {"0", "false", "no"}:
+        return image_b64, {"enhanced": False, "reason": "disabled"}
+    try:
+        from PIL import Image, ImageEnhance, ImageFilter
+
+        raw = base64.b64decode(image_b64)
+        img = Image.open(BytesIO(raw)).convert("RGB")
+        original_size = img.size
+        scale_percent = max(100, min(220, env_int("VISUAL_IMAGE_GUIDE_UPSCALE_PERCENT", 100)))
+        max_pixels = max(1_800_000, env_int("VISUAL_IMAGE_GUIDE_MAX_ENHANCED_PIXELS", 5_200_000))
+        scale = scale_percent / 100
+        target_pixels = int(original_size[0] * scale) * int(original_size[1] * scale)
+        if target_pixels > max_pixels:
+            scale = (max_pixels / max(1, original_size[0] * original_size[1])) ** 0.5
+        if scale > 1.01:
+            resampling = getattr(Image, "Resampling", None)
+            resample = resampling.LANCZOS if resampling else getattr(Image, "LANCZOS", 1)
+            target_size = (max(1, int(original_size[0] * scale)), max(1, int(original_size[1] * scale)))
+            img = img.resize(target_size, resample)
+
+        img = ImageEnhance.Contrast(img).enhance(float(os.getenv("VISUAL_IMAGE_GUIDE_CONTRAST", "1.04")))
+        img = ImageEnhance.Sharpness(img).enhance(float(os.getenv("VISUAL_IMAGE_GUIDE_SHARPNESS", "1.14")))
+        img = img.filter(ImageFilter.UnsharpMask(radius=1.0, percent=85, threshold=3))
+
+        out = BytesIO()
+        img.save(out, format="PNG", optimize=True)
+        enhanced = base64.b64encode(out.getvalue()).decode("ascii")
+        return enhanced, {
+            "enhanced": True,
+            "original_size": list(original_size),
+            "final_size": list(img.size),
+            "upscale_percent": int(round((img.size[0] / max(1, original_size[0])) * 100)),
+        }
+    except Exception as error:
+        return image_b64, {"enhanced": False, "error": truncate_text(str(error), 180)}
+
+
+def visual_image_renderer_mode() -> str:
+    return (os.getenv("VISUAL_IMAGE_GUIDE_RENDERER") or "local").strip().lower()
+
+
+def visual_image_use_local_renderer() -> bool:
+    return visual_image_renderer_mode() not in {"gpt", "openai", "image-api", "image_api"}
+
+
+def parse_visual_image_size(size: str) -> Tuple[int, int]:
+    match = re.match(r"^\s*(\d{3,4})\s*x\s*(\d{3,4})\s*$", str(size or ""), flags=re.I)
+    if not match:
+        return 1536, 1024
+    width = max(900, min(2400, int(match.group(1))))
+    height = max(600, min(1800, int(match.group(2))))
+    return width, height
+
+
+def visual_image_contains_cjk(text: str) -> bool:
+    return bool(re.search(r"[\u3400-\u9fff]", str(text or "")))
+
+
+def visual_image_prefers_chinese(preferred_language: str, blueprint: dict) -> bool:
+    language = normalise_language_key(preferred_language)
+    if language in {"zh", "zh-cn", "chinese", "simplified_chinese", "traditional_chinese"}:
+        return True
+    sample = " ".join([
+        str(blueprint.get("title") or ""),
+        str(blueprint.get("subtitle") or ""),
+        " ".join(str((panel or {}).get("title") or "") for panel in (blueprint.get("panels") or []) if isinstance(panel, dict)),
+    ])
+    return visual_image_contains_cjk(sample)
+
+
+def visual_image_font(size: int, bold: bool = False):
+    from PIL import ImageFont
+
+    candidates = [
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Medium.ttc" if bold else "/System/Library/Fonts/STHeiti Light.ttc",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            path = Path(candidate)
+            if path.exists():
+                return ImageFont.truetype(str(path), size=size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def visual_image_text_size(draw, text: str, font) -> Tuple[int, int]:
+    bbox = draw.textbbox((0, 0), str(text or ""), font=font)
+    return max(0, bbox[2] - bbox[0]), max(0, bbox[3] - bbox[1])
+
+
+def visual_image_fit_text(draw, text: str, max_width: int, start_size: int, min_size: int = 18, bold: bool = False):
+    text = normalise_space(str(text or ""))
+    size = start_size
+    font = visual_image_font(size, bold=bold)
+    while size > min_size and visual_image_text_size(draw, text, font)[0] > max_width:
+        size -= 2
+        font = visual_image_font(size, bold=bold)
+    return font
+
+
+def visual_image_wrap_text(draw, text: str, font, max_width: int, max_lines: int = 3) -> List[str]:
+    text = normalise_space(str(text or ""))
+    if not text or max_width <= 0 or max_lines <= 0:
+        return []
+    if visual_image_contains_cjk(text):
+        tokens = list(text)
+        separator = ""
+    else:
+        tokens = text.split()
+        separator = " "
+    lines: List[str] = []
+    current = ""
+    for token in tokens:
+        candidate = f"{current}{separator if current and separator else ''}{token}"
+        if not current or visual_image_text_size(draw, candidate, font)[0] <= max_width:
+            current = candidate
+            continue
+        lines.append(current)
+        current = token
+        if len(lines) >= max_lines:
+            break
+    if current and len(lines) < max_lines:
+        lines.append(current)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+    if lines and len(lines) == max_lines:
+        while lines[-1] and visual_image_text_size(draw, f"{lines[-1]}...", font)[0] > max_width:
+            lines[-1] = lines[-1][:-1].rstrip()
+        if lines[-1] and lines[-1] != text:
+            lines[-1] = f"{lines[-1]}..."
+    return lines
+
+
+def visual_image_draw_wrapped(draw, xy: Tuple[int, int], text: str, font, fill: str, max_width: int, max_lines: int = 3, line_gap: int = 8) -> int:
+    x, y = xy
+    lines = visual_image_wrap_text(draw, text, font, max_width, max_lines=max_lines)
+    line_height = visual_image_text_size(draw, "Ag", font)[1] + line_gap
+    for index, line in enumerate(lines):
+        draw.text((x, y + index * line_height), line, font=font, fill=fill)
+    return y + len(lines) * line_height
+
+
+def visual_image_draw_arrow(draw, start: Tuple[int, int], end: Tuple[int, int], fill: str = "#294563", width: int = 4) -> None:
+    draw.line([start, end], fill=fill, width=width)
+    x1, y1 = start
+    x2, y2 = end
+    dx = x2 - x1
+    dy = y2 - y1
+    length = max(1, (dx * dx + dy * dy) ** 0.5)
+    ux = dx / length
+    uy = dy / length
+    size = 13 + width
+    left = (x2 - ux * size - uy * size * 0.55, y2 - uy * size + ux * size * 0.55)
+    right = (x2 - ux * size + uy * size * 0.55, y2 - uy * size - ux * size * 0.55)
+    draw.polygon([end, left, right], fill=fill)
+
+
+def visual_image_draw_icon(draw, box: Tuple[int, int, int, int], kind: str, accent: str) -> None:
+    x1, y1, x2, y2 = box
+    w = x2 - x1
+    h = y2 - y1
+    cx = x1 + w // 2
+    cy = y1 + h // 2
+    navy = "#12213a"
+    soft = "#f4f8fb"
+    kind = (kind or "").lower()
+    if "chart" in kind or "evaluation" in kind or "accuracy" in kind:
+        for idx, height in enumerate((34, 52, 42, 65)):
+            bx = x1 + 14 + idx * 26
+            draw.rounded_rectangle((bx, y2 - 14 - height, bx + 16, y2 - 14), radius=4, fill=accent)
+        draw.line((x1 + 10, y2 - 14, x2 - 10, y2 - 14), fill=navy, width=3)
+    elif "network" in kind or "model" in kind or "neural" in kind:
+        points = [(x1 + 20, cy), (cx, y1 + 20), (cx, y2 - 20), (x2 - 20, cy)]
+        for p1 in points[:3]:
+            draw.line((p1, points[-1]), fill="#87a3bc", width=3)
+        for point in points:
+            draw.ellipse((point[0] - 10, point[1] - 10, point[0] + 10, point[1] + 10), fill=soft, outline=accent, width=4)
+    elif "venn" in kind or "union" in kind or "intersection" in kind:
+        draw.ellipse((x1 + 18, y1 + 16, cx + 14, y2 - 14), fill="#bde8ef", outline=navy, width=3)
+        draw.ellipse((cx - 14, y1 + 16, x2 - 18, y2 - 14), fill="#d9ecc7", outline=navy, width=3)
+    elif "warning" in kind or "risk" in kind or "ethic" in kind or "limit" in kind:
+        draw.polygon([(cx, y1 + 14), (x2 - 18, y2 - 16), (x1 + 18, y2 - 16)], fill="#fee7a9", outline=navy)
+        draw.line((cx, cy - 12, cx, cy + 16), fill=navy, width=5)
+        draw.ellipse((cx - 3, cy + 24, cx + 3, cy + 30), fill=navy)
+    elif "data" in kind or "table" in kind:
+        draw.rounded_rectangle((x1 + 14, y1 + 16, x2 - 14, y2 - 16), radius=12, fill=soft, outline=navy, width=3)
+        for row in range(3):
+            y = y1 + 30 + row * 22
+            draw.line((x1 + 22, y, x2 - 22, y), fill="#b7c6d5", width=2)
+        for col in range(3):
+            x = x1 + 34 + col * 34
+            draw.rounded_rectangle((x, y1 + 42, x + 18, y1 + 58), radius=4, fill=accent)
+    else:
+        draw.rounded_rectangle((x1 + 20, y1 + 18, x2 - 20, y2 - 18), radius=16, fill=soft, outline=navy, width=3)
+        draw.arc((x1 + 38, y1 + 32, x2 - 38, y2 - 32), start=25, end=325, fill=accent, width=6)
+        visual_image_draw_arrow(draw, (cx - 30, cy + 16), (cx + 30, cy - 16), fill=accent, width=4)
+
+
+def visual_image_draw_panel(draw, box: Tuple[int, int, int, int], title: str, detail: str, visual: str, accent: str) -> None:
+    x1, y1, x2, y2 = box
+    draw.rounded_rectangle(box, radius=18, fill="#ffffff", outline="#cad7e6", width=2)
+    draw.rounded_rectangle((x1, y1, x2, y1 + 48), radius=18, fill=accent)
+    draw.rectangle((x1, y1 + 30, x2, y1 + 48), fill=accent)
+    title_font = visual_image_fit_text(draw, title, x2 - x1 - 34, 24, min_size=16, bold=True)
+    draw.text((x1 + 16, y1 + 12), title, font=title_font, fill="#ffffff")
+    icon_box = (x1 + 14, y1 + 65, x1 + 126, y1 + 158)
+    visual_image_draw_icon(draw, icon_box, f"{title} {visual}", accent)
+    body_font = visual_image_font(18)
+    body = detail or visual or title
+    visual_image_draw_wrapped(draw, (x1 + 140, y1 + 68), body, body_font, "#31425a", x2 - x1 - 156, max_lines=3, line_gap=6)
+
+
+def visual_image_spine_labels(preferred_language: str, blueprint: dict) -> List[str]:
+    if visual_image_prefers_chinese(preferred_language, blueprint):
+        return ["数据", "特征", "训练", "模型", "预测", "评估"]
+    return ["Data", "Features", "Training", "Model", "Prediction", "Evaluation"]
+
+
+def render_visual_image_guide_local_b64(title: str, blueprint: dict, preferred_language: str) -> Tuple[str, dict]:
+    from PIL import Image, ImageDraw
+
+    width, height = parse_visual_image_size(VISUAL_IMAGE_GUIDE_SIZE)
+    img = Image.new("RGB", (width, height), "#edf4f8")
+    draw = ImageDraw.Draw(img)
+
+    navy = "#152541"
+    deep = "#203a5b"
+    text = "#162033"
+    muted = "#60708a"
+    panel_colors = ["#2c6b83", "#2d7d69", "#c45f45", "#526a9f", "#66843e", "#8a5f9d", "#3f7caa", "#a86a34", "#557a75", "#9b5b5b"]
+    title_text = truncate_text(clean_visual_guide_text(blueprint.get("title") or title), 54)
+    subtitle_text = truncate_text(clean_visual_guide_text(blueprint.get("subtitle") or ""), 72)
+
+    margin = 38
+    header_h = 116
+    draw.rounded_rectangle((margin, 24, width - margin, 24 + header_h), radius=22, fill=navy)
+    title_font = visual_image_fit_text(draw, title_text, width - margin * 4, 62, min_size=34, bold=True)
+    title_w, title_h = visual_image_text_size(draw, title_text, title_font)
+    draw.text(((width - title_w) // 2, 48), title_text, font=title_font, fill="#ffffff")
+    if subtitle_text:
+        subtitle_font = visual_image_fit_text(draw, subtitle_text, width - margin * 6, 28, min_size=18, bold=False)
+        sub_w, _ = visual_image_text_size(draw, subtitle_text, subtitle_font)
+        draw.text(((width - sub_w) // 2, 104), subtitle_text, font=subtitle_font, fill="#b9d8f0")
+
+    panels = [panel for panel in (blueprint.get("panels") or []) if isinstance(panel, dict)]
+    if len(panels) < 8:
+        panels = (panels + visual_image_guide_fallback_blueprint(title, "").get("panels", []))[:8]
+    panels = panels[:10]
+
+    content_top = 166
+    content_bottom = height - 86
+    left_x = margin
+    right_w = 346
+    left_w = 346
+    right_x = width - margin - right_w
+    center_x = left_x + left_w + 24
+    center_w = right_x - center_x - 24
+    panel_h = 158
+    panel_gap = 18
+
+    for index, panel in enumerate(panels[:4]):
+        y = content_top + index * (panel_h + panel_gap)
+        visual_image_draw_panel(
+            draw,
+            (left_x, y, left_x + left_w, y + panel_h),
+            truncate_text(clean_visual_guide_text(panel.get("title")), 34),
+            truncate_text(clean_visual_guide_text(panel.get("detail") or panel.get("visual")), 120),
+            clean_visual_guide_text(panel.get("visual")),
+            panel_colors[index % len(panel_colors)],
+        )
+
+    for index, panel in enumerate(panels[4:8]):
+        y = content_top + index * (panel_h + panel_gap)
+        visual_image_draw_panel(
+            draw,
+            (right_x, y, right_x + right_w, y + panel_h),
+            truncate_text(clean_visual_guide_text(panel.get("title")), 34),
+            truncate_text(clean_visual_guide_text(panel.get("detail") or panel.get("visual")), 120),
+            clean_visual_guide_text(panel.get("visual")),
+            panel_colors[(index + 4) % len(panel_colors)],
+        )
+
+    center_top = content_top
+    center_bottom = content_bottom - 120
+    draw.rounded_rectangle((center_x, center_top, center_x + center_w, center_bottom), radius=22, fill="#ffffff", outline="#cad7e6", width=2)
+    center_title = "Learning Mechanism" if not visual_image_prefers_chinese(preferred_language, blueprint) else "学习机制"
+    center_title_font = visual_image_font(30, bold=True)
+    draw.text((center_x + 24, center_top + 20), center_title, font=center_title_font, fill=text)
+
+    labels = visual_image_spine_labels(preferred_language, blueprint)
+    node_y = center_top + 86
+    node_w = max(84, int((center_w - 82) / len(labels)))
+    node_h = 58
+    node_gap = max(8, int((center_w - 52 - node_w * len(labels)) / max(1, len(labels) - 1)))
+    node_centers = []
+    for index, label in enumerate(labels):
+        x = center_x + 26 + index * (node_w + node_gap)
+        color = panel_colors[index % len(panel_colors)]
+        draw.rounded_rectangle((x, node_y, x + node_w, node_y + node_h), radius=16, fill=color)
+        label_font = visual_image_fit_text(draw, label, node_w - 18, 25, min_size=16, bold=True)
+        label_w, label_h = visual_image_text_size(draw, label, label_font)
+        draw.text((x + (node_w - label_w) / 2, node_y + (node_h - label_h) / 2 - 1), label, font=label_font, fill="#ffffff")
+        center = (x + node_w, node_y + node_h // 2)
+        node_centers.append((x, x + node_w, center))
+        if index:
+            prev = node_centers[index - 1][2]
+            visual_image_draw_arrow(draw, (prev[0] + 4, prev[1]), (x - 8, node_y + node_h // 2), fill="#44627f", width=4)
+
+    main_box = (center_x + 46, node_y + 100, center_x + center_w - 46, center_bottom - 78)
+    draw.rounded_rectangle(main_box, radius=24, fill="#f7fbfd", outline="#d2deea", width=2)
+    mx1, my1, mx2, my2 = main_box
+    icon_w = min(156, max(112, int((mx2 - mx1 - 104) / 3)))
+    icon_h = 138
+    icon_gap = max(24, int((mx2 - mx1 - icon_w * 3) / 4))
+    icon_y = my1 + 34
+    icon_boxes = []
+    for idx in range(3):
+        ix = mx1 + icon_gap + idx * (icon_w + icon_gap)
+        icon_boxes.append((ix, icon_y, ix + icon_w, icon_y + icon_h))
+    visual_image_draw_icon(draw, icon_boxes[0], "data table", "#2c6b83")
+    visual_image_draw_icon(draw, icon_boxes[1], "network model", "#2d7d69")
+    visual_image_draw_icon(draw, icon_boxes[2], "evaluation chart", "#c45f45")
+    visual_image_draw_arrow(draw, (icon_boxes[0][2] + 6, icon_y + icon_h // 2), (icon_boxes[1][0] - 8, icon_y + icon_h // 2), fill="#44627f", width=5)
+    visual_image_draw_arrow(draw, (icon_boxes[1][2] + 6, icon_y + icon_h // 2), (icon_boxes[2][0] - 8, icon_y + icon_h // 2), fill="#44627f", width=5)
+
+    fillers = [
+        truncate_text(clean_visual_guide_text(item), 28)
+        for item in (blueprint.get("detail_fillers") or [])
+        if clean_visual_guide_text(item)
+    ]
+    chip_font = visual_image_font(16, bold=True)
+    chip_y = icon_y + icon_h + 24
+    chip_w = int((mx2 - mx1 - 76) / 2)
+    for idx, filler in enumerate(fillers[:4]):
+        cx = mx1 + 26 + (idx % 2) * (chip_w + 24)
+        cy = chip_y + (idx // 2) * 42
+        color = panel_colors[(idx + 2) % len(panel_colors)]
+        draw.rounded_rectangle((cx, cy, cx + chip_w, cy + 30), radius=13, fill="#ffffff", outline="#d2deea", width=2)
+        draw.ellipse((cx + 12, cy + 9, cx + 24, cy + 21), fill=color)
+        label_font = visual_image_fit_text(draw, filler, chip_w - 48, 16, min_size=12, bold=True)
+        draw.text((cx + 34, cy + 7), filler, font=label_font, fill="#31425a")
+
+    focus_text = clean_visual_guide_text(blueprint.get("middle_focus") or blueprint.get("central_visual") or "")
+    focus_font = visual_image_font(22)
+    visual_image_draw_wrapped(draw, (mx1 + 28, my2 - 90), focus_text, focus_font, "#31425a", mx2 - mx1 - 56, max_lines=3, line_gap=7)
+
+    formulas = [clean_visual_guide_text(item) for item in (blueprint.get("formula_tiles") or []) if clean_visual_guide_text(item)]
+    chart_labels = [clean_visual_guide_text(item) for item in (blueprint.get("mini_charts") or []) if clean_visual_guide_text(item)]
+    small_top = center_bottom + 20
+    small_h = 92
+    small_w = int((center_w - 36) / 2)
+    for idx, label in enumerate((formulas + chart_labels + (blueprint.get("bottom_strip") or []))[:2]):
+        x = center_x + idx * (small_w + 36)
+        draw.rounded_rectangle((x, small_top, x + small_w, small_top + small_h), radius=18, fill="#ffffff", outline="#cad7e6", width=2)
+        draw.rectangle((x + 18, small_top + 20, x + 26, small_top + small_h - 20), fill=panel_colors[(idx + 6) % len(panel_colors)])
+        label_font = visual_image_fit_text(draw, str(label), small_w - 68, 26, min_size=17, bold=True)
+        visual_image_draw_wrapped(draw, (x + 42, small_top + 24), str(label), label_font, text, small_w - 68, max_lines=2, line_gap=6)
+
+    bottom_items = [clean_visual_guide_text(item) for item in (blueprint.get("bottom_strip") or []) if clean_visual_guide_text(item)]
+    if not bottom_items:
+        bottom_items = ["Key terms", "Evidence", "Revision prompts"]
+    strip_y = height - 62
+    draw.rounded_rectangle((margin, strip_y, width - margin, height - 24), radius=16, fill=deep)
+    chip_font = visual_image_font(21, bold=True)
+    chip_x = margin + 28
+    for item in bottom_items[:4]:
+        item = truncate_text(item, 30)
+        item_w = min(300, visual_image_text_size(draw, item, chip_font)[0] + 32)
+        draw.rounded_rectangle((chip_x, strip_y + 8, chip_x + item_w, height - 32), radius=14, fill="#ffffff")
+        draw.text((chip_x + 16, strip_y + 15), item, font=chip_font, fill=deep)
+        chip_x += item_w + 18
+        if chip_x > width - 250:
+            break
+
+    out = BytesIO()
+    img.save(out, format="PNG", optimize=True)
+    image_b64 = base64.b64encode(out.getvalue()).decode("ascii")
+    return image_b64, {
+        "enhanced": False,
+        "renderer": "local-pillow",
+        "final_size": [width, height],
+        "text_rendering": "native-font",
+    }
+
+
+def visual_image_guide_prompt(title: str, context: str, source_context: str, figure_context: str, preferred_language: str, blueprint: Optional[dict] = None) -> str:
     language_rule = quiz_language_instruction(preferred_language)
     diagram_rules = visual_image_guide_diagram_rules(context)
+    domain_guidance = visual_image_guide_domain_guidance(title, context)
+    blueprint = blueprint or visual_image_guide_fallback_blueprint(title, context)
+    blueprint_text = visual_image_blueprint_text(blueprint)
     return f"""
-Create a single finished educational visual image guide as a highly detailed polished portrait poster.
+Create one finished educational visual image guide as a high-detail, high-clarity portrait infographic.
 
 This is NOT an HTML card layout and NOT a wireframe. The output should be one real generated image: a coherent study poster / infographic that visually teaches the source.
 
 Language requirement for any visible text: {language_rule}
 Topic/title: {title}
 
+Use this content blueprint exactly. Do not add unrelated concepts:
+{blueprint_text}
+
 Mandatory diagram accuracy rules:
 {diagram_rules}
 
+Domain-specific visual rules:
+{domain_guidance}
+
 Design goals:
-- Use a clean modern academic infographic style, suitable for a university study guide, with rich visual hierarchy and a premium textbook-poster feel.
-- Make the image information-rich and visually explanatory: layered diagrams, arrows, formula tiles, mini charts, icon metaphors, callouts, flow relationships, and small annotated scenes.
-- Include 8-10 core ideas from the notes, arranged as a connected visual map rather than isolated boxes.
-- Use concise readable labels, not paragraphs. Text should be large enough to read; never use tiny dense footnotes.
-- Add multiple visual detail zones: a central concept map, a process/causal flow, a formula/equation strip, a source-evidence strip, and a quick revision checklist.
-- If formulas are important, show the most essential formulas, such as MV = PY or i ≈ r + πᵉ, as large clean formula tiles with nearby visual annotations.
-- Include a clearly labelled worked-example area if examples/calculations exist in the notes, with givens, operation arrow, and result.
-- Use subject-specific imagery and micro-illustrations, not generic decoration. For economics, prefer money-market curves, reserves/banking flows, central-bank policy arrows, quantity-theory formula blocks, Fisher-effect rate arrows, and loanable-funds contrasts when supported by the notes.
+- Match the second reference style: a crisp editorial grid infographic with a strong title band, 8-10 structured panels, clean dividers, icon systems, arrows, mini charts, callouts, and a bottom takeaway strip.
+- Use a modern academic palette: navy headers, pale blue/green panels, dark readable labels, precise black linework, and subtle accent colors for warnings or examples.
+- Make it visually detailed through diagrams, icons, chart marks, arrows, small scenes, legends, and comparison blocks, not through paragraphs.
+- Do not leave a large empty middle band. The central 45% of the poster must contain the middle_focus mechanism, connecting arrows, two mini charts, and several detail_fillers.
+- Fill unused white space with meaningful micro-content: unlabelled icons, legend chips, tiny charts without words, arrows, badges, or comparison insets from detail_fillers.
+- Balance density across the canvas: no blank rectangle should be visually larger than one small panel.
+- Use only the exact Visible text whitelist from the blueprint. Copy each phrase exactly or omit it. Do not invent any other visible words.
+- Visible text must be large, horizontal, and spelled correctly. No paragraph text blocks, no tiny text, no labels on small documents/cards/faces/data rows.
+- In the central middle_focus area, use iconography and arrows. If a label would be smaller than a panel title, replace it with a numbered badge or an icon.
+- Include a clearly labelled worked-example area only if the blueprint contains one, with givens, operation arrow, and result.
 - Do not imitate the current website UI. Do not draw browser chrome, buttons, cards from the app, or screenshots.
 - Avoid malformed mathematical notation. Keep equations short, clean, and visually separated.
 - Before finalizing, visually audit labels for diagram correctness. If a graph contains both supply and demand, make sure their labels are not duplicated or swapped.
-- Use source-grounded content only; do not invent facts outside the notes.
-
-Generated notes:
-{truncate_text(context, env_int("VISUAL_IMAGE_GUIDE_CONTEXT_CHARS", 18000))}
-
-Source metadata / excerpts:
-{truncate_text(source_context or "No separate source metadata supplied.", 5000)}
-
-Available source figures:
-{truncate_text(figure_context or "No source figures supplied.", 3500)}
+- Absolutely avoid fake filler text, misspelled pseudo-words, unrelated formulas, and generic lorem ipsum. If text would be too small, replace it with icons/arrows.
 """.strip()
 
 
 @app.post("/visual-image-guide/generate")
 async def generate_visual_image_guide(data: dict):
     try:
-        require_openai()
         data = data or {}
         title = clean_quiz_string(data.get("title"), stored_title or "Study Material")
         context = quiz_summary_context(data)
@@ -198,8 +952,25 @@ async def generate_visual_image_guide(data: dict):
         )
         source_context = visual_guide_source_context(data)
         figure_context = visual_guide_figure_context(data)
-        prompt = visual_image_guide_prompt(title, context, source_context, figure_context, preferred_language)
+        blueprint = build_visual_image_guide_blueprint(title, context, source_context, figure_context, preferred_language)
+        prompt = visual_image_guide_prompt(title, context, source_context, figure_context, preferred_language, blueprint)
 
+        if visual_image_use_local_renderer():
+            image_b64, image_processing = render_visual_image_guide_local_b64(title, blueprint, preferred_language)
+            width, height = parse_visual_image_size(VISUAL_IMAGE_GUIDE_SIZE)
+            return {
+                "title": title,
+                "image_data_url": f"data:image/png;base64,{image_b64}",
+                "model": "synapse-local-image-renderer",
+                "size": f"{width}x{height}",
+                "quality": "readable-text",
+                "style_version": VISUAL_IMAGE_GUIDE_STYLE_VERSION,
+                "blueprint": blueprint,
+                "image_processing": image_processing,
+                "created": int(time.time()),
+            }
+
+        require_openai()
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json",
@@ -237,6 +1008,7 @@ async def generate_visual_image_guide(data: dict):
             image_b64 = str((image_items[0] or {}).get("b64_json") or "").strip()
         if not image_b64:
             return {"error": "Image generation response did not include image data."}
+        image_b64, image_processing = enhance_visual_image_guide_b64(image_b64)
 
         return {
             "title": title,
@@ -244,6 +1016,9 @@ async def generate_visual_image_guide(data: dict):
             "model": VISUAL_IMAGE_GUIDE_MODEL,
             "size": VISUAL_IMAGE_GUIDE_SIZE,
             "quality": VISUAL_IMAGE_GUIDE_QUALITY,
+            "style_version": VISUAL_IMAGE_GUIDE_STYLE_VERSION,
+            "blueprint": blueprint,
+            "image_processing": image_processing,
             "created": parsed.get("created"),
         }
     except Exception as error:

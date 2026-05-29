@@ -46,6 +46,22 @@ function sourcePresentationFileUrl(item) {
   return item?.blob ? makeSourceObjectUrl(item) : (item?.url || item?.originalUrl || "");
 }
 
+function safeExternalSourceUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw, window.location.href);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.href;
+  } catch {
+    return "";
+  }
+}
+
+function sourceExternalUrl(item) {
+  return safeExternalSourceUrl(item?.originalUrl || item?.url || "");
+}
+
 function sourcePresentationRenderLabel(preview) {
   const mode = preview?.render_mode || "";
   if (mode === "libreoffice") return "Original slide-page render";
@@ -230,7 +246,7 @@ function renderSourceOpenActions(url, label = "Open full source", downloadName =
   const downloadAttr = downloadName ? ` download="${escapeAttr(downloadName)}"` : "";
   return `
     <div class="source-open-actions">
-      <a class="source-open-action" href="${escapeAttr(url)}" target="_blank" rel="noopener">
+      <a class="source-open-action" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">
         <i class="bi bi-box-arrow-up-right"></i>${escapeHTML(label)}
       </a>
       ${downloadName ? `
@@ -303,7 +319,19 @@ function renderYoutubeSourcePreview(item) {
 function renderSourceViewerBody(item) {
   if (!sourceViewerBody || !item) return;
   const meta = sourceMetaLine(item);
-  if (sourceViewerTitle) sourceViewerTitle.textContent = item.title || item.name || "Uploaded source";
+  const externalUrl = sourceExternalUrl(item);
+  const sourceTitle = item.title || item.name || "Uploaded source";
+  if (sourceViewerTitle) {
+    if (externalUrl && (item.kind === "link" || item.kind === "youtube")) {
+      sourceViewerTitle.innerHTML = `
+        <a class="source-toolbar-link" href="${escapeAttr(externalUrl)}" target="_blank" rel="noopener noreferrer">
+          ${escapeHTML(sourceTitle)}
+        </a>
+      `;
+    } else {
+      sourceViewerTitle.textContent = sourceTitle;
+    }
+  }
   if (sourceViewerMeta) sourceViewerMeta.textContent = meta || "Source preview";
   if (sourceZoomLabel) sourceZoomLabel.textContent = `${sourceViewerZoom}%`;
 
@@ -368,13 +396,18 @@ function renderSourceViewerBody(item) {
       renderYoutubeSourcePreview(item);
       return;
     }
-    const url = item.originalUrl || item.url || "";
+    const rawUrl = item.originalUrl || item.url || "";
+    const url = safeExternalSourceUrl(rawUrl);
     sourceViewerBody.innerHTML = `
       <div class="source-link-preview">
         <i class="bi ${sourceIcon(item.kind)}"></i>
         <h3>${escapeHTML(item.kind === "youtube" ? "YouTube source" : "Web source")}</h3>
-        <p>${escapeHTML(url)}</p>
-        ${url ? `<a href="${escapeAttr(url)}" target="_blank" rel="noopener">Open source link</a>` : ""}
+        <p class="source-link-url">
+          ${url
+            ? `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(rawUrl || url)}</a>`
+            : escapeHTML(rawUrl || "No source URL was saved for this link.")}
+        </p>
+        ${url ? renderSourceOpenActions(url, "Open source link") : ""}
       </div>
     `;
     return;

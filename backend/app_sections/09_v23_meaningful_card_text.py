@@ -676,6 +676,31 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
     return cleaned
 
 
+def rebuild_cached_visual_argument_cards(source_units: List[dict], preferred_language: str) -> List[dict]:
+    """Recreate browser-renderable source cards on cache hits without model calls."""
+    cards: List[dict] = []
+    for unit in source_units or []:
+        cards.extend(unit.get("visual_argument_cards") or [])
+    if cards:
+        labels = source_figure_labels(preferred_language)
+        return [
+            _v23_enrich_visual_card_details(card, labels, preferred_language)
+            for card in cards
+            if isinstance(card, dict)
+        ]
+
+    hard_limit = max(1, min(CONTROLLED_MAX_VISUALS, VISUAL_ARGUMENT_CARD_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
+    candidate_pool = select_visual_candidates_for_argument(source_units, hard_limit)
+    if not candidate_pool:
+        return []
+
+    labels = source_figure_labels(preferred_language)
+    cards = _v23_fallback_visual_cards(candidate_pool, labels, preferred_language)
+    if source_units:
+        source_units[0]["visual_argument_cards"] = cards
+    return cards
+
+
 @app.post("/translate-notes")
 async def translate_notes(payload: Dict):
     """Translate an already generated notes page without losing source markers.
