@@ -38,6 +38,14 @@
     });
   }
 
+  function appEntryUrl() {
+    const path = window.location.pathname || '';
+    if (path.includes('/frontend/')) {
+      return 'index.html';
+    }
+    return 'frontend/index.html';
+  }
+
   // ==========================================
   // Modal Functions
   // ==========================================
@@ -183,7 +191,7 @@
         
         // In production, validate credentials with backend
         // For now, redirect to main Synapse app
-        window.location.href = '/index.html';
+        window.location.href = appEntryUrl();
       }, 1500);
     });
 
@@ -314,7 +322,7 @@
         
         // In production, create account via backend API
         // For now, redirect to main Synapse app
-        window.location.href = '/index.html';
+        window.location.href = appEntryUrl();
       }, 1500);
     });
 
