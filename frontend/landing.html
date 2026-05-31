@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synapse - Turn Passive Study Notes Into Active Learning</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/logos/synapse.png">
+  <link rel="stylesheet" href="landing-auth.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="landing-nav" id="mainNav">
+    <div class="landing-nav-container">
+      <a href="landing.html" class="landing-logo">
+        <img src="/logos/synapse.png" alt="Synapse" class="landing-logo-img">
+        <span class="landing-logo-text">Synapse</span>
+      </a>
+      
+      <div class="landing-nav-menu" id="navMenu">
+        <a href="#product" class="landing-nav-link">Product</a>
+        <a href="#features" class="landing-nav-link">Features</a>
+        <a href="#pricing" class="landing-nav-link">Pricing</a>
+      </div>
+      
+      <div class="landing-nav-actions">
+        <a href="login.html" class="landing-btn landing-btn-ghost">Login</a>
+        <button class="landing-btn landing-btn-primary" data-action="get-started">Get Started</button>
+      </div>
+      
+      <button class="landing-mobile-toggle" id="mobileToggle">
+        <i class="bi bi-list"></i>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="landing-hero" id="product">
+    <div class="landing-hero-container">
+      <div class="landing-hero-content">
+        <div class="landing-hero-badge">
+          <i class="bi bi-stars"></i>
+          <span>AI-Powered Study Assistant</span>
+        </div>
+        
+        <h1 class="landing-hero-title">
+          Turn passive study notes into <span class="landing-text-gradient">active learning</span>
+        </h1>
+        
+        <p class="landing-hero-subtitle">
+          Upload PDFs, lecture slides, videos, images, or notes. Synapse generates study notes, mind maps, questions, and teach-back practice.
+        </p>
+        
+        <div class="landing-hero-actions">
+          <button class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
+            <i class="bi bi-rocket-takeoff"></i>
+            Get Started
+          </button>
+          <button class="landing-btn landing-btn-secondary landing-btn-lg">
+            <i class="bi bi-play-circle"></i>
+            View Demo
+          </button>
+        </div>
+        
+        <div class="landing-hero-stats">
+          <div class="landing-stat">
+            <strong>10,000+</strong>
+            <span>Active Students</span>
+          </div>
+          <div class="landing-stat">
+            <strong>500K+</strong>
+            <span>Study Sessions</span>
+          </div>
+          <div class="landing-stat">
+            <strong>95%</strong>
+            <span>Success Rate</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="landing-hero-image">
+        <div class="landing-hero-image-wrapper">
+          <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHw0fHxzdHVkZW50cyUyMHN0dWR5aW5nfGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85" alt="Students collaborating" class="landing-hero-img">
+          <div class="landing-hero-float landing-float-1">
+            <i class="bi bi-lightbulb"></i>
+            <span>Smart Learning</span>
+          </div>
+          <div class="landing-hero-float landing-float-2">
+            <i class="bi bi-graph-up"></i>
+            <span>Track Progress</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="landing-features" id="features">
+    <div class="landing-container">
+      <div class="landing-section-header">
+        <span class="landing-section-badge">Features</span>
+        <h2 class="landing-section-title">Everything you need to master your studies</h2>
+        <p class="landing-section-subtitle">Synapse transforms how you learn with AI-powered tools designed for active learning</p>
+      </div>
+      
+      <div class="landing-features-grid">
+        <div class="landing-feature-card" data-aos="fade-up">
+          <div class="landing-feature-icon">
+            <i class="bi bi-file-earmark-arrow-up"></i>
+          </div>
+          <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwyfHxlZHVjYXRpb24lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85" alt="Upload materials" class="landing-feature-img">
+          <h3>Upload Any Study Material</h3>
+          <p>PDFs, lecture slides, videos, images, or handwritten notes. Synapse accepts all formats and extracts key information.</p>
+        </div>
+        
+        <div class="landing-feature-card" data-aos="fade-up" data-aos-delay="100">
+          <div class="landing-feature-icon">
+            <i class="bi bi-journal-text"></i>
+          </div>
+          <img src="https://images.pexels.com/photos/261651/pexels-photo-261651.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Generate notes" class="landing-feature-img">
+          <h3>Generate Structured Study Notes</h3>
+          <p>AI transforms your materials into organized, comprehensive study notes with summaries, key concepts, and explanations.</p>
+        </div>
+        
+        <div class="landing-feature-card" data-aos="fade-up" data-aos-delay="200">
+          <div class="landing-feature-icon">
+            <i class="bi bi-diagram-3"></i>
+          </div>
+          <img src="https://images.unsplash.com/photo-1745847768382-816bfc32e1bb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHw0fHxtaW5kJTIwbWFwfGVufDB8fHx8MTc4MDIxNzE4MXww&ixlib=rb-4.1.0&q=85" alt="Mind maps" class="landing-feature-img">
+          <h3>Build Visual Mind Maps</h3>
+          <p>Visualize connections between concepts with interactive mind maps that help you understand relationships and hierarchies.</p>
+        </div>
+        
+        <div class="landing-feature-card" data-aos="fade-up">
+          <div class="landing-feature-icon">
+            <i class="bi bi-question-circle"></i>
+          </div>
+          <img src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxlZHVjYXRpb24lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85" alt="Practice questions" class="landing-feature-img">
+          <h3>Practice with Critical Questions</h3>
+          <p>Test your understanding with AI-generated questions that challenge your knowledge and reinforce learning.</p>
+        </div>
+        
+        <div class="landing-feature-card" data-aos="fade-up" data-aos-delay="100">
+          <div class="landing-feature-icon">
+            <i class="bi bi-person-video3"></i>
+          </div>
+          <img src="https://images.pexels.com/photos/7683743/pexels-photo-7683743.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Teach the Digital Student" class="landing-feature-img">
+          <h3>Teach the Digital Student</h3>
+          <p>Explain concepts back to our AI student. Teaching is the best way to learn, and Synapse listens and evaluates your understanding.</p>
+        </div>
+        
+        <div class="landing-feature-card" data-aos="fade-up" data-aos-delay="200">
+          <div class="landing-feature-icon">
+            <i class="bi bi-clipboard-data"></i>
+          </div>
+          <img src="https://images.unsplash.com/photo-1531403009284-440f080d1e12?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwzfHxtaW5kJTIwbWFwfGVufDB8fHx8MTc4MDIxNzE4MXww&ixlib=rb-4.1.0&q=85" alt="Knowledge feedback" class="landing-feature-img">
+          <h3>Receive Knowledge-Gap Feedback</h3>
+          <p>Synapse identifies what you know and what you don't, providing personalized feedback to guide your study sessions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="landing-how-it-works">
+    <div class="landing-container">
+      <div class="landing-section-header">
+        <span class="landing-section-badge">How It Works</span>
+        <h2 class="landing-section-title">Your journey from passive to active learning</h2>
+      </div>
+      
+      <div class="landing-steps">
+        <div class="landing-step">
+          <div class="landing-step-number">1</div>
+          <div class="landing-step-content">
+            <h3>Upload Material</h3>
+            <p>Drag and drop your study materials - PDFs, slides, videos, or images</p>
+          </div>
+        </div>
+        
+        <div class="landing-step-arrow">
+          <i class="bi bi-arrow-right"></i>
+        </div>
+        
+        <div class="landing-step">
+          <div class="landing-step-number">2</div>
+          <div class="landing-step-content">
+            <h3>Generate Notes</h3>
+            <p>AI analyzes and creates structured study notes with key concepts</p>
+          </div>
+        </div>
+        
+        <div class="landing-step-arrow">
+          <i class="bi bi-arrow-right"></i>
+        </div>
+        
+        <div class="landing-step">
+          <div class="landing-step-number">3</div>
+          <div class="landing-step-content">
+            <h3>Organize Ideas</h3>
+            <p>Visualize connections with interactive mind maps</p>
+          </div>
+        </div>
+        
+        <div class="landing-step-arrow">
+          <i class="bi bi-arrow-right"></i>
+        </div>
+        
+        <div class="landing-step">
+          <div class="landing-step-number">4</div>
+          <div class="landing-step-content">
+            <h3>Teach & Practice</h3>
+            <p>Explain concepts to the Digital Student and answer questions</p>
+          </div>
+        </div>
+        
+        <div class="landing-step-arrow">
+          <i class="bi bi-arrow-right"></i>
+        </div>
+        
+        <div class="landing-step">
+          <div class="landing-step-number">5</div>
+          <div class="landing-step-content">
+            <h3>Get Feedback</h3>
+            <p>Receive personalized insights on knowledge gaps</p>
+          </div>
+        </div>
+        
+        <div class="landing-step-arrow">
+          <i class="bi bi-arrow-right"></i>
+        </div>
+        
+        <div class="landing-step">
+          <div class="landing-step-number">6</div>
+          <div class="landing-step-content">
+            <h3>Revise & Master</h3>
+            <p>Focus on weak areas and master the material</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- USP Section -->
+  <section class="landing-usp">
+    <div class="landing-container">
+      <div class="landing-usp-card">
+        <div class="landing-usp-icon">
+          <i class="bi bi-lightning-charge"></i>
+        </div>
+        <h2>Unlike passive AI summaries, Synapse checks what you actually understand</h2>
+        <p>Most AI study tools just summarize content. Synapse goes further by testing your understanding through teach-back sessions, identifying knowledge gaps, and providing targeted feedback. It's not just about consuming information—it's about truly mastering it.</p>
+        <button class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
+          Experience Active Learning
+          <i class="bi bi-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section class="landing-pricing" id="pricing">
+    <div class="landing-container">
+      <div class="landing-section-header">
+        <span class="landing-section-badge">Pricing</span>
+        <h2 class="landing-section-title">Student-friendly, credit-based pricing</h2>
+        <p class="landing-section-subtitle">Pay only for what you use. No subscriptions, no commitments.</p>
+      </div>
+      
+      <div class="landing-pricing-grid">
+        <div class="landing-pricing-card">
+          <div class="landing-pricing-header">
+            <h3>Starter</h3>
+            <div class="landing-pricing-price">
+              <span class="landing-price-currency">$</span>
+              <span class="landing-price-amount">3.99</span>
+            </div>
+            <p class="landing-pricing-period">500 Credits</p>
+          </div>
+          <ul class="landing-pricing-features">
+            <li><i class="bi bi-check-circle-fill"></i> Upload up to 10 documents</li>
+            <li><i class="bi bi-check-circle-fill"></i> Generate study notes</li>
+            <li><i class="bi bi-check-circle-fill"></i> Create mind maps</li>
+            <li><i class="bi bi-check-circle-fill"></i> Practice questions</li>
+            <li><i class="bi bi-check-circle-fill"></i> 7-day validity</li>
+          </ul>
+          <button class="landing-btn landing-btn-outline" data-action="get-started">Get Started</button>
+        </div>
+        
+        <div class="landing-pricing-card landing-pricing-featured">
+          <div class="landing-pricing-badge">Most Popular</div>
+          <div class="landing-pricing-header">
+            <h3>Student</h3>
+            <div class="landing-pricing-price">
+              <span class="landing-price-currency">$</span>
+              <span class="landing-price-amount">9.99</span>
+            </div>
+            <p class="landing-pricing-period">1500 Credits</p>
+          </div>
+          <ul class="landing-pricing-features">
+            <li><i class="bi bi-check-circle-fill"></i> Upload up to 50 documents</li>
+            <li><i class="bi bi-check-circle-fill"></i> All note generation features</li>
+            <li><i class="bi bi-check-circle-fill"></i> Interactive mind maps</li>
+            <li><i class="bi bi-check-circle-fill"></i> Unlimited practice questions</li>
+            <li><i class="bi bi-check-circle-fill"></i> Teach-back sessions</li>
+            <li><i class="bi bi-check-circle-fill"></i> Knowledge gap analysis</li>
+            <li><i class="bi bi-check-circle-fill"></i> 30-day validity</li>
+          </ul>
+          <button class="landing-btn landing-btn-primary" data-action="get-started">Get Started</button>
+        </div>
+        
+        <div class="landing-pricing-card">
+          <div class="landing-pricing-header">
+            <h3>Pro</h3>
+            <div class="landing-pricing-price">
+              <span class="landing-price-currency">$</span>
+              <span class="landing-price-amount">19.99</span>
+            </div>
+            <p class="landing-pricing-period">4000 Credits</p>
+          </div>
+          <ul class="landing-pricing-features">
+            <li><i class="bi bi-check-circle-fill"></i> Unlimited document uploads</li>
+            <li><i class="bi bi-check-circle-fill"></i> All premium features</li>
+            <li><i class="bi bi-check-circle-fill"></i> Priority processing</li>
+            <li><i class="bi bi-check-circle-fill"></i> Advanced analytics</li>
+            <li><i class="bi bi-check-circle-fill"></i> Export to PDF/Word</li>
+            <li><i class="bi bi-check-circle-fill"></i> 90-day validity</li>
+          </ul>
+          <button class="landing-btn landing-btn-outline" data-action="get-started">Get Started</button>
+        </div>
+      </div>
+      
+      <div class="landing-voucher-section">
+        <div class="landing-voucher-card">
+          <i class="bi bi-gift"></i>
+          <div>
+            <h4>Have a voucher code?</h4>
+            <p>Redeem your code during checkout to get bonus credits or discounts</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="landing-final-cta">
+    <div class="landing-container">
+      <div class="landing-cta-card">
+        <h2>Ready to transform your learning?</h2>
+        <p>Join thousands of students who are mastering their studies with Synapse</p>
+        <button class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
+          <i class="bi bi-rocket-takeoff"></i>
+          Get Started for Free
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <div class="landing-container">
+      <div class="landing-footer-content">
+        <div class="landing-footer-brand">
+          <img src="/logos/synapse.png" alt="Synapse" class="landing-footer-logo">
+          <span class="landing-footer-logo-text">Synapse</span>
+          <p>Turn passive study notes into active learning</p>
+        </div>
+        
+        <div class="landing-footer-links">
+          <div class="landing-footer-column">
+            <h4>Product</h4>
+            <a href="#features">Features</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#">How it Works</a>
+          </div>
+          
+          <div class="landing-footer-column">
+            <h4>Company</h4>
+            <a href="#">About Us</a>
+            <a href="#">Blog</a>
+            <a href="#">Careers</a>
+          </div>
+          
+          <div class="landing-footer-column">
+            <h4>Support</h4>
+            <a href="#">Help Center</a>
+            <a href="#">Contact</a>
+            <a href="#">Privacy Policy</a>
+          </div>
+        </div>
+      </div>
+      
+      <div class="landing-footer-bottom">
+        <p>&copy; 2025 Synapse. All rights reserved.</p>
+        <div class="landing-footer-social">
+          <a href="#"><i class="bi bi-twitter"></i></a>
+          <a href="#"><i class="bi bi-linkedin"></i></a>
+          <a href="#"><i class="bi bi-github"></i></a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Auth Modal -->
+  <div class="landing-modal" id="authModal">
+    <div class="landing-modal-overlay" data-close-modal></div>
+    <div class="landing-modal-content">
+      <button class="landing-modal-close" data-close-modal>
+        <i class="bi bi-x-lg"></i>
+      </button>
+      
+      <div class="landing-auth-choice">
+        <img src="/logos/synapse.png" alt="Synapse" class="landing-auth-logo">
+        <h2>Get Started with Synapse</h2>
+        <p>Choose how you'd like to continue</p>
+        
+        <div class="landing-auth-buttons">
+          <a href="signup.html" class="landing-btn landing-btn-primary landing-btn-block">
+            <i class="bi bi-person-plus"></i>
+            Create New Account
+          </a>
+          <a href="login.html" class="landing-btn landing-btn-outline landing-btn-block">
+            <i class="bi bi-box-arrow-in-right"></i>
+            Login to Existing Account
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="landing-auth.js"></script>
+</body>
+</html>
