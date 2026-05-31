@@ -12,3 +12,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+.env
+backend/.env
+backend/core/.env
