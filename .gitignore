@@ -6,3 +6,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 backend/synapse_analysis_cache.json
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
