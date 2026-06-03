@@ -47,6 +47,7 @@ OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_ORG_ID = (os.getenv("OPENAI_ORG_ID") or "").strip() or None
 OPENAI_PROJECT_ID = (os.getenv("OPENAI_PROJECT_ID") or "").strip() or None
 OPENAI_TIMEOUT_SECONDS = max(30.0, env_float("OPENAI_TIMEOUT_SECONDS", 240.0))
+ANALYSIS_MAX_SECONDS = max(60, env_int("ANALYSIS_MAX_SECONDS", 300))
 
 client = (
     OpenAI(

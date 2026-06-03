@@ -792,7 +792,7 @@ def transcribe_media_bytes(filename: str, data: bytes) -> str:
             pass
 
 
-def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_FRAMES) -> List[dict]:
+def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_FRAMES, source_name: str = "video") -> List[dict]:
     if cv2 is None:
         return []
     cap = cv2.VideoCapture(video_path)
@@ -811,8 +811,11 @@ def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_
         step = max(1, (end - start) // max(1, max_frames - 1))
         indices = [min(frame_count - 1, start + i * step) for i in range(max_frames)]
 
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 0)
+    source_label = normalise_space(source_name or Path(video_path).name or "video")
+
     parts = []
-    for idx in indices:
+    for frame_number, idx in enumerate(indices, start=1):
         cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         ok, frame = cap.read()
         if not ok or frame is None:
@@ -824,6 +827,15 @@ def extract_video_frames_from_file(video_path: str, max_frames: int = MAX_VIDEO_
             frame = cv2.resize(frame, (int(width * scale), int(height * scale)))
         ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
         if ok:
+            timestamp = format_duration(idx / fps) if fps > 0 else f"frame {idx}"
+            parts.append({
+                "type": "text",
+                "text": (
+                    f"IN-TEXT SOURCE FIGURE FROM {source_label} — video frame {frame_number} "
+                    f"sampled at approximately {timestamp}. Actual source screenshot selected "
+                    "to preserve visual evidence from the video."
+                ),
+            })
             parts.append(image_part_from_bytes(buffer.tobytes(), "image/jpeg"))
     cap.release()
     return parts

@@ -38,7 +38,7 @@ def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List
                 temp_file.write(data)
                 temp_path = temp_file.name
             try:
-                frame_parts = extract_video_frames_from_file(temp_path)
+                frame_parts = extract_video_frames_from_file(temp_path, source_name=name or "uploaded video")
             finally:
                 try:
                     os.remove(temp_path)
@@ -93,6 +93,7 @@ def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
             "url": meta.get("url") or canonicalize_youtube_watch_url(url),
             "content_hash": meta["content_hash"],
             "text_excerpt": transcript,
+            "visual_parts": frame_parts or meta.get("visual_parts") or [],
         }
 
     url = normalize_public_http_url(url, "source URL")
@@ -101,13 +102,30 @@ def link_to_source_unit(url: str) -> Tuple[List[dict], dict]:
     if lower_path.endswith((".mp3", ".m4a", ".wav", ".mp4", ".webm", ".mov", ".avi", ".mkv")):
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         data = urlopen_bytes(req, timeout=20, max_bytes=MAX_VIDEO_BYTES + 1)
+        frame_parts: List[dict] = []
+        linked_name = Path(parsed.path).name or "linked media"
+        if lower_path.endswith((".mp4", ".webm", ".mov", ".avi", ".mkv")):
+            suffix = Path(linked_name).suffix or ".mp4"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                temp_file.write(data)
+                temp_path = temp_file.name
+            try:
+                frame_parts = extract_video_frames_from_file(temp_path, source_name=linked_name)
+            finally:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
         transcript = transcribe_media_bytes(Path(parsed.path).name or "linked-media", data) if has_openai() else "Media transcription requires a valid OPENAI_API_KEY."
-        return [{"type": "text", "text": f"\n\nSOURCE MEDIA LINK: {url}\nTranscript:\n{truncate_text(transcript)}"}], {
+        parts = [{"type": "text", "text": f"\n\nSOURCE MEDIA LINK: {url}\nTranscript:\n{truncate_text(transcript)}"}]
+        parts.extend(frame_parts)
+        return parts, {
             "display_name": url,
             "source_identity": canonicalize_url(url)[1],
-            "title_candidate": Path(parsed.path).name or "linked media",
+            "title_candidate": linked_name,
             "content_hash": sha256_text(transcript),
             "text_excerpt": transcript,
+            "visual_parts": frame_parts,
         }
 
     try:

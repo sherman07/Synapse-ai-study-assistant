@@ -134,10 +134,13 @@ function renderFullNotes() {
   renderNotesMarkdown(ensureRenderableSummary(fullSummary, sections), "No generated notes are available yet.");
 }
 
-function renderSectionNotes(title) {
+function renderSectionNotes(title, options = {}) {
   selectedSection = title;
   sectionTitle.innerText = title;
   contextLabel.textContent = shorten(title, 22);
+  if (options.countMasteryOpen !== false && typeof recordMasterySectionOpen === "function") {
+    recordMasterySectionOpen(title);
+  }
   renderNotesMarkdown(sections[title], `No notes were generated for ${title}.`);
 }
 
@@ -370,6 +373,7 @@ function getToolPanelId(toolName) {
     mindmap: "toolPanelMindMap",
     visualguide: "toolPanelVisualGuide",
     timeline: "toolPanelTimeline",
+    masterygraph: "toolPanelMasteryGraph",
     quiz: "toolPanelQuiz",
     flashcards: "toolPanelFlashcards"
   };
@@ -392,6 +396,8 @@ function switchTool(toolName, clickedBtn = null) {
     document.getElementById("toolBtnMindMap")?.classList.add("active");
   } else if (toolName === "timeline") {
     document.getElementById("toolBtnTimeline")?.classList.add("active");
+  } else if (toolName === "masterygraph") {
+    document.getElementById("toolBtnMasteryGraph")?.classList.add("active");
   } else if (toolName === "visualguide") {
     document.getElementById("toolBtnVisualGuide")?.classList.add("active");
   } else if (toolName === "quiz") {
@@ -406,6 +412,8 @@ function switchTool(toolName, clickedBtn = null) {
     renderVisualGuidePanel();
   } else if (toolName === "timeline") {
     renderTimelinePanel();
+  } else if (toolName === "masterygraph") {
+    renderMasteryGraphPanel();
   } else if (toolName === "quiz") {
     renderQuizPanel();
     if (!isQuizGenerating && (!currentQuiz || !Array.isArray(currentQuiz.questions) || !currentQuiz.questions.length)) {

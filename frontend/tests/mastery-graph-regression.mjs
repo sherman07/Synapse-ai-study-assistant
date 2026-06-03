@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const read = file => fs.readFileSync(path.join(repoRoot, file), "utf8");
+
+const controller = read("frontend/src/legacy/controller.js");
+const index = read("frontend/index.html");
+const main = read("frontend/src/main.js");
+const loader = read("frontend/src/legacy/loadLegacyController.js");
+const switchTools = read("frontend/src/legacy/controller_sections/02_openvisualmodal.js");
+const masteryGraph = read("frontend/src/legacy/controller_sections/04_masterygraph.js");
+const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
+const reset = read("frontend/src/legacy/controller_sections/08_extractrealtimeresponsetranscript.js");
+const notes = read("frontend/src/legacy/controller_sections/02_openvisualmodal.js");
+const timeline = read("frontend/src/legacy/controller_sections/03_rendertimeline.js");
+const quiz = read("frontend/src/legacy/controller_sections/05_persistcurrentquiztohistory.js");
+const styles = read("frontend/styles/07-section.css");
+const appAssetVersion = "account-landing-v2";
+
+assert.ok(controller.includes('"04_masterygraph.js"'), "legacy controller should load the memory engine section");
+assert.ok(index.includes(appAssetVersion), "index should bust cached app assets for memory engine");
+assert.ok(main.includes(appAssetVersion), "main should bust cached controller loader");
+assert.ok(loader.includes(appAssetVersion), "controller script URL should bust cached controller");
+assert.ok(switchTools.includes('masterygraph: "toolPanelMasteryGraph"'), "switchTool should map masterygraph to its panel");
+assert.ok(switchTools.includes('toolName === "masterygraph"'), "switchTool should activate/render the memory engine");
+assert.ok(masteryGraph.includes("function setupMasteryGraphTool()"), "memory engine setup should exist");
+assert.ok(masteryGraph.includes("MEMORY_ENGINE_STORAGE_KEY"), "memory engine progress should persist locally");
+assert.ok(masteryGraph.includes("function checkMemoryRecallAnswer("), "memory engine should check recall answers");
+assert.ok(masteryGraph.includes("function scheduleMemoryReview("), "memory engine should schedule spaced reviews");
+assert.ok(masteryGraph.includes("function gradeMemoryAnswer("), "memory engine should give smart why-wrong feedback");
+assert.ok(masteryGraph.includes("function markMasteryGraphSectionReviewed("), "reviewed action should exist");
+assert.ok(masteryGraph.includes("function practiceMasteryGraphSection("), "practice action should exist");
+assert.ok(masteryGraph.includes("toolBtnMasteryGraph"), "mastery button should be created");
+assert.ok(masteryGraph.includes("Memory Engine"), "memory engine UI label should be present");
+assert.ok(boot.includes("setupMasteryGraphTool();"), "memory engine should be installed at boot");
+assert.ok(reset.includes("setupMasteryGraphTool();"), "memory engine should be restored after workspace reset");
+assert.ok(boot.includes("checkMemoryRecallAnswer"), "memory answer checker should be exposed");
+assert.ok(boot.includes("scheduleMemoryReview"), "memory scheduler should be exposed");
+assert.ok(notes.includes("recordMasterySectionOpen(title)"), "opening a note section should increase memory progress");
+assert.ok(timeline.includes("recordMasteryGraphPathProgress("), "study path completion should feed memory progress");
+assert.ok(quiz.includes("recordMasteryGraphQuizProgress();"), "quiz submission should feed memory progress");
+assert.ok(styles.includes(".memory-engine-shell"), "memory engine styles should be available");
+assert.ok(styles.includes(".memory-feedback"), "why-wrong feedback should be styled");
+
+console.log("memory engine regression passed");

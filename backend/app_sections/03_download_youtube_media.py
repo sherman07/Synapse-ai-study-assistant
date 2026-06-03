@@ -31,6 +31,8 @@ def analyse_youtube_url(url: str) -> Tuple[str, List[dict], dict]:
     transcript = fetch_youtube_caption_transcript(canonical_url)
     frame_parts: List[dict] = []
     media_path = None
+    video_id = get_youtube_video_id(canonical_url) or "unknown"
+    detected_title = metadata.get("title") or f"YouTube video {video_id}"
 
     extract_frames = os.getenv("YOUTUBE_EXTRACT_FRAMES", "0").lower() in {"1", "true", "yes"}
     needs_audio_fallback = len(transcript.strip()) < 500
@@ -39,7 +41,7 @@ def analyse_youtube_url(url: str) -> Tuple[str, List[dict], dict]:
     if media_path:
         try:
             if extract_frames:
-                frame_parts = extract_video_frames_from_file(media_path)
+                frame_parts = extract_video_frames_from_file(media_path, source_name=detected_title)
             if needs_audio_fallback and has_openai():
                 try:
                     with open(media_path, "rb") as media_file:
@@ -65,14 +67,13 @@ def analyse_youtube_url(url: str) -> Tuple[str, List[dict], dict]:
         metadata_lines.append(f"Duration: {metadata['duration']}")
     if metadata_lines:
         transcript = "[YouTube metadata]\n" + "\n".join(metadata_lines) + "\n\n[Transcript]\n" + transcript
-    video_id = get_youtube_video_id(canonical_url) or "unknown"
-    detected_title = metadata.get("title") or f"YouTube video {video_id}"
     meta = {
         "url": canonical_url,
         "source_identity": f"youtube:{video_id}",
         "detected_title": detected_title,
         "content_hash": sha256_text(transcript),
         "metadata": metadata,
+        "visual_parts": frame_parts,
     }
     return transcript, frame_parts, meta
 

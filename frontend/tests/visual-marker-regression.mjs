@@ -61,4 +61,10 @@ assert.equal((html.match(/data-visual-card=/g) || []).length, 1);
 assert.equal((html.match(/data-visual-ref=/g) || []).length, 1);
 assert.ok(!html.includes("[[VISUAL:0]]"));
 
+const inlineHtml = markdownToHTML("Read the source table before [[VISUAL:0]] then interpret the pattern.");
+assert.equal((inlineHtml.match(/data-visual-card=/g) || []).length, 1);
+assert.ok(!inlineHtml.includes("[[VISUAL:0]]"));
+assert.ok(inlineHtml.includes("Read the source table"));
+assert.ok(inlineHtml.includes("then interpret the pattern"));
+
 console.log("visual marker regression passed");

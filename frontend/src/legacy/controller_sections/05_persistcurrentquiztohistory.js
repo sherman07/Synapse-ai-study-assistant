@@ -659,7 +659,9 @@ function updateQuizChoiceAnswer(questionId, optionIndex, inputType, checked) {
     quizAnswers[questionId] = optionIndex;
   }
   persistCurrentQuizToHistory();
+  recordMasteryGraphQuizProgress();
   renderQuizPanel();
+  renderMasteryGraphPanel();
 }
 
 function isQuizAnswered(question) {

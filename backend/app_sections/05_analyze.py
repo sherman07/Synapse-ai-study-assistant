@@ -6,6 +6,18 @@ def prompt_modes():
     }
 
 
+def analysis_elapsed_seconds_since(started_at: float) -> float:
+    return max(0.0, time.monotonic() - started_at)
+
+
+def analysis_remaining_seconds_since(started_at: float) -> float:
+    return max(0.0, float(ANALYSIS_MAX_SECONDS) - analysis_elapsed_seconds_since(started_at))
+
+
+def should_run_optional_analysis_stage(started_at: float, min_remaining_seconds: int) -> bool:
+    return analysis_remaining_seconds_since(started_at) >= max(0, int(min_remaining_seconds))
+
+
 @app.post("/analyze")
 async def analyze_materials(
     files: List[UploadFile] = File(default=[]),
@@ -21,6 +33,20 @@ async def analyze_materials(
 
     try:
         require_openai()
+        analysis_started_at = time.monotonic()
+        skipped_optional_stages: List[str] = []
+
+        def analysis_elapsed_seconds() -> float:
+            return analysis_elapsed_seconds_since(analysis_started_at)
+
+        def analysis_remaining_seconds() -> float:
+            return analysis_remaining_seconds_since(analysis_started_at)
+
+        def allow_optional_stage(stage: str, min_remaining_seconds: int) -> bool:
+            if should_run_optional_analysis_stage(analysis_started_at, min_remaining_seconds):
+                return True
+            skipped_optional_stages.append(stage)
+            return False
 
         content_parts: List[dict] = []
         source_units: List[dict] = []
@@ -109,10 +135,10 @@ async def analyze_materials(
         selected_prompt_label = note_prompt_mode_label(selected_prompt_mode)
         resolved_language_key = resolve_generation_language_key(preferred_language, combined_source_text)
         postprocess_language = resolved_language_key if normalise_language_key(preferred_language) == "auto" else preferred_language
-        depth_plan = choose_learning_depth(combined_source_text, source_units, "auto")
+        depth_plan = choose_learning_depth(combined_source_text, source_units, detail_level)
         depth = depth_plan["depth"]
         depth_config = depth_plan["config"]
-        if len(source_units) >= 2:
+        if len(source_units) >= 2 and depth_plan.get("auto_selected", True):
             depth = "comprehensive"
             depth_config = DEPTH_CONFIG["comprehensive"]
             depth_plan["depth"] = depth
@@ -152,6 +178,9 @@ async def analyze_materials(
                 "output_language": postprocess_language,
                 "prompt_mode": selected_prompt_mode,
                 "prompt_mode_label": selected_prompt_label,
+                "analysis_max_seconds": ANALYSIS_MAX_SECONDS,
+                "analysis_elapsed_seconds": round(analysis_elapsed_seconds(), 2),
+                "optional_stages_skipped": [],
             }
 
         language_rule = language_instruction_for_generation(preferred_language, combined_source_text)
@@ -228,7 +257,10 @@ Consistency requirement:
             protect_heading=True,
         )
         stored_sections = parse_sections(stored_summary)
-        stored_title = make_notes_title(stored_summary, title_candidates)
+        if allow_optional_stage("title", env_int("TITLE_STAGE_MIN_SECONDS", 18)):
+            stored_title = make_notes_title(stored_summary, title_candidates)
+        else:
+            stored_title = title_hint if title_hint and title_hint != "Generated Study Notes" else "Generated Study Notes"
         if len(source_units) >= 2:
             # Avoid naming the whole analysis after only the first file.
             shared_title_hint = detect_course_or_topic_title(combined_source_text[:5000]) or "Multi-Source Study Synthesis"
@@ -236,7 +268,10 @@ Consistency requirement:
                 stored_title = shared_title_hint
         stored_title = localise_title_if_needed(stored_title, postprocess_language)
         stored_connections = generate_connections_from_sections(stored_sections)
-        stored_mind_map = generate_ai_mind_map(stored_title, stored_sections, postprocess_language, depth)
+        if allow_optional_stage("mind_map", env_int("MINDMAP_STAGE_MIN_SECONDS", 35)):
+            stored_mind_map = generate_ai_mind_map(stored_title, stored_sections, postprocess_language, depth)
+        else:
+            stored_mind_map = generate_mind_map(stored_title, stored_sections, depth)
         stored_source_identity = source_units[0].get("source_identity", "") if source_units else ""
 
         result = {
@@ -269,6 +304,9 @@ Consistency requirement:
             "output_language": postprocess_language,
             "prompt_mode": selected_prompt_mode,
             "prompt_mode_label": selected_prompt_label,
+            "analysis_max_seconds": ANALYSIS_MAX_SECONDS,
+            "analysis_elapsed_seconds": round(analysis_elapsed_seconds(), 2),
+            "optional_stages_skipped": skipped_optional_stages,
             "cached": False,
         }
         # Do not persist large base64 visual images in the JSON cache. The

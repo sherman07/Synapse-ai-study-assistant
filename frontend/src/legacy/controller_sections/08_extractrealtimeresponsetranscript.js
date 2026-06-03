@@ -500,6 +500,7 @@ function resetWorkspace() {
   renderSourceViewer();
   setupVisualGuideTool();
   setupTimelineTool();
+  setupMasteryGraphTool();
   setupQuizTool();
   setupFlashcardTool();
 
@@ -509,6 +510,145 @@ function resetWorkspace() {
     const target = uploadStage || document.body;
     target.scrollIntoView?.({ behavior: "smooth", block: "start" });
   });
+}
+
+const AUTH_SESSION_STORAGE_KEY = "synapse.auth.session.v1";
+
+function getCurrentAccountSession() {
+  const session = safeReadJSONStorage(AUTH_SESSION_STORAGE_KEY, null);
+  return session && typeof session === "object" ? session : null;
+}
+
+function accountInitials(session) {
+  const name = String(session?.displayName || session?.email || "Synapse Student").trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (name.slice(0, 2) || "S").toUpperCase();
+}
+
+function accountRoleLabel(role) {
+  const labels = {
+    student: "Student",
+    teacher: "Teacher",
+    professional: "Professional Learner",
+    other: "Learner"
+  };
+  return labels[String(role || "").toLowerCase()] || "Learner";
+}
+
+function renderAccountMenu() {
+  const session = getCurrentAccountSession();
+  const signedIn = Boolean(session?.email);
+  const displayName = signedIn ? (session.displayName || session.email) : "Guest Student";
+  const email = signedIn ? session.email : "Not signed in";
+  const plan = signedIn ? (session.plan || "Starter") : "Starter";
+  const credits = signedIn ? Number(session.credits || 0) : 0;
+  document.querySelectorAll(".account-menu-avatar").forEach(node => {
+    node.textContent = accountInitials(session);
+  });
+  document.querySelectorAll(".account-menu-name").forEach(node => {
+    node.textContent = displayName;
+  });
+  document.querySelectorAll(".account-menu-email").forEach(node => {
+    node.textContent = email;
+  });
+  document.querySelectorAll(".account-menu-plan").forEach(node => {
+    node.textContent = plan;
+  });
+  document.querySelectorAll(".account-menu-credits").forEach(node => {
+    node.textContent = String(credits);
+  });
+  document.querySelectorAll(".account-signed-in-only").forEach(node => {
+    node.style.display = signedIn ? "" : "none";
+  });
+  document.querySelectorAll(".account-signed-out-only").forEach(node => {
+    node.style.display = signedIn ? "none" : "";
+  });
+}
+
+function authPageUrl(page = "login") {
+  const file = page === "signup" ? "signup.html" : "login.html";
+  return (window.location.pathname || "").includes("/frontend/") ? file : `frontend/${file}`;
+}
+
+function goToAuthPage(page = "login") {
+  window.location.href = authPageUrl(page);
+}
+
+function signOutAccount() {
+  safeRemoveLocalStorage(AUTH_SESSION_STORAGE_KEY);
+  renderAccountMenu();
+  goToAuthPage("login");
+}
+
+function closeAccountPanel() {
+  document.querySelector(".account-panel-overlay")?.remove();
+}
+
+function openAccountPanel(section = "profile") {
+  const session = getCurrentAccountSession();
+  if (!session?.email && section !== "help") {
+    goToAuthPage("login");
+    return;
+  }
+  closeAccountPanel();
+  const titleMap = {
+    profile: "Profile",
+    billing: "Billing & credits",
+    settings: "Settings",
+    help: "Help"
+  };
+  const role = accountRoleLabel(session?.role);
+  const rows = {
+    profile: [
+      ["Name", session?.displayName || "Guest Student"],
+      ["Email", session?.email || "Not signed in"],
+      ["Role", role],
+      ["Created", session?.createdAt ? new Date(session.createdAt).toLocaleDateString() : "Local account"]
+    ],
+    billing: [
+      ["Plan", session?.plan || "Starter"],
+      ["Credits", String(Number(session?.credits || 0))],
+      ["Billing mode", "Credit-based"],
+      ["Status", "Active"]
+    ],
+    settings: [
+      ["Account", session?.authProvider === "google" ? "Google local session" : "Email local session"],
+      ["Workspace", currentSourceFingerprint ? "Generated notes active" : "Ready for upload"],
+      ["History", `${getHistory().length} saved note${getHistory().length === 1 ? "" : "s"}`],
+      ["Tutor", voiceTutorHistory.length ? "History available" : "No active chat"]
+    ],
+    help: [
+      ["Support", "Use Help Center from the account menu"],
+      ["App", "Synapse study workspace"],
+      ["Data", "Local browser account and note history"],
+      ["Next", "Start a new workspace or continue notes"]
+    ]
+  }[section] || [];
+  const overlay = document.createElement("div");
+  overlay.className = "account-panel-overlay";
+  overlay.innerHTML = `
+    <section class="account-panel-card" role="dialog" aria-modal="true" aria-label="${escapeAttr(titleMap[section] || "Account")}">
+      <div class="account-panel-head">
+        <h3>${escapeHTML(titleMap[section] || "Account")}</h3>
+        <button class="account-panel-close" type="button" onclick="closeAccountPanel()" aria-label="Close account panel">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <div class="account-panel-list">
+        ${rows.map(([label, value]) => `
+          <div class="account-panel-row">
+            <span>${escapeHTML(label)}</span>
+            <strong>${escapeHTML(value)}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay) closeAccountPanel();
+  });
+  document.body.appendChild(overlay);
 }
 
 async function buildClientFingerprint(rawSource, sourceLinks = []) {
@@ -531,10 +671,26 @@ async function sha256Hex(input) {
   const data = input instanceof ArrayBuffer
     ? input
     : new TextEncoder().encode(String(input));
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)]
-    .map(byte => byte.toString(16).padStart(2, "0"))
-    .join("");
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle && typeof subtle.digest === "function") {
+    const digest = await subtle.digest("SHA-256", data);
+    return [...new Uint8Array(digest)]
+      .map(byte => byte.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  return fallbackFingerprintHex(new Uint8Array(data));
+}
+
+function fallbackFingerprintHex(bytes) {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x1000193;
+  for (const byte of bytes) {
+    h1 ^= byte;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h2 ^= (byte + 0x9e3779b9) & 0xff;
+    h2 = Math.imul(h2, 0x85ebca6b) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, "0")}${h2.toString(16).padStart(8, "0")}`;
 }
 
 function getHistory() {

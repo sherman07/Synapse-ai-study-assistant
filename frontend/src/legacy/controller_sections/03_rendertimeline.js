@@ -411,6 +411,7 @@ async function checkStudyPathAnswer(eventId) {
         status: "correct",
         feedback: data.feedback || "Correct. You can mark this task done."
       }, true);
+      recordMasteryGraphPathProgress(event.section || event.title || eventId);
       return;
     }
 
@@ -462,9 +463,11 @@ function toggleTimelineComplete(eventId) {
       return;
     }
     timelineCompletedIds.add(id);
+    recordMasteryGraphPathProgress(targetEvent?.section || targetEvent?.title || id);
   }
   persistTimelineForCurrentNote();
   renderTimelinePanel();
+  renderMasteryGraphPanel();
 }
 
 async function generateTimeline(force = false) {
@@ -511,6 +514,7 @@ async function generateTimeline(force = false) {
   } finally {
     isTimelineGenerating = false;
     renderTimelinePanel();
+    renderMasteryGraphPanel();
   }
 }
 

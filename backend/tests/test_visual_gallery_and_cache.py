@@ -1,3 +1,4 @@
+import asyncio
 import json
 import tempfile
 import time
@@ -8,10 +9,14 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.app import analyze_materials
 from backend.app import build_analysis_fingerprint
 from backend.app import build_visual_gallery
+from backend.app import choose_learning_depth
 from backend.app import file_to_source_unit
 from backend.app import finalize_generated_summary
+from backend.app import iter_visual_candidates
+from backend.app import link_to_source_unit
 from backend.app import rebuild_cached_visual_argument_cards
 from backend.core.analysis_cache import AnalysisCacheStore
 
@@ -30,6 +35,53 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("visual_image_guide_model", payload)
         self.assertIn("openai_timeout_seconds", payload)
         self.assertNotIn("OPENAI_API_KEY", payload)
+
+    def test_explicit_detail_level_overrides_auto_depth(self):
+        payload = choose_learning_depth("Tiny note about slope.", [], "detailed")
+
+        self.assertEqual(payload["depth"], "detailed")
+        self.assertTrue(payload["override"])
+        self.assertEqual(payload["requested_detail_level"], "detailed")
+        self.assertEqual(payload["auto_selected_depth"], "focused")
+
+    def test_auto_detail_level_keeps_adaptive_depth(self):
+        payload = choose_learning_depth("Tiny note about slope.", [], "auto")
+
+        self.assertEqual(payload["depth"], "focused")
+        self.assertFalse(payload["override"])
+        self.assertEqual(payload["requested_detail_level"], "auto")
+
+    def test_analysis_deadline_skips_optional_model_stages(self):
+        with (
+            patch("backend.app.ANALYSIS_MAX_SECONDS", 60),
+            patch("backend.app.analysis_elapsed_seconds_since", return_value=60.0),
+            patch("backend.app.should_run_optional_analysis_stage", return_value=False),
+            patch("backend.app.require_openai"),
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.cache_set"),
+            patch(
+                "backend.app.generate_reference_style_multisource_notes",
+                return_value="# Overview\n\nTiny source note about slope.\n\n## Key Ideas\n\nSlope compares rise and run.",
+            ),
+            patch("backend.app.make_notes_title", side_effect=AssertionError("title model should be skipped")),
+            patch("backend.app.generate_ai_mind_map", side_effect=AssertionError("AI mind map should be skipped")),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Tiny note about slope.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertIn("title", payload["optional_stages_skipped"])
+        self.assertIn("mind_map", payload["optional_stages_skipped"])
+        self.assertEqual(payload["analysis_max_seconds"], 60)
+        self.assertGreaterEqual(payload["analysis_elapsed_seconds"], 60)
+        self.assertTrue(payload["mind_map"].get("branches"))
 
 
 class VisualGalleryTests(unittest.TestCase):
@@ -86,6 +138,34 @@ class VisualGalleryTests(unittest.TestCase):
         self.assertIn("[[VISUAL:0]]", summary)
         self.assertEqual(len(gallery), 1)
         self.assertEqual(gallery[0]["url"], "data:image/png;base64,AA==")
+
+    def test_youtube_link_preserves_frame_visual_parts_for_inline_candidates(self):
+        frame_parts = [
+            {
+                "type": "text",
+                "text": (
+                    "IN-TEXT SOURCE FIGURE FROM lecture video — video frame 1 sampled at approximately 00:10. "
+                    "The frame shows a graph with data, results, comparison groups, and visual-score=32."
+                ),
+            },
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,AA=="}},
+        ]
+        meta = {
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "source_identity": "youtube:dQw4w9WgXcQ",
+            "detected_title": "Lecture video",
+            "content_hash": "hash",
+            "visual_parts": frame_parts,
+        }
+
+        with patch("backend.app.analyse_youtube_url", return_value=("Transcript text", frame_parts, meta)):
+            parts, source = link_to_source_unit("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+        self.assertEqual(source["visual_parts"], frame_parts)
+        self.assertEqual(parts[-1]["image_url"]["url"], "data:image/jpeg;base64,AA==")
+        candidates = iter_visual_candidates([source])
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["url"], "data:image/jpeg;base64,AA==")
 
 
 class SourceIdentityTests(unittest.TestCase):

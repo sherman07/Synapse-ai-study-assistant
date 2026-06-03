@@ -46,6 +46,150 @@
     return 'frontend/index.html';
   }
 
+  const AUTH_ACCOUNTS_KEY = 'synapse.auth.accounts.v1';
+  const AUTH_SESSION_KEY = 'synapse.auth.session.v1';
+  const AUTH_LAST_EMAIL_KEY = 'synapse.auth.lastEmail.v1';
+
+  function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+  }
+
+  function readJSONStorage(key, fallback) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed === null || parsed === undefined ? fallback : parsed;
+    } catch (error) {
+      console.warn(`Could not read ${key}:`, error);
+      return fallback;
+    }
+  }
+
+  function writeJSONStorage(key, value) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      console.warn(`Could not save ${key}:`, error);
+      return false;
+    }
+  }
+
+  function getAccounts() {
+    const accounts = readJSONStorage(AUTH_ACCOUNTS_KEY, []);
+    return Array.isArray(accounts) ? accounts : [];
+  }
+
+  function saveAccounts(accounts) {
+    return writeJSONStorage(AUTH_ACCOUNTS_KEY, accounts);
+  }
+
+  function hashCredential(email, password) {
+    const source = `${normalizeEmail(email)}::${String(password || '')}`;
+    let h1 = 0x811c9dc5;
+    let h2 = 0x9e3779b9;
+    for (let i = 0; i < source.length; i += 1) {
+      const code = source.charCodeAt(i);
+      h1 ^= code;
+      h1 = Math.imul(h1, 0x01000193) >>> 0;
+      h2 ^= code + 0x7f4a7c15;
+      h2 = Math.imul(h2, 0x85ebca6b) >>> 0;
+    }
+    return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`;
+  }
+
+  function displayNameFor(account) {
+    return [account?.firstName, account?.lastName].filter(Boolean).join(' ').trim() || account?.email || 'Synapse Student';
+  }
+
+  function publicSessionFor(account) {
+    return {
+      accountId: account.id,
+      email: account.email,
+      displayName: displayNameFor(account),
+      firstName: account.firstName || '',
+      lastName: account.lastName || '',
+      role: account.role || 'student',
+      plan: account.plan || 'Starter',
+      credits: Number(account.credits || 500),
+      authProvider: account.authProvider || 'email',
+      createdAt: account.createdAt || new Date().toISOString(),
+      signedInAt: new Date().toISOString()
+    };
+  }
+
+  function setSession(account) {
+    writeJSONStorage(AUTH_SESSION_KEY, publicSessionFor(account));
+    try {
+      window.localStorage.setItem(AUTH_LAST_EMAIL_KEY, account.email || '');
+    } catch {
+      // Storage may be unavailable in rare private browsing modes.
+    }
+  }
+
+  function findAccountByEmail(email) {
+    const normalized = normalizeEmail(email);
+    return getAccounts().find(account => normalizeEmail(account.email) === normalized) || null;
+  }
+
+  function setButtonLoading(form, spinnerId, isLoading) {
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const spinner = document.getElementById(spinnerId);
+    if (submitButton && spinner) {
+      submitButton.classList.toggle('loading', isLoading);
+      submitButton.disabled = Boolean(isLoading);
+    }
+  }
+
+  function redirectToApp() {
+    window.location.href = appEntryUrl();
+  }
+
+  function createAccount({ firstName, lastName, email, role, password, authProvider = 'email' }) {
+    const normalizedEmail = normalizeEmail(email);
+    const accounts = getAccounts();
+    const now = new Date().toISOString();
+    const account = {
+      id: `acct_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      firstName: String(firstName || '').trim(),
+      lastName: String(lastName || '').trim(),
+      email: normalizedEmail,
+      role: role || 'student',
+      authProvider,
+      passwordHash: authProvider === 'email' ? hashCredential(normalizedEmail, password) : '',
+      plan: 'Starter',
+      credits: 500,
+      createdAt: now,
+      updatedAt: now
+    };
+    accounts.unshift(account);
+    saveAccounts(accounts);
+    return account;
+  }
+
+  function continueWithGoogle() {
+    const email = normalizeEmail(window.prompt('Enter the Google email you want to use with Synapse:') || '');
+    if (!email) return;
+    if (!validateEmail(email)) {
+      alert('Please enter a valid Google email address.');
+      return;
+    }
+    let account = findAccountByEmail(email);
+    if (!account) {
+      const name = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
+      account = createAccount({
+        firstName: name ? name.replace(/\b\w/g, char => char.toUpperCase()) : 'Google',
+        lastName: '',
+        email,
+        role: 'student',
+        authProvider: 'google'
+      });
+    }
+    setSession(account);
+    redirectToApp();
+  }
+
   // ==========================================
   // Modal Functions
   // ==========================================
@@ -176,32 +320,30 @@
         return;
       }
 
-      // Show loading state
-      const submitButton = loginForm.querySelector('button[type="submit"]');
-      const spinner = document.getElementById('loginSpinner');
-      if (submitButton && spinner) {
-        submitButton.classList.add('loading');
-        submitButton.disabled = true;
+      const account = findAccountByEmail(email);
+      if (!account) {
+        showError('emailError', 'No Synapse account exists for this email. Create one first.');
+        return;
+      }
+      if (account.authProvider !== 'email') {
+        showError('passwordError', 'This account was created with Google. Continue with Google instead.');
+        return;
+      }
+      if (account.passwordHash !== hashCredential(email, password)) {
+        showError('passwordError', 'Incorrect password');
+        return;
       }
 
-      // Simulate login (replace with actual API call)
-      setTimeout(() => {
-        // Mock successful login - redirect to main app
-        console.log('Login successful:', { email });
-        
-        // In production, validate credentials with backend
-        // For now, redirect to main Synapse app
-        window.location.href = appEntryUrl();
-      }, 1500);
+      setButtonLoading(loginForm, 'loginSpinner', true);
+      setSession(account);
+      redirectToApp();
     });
 
     // Google login
     const googleLoginBtn = document.getElementById('googleLoginBtn');
     if (googleLoginBtn) {
       googleLoginBtn.addEventListener('click', function() {
-        console.log('Google login clicked');
-        // Implement Google OAuth flow here
-        alert('Google OAuth integration pending. This will connect to Google authentication.');
+        continueWithGoogle();
       });
     }
   }
@@ -307,32 +449,22 @@
         return;
       }
 
-      // Show loading state
-      const submitButton = signupForm.querySelector('button[type="submit"]');
-      const spinner = document.getElementById('signupSpinner');
-      if (submitButton && spinner) {
-        submitButton.classList.add('loading');
-        submitButton.disabled = true;
+      if (findAccountByEmail(email)) {
+        showError('signupEmailError', 'An account already exists for this email. Login instead.');
+        return;
       }
 
-      // Simulate signup (replace with actual API call)
-      setTimeout(() => {
-        // Mock successful signup - redirect to main app
-        console.log('Signup successful:', { firstName, lastName, email, role });
-        
-        // In production, create account via backend API
-        // For now, redirect to main Synapse app
-        window.location.href = appEntryUrl();
-      }, 1500);
+      setButtonLoading(signupForm, 'signupSpinner', true);
+      const account = createAccount({ firstName, lastName, email, role, password });
+      setSession(account);
+      redirectToApp();
     });
 
     // Google signup
     const googleSignupBtn = document.getElementById('googleSignupBtn');
     if (googleSignupBtn) {
       googleSignupBtn.addEventListener('click', function() {
-        console.log('Google signup clicked');
-        // Implement Google OAuth flow here
-        alert('Google OAuth integration pending. This will connect to Google authentication.');
+        continueWithGoogle();
       });
     }
   }
@@ -364,29 +496,23 @@
         return;
       }
 
-      // Show loading state
-      const submitButton = forgotPasswordForm.querySelector('button[type="submit"]');
-      const spinner = document.getElementById('resetSpinner');
-      if (submitButton && spinner) {
-        submitButton.classList.add('loading');
-        submitButton.disabled = true;
+      const account = findAccountByEmail(email);
+      if (!account) {
+        showError('resetEmailError', 'No Synapse account exists for this email.');
+        return;
       }
 
-      // Simulate password reset email (replace with actual API call)
+      setButtonLoading(forgotPasswordForm, 'resetSpinner', true);
       setTimeout(() => {
-        console.log('Password reset email sent to:', email);
-        
-        // Show success message
+        writeJSONStorage('synapse.auth.reset.v1', {
+          email: normalizeEmail(email),
+          requestedAt: new Date().toISOString()
+        });
         const successDiv = document.getElementById('resetSuccess');
         if (successDiv) {
           successDiv.classList.add('show');
         }
-
-        // Hide loading state
-        if (submitButton && spinner) {
-          submitButton.classList.remove('loading');
-          submitButton.disabled = false;
-        }
+        setButtonLoading(forgotPasswordForm, 'resetSpinner', false);
       }, 1500);
     });
   }

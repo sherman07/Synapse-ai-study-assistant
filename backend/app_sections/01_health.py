@@ -370,15 +370,26 @@ def choose_learning_depth(source_text: str, source_units: List[dict], requested_
     """
     Automatically choose the clearest learning depth.
 
-    The user should not manually choose output length. The system decides depth
-    from the source complexity so simple sources stay readable and dense sources
-    remain detailed. The `requested_detail_level` argument is intentionally
-    ignored except for metadata/backwards compatibility.
+    The default UI sends "auto", so the system decides from source complexity.
+    Explicit API values are still honored for callers that need a controlled
+    output depth.
     """
     estimate = estimate_learning_depth(source_text, source_units)
-    estimate["override"] = False
-    estimate["requested_detail_level"] = "auto"
-    estimate["ignored_user_detail_level"] = requested_detail_level or "auto"
+    requested = normalise_detail_level(requested_detail_level)
+    if requested != "auto":
+        auto_depth = estimate["depth"]
+        auto_reason = estimate.get("reason", "general study material")
+        estimate["depth"] = requested
+        estimate["override"] = True
+        estimate["auto_selected"] = False
+        estimate["auto_selected_depth"] = auto_depth
+        estimate["reason"] = (
+            f"user requested {DEPTH_CONFIG[requested]['label']} detail; "
+            f"auto estimate was {DEPTH_CONFIG[auto_depth]['label']} ({auto_reason})"
+        )
+    else:
+        estimate["override"] = False
+    estimate["requested_detail_level"] = requested
     estimate["config"] = DEPTH_CONFIG[estimate["depth"]]
     return estimate
 

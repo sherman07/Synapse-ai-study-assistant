@@ -635,6 +635,7 @@ async function loadHistoryEntry(id, options = {}) {
   loadQuizHistoryForCurrentNote();
   loadFlashcardsForCurrentNote();
   loadVoiceTutorHistoryForCurrentNote();
+  renderMasteryGraphPanel();
   activeMindBranchIndex = 0;
   activeMindPointIndex = 0;
   activeMindChildIndex = -1;

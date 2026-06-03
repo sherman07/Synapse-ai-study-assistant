@@ -37,6 +37,38 @@ function renderInlineVisualReference(index, shownIndex = null) {
   return markdownRendererHooks.renderInlineVisualReference(index, shownIndex);
 }
 
+function splitVisualMarkerLines(text) {
+  const markerPattern = /\[\[VISUAL:\d+\]\]/g;
+  return String(text || "").split("\n").flatMap(line => {
+    markerPattern.lastIndex = 0;
+    if (!markerPattern.test(line)) {
+      markerPattern.lastIndex = 0;
+      return [line];
+    }
+    markerPattern.lastIndex = 0;
+    const pieces = [];
+    let cursor = 0;
+    const pushText = value => {
+      let cleaned = String(value || "")
+        .replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, "")
+        .replace(/^\s*[:：,;.\-\s]+/, "")
+        .replace(/\s*(?:before|after)\s+(?:the\s+)?(?:visual|image|figure|source figure|source image)\s*[:：-]?\s*$/i, "")
+        .replace(/^(?:after|before)\s+(?:the\s+)?(?:visual|image|figure|source figure|source image)\s*[:：-]?\s*/i, "")
+        .trim();
+      if (cleaned) pieces.push(cleaned);
+    };
+
+    line.replace(markerPattern, (marker, offset) => {
+      pushText(line.slice(cursor, offset));
+      pieces.push(marker);
+      cursor = offset + marker.length;
+      return marker;
+    });
+    pushText(line.slice(cursor));
+    return pieces.length ? pieces : [line];
+  }).join("\n");
+}
+
 function markdownToHTML(text) {
   text = normalizeReadableMarkdown(text);
   text = prepareMathMarkdown(text);
@@ -78,6 +110,7 @@ function markdownToHTML(text) {
     inlineMath.push(`\\(${repairLatexDelimiterLeakage(body)}\\)`);
     return `${prefix}${id}`;
   });
+  safe = splitVisualMarkerLines(safe);
 
   const lines = safe.split("\n");
   const output = [];

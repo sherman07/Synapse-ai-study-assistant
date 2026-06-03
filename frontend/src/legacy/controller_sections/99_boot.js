@@ -7,6 +7,7 @@ Object.assign(window, {
   askSelectedMindPoint,
   askTimelineEventTutor,
   changeSourceZoom,
+  checkMemoryRecallAnswer,
   checkStudyPathAnswer,
   clearChat,
   clearFlashcardsAndShowBuilder,
@@ -32,25 +33,35 @@ Object.assign(window, {
   jumpToFlashcardFromList,
   loadHistoryEntry,
   loadQuizHistoryRecord,
+  markMasteryGraphSectionReviewed,
   openActiveMindMapSection,
+  openAccountPanel,
   openAssistant,
   openFilePicker,
   openFlashcardListModal,
+  openMasteryGraphSection,
   openQuizHistoryModal,
   openQuizSettingsModal,
   openTimelineEventNotes,
   openVisualGuideWebImage,
   openVisualModal,
+  practiceMasteryGraphSection,
   quickAsk,
+  recordMasterySectionOpen,
   regenerateFlashcards,
   removeFile,
   removeLink,
   removeQuizTypeRow,
+  renderMasteryGraphPanel,
   renderSourceTextFallback,
   resetVoiceTutorSession,
   resetWorkspace,
+  closeAccountPanel,
+  goToAuthPage,
+  renderAccountMenu,
   revealQuizAnswer,
   saveQuizSettingsFromModal,
+  scheduleMemoryReview,
   selectMindBranch,
   selectMindChild,
   selectMindPoint,
@@ -61,8 +72,10 @@ Object.assign(window, {
   setActiveFlashcard,
   setActiveQuizQuestion,
   setFlashcardCountMode,
+  setMemoryFilter,
   setTimelineFilter,
   showFullSummary,
+  signOutAccount,
   startVoiceTutorSession,
   submitQuiz,
   switchTab,
@@ -100,8 +113,10 @@ cleanExistingHistoryTitles();
 renderHistory();
 setupVisualGuideTool();
 setupTimelineTool();
+setupMasteryGraphTool();
 setupQuizTool();
 setupFlashcardTool();
+renderAccountMenu();
 
 const activeHistoryId = safeGetLocalStorage(ACTIVE_HISTORY_KEY, "");
 if (activeHistoryId && getHistory().some(item => item.id === activeHistoryId)) {

@@ -1,6 +1,6 @@
 import { html, joinHtml } from "../html.js";
 import { MobileNavigation } from "./MobileNavigation.js";
-import { HistoryNavigation } from "./HistoryNavigation.js";
+import { HistoryNavigation } from "./HistoryNavigation.js?v=account-menu-v2";
 import { SummaryNavigation } from "./SummaryNavigation.js";
 import { UploadStage } from "./UploadStage.js";
 import { AnalysisStage } from "./AnalysisStage.js";

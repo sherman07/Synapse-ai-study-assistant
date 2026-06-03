@@ -35,6 +35,7 @@ class HealthReporter:
             "visual_image_guide_size": self._get("VISUAL_IMAGE_GUIDE_SIZE"),
             "visual_image_guide_quality": self._get("VISUAL_IMAGE_GUIDE_QUALITY"),
             "openai_timeout_seconds": self._get("OPENAI_TIMEOUT_SECONDS"),
+            "analysis_max_seconds": self._get("ANALYSIS_MAX_SECONDS"),
             "cache_version": self._get("CACHE_VERSION"),
             "tutor_web_research_enabled": self._get("ENABLE_TUTOR_WEB_RESEARCH"),
             "multi_source_digests_enabled": self._get("ENABLE_MULTI_SOURCE_DIGESTS"),

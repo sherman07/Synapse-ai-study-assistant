@@ -333,11 +333,10 @@ function sanitizeLearningFigures(items) {
 function getLearningFigureByMarker(index) {
   const markerIndex = Number(index);
   if (!Number.isFinite(markerIndex)) return null;
-  const byStoredIndex = (visualGalleryData || []).find(item => Number(item?.index) === markerIndex);
+  const figures = sanitizeLearningFigures(visualGalleryData);
+  const byStoredIndex = figures.find(item => Number(item?.index) === markerIndex);
   if (isRelevantLearningFigure(byStoredIndex)) return byStoredIndex;
-  const direct = (visualGalleryData || [])[markerIndex];
-  if (isRelevantLearningFigure(direct)) return direct;
-  return sanitizeLearningFigures(visualGalleryData).find(item => Number(item.index) === markerIndex) || null;
+  return null;
 }
 
 function cleanSourceFigureDisplayText(value) {
@@ -668,7 +667,7 @@ async function analyzeMaterials() {
   formData.append("links", JSON.stringify(sourceLinks));
   formData.append("free_text", parsedSources.freeText);
   formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
-  formData.append("detail_level", "auto");
+  formData.append("detail_level", detailLevel ? detailLevel.value : "auto");
   formData.append("prompt_mode", promptMode ? promptMode.value : "professor_mode");
   formData.append("client_fingerprint", currentSourceFingerprint);
 
@@ -776,6 +775,7 @@ async function analyzeMaterials() {
     loadFlashcardsForCurrentNote();
     loadTutorChatHistoryForCurrentNote();
     loadVoiceTutorHistoryForCurrentNote();
+    renderMasteryGraphPanel();
     renderFullNotes();
     requestAnimationFrame(() => renderMindMap(currentMindMap));
   } catch (error) {

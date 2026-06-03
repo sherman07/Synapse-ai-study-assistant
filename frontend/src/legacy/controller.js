@@ -43,12 +43,13 @@ import {
 } from "./markdownRenderer.js?v=probability-table-v1";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "sectioned-v19";
+const CONTROLLER_VERSION = "account-landing-v2";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
   "03_rendertimeline.js",
   "04_rendervisualguidelaunch.js",
+  "04_masterygraph.js",
   "05_persistcurrentquiztohistory.js",
   "06_deleteflashcarddeck.js",
   "07_focusmindmappoint.js",

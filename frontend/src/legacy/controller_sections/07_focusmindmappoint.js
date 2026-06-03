@@ -464,6 +464,9 @@ function updateVoiceTutorStatus(stateItem) {
     masteryBox.dataset.stage = progressStage.className;
     masteryBox.style.setProperty("--voice-progress", `${mastery}%`);
   }
+  if (activeTool === "masterygraph") {
+    renderMasteryGraphPanel();
+  }
 }
 
 function updateVoiceTutorControls() {

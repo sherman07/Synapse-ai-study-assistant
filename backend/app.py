@@ -28,6 +28,7 @@ if str(BACKEND_PACKAGE_DIR) not in sys.path:
 
 from core.analysis_cache import cache_get, cache_set
 from core.config import (
+    ANALYSIS_MAX_SECONDS,
     ANALYSIS_MODEL,
     CACHE_PATH,
     CACHE_VERSION,
