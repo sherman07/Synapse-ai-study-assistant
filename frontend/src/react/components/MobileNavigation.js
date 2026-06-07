@@ -23,13 +23,13 @@ export function MobileNavigation() {
       </div>
       <div class="offcanvas-body">
         <div class="mobile-nav-actions">
-          <div class="mobile-account-summary" onclick="renderAccountMenu()">
+          <button class="mobile-account-summary" type="button" onclick="openAccountPanel('profile')" data-bs-dismiss="offcanvas">
             <span class="account-avatar account-menu-avatar">S</span>
             <div>
               <strong class="account-menu-name">Synapse Student</strong>
               <p class="account-menu-email">Not signed in</p>
             </div>
-          </div>
+          </button>
           <button class="history-new-btn mobile-new-btn" type="button" onclick="resetWorkspace()" data-bs-dismiss="offcanvas">
             <i class="bi bi-plus-lg"></i> New workspace
           </button>

@@ -30,10 +30,25 @@ function openVisualModal(index) {
 }
 
 
+function renderMissingInlineVisualCard(index, item = null) {
+  const visualIndex = Number(index);
+  const label = Number.isFinite(visualIndex) ? `Source figure ${visualIndex + 1}` : "Source figure";
+  const title = cleanSourceFigureDisplayText(item?.title || "") || `${label} unavailable`;
+  return `
+    <figure id="inline-visual-${Number.isFinite(visualIndex) ? visualIndex : 0}" class="inline-visual-card missing" aria-label="${escapeAttr(label)} unavailable">
+      <figcaption>
+        <div class="inline-visual-kicker">In-text source</div>
+        <h4>${escapeHTML(title)}</h4>
+        <p>The notes referenced ${escapeHTML(label)}, but the browser did not receive a usable image URL for it. Regenerate from the original source files if you need to inspect this figure.</p>
+      </figcaption>
+    </figure>
+  `;
+}
+
 function renderInlineVisualCard(index) {
   const item = getLearningFigureByMarker(index);
   if (!item || !item.url) {
-    return "";
+    return renderMissingInlineVisualCard(index, item);
   }
   const title = cleanSourceFigureDisplayText(item.title) || `Source figure ${Number(index) + 1}`;
   const source = cleanSourceFigureDisplayText(item.source_title || `Source ${item.source_index || ""}`);
@@ -339,7 +354,7 @@ async function translateCurrentNotes(targetLanguage) {
       sections,
       connections: connectionsData,
       mindMap: currentMindMap,
-      visualGallery: [],
+      visualGallery: compactVisualGalleryForStorage(visualGalleryData),
       language,
       detailLevel: "translated",
       depthLabel: "Translated",

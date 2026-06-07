@@ -651,6 +651,8 @@ def _v23_selected_card_can_render(card: dict) -> bool:
 
 def build_visual_gallery(source_units: List[dict]) -> List[dict]:
     """v23 final override: return only in-text source figures, never a raw gallery."""
+    from core.visual_assets import visual_asset_url_for_browser
+
     cards: List[dict] = []
     for unit in source_units or []:
         cards.extend(unit.get("visual_argument_cards") or [])
@@ -666,6 +668,9 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
         item = _v23_enrich_visual_card_details(dict(card), source_figure_labels(card_language), card_language)
         item["index"] = marker_index
         item["title"] = normalise_space(item.get("title") or f"Source figure {marker_index + 1}")
+        item["url"] = visual_asset_url_for_browser(item.get("url", ""))
+        if not item["url"]:
+            continue
         item["caption"] = clean_source_figure_caption(item.get("caption") or item.get("what_shows") or "")
         item["what_shows"] = clean_source_figure_caption(item.get("what_shows") or item.get("caption") or "")
         for detail_key in ("why_relevant", "argument_supported", "cross_source_connection", "how_to_read", "exam_use"):

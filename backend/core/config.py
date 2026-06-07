@@ -121,9 +121,11 @@ MULTISOURCE_SOURCE_DIGEST_TOKENS = env_int("MULTISOURCE_SOURCE_DIGEST_TOKENS", 9
 MULTISOURCE_SOURCE_CHARS = env_int("MULTISOURCE_SOURCE_CHARS", 500000)
 ANALYSIS_CACHE_TTL_SECONDS = env_int("ANALYSIS_CACHE_TTL_SECONDS", 7 * 24 * 60 * 60)
 DEFAULT_CACHE_PATH = BACKEND_DIR / "synapse_analysis_cache.json"
+RUNTIME_DIR = PROJECT_ROOT / ".synapse_runtime"
+RUNTIME_ASSETS_DIR = RUNTIME_DIR / "assets"
+PUBLIC_BACKEND_BASE_URL = env_str("SYNAPSE_PUBLIC_BACKEND_URL", "http://127.0.0.1:8001").rstrip("/")
 try:
-    RUNTIME_DIR = BACKEND_DIR.parent / ".synapse_runtime"
-    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    RUNTIME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_PATH = RUNTIME_DIR / "synapse_analysis_cache.json"
 except Exception:
     CACHE_PATH = DEFAULT_CACHE_PATH

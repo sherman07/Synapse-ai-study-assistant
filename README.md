@@ -1,46 +1,140 @@
-# Synapse-ai-study-assistant
-An AI-powered personal academic brain that remembers everything you learn, connects ideas across time, and actively helps you think, not just summarize.
+# Synapse AI Study Assistant
 
-## Local Development
+Synapse is an AI-powered study website and workspace that turns PDFs, lecture slides, videos, images, links, and notes into active learning: structured notes, mind maps, questions, flashcards, timelines, source previews, and tutor feedback.
 
-Start the backend with the project runner, not a raw `uvicorn --reload` command:
+## Project Structure
+
+- `frontend/` - static public website, auth prototype pages, and the study workspace shell.
+- `frontend/src/` - React shell plus the existing legacy controller modules.
+- `backend/` - FastAPI backend for analysis, tutoring, quizzes, flashcards, source previews, contact enquiries, and generated assets.
+- `logos/` and `frontend/logos/` - Synapse logo assets for local root serving and static frontend publishing.
+- `scripts/validate_static_site.mjs` - launch-readiness validation for static HTML.
+- `deploy/` - production runtime notes and service templates.
+
+## Install
+
+Create and activate a Python virtual environment, then install the backend dependencies:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+```
+
+Node is only needed to run the static/regression checks. The frontend does not currently use an npm build pipeline.
+
+## Environment Variables
+
+Create `backend/.env` for local backend secrets:
+
+```env
+OPENAI_API_KEY=your_key_here
+SYNAPSE_PUBLIC_BACKEND_URL=http://127.0.0.1:8001
+SYNAPSE_CORS_ALLOW_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+ENABLE_LOCAL_PPTX_APP_RENDER=false
+ENABLE_SOURCE_PPTX_PREVIEW_RENDER=true
+```
+
+Optional contact/email delivery:
+
+```env
+SYNAPSE_CONTACT_WEBHOOK_URL=https://your-form-or-email-webhook.example/contact
+```
+
+Production auth and billing:
+
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-public-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_STARTER=price_...
+STRIPE_PRICE_STUDENT=price_...
+STRIPE_PRICE_PRO=price_...
+SYNAPSE_FRONTEND_BASE_URL=https://your-frontend-domain.com
+# Local webhook testing only:
+SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK=false
+```
+
+The landing page reads `window.SYNAPSE_CONTACT_ENDPOINT` when you want to post contact enquiries to a specific deployed endpoint. If it is not set, localhost submissions try `http://127.0.0.1:8001/contact`; otherwise they are saved locally for launch testing.
+
+The auth pages use Supabase Auth when `window.SYNAPSE_SUPABASE_URL` and `window.SYNAPSE_SUPABASE_ANON_KEY` are configured. Without those public frontend values, the older browser-local demo auth remains available for development only.
+
+Edit or replace `frontend/config.js` during deployment with your public backend, Supabase, and Stripe Price ID values. `frontend/config.example.js` shows the same shape with filled example placeholders.
+
+## Run Locally
+
+Start the backend:
 
 ```bash
 .venv/bin/python run_backend.py
 ```
 
-The runner watches only `backend/`. This prevents the reload loop caused by
-Uvicorn watching `.venv/lib/.../site-packages`.
-
-If you prefer the raw command, include `--reload-dir backend`:
-
-```bash
-.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8001 --reload --reload-dir backend
-```
-
-For the static frontend, use the project server and browse to
-`http://localhost:5173/frontend/`.
+Start the static frontend:
 
 ```bash
 .venv/bin/python run_frontend.py
 ```
 
-This static server does not inject auto-refresh code, so the browser will not
-reload while you are typing or dropping sources.
+Open the public site:
 
-VS Code Live Server on port `5500` injects a reload WebSocket. Synapse now blocks
-that reload message in local development, but the project server above is still
-the cleanest way to test source uploads.
+```text
+http://127.0.0.1:5173/frontend/landing.html
+```
 
-## Production Source Preview
+Open the study workspace:
 
-Synapse should render uploaded sources on the server, not by relying on a local desktop app. For full PPTX slide previews in the Sources panel, install LibreOffice in the production image/server and keep local desktop fallbacks disabled.
+```text
+http://127.0.0.1:5173/frontend/index.html
+```
 
-Recommended production environment:
+The project-root `index.html` redirects to the public landing page. `app.html` redirects to the study workspace.
+
+## Validate And Test
+
+Run the static launch validation:
+
+```bash
+node scripts/validate_static_site.mjs
+```
+
+Run frontend regression scripts:
+
+```bash
+find frontend/tests -maxdepth 1 -name '*.mjs' -exec node {} \;
+```
+
+Run backend tests:
+
+```bash
+.venv/bin/python -m unittest backend.tests.test_visual_gallery_and_cache
+```
+
+There is no separate frontend build artifact yet; a successful static validation plus regression checks is the current build-equivalent check for the static website.
+
+## Deploy
+
+For a static-only marketing launch, publish `frontend/` as the static directory and use `landing.html` as the public entry page. If your host requires `index.html` as the entry page, deploy from the project root or configure a route/redirect from `/` to `/landing.html`.
+
+For the full Synapse app, deploy both parts:
+
+1. Host `frontend/` as static files.
+2. Deploy `backend.app:app` as a FastAPI service.
+3. Set `window.SYNAPSE_API_BASE` in production HTML or a small injected config script.
+4. Set `window.SYNAPSE_CONTACT_ENDPOINT` to the deployed contact endpoint, for example `https://api.your-domain.com/contact`.
+5. Set `window.SYNAPSE_SUPABASE_URL`, `window.SYNAPSE_SUPABASE_ANON_KEY`, and Stripe public Price IDs in frontend config.
+6. Configure backend CORS with the deployed frontend origin.
+7. Store all secrets in the hosting platform, never in Git.
+
+Recommended backend command:
+
+```bash
+.venv/bin/python -m uvicorn backend.app:app --host 0.0.0.0 --port 8001
+```
+
+For PPTX source previews in production, install LibreOffice and configure:
 
 ```env
-ENABLE_SOURCE_PPTX_PREVIEW_RENDER=true
-ENABLE_LOCAL_PPTX_APP_RENDER=false
 LIBREOFFICE_PATH=/usr/bin/libreoffice
 SOURCE_PREVIEW_RENDER_DPI=120
 SOURCE_PREVIEW_PPTX_CONVERT_TIMEOUT=120
@@ -48,4 +142,21 @@ SOURCE_PREVIEW_MAX_SLIDES=80
 SOURCE_PREVIEW_MAX_PDF_PAGES=160
 ```
 
-If LibreOffice is unavailable, Synapse falls back to a best-effort browser slide-page preview and clearly labels it. It no longer presents extracted PPTX text/images as a fake slide reader. Production deployments should include LibreOffice plus the fonts used by uploaded course materials so the viewer can show original slide pages.
+See `deploy/README.md` for service templates and backend runtime notes.
+
+## Launch Checklist
+
+- Static validation passes.
+- Backend tests pass.
+- Public landing page opens from the deployed root URL.
+- Navigation links scroll or route correctly.
+- Contact form posts to a deployed endpoint or is intentionally disabled until email delivery is configured.
+- `OPENAI_API_KEY`, CORS origins, public backend URL, and contact webhook are set in production.
+- Supabase Auth URL, anon key, and service role key are configured before accepting real user accounts.
+- Stripe secret key, webhook secret, and Price IDs are configured before charging for credit packs.
+- Stripe webhook route `/billing/webhook` is registered in the Stripe dashboard.
+- Account deletion and export are tested with a real Supabase test user before launch.
+- Privacy Policy and Terms are reviewed for your jurisdiction and actual data processors.
+- Mobile, tablet, and desktop layouts are manually checked.
+- Browser console is free of launch-blocking errors.
+- Uploaded study source flow is tested against the deployed backend.

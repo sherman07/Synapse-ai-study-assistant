@@ -4,6 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from urllib.parse import urlparse
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -18,7 +19,25 @@ from backend.app import finalize_generated_summary
 from backend.app import iter_visual_candidates
 from backend.app import link_to_source_unit
 from backend.app import rebuild_cached_visual_argument_cards
+from backend.app import render_pptx_source_preview_svg_images
 from backend.core.analysis_cache import AnalysisCacheStore
+from backend.core.visual_assets import visual_asset_url_for_browser
+
+try:
+    from pptx import Presentation
+except Exception:
+    Presentation = None
+
+
+def assert_served_visual_asset(test_case, url: str, expected_content_type: str = "image/png"):
+    parsed = urlparse(url)
+    test_case.assertEqual(parsed.scheme, "http")
+    test_case.assertEqual(parsed.netloc, "127.0.0.1:8001")
+    test_case.assertTrue(parsed.path.startswith("/assets/visuals/"))
+
+    response = TestClient(app).get(parsed.path)
+    test_case.assertEqual(response.status_code, 200)
+    test_case.assertEqual(response.headers.get("content-type", "").split(";")[0], expected_content_type)
 
 
 class ApiShapeTests(unittest.TestCase):
@@ -34,6 +53,8 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("title_model", payload)
         self.assertIn("visual_image_guide_model", payload)
         self.assertIn("openai_timeout_seconds", payload)
+        self.assertIn("public_backend_base_url", payload)
+        self.assertIn("runtime_assets_dir", payload)
         self.assertNotIn("OPENAI_API_KEY", payload)
 
     def test_explicit_detail_level_overrides_auto_depth(self):
@@ -81,7 +102,89 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("mind_map", payload["optional_stages_skipped"])
         self.assertEqual(payload["analysis_max_seconds"], 60)
         self.assertGreaterEqual(payload["analysis_elapsed_seconds"], 60)
+        self.assertEqual(payload["language"], "english")
+        self.assertEqual(payload["output_language"], "english")
         self.assertTrue(payload["mind_map"].get("branches"))
+
+    def test_analyze_cache_preserves_browser_visual_metadata(self):
+        captured = {}
+        gallery = [{
+            "index": 0,
+            "url": "http://127.0.0.1:8001/assets/visuals/result-table.png",
+            "title": "Result table",
+            "caption": "Table with data and results.",
+            "visual_kind": "data/table",
+        }]
+
+        def capture_cache_set(fingerprint, result):
+            captured["fingerprint"] = fingerprint
+            captured["result"] = result
+
+        with (
+            patch("backend.app.require_openai"),
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.cache_set", side_effect=capture_cache_set),
+            patch("backend.app.should_run_optional_analysis_stage", return_value=False),
+            patch("backend.app.build_visual_gallery", return_value=gallery),
+            patch(
+                "backend.app.generate_reference_style_multisource_notes",
+                return_value="# Overview\n\nThe table evidence is explained near [[VISUAL:0]].\n\n## Key Ideas\n\nData supports the claim.",
+            ),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Tiny note about a result table.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertEqual(payload["visual_gallery"], gallery)
+        self.assertEqual(payload["visuals"], gallery)
+        self.assertEqual(captured["result"]["visual_gallery"], gallery)
+        self.assertEqual(captured["result"]["visuals"], gallery)
+
+    def test_cached_result_uses_cached_visual_gallery_when_live_rebuild_is_empty(self):
+        cached_gallery = [{
+            "index": 0,
+            "url": "http://127.0.0.1:8001/assets/visuals/cached-table.png",
+            "title": "Cached result table",
+            "caption": "Cached table metadata.",
+            "visual_kind": "data/table",
+        }]
+        cached_result = {
+            "title": "Cached notes",
+            "summary": "# Overview\n\nCached notes keep [[VISUAL:0]].",
+            "sections": {"Overview": "Cached notes keep [[VISUAL:0]]."},
+            "connections": [],
+            "mind_map": {"center": "Cached notes", "branches": []},
+            "visual_gallery": cached_gallery,
+            "primary_source_identity": "text:cached",
+        }
+
+        with (
+            patch("backend.app.require_openai"),
+            patch("backend.app.cache_get", return_value=cached_result),
+            patch("backend.app.rebuild_cached_visual_argument_cards", return_value=[]),
+            patch("backend.app.build_visual_gallery", return_value=[]),
+            patch("backend.app.generate_chat", side_effect=AssertionError("cache hit should not need a model call")),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Tiny note about a result table.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertTrue(payload["cached"])
+        self.assertEqual(payload["visual_gallery"], cached_gallery)
+        self.assertEqual(payload["visuals"], cached_gallery)
 
 
 class VisualGalleryTests(unittest.TestCase):
@@ -103,7 +206,7 @@ class VisualGalleryTests(unittest.TestCase):
 
         self.assertEqual(len(gallery), 1)
         self.assertEqual(gallery[0]["index"], 0)
-        self.assertEqual(gallery[0]["url"], "data:image/png;base64,AA==")
+        assert_served_visual_asset(self, gallery[0]["url"], "image/png")
 
     def test_cached_visual_rebuild_does_not_call_model(self):
         source_units = [{
@@ -137,7 +240,53 @@ class VisualGalleryTests(unittest.TestCase):
         self.assertEqual(len(cards), 1)
         self.assertIn("[[VISUAL:0]]", summary)
         self.assertEqual(len(gallery), 1)
-        self.assertEqual(gallery[0]["url"], "data:image/png;base64,AA==")
+        assert_served_visual_asset(self, gallery[0]["url"], "image/png")
+
+    def test_visual_gallery_serves_runtime_asset_url(self):
+        source_units = [{
+            "visual_argument_cards": [{
+                "index": 0,
+                "url": "data:image/png;base64,AA==",
+                "title": "Source data table",
+                "caption": "Table with data, results, comparison groups, and statistical evidence.",
+                "what_shows": "The table compares results and shows a data pattern.",
+                "argument_supported": "The table supports the analysis by showing the comparison directly.",
+                "how_to_read": "Read rows, columns, values, and group differences.",
+                "visual_kind": "data/table",
+            }]
+        }]
+
+        gallery = build_visual_gallery(source_units)
+
+        self.assertEqual(len(gallery), 1)
+        self.assertFalse(gallery[0]["url"].startswith("data:"))
+        assert_served_visual_asset(self, gallery[0]["url"], "image/png")
+
+    def test_visual_asset_url_preserves_existing_browser_url(self):
+        url = "http://127.0.0.1:8001/assets/visuals/already.png"
+
+        self.assertEqual(visual_asset_url_for_browser(url), url)
+
+    def test_visual_asset_url_rejects_invalid_or_non_raster_data_urls(self):
+        invalid_url = "data:image/png;base64,not-valid-base64"
+        svg_url = "data:image/svg+xml;base64,PHN2Zy8+"
+
+        self.assertEqual(visual_asset_url_for_browser(invalid_url), "")
+        self.assertEqual(visual_asset_url_for_browser(svg_url), "")
+
+    def test_pptx_svg_fallback_is_rasterized_for_runtime_assets(self):
+        if Presentation is None:
+            self.skipTest("python-pptx is not installed")
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(914400, 914400, 5486400, 914400)
+        textbox.text = "Results table and comparison graph"
+
+        rendered = render_pptx_source_preview_svg_images(prs, 1)
+
+        self.assertIn(1, rendered)
+        self.assertTrue(rendered[1].startswith("data:image/png;base64,"))
+        assert_served_visual_asset(self, visual_asset_url_for_browser(rendered[1]), "image/png")
 
     def test_youtube_link_preserves_frame_visual_parts_for_inline_candidates(self):
         frame_parts = [
@@ -205,6 +354,16 @@ class AnalysisCacheTests(unittest.TestCase):
             expired_store = AnalysisCacheStore(cache_path=cache_path, ttl_seconds=1)
 
             self.assertIsNone(expired_store.get("expired"))
+
+    def test_cache_save_uses_complete_file_without_temp_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "cache.json"
+            store = AnalysisCacheStore(cache_path=cache_path, ttl_seconds=60)
+
+            store.set("fingerprint", {"summary": "ok", "visual_gallery": [{"index": 0}]})
+
+            self.assertEqual(store.get("fingerprint")["summary"], "ok")
+            self.assertFalse(list(Path(tmp).glob(".cache.json.*.tmp")))
 
 
 if __name__ == "__main__":

@@ -3,13 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Synapse - Turn Passive Study Notes Into Active Learning</title>
+  <title>Synapse | AI Study Assistant for Active Learning</title>
+  <meta name="description" content="Synapse turns PDFs, lecture slides, videos, images, and notes into active study notes, mind maps, practice questions, and teach-back feedback." />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Synapse | AI Study Assistant for Active Learning" />
+  <meta property="og:description" content="Upload study material and turn it into structured notes, visual maps, practice questions, and knowledge-gap feedback." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <meta property="og:site_name" content="Synapse" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Synapse | AI Study Assistant for Active Learning" />
+  <meta name="twitter:description" content="Turn passive study notes into active learning with AI-generated notes, mind maps, questions, and teach-back practice." />
+  <meta name="twitter:image" content="/logos/synapse.png" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="/logos/synapse.png">
-  <link rel="stylesheet" href="landing-auth.css?v=account-landing-v2">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="stylesheet" href="landing-auth.css?v=launch-ready-v1">
+  <link rel="stylesheet" href="synapse-selects.css?v=synapse-selects-v1">
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
   <!-- Navigation -->
   <nav class="landing-nav" id="mainNav">
     <div class="landing-nav-container">
@@ -21,20 +36,24 @@
       <div class="landing-nav-menu" id="navMenu">
         <a href="#product" class="landing-nav-link">Product</a>
         <a href="#features" class="landing-nav-link">Features</a>
+        <a href="#how-it-works" class="landing-nav-link">How it Works</a>
+        <a href="#about" class="landing-nav-link">About</a>
         <a href="#pricing" class="landing-nav-link">Pricing</a>
+        <a href="#contact" class="landing-nav-link">Contact</a>
       </div>
       
       <div class="landing-nav-actions">
         <a href="login.html" class="landing-btn landing-btn-ghost">Login</a>
-        <button class="landing-btn landing-btn-primary" data-action="get-started">Get Started</button>
+        <button type="button" class="landing-btn landing-btn-primary" data-action="get-started">Get Started</button>
       </div>
       
-      <button class="landing-mobile-toggle" id="mobileToggle">
+      <button class="landing-mobile-toggle" id="mobileToggle" type="button" aria-label="Open navigation menu" aria-controls="navMenu" aria-expanded="false">
         <i class="bi bi-list"></i>
       </button>
     </div>
   </nav>
 
+  <main id="main-content">
   <!-- Hero Section -->
   <section class="landing-hero" id="product">
     <!-- Tech decorations -->
@@ -64,11 +83,11 @@
         </p>
         
         <div class="landing-hero-actions">
-          <button class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
+          <button type="button" class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
             <i class="bi bi-rocket-takeoff"></i>
             Get Started
           </button>
-          <button class="landing-btn landing-btn-secondary landing-btn-lg">
+          <button type="button" class="landing-btn landing-btn-secondary landing-btn-lg" data-action="view-demo">
             <i class="bi bi-play-circle"></i>
             View Demo
           </button>
@@ -114,7 +133,7 @@
             <div class="orbit-dot orbit-dot-2"></div>
             <div class="orbit-dot orbit-dot-3"></div>
           </div>
-          <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHw0fHxzdHVkZW50cyUyMHN0dWR5aW5nfGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85" alt="Students collaborating" class="landing-hero-img">
+          <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHw0fHxzdHVkZW50cyUyMHN0dWR5aW5nfGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85&w=920" alt="Students collaborating with laptops and notes" class="landing-hero-img" width="920" height="614" decoding="async" fetchpriority="high">
           <div class="landing-hero-float landing-float-1">
             <i class="bi bi-lightbulb"></i>
             <span>Smart Learning</span>
@@ -146,7 +165,7 @@
           <div class="landing-feature-icon">
             <i class="bi bi-file-earmark-arrow-up"></i>
           </div>
-          <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwyfHxlZHVjYXRpb24lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85" alt="Upload materials" class="landing-feature-img">
+          <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwyfHxlZHVjYXRpb24lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85&w=700" alt="Students uploading and reviewing study material on laptops" class="landing-feature-img" width="700" height="430" loading="lazy" decoding="async">
           <h3>Upload Any Study Material</h3>
           <p>PDFs, lecture slides, videos, images, or handwritten notes. Synapse accepts all formats and extracts key information.</p>
         </div>
@@ -155,7 +174,7 @@
           <div class="landing-feature-icon">
             <i class="bi bi-journal-text"></i>
           </div>
-          <img src="https://images.pexels.com/photos/261651/pexels-photo-261651.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Generate notes" class="landing-feature-img">
+          <img src="https://images.pexels.com/photos/261651/pexels-photo-261651.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Desk with open notebooks ready for structured study notes" class="landing-feature-img" width="700" height="430" loading="lazy" decoding="async">
           <h3>Generate Structured Study Notes</h3>
           <p>AI transforms your materials into organized, comprehensive study notes with summaries, key concepts, and explanations.</p>
         </div>
@@ -164,7 +183,7 @@
           <div class="landing-feature-icon">
             <i class="bi bi-diagram-3"></i>
           </div>
-          <img src="https://images.unsplash.com/photo-1745847768382-816bfc32e1bb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHw0fHxtaW5kJTIwbWFwfGVufDB8fHx8MTc4MDIxNzE4MXww&ixlib=rb-4.1.0&q=85" alt="Mind maps" class="landing-feature-img">
+          <img src="https://images.unsplash.com/photo-1745847768382-816bfc32e1bb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHw0fHxtaW5kJTIwbWFwfGVufDB8fHx8MTc4MDIxNzE4MXww&ixlib=rb-4.1.0&q=85&w=700" alt="Visual mind map connecting study concepts" class="landing-feature-img" width="700" height="430" loading="lazy" decoding="async">
           <h3>Build Visual Mind Maps</h3>
           <p>Visualize connections between concepts with interactive mind maps that help you understand relationships and hierarchies.</p>
         </div>
@@ -173,7 +192,7 @@
           <div class="landing-feature-icon">
             <i class="bi bi-question-circle"></i>
           </div>
-          <img src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxlZHVjYXRpb24lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85" alt="Practice questions" class="landing-feature-img">
+          <img src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxlZHVjYXRpb24lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc4MDIxNzE3NHww&ixlib=rb-4.1.0&q=85&w=700" alt="Laptop screen for answering AI-generated practice questions" class="landing-feature-img" width="700" height="430" loading="lazy" decoding="async">
           <h3>Practice with Critical Questions</h3>
           <p>Test your understanding with AI-generated questions that challenge your knowledge and reinforce learning.</p>
         </div>
@@ -182,7 +201,7 @@
           <div class="landing-feature-icon">
             <i class="bi bi-person-video3"></i>
           </div>
-          <img src="https://images.pexels.com/photos/7683743/pexels-photo-7683743.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Teach the Digital Student" class="landing-feature-img">
+          <img src="https://images.pexels.com/photos/7683743/pexels-photo-7683743.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Student explaining a concept during teach-back practice" class="landing-feature-img" width="700" height="430" loading="lazy" decoding="async">
           <h3>Teach the Digital Student</h3>
           <p>Explain concepts back to our AI student. Teaching is the best way to learn, and Synapse listens and evaluates your understanding.</p>
         </div>
@@ -191,7 +210,7 @@
           <div class="landing-feature-icon">
             <i class="bi bi-clipboard-data"></i>
           </div>
-          <img src="https://images.unsplash.com/photo-1531403009284-440f080d1e12?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwzfHxtaW5kJTIwbWFwfGVufDB8fHx8MTc4MDIxNzE4MXww&ixlib=rb-4.1.0&q=85" alt="Knowledge feedback" class="landing-feature-img">
+          <img src="https://images.unsplash.com/photo-1531403009284-440f080d1e12?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwzfHxtaW5kJTIwbWFwfGVufDB8fHx8MTc4MDIxNzE4MXww&ixlib=rb-4.1.0&q=85&w=700" alt="Progress board showing knowledge gaps and study feedback" class="landing-feature-img" width="700" height="430" loading="lazy" decoding="async">
           <h3>Receive Knowledge-Gap Feedback</h3>
           <p>Synapse identifies what you know and what you don't, providing personalized feedback to guide your study sessions.</p>
         </div>
@@ -200,7 +219,7 @@
   </section>
 
   <!-- How It Works -->
-  <section class="landing-how-it-works">
+  <section class="landing-how-it-works" id="how-it-works">
     <div class="landing-container">
       <div class="landing-section-header">
         <span class="landing-section-badge">How It Works</span>
@@ -268,10 +287,45 @@
         </div>
         <h2>Unlike passive AI summaries, Synapse checks what you actually understand</h2>
         <p>Most AI study tools just summarize content. Synapse goes further by testing your understanding through teach-back sessions, identifying knowledge gaps, and providing targeted feedback. It's not just about consuming information—it's about truly mastering it.</p>
-        <button class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
+        <button type="button" class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
           Experience Active Learning
           <i class="bi bi-arrow-right"></i>
         </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section class="landing-about" id="about">
+    <div class="landing-container">
+      <div class="landing-about-grid">
+        <div class="landing-about-copy">
+          <span class="landing-section-badge">About Synapse</span>
+          <h2 class="landing-section-title">Built for students who need to understand, not just collect notes</h2>
+          <p>
+            Synapse is an AI study workspace for turning source material into structured thinking. It helps students move from passive summaries to active recall, visual organisation, and teach-back practice.
+          </p>
+          <p>
+            The product focuses on source-aware learning, clear feedback, and repeatable study workflows so every upload becomes something students can use before class, after lectures, and during exam revision.
+          </p>
+        </div>
+        <div class="landing-about-points" aria-label="Synapse quality principles">
+          <article class="landing-about-point">
+            <i class="bi bi-shield-check"></i>
+            <h3>Source-first learning</h3>
+            <p>Notes, visuals, questions, and feedback stay connected to the material students upload.</p>
+          </article>
+          <article class="landing-about-point">
+            <i class="bi bi-person-check"></i>
+            <h3>Active mastery</h3>
+            <p>Teach-back sessions and targeted questions reveal what is understood and what needs revision.</p>
+          </article>
+          <article class="landing-about-point">
+            <i class="bi bi-kanban"></i>
+            <h3>Study workflow</h3>
+            <p>Mind maps, timelines, flashcards, source previews, and history keep learning organised.</p>
+          </article>
+        </div>
       </div>
     </div>
   </section>
@@ -302,7 +356,7 @@
             <li><i class="bi bi-check-circle-fill"></i> Practice questions</li>
             <li><i class="bi bi-check-circle-fill"></i> 7-day validity</li>
           </ul>
-          <button class="landing-btn landing-btn-outline" data-action="get-started">Get Started</button>
+          <button type="button" class="landing-btn landing-btn-outline" data-action="get-started">Get Started</button>
         </div>
         
         <div class="landing-pricing-card landing-pricing-featured">
@@ -324,7 +378,7 @@
             <li><i class="bi bi-check-circle-fill"></i> Knowledge gap analysis</li>
             <li><i class="bi bi-check-circle-fill"></i> 30-day validity</li>
           </ul>
-          <button class="landing-btn landing-btn-primary" data-action="get-started">Get Started</button>
+          <button type="button" class="landing-btn landing-btn-primary" data-action="get-started">Get Started</button>
         </div>
         
         <div class="landing-pricing-card">
@@ -344,7 +398,7 @@
             <li><i class="bi bi-check-circle-fill"></i> Export to PDF/Word</li>
             <li><i class="bi bi-check-circle-fill"></i> 90-day validity</li>
           </ul>
-          <button class="landing-btn landing-btn-outline" data-action="get-started">Get Started</button>
+          <button type="button" class="landing-btn landing-btn-outline" data-action="get-started">Get Started</button>
         </div>
       </div>
       
@@ -352,10 +406,91 @@
         <div class="landing-voucher-card">
           <i class="bi bi-gift"></i>
           <div>
-            <h4>Have a voucher code?</h4>
-            <p>Redeem your code during checkout to get bonus credits or discounts</p>
+            <h4>Voucher support ready</h4>
+            <p>Voucher redemption can be connected when the production checkout flow is enabled.</p>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Section -->
+  <section class="landing-contact" id="contact">
+    <div class="landing-container">
+      <div class="landing-contact-grid">
+        <div class="landing-contact-copy">
+          <span class="landing-section-badge">Contact</span>
+          <h2 class="landing-section-title">Launch questions, school enquiries, or product feedback</h2>
+          <p>
+            Send a message and the Synapse team can follow up about deployments, study workflows, classroom use, or production integration work.
+          </p>
+          <div class="landing-contact-list">
+            <div>
+              <i class="bi bi-clock-history"></i>
+              <span>Typical response target: 1-2 business days after email delivery is configured.</span>
+            </div>
+            <div>
+              <i class="bi bi-lock"></i>
+              <span>Do not include passwords, private API keys, or sensitive student records in this form.</span>
+            </div>
+          </div>
+        </div>
+
+        <form class="landing-contact-form" id="contactForm" novalidate data-contact-form>
+          <input type="text" name="company" id="contactCompany" class="contact-honeypot" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <div class="auth-form-row-2">
+            <div class="auth-form-group">
+              <label for="contactName" class="auth-label">
+                <i class="bi bi-person"></i>
+                Name
+              </label>
+              <input type="text" id="contactName" name="name" class="auth-input" autocomplete="name" required aria-describedby="contactNameError">
+              <div class="auth-error" id="contactNameError" aria-live="polite"></div>
+            </div>
+
+            <div class="auth-form-group">
+              <label for="contactEmail" class="auth-label">
+                <i class="bi bi-envelope"></i>
+                Email
+              </label>
+              <input type="email" id="contactEmail" name="email" class="auth-input" autocomplete="email" required aria-describedby="contactEmailError">
+              <div class="auth-error" id="contactEmailError" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label for="contactInterest" class="auth-label">
+              <i class="bi bi-compass"></i>
+              What can we help with?
+            </label>
+            <select id="contactInterest" name="interest" class="auth-input">
+              <option value="general">General enquiry</option>
+              <option value="student">Student access</option>
+              <option value="school">School or classroom use</option>
+              <option value="deployment">Deployment or integration</option>
+              <option value="support">Support</option>
+            </select>
+          </div>
+
+          <div class="auth-form-group">
+            <label for="contactMessage" class="auth-label">
+              <i class="bi bi-chat-square-text"></i>
+              Message
+            </label>
+            <textarea id="contactMessage" name="message" class="auth-input landing-contact-textarea" rows="5" required minlength="12" aria-describedby="contactMessageError" placeholder="Tell us what you want Synapse to help with."></textarea>
+            <div class="auth-error" id="contactMessageError" aria-live="polite"></div>
+          </div>
+
+          <button type="submit" class="landing-btn landing-btn-primary landing-btn-block" id="contactSubmit">
+            <i class="bi bi-send"></i>
+            <span>Send Enquiry</span>
+            <div class="auth-spinner" id="contactSpinner"></div>
+          </button>
+          <div class="landing-contact-status" id="contactStatus" role="status" aria-live="polite"></div>
+          <p class="landing-contact-note">
+            Production delivery uses <code>window.SYNAPSE_CONTACT_ENDPOINT</code> or the FastAPI <code>/contact</code> endpoint. Without that setup, submissions are saved locally for launch testing.
+          </p>
+        </form>
       </div>
     </div>
   </section>
@@ -366,13 +501,14 @@
       <div class="landing-cta-card">
         <h2>Ready to transform your learning?</h2>
         <p>Join thousands of students who are mastering their studies with Synapse</p>
-        <button class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
+        <button type="button" class="landing-btn landing-btn-primary landing-btn-lg" data-action="get-started">
           <i class="bi bi-rocket-takeoff"></i>
           Get Started for Free
         </button>
       </div>
     </div>
   </section>
+  </main>
 
   <!-- Footer -->
   <footer class="landing-footer">
@@ -389,47 +525,47 @@
             <h4>Product</h4>
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
-            <a href="#">How it Works</a>
+            <a href="#how-it-works">How it Works</a>
           </div>
           
           <div class="landing-footer-column">
             <h4>Company</h4>
-            <a href="#">About Us</a>
-            <a href="#">Blog</a>
-            <a href="#">Careers</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="login.html">Launch App</a>
           </div>
           
           <div class="landing-footer-column">
             <h4>Support</h4>
-            <a href="#">Help Center</a>
-            <a href="#">Contact</a>
-            <a href="#">Privacy Policy</a>
+            <a href="#contact">Help Center</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
           </div>
         </div>
       </div>
       
       <div class="landing-footer-bottom">
-        <p>&copy; 2025 Synapse. All rights reserved.</p>
-        <div class="landing-footer-social">
-          <a href="#"><i class="bi bi-twitter"></i></a>
-          <a href="#"><i class="bi bi-linkedin"></i></a>
-          <a href="#"><i class="bi bi-github"></i></a>
+        <p>&copy; 2026 Synapse. All rights reserved.</p>
+        <div class="landing-footer-social" aria-label="Footer quick links">
+          <a href="#contact" aria-label="Contact Synapse"><i class="bi bi-envelope"></i></a>
+          <a href="privacy.html" aria-label="Read the Synapse privacy policy"><i class="bi bi-shield-lock"></i></a>
+          <a href="terms.html" aria-label="Read the Synapse terms of service"><i class="bi bi-file-earmark-text"></i></a>
         </div>
       </div>
     </div>
   </footer>
 
   <!-- Auth Modal -->
-  <div class="landing-modal" id="authModal">
+  <div class="landing-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" aria-hidden="true">
     <div class="landing-modal-overlay" data-close-modal></div>
     <div class="landing-modal-content">
-      <button class="landing-modal-close" data-close-modal>
+      <button class="landing-modal-close" type="button" data-close-modal aria-label="Close account options">
         <i class="bi bi-x-lg"></i>
       </button>
       
       <div class="landing-auth-choice">
         <img src="/logos/synapse.png" alt="Synapse" class="landing-auth-logo">
-        <h2>Get Started with Synapse</h2>
+        <h2 id="authModalTitle">Get Started with Synapse</h2>
         <p>Choose how you'd like to continue</p>
         
         <div class="landing-auth-buttons">
@@ -447,6 +583,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="landing-auth.js?v=account-landing-v2"></script>
+  <script src="config.js?v=runtime-config-v1"></script>
+  <script src="auth-client.js?v=real-auth-v2"></script>
+  <script src="synapse-selects.js?v=synapse-selects-v1"></script>
+  <script src="landing-auth.js?v=launch-ready-v1"></script>
 </body>
 </html>

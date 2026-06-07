@@ -16,7 +16,9 @@ assert.ok(!authScript.includes("window.location.href = '/index.html'"));
 assert.ok(fs.existsSync(path.join(repoRoot, "index.html")));
 
 const rootIndex = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
-assert.ok(rootIndex.includes("frontend/index.html"));
+assert.ok(rootIndex.includes("frontend/landing.html"));
+const rootApp = fs.readFileSync(path.join(repoRoot, "app.html"), "utf8");
+assert.ok(rootApp.includes("frontend/index.html"));
 
 for (const page of ["landing", "login", "signup", "forgot-password"]) {
   const shim = fs.readFileSync(path.join(repoRoot, `${page}.html`), "utf8");
@@ -201,7 +203,9 @@ assert.equal(accounts[0].email, "student@example.com");
 assert.equal(accounts[0].firstName, "Sherman");
 assert.equal(accounts[0].plan, "Starter");
 assert.equal(accounts[0].credits, 500);
-assert.notEqual(accounts[0].passwordHash, "password123");
+assert.ok(!("passwordHash" in accounts[0]));
+assert.ok(!("password" in accounts[0]));
+assert.equal(accounts[0].authMode, "local_demo");
 assert.ok(store.getItem(sessionKey));
 
 store.removeItem(sessionKey);
@@ -217,5 +221,28 @@ const missingAccountStore = makeLocalStorage();
 const missingAccount = simulateAuthSubmit({ pathname: "/frontend/login.html", page: "login", store: missingAccountStore });
 assert.equal(missingAccount.href, "");
 assert.ok(missingAccount.elements.emailError.classList.contains("show"));
+
+const legacyStore = makeLocalStorage({
+  [accountsKey]: JSON.stringify([{
+    id: "legacy",
+    email: "legacy@example.com",
+    firstName: "Legacy",
+    lastName: "Student",
+    authProvider: "email",
+    passwordHash: "old-local-verifier",
+    plan: "Starter",
+    credits: 500
+  }])
+});
+const legacyLogin = simulateAuthSubmit({
+  pathname: "/frontend/login.html",
+  page: "login",
+  store: legacyStore,
+  values: { email: "legacy@example.com", password: "anything-non-empty" }
+});
+assert.equal(legacyLogin.href, "index.html");
+const migratedAccounts = JSON.parse(legacyStore.getItem(accountsKey));
+assert.ok(!("passwordHash" in migratedAccounts[0]));
+assert.equal(migratedAccounts[0].authMode, "local_demo");
 
 console.log("auth routing regression passed");

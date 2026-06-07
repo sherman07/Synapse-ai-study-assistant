@@ -1,0 +1,16 @@
+{
+  "name": "Synapse AI Study Assistant",
+  "short_name": "Synapse",
+  "description": "An AI study assistant for turning source material into active learning.",
+  "start_url": "landing.html",
+  "display": "standalone",
+  "background_color": "#fcfdff",
+  "theme_color": "#4a7cff",
+  "icons": [
+    {
+      "src": "/logos/synapse.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}

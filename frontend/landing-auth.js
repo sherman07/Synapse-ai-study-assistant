@@ -36,6 +36,17 @@
       error.textContent = '';
       error.classList.remove('show');
     });
+    document.querySelectorAll('[aria-invalid="true"]').forEach(field => {
+      field.setAttribute('aria-invalid', 'false');
+    });
+  }
+
+  function markInvalid(fieldId, errorId, message) {
+    const field = document.getElementById(fieldId);
+    if (field && typeof field.setAttribute === 'function') {
+      field.setAttribute('aria-invalid', 'true');
+    }
+    showError(errorId, message);
   }
 
   function appEntryUrl() {
@@ -76,27 +87,32 @@
     }
   }
 
-  function getAccounts() {
-    const accounts = readJSONStorage(AUTH_ACCOUNTS_KEY, []);
-    return Array.isArray(accounts) ? accounts : [];
+  function sanitizeLocalAccount(account) {
+    const safe = { ...(account || {}) };
+    delete safe.password;
+    delete safe.passwordHash;
+    delete safe.password_hash;
+    delete safe.credential;
+    delete safe.credentialHash;
+    delete safe.salt;
+    safe.email = normalizeEmail(safe.email);
+    safe.authMode = safe.authMode || 'local_demo';
+    return safe;
   }
 
   function saveAccounts(accounts) {
-    return writeJSONStorage(AUTH_ACCOUNTS_KEY, accounts);
+    const safeAccounts = (Array.isArray(accounts) ? accounts : []).map(sanitizeLocalAccount);
+    return writeJSONStorage(AUTH_ACCOUNTS_KEY, safeAccounts);
   }
 
-  function hashCredential(email, password) {
-    const source = `${normalizeEmail(email)}::${String(password || '')}`;
-    let h1 = 0x811c9dc5;
-    let h2 = 0x9e3779b9;
-    for (let i = 0; i < source.length; i += 1) {
-      const code = source.charCodeAt(i);
-      h1 ^= code;
-      h1 = Math.imul(h1, 0x01000193) >>> 0;
-      h2 ^= code + 0x7f4a7c15;
-      h2 = Math.imul(h2, 0x85ebca6b) >>> 0;
+  function getAccounts() {
+    const accounts = readJSONStorage(AUTH_ACCOUNTS_KEY, []);
+    if (!Array.isArray(accounts)) return [];
+    const safeAccounts = accounts.map(sanitizeLocalAccount);
+    if (JSON.stringify(accounts) !== JSON.stringify(safeAccounts)) {
+      saveAccounts(safeAccounts);
     }
-    return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`;
+    return safeAccounts;
   }
 
   function displayNameFor(account) {
@@ -114,6 +130,7 @@
       plan: account.plan || 'Starter',
       credits: Number(account.credits || 500),
       authProvider: account.authProvider || 'email',
+      authMode: account.authMode || 'local_demo',
       createdAt: account.createdAt || new Date().toISOString(),
       signedInAt: new Date().toISOString()
     };
@@ -146,7 +163,35 @@
     window.location.href = appEntryUrl();
   }
 
-  function createAccount({ firstName, lastName, email, role, password, authProvider = 'email' }) {
+  function realAuthEnabled() {
+    return Boolean(window.SynapseAuth?.isConfigured?.());
+  }
+
+  function showAuthStatus(form, type, message) {
+    if (!form) return;
+    let status = form.querySelector('.auth-form-status');
+    if (!status) {
+      status = document.createElement('div');
+      status.className = 'auth-form-status';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) form.insertBefore(status, submitButton);
+      else form.appendChild(status);
+    }
+    status.textContent = message;
+    status.className = `auth-form-status show ${type}`;
+  }
+
+  function clearAuthStatus(form) {
+    const status = form?.querySelector?.('.auth-form-status');
+    if (status) {
+      status.textContent = '';
+      status.className = 'auth-form-status';
+    }
+  }
+
+  function createAccount({ firstName, lastName, email, role, authProvider = 'email' }) {
     const normalizedEmail = normalizeEmail(email);
     const accounts = getAccounts();
     const now = new Date().toISOString();
@@ -157,18 +202,26 @@
       email: normalizedEmail,
       role: role || 'student',
       authProvider,
-      passwordHash: authProvider === 'email' ? hashCredential(normalizedEmail, password) : '',
+      authMode: 'local_demo',
       plan: 'Starter',
       credits: 500,
       createdAt: now,
       updatedAt: now
     };
-    accounts.unshift(account);
+    accounts.unshift(sanitizeLocalAccount(account));
     saveAccounts(accounts);
-    return account;
+    return sanitizeLocalAccount(account);
   }
 
   function continueWithGoogle() {
+    if (realAuthEnabled()) {
+      window.SynapseAuth.signInWithGoogle({
+        redirectTo: new URL(appEntryUrl(), window.location.href).toString()
+      }).catch(error => {
+        alert(error.message || 'Google sign-in could not start.');
+      });
+      return;
+    }
     const email = normalizeEmail(window.prompt('Enter the Google email you want to use with Synapse:') || '');
     if (!email) return;
     if (!validateEmail(email)) {
@@ -198,7 +251,12 @@
     const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.add('active');
+      modal.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
+      const closeButton = modal.querySelector('button[data-close-modal]');
+      if (closeButton && typeof closeButton.focus === 'function') {
+        closeButton.focus();
+      }
     }
   }
 
@@ -206,6 +264,7 @@
     const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
       document.body.style.overflow = '';
     }
   }
@@ -220,7 +279,9 @@
     mobileToggle.addEventListener('click', function() {
       const navMenu = document.getElementById('navMenu');
       if (navMenu) {
-        navMenu.classList.toggle('active');
+        const isActive = navMenu.classList.toggle('active');
+        mobileToggle.setAttribute('aria-expanded', String(isActive));
+        mobileToggle.setAttribute('aria-label', isActive ? 'Close navigation menu' : 'Open navigation menu');
       }
     });
   }
@@ -237,7 +298,23 @@
             behavior: 'smooth',
             block: 'start'
           });
+          const navMenu = document.getElementById('navMenu');
+          if (navMenu?.classList.contains('active')) {
+            navMenu.classList.remove('active');
+            mobileToggle?.setAttribute('aria-expanded', 'false');
+            mobileToggle?.setAttribute('aria-label', 'Open navigation menu');
+          }
         }
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-action="view-demo"]').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      const target = document.getElementById('how-it-works');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
   });
@@ -283,6 +360,8 @@
       togglePassword.addEventListener('click', function() {
         const type = loginPassword.type === 'password' ? 'text' : 'password';
         loginPassword.type = type;
+        this.setAttribute('aria-pressed', String(type === 'text'));
+        this.setAttribute('aria-label', type === 'text' ? 'Hide password' : 'Show password');
         const icon = this.querySelector('i');
         if (icon) {
           icon.classList.toggle('bi-eye');
@@ -295,6 +374,7 @@
     loginForm.addEventListener('submit', function(e) {
       e.preventDefault();
       clearAllErrors();
+      clearAuthStatus(loginForm);
 
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value;
@@ -303,16 +383,16 @@
 
       // Validate email
       if (!email) {
-        showError('emailError', 'Email is required');
+        markInvalid('loginEmail', 'emailError', 'Email is required');
         hasError = true;
       } else if (!validateEmail(email)) {
-        showError('emailError', 'Please enter a valid email address');
+        markInvalid('loginEmail', 'emailError', 'Please enter a valid email address');
         hasError = true;
       }
 
       // Validate password
       if (!password) {
-        showError('passwordError', 'Password is required');
+        markInvalid('loginPassword', 'passwordError', 'Password is required');
         hasError = true;
       }
 
@@ -320,20 +400,31 @@
         return;
       }
 
-      const account = findAccountByEmail(email);
-      if (!account) {
-        showError('emailError', 'No Synapse account exists for this email. Create one first.');
-        return;
-      }
-      if (account.authProvider !== 'email') {
-        showError('passwordError', 'This account was created with Google. Continue with Google instead.');
-        return;
-      }
-      if (account.passwordHash !== hashCredential(email, password)) {
-        showError('passwordError', 'Incorrect password');
+      if (realAuthEnabled()) {
+        setButtonLoading(loginForm, 'loginSpinner', true);
+        window.SynapseAuth.signInEmail({ email, password })
+          .then(() => {
+            redirectToApp();
+          })
+          .catch(error => {
+            markInvalid('loginEmail', 'emailError', error.message || 'Login failed.');
+            showAuthStatus(loginForm, 'error', error.message || 'Login failed.');
+          })
+          .finally(() => {
+            setButtonLoading(loginForm, 'loginSpinner', false);
+          });
         return;
       }
 
+      const account = findAccountByEmail(email);
+      if (!account) {
+        markInvalid('loginEmail', 'emailError', 'No Synapse account exists for this email. Create one first.');
+        return;
+      }
+      if (account.authProvider !== 'email') {
+        markInvalid('loginPassword', 'passwordError', 'This account was created with Google. Continue with Google instead.');
+        return;
+      }
       setButtonLoading(loginForm, 'loginSpinner', true);
       setSession(account);
       redirectToApp();
@@ -362,6 +453,8 @@
       toggleSignupPassword.addEventListener('click', function() {
         const type = signupPassword.type === 'password' ? 'text' : 'password';
         signupPassword.type = type;
+        this.setAttribute('aria-pressed', String(type === 'text'));
+        this.setAttribute('aria-label', type === 'text' ? 'Hide password' : 'Show password');
         const icon = this.querySelector('i');
         if (icon) {
           icon.classList.toggle('bi-eye');
@@ -377,6 +470,8 @@
       toggleConfirmPassword.addEventListener('click', function() {
         const type = confirmPassword.type === 'password' ? 'text' : 'password';
         confirmPassword.type = type;
+        this.setAttribute('aria-pressed', String(type === 'text'));
+        this.setAttribute('aria-label', type === 'text' ? 'Hide confirmed password' : 'Show confirmed password');
         const icon = this.querySelector('i');
         if (icon) {
           icon.classList.toggle('bi-eye');
@@ -389,6 +484,7 @@
     signupForm.addEventListener('submit', function(e) {
       e.preventDefault();
       clearAllErrors();
+      clearAuthStatus(signupForm);
 
       const firstName = document.getElementById('firstName').value.trim();
       const lastName = document.getElementById('lastName').value.trim();
@@ -402,40 +498,40 @@
 
       // Validate first name
       if (!firstName) {
-        showError('firstNameError', 'First name is required');
+        markInvalid('firstName', 'firstNameError', 'First name is required');
         hasError = true;
       }
 
       // Validate last name
       if (!lastName) {
-        showError('lastNameError', 'Last name is required');
+        markInvalid('lastName', 'lastNameError', 'Last name is required');
         hasError = true;
       }
 
       // Validate email
       if (!email) {
-        showError('signupEmailError', 'Email is required');
+        markInvalid('signupEmail', 'signupEmailError', 'Email is required');
         hasError = true;
       } else if (!validateEmail(email)) {
-        showError('signupEmailError', 'Please enter a valid email address');
+        markInvalid('signupEmail', 'signupEmailError', 'Please enter a valid email address');
         hasError = true;
       }
 
       // Validate password
       if (!password) {
-        showError('signupPasswordError', 'Password is required');
+        markInvalid('signupPassword', 'signupPasswordError', 'Password is required');
         hasError = true;
       } else if (password.length < 8) {
-        showError('signupPasswordError', 'Password must be at least 8 characters');
+        markInvalid('signupPassword', 'signupPasswordError', 'Password must be at least 8 characters');
         hasError = true;
       }
 
       // Validate confirm password
       if (!confirmPass) {
-        showError('confirmPasswordError', 'Please confirm your password');
+        markInvalid('confirmPassword', 'confirmPasswordError', 'Please confirm your password');
         hasError = true;
       } else if (password !== confirmPass) {
-        showError('confirmPasswordError', 'Passwords do not match');
+        markInvalid('confirmPassword', 'confirmPasswordError', 'Passwords do not match');
         hasError = true;
       }
 
@@ -449,13 +545,34 @@
         return;
       }
 
+      if (realAuthEnabled()) {
+        setButtonLoading(signupForm, 'signupSpinner', true);
+        window.SynapseAuth.signUpEmail({ firstName, lastName, email, role, password })
+          .then(result => {
+            if (result?.requiresEmailConfirmation) {
+              showAuthStatus(signupForm, 'success', 'Account created. Check your email to confirm your Synapse account, then login.');
+              signupForm.reset();
+              return;
+            }
+            redirectToApp();
+          })
+          .catch(error => {
+            markInvalid('signupEmail', 'signupEmailError', error.message || 'Sign up failed.');
+            showAuthStatus(signupForm, 'error', error.message || 'Sign up failed.');
+          })
+          .finally(() => {
+            setButtonLoading(signupForm, 'signupSpinner', false);
+          });
+        return;
+      }
+
       if (findAccountByEmail(email)) {
-        showError('signupEmailError', 'An account already exists for this email. Login instead.');
+        markInvalid('signupEmail', 'signupEmailError', 'An account already exists for this email. Login instead.');
         return;
       }
 
       setButtonLoading(signupForm, 'signupSpinner', true);
-      const account = createAccount({ firstName, lastName, email, role, password });
+      const account = createAccount({ firstName, lastName, email, role });
       setSession(account);
       redirectToApp();
     });
@@ -478,6 +595,7 @@
     forgotPasswordForm.addEventListener('submit', function(e) {
       e.preventDefault();
       clearAllErrors();
+      clearAuthStatus(forgotPasswordForm);
 
       const email = document.getElementById('resetEmail').value.trim();
       
@@ -485,10 +603,10 @@
 
       // Validate email
       if (!email) {
-        showError('resetEmailError', 'Email is required');
+        markInvalid('resetEmail', 'resetEmailError', 'Email is required');
         hasError = true;
       } else if (!validateEmail(email)) {
-        showError('resetEmailError', 'Please enter a valid email address');
+        markInvalid('resetEmail', 'resetEmailError', 'Please enter a valid email address');
         hasError = true;
       }
 
@@ -496,9 +614,28 @@
         return;
       }
 
+      if (realAuthEnabled()) {
+        setButtonLoading(forgotPasswordForm, 'resetSpinner', true);
+        window.SynapseAuth.resetPassword(email)
+          .then(() => {
+            const successDiv = document.getElementById('resetSuccess');
+            if (successDiv) successDiv.classList.add('show');
+            forgotPasswordForm.classList?.add('d-none');
+            forgotPasswordForm.closest?.('.auth-card')?.classList.add('reset-complete');
+          })
+          .catch(error => {
+            markInvalid('resetEmail', 'resetEmailError', error.message || 'Password reset failed.');
+            showAuthStatus(forgotPasswordForm, 'error', error.message || 'Password reset failed.');
+          })
+          .finally(() => {
+            setButtonLoading(forgotPasswordForm, 'resetSpinner', false);
+          });
+        return;
+      }
+
       const account = findAccountByEmail(email);
       if (!account) {
-        showError('resetEmailError', 'No Synapse account exists for this email.');
+        markInvalid('resetEmail', 'resetEmailError', 'No Synapse account exists for this email.');
         return;
       }
 
@@ -512,8 +649,144 @@
         if (successDiv) {
           successDiv.classList.add('show');
         }
+        forgotPasswordForm.classList?.add('d-none');
+        forgotPasswordForm.closest?.('.auth-card')?.classList.add('reset-complete');
         setButtonLoading(forgotPasswordForm, 'resetSpinner', false);
       }, 1500);
+    });
+  }
+
+  // ==========================================
+  // Contact Form
+  // ==========================================
+
+  const CONTACT_INQUIRIES_KEY = 'synapse.contact.inquiries.v1';
+
+  function contactEndpoint() {
+    const configured = String(
+      window.SYNAPSE_CONTACT_ENDPOINT ||
+      document.body?.dataset?.contactEndpoint ||
+      ''
+    ).trim();
+    if (configured) return configured;
+
+    const { protocol, hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return `${protocol}//127.0.0.1:8001/contact`;
+    }
+    return '';
+  }
+
+  function showContactStatus(type, message) {
+    const status = document.getElementById('contactStatus');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `landing-contact-status show ${type}`;
+  }
+
+  function saveLocalContactInquiry(payload) {
+    const inquiries = readJSONStorage(CONTACT_INQUIRIES_KEY, []);
+    const safeInquiries = Array.isArray(inquiries) ? inquiries : [];
+    safeInquiries.unshift({
+      ...payload,
+      savedAt: new Date().toISOString(),
+      delivery: 'local_pending'
+    });
+    return writeJSONStorage(CONTACT_INQUIRIES_KEY, safeInquiries.slice(0, 25));
+  }
+
+  async function sendContactInquiry(payload) {
+    if (payload.company) {
+      return { ok: true, message: 'Thanks, your enquiry has been received.' };
+    }
+
+    const endpoint = contactEndpoint();
+    if (!endpoint) {
+      saveLocalContactInquiry(payload);
+      return {
+        ok: true,
+        localOnly: true,
+        message: 'Thanks, your enquiry has been saved for launch testing. Configure SYNAPSE_CONTACT_ENDPOINT before accepting live public submissions.'
+      };
+    }
+
+    if (typeof window.fetch !== 'function') {
+      throw new Error('Contact delivery requires a browser with fetch support.');
+    }
+
+    const response = await window.fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) {
+      throw new Error(data.error || `Contact request failed with status ${response.status}.`);
+    }
+    return {
+      ok: true,
+      message: data.message || 'Thanks, your enquiry has been received.'
+    };
+  }
+
+  const contactForm = document.getElementById('contactForm');
+  if (contactForm) {
+    contactForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      clearAllErrors();
+      showContactStatus('info', 'Sending your enquiry...');
+
+      const formData = new FormData(contactForm);
+      const payload = {
+        name: String(formData.get('name') || '').trim(),
+        email: normalizeEmail(formData.get('email')),
+        interest: String(formData.get('interest') || 'general').trim(),
+        message: String(formData.get('message') || '').trim(),
+        company: String(formData.get('company') || '').trim(),
+        source: 'synapse_landing'
+      };
+
+      let hasError = false;
+      if (!payload.name) {
+        markInvalid('contactName', 'contactNameError', 'Name is required');
+        hasError = true;
+      }
+      if (!payload.email) {
+        markInvalid('contactEmail', 'contactEmailError', 'Email is required');
+        hasError = true;
+      } else if (!validateEmail(payload.email)) {
+        markInvalid('contactEmail', 'contactEmailError', 'Please enter a valid email address');
+        hasError = true;
+      }
+      if (!payload.message) {
+        markInvalid('contactMessage', 'contactMessageError', 'Message is required');
+        hasError = true;
+      } else if (payload.message.length < 12) {
+        markInvalid('contactMessage', 'contactMessageError', 'Please add a little more detail');
+        hasError = true;
+      }
+
+      if (hasError) {
+        showContactStatus('error', 'Please fix the highlighted fields before sending.');
+        return;
+      }
+
+      setButtonLoading(contactForm, 'contactSpinner', true);
+      try {
+        const result = await sendContactInquiry(payload);
+        showContactStatus(result.localOnly ? 'info' : 'success', result.message);
+        if (!result.localOnly) {
+          contactForm.reset();
+        }
+      } catch (error) {
+        saveLocalContactInquiry(payload);
+        showContactStatus(
+          'error',
+          `${error.message || 'Contact delivery failed.'} The enquiry was saved locally so you can retry after configuring the endpoint.`
+        );
+      } finally {
+        setButtonLoading(contactForm, 'contactSpinner', false);
+      }
     });
   }
 
@@ -541,35 +814,36 @@
     rootMargin: '0px 0px -50px 0px'
   };
 
-  const observer = new IntersectionObserver(function(entries) {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.style.opacity = '1';
-        entry.target.style.transform = 'translateY(0)';
-      }
-    });
-  }, observerOptions);
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(function(entries) {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, observerOptions);
 
-  // Observe elements with data-aos attribute
-  document.querySelectorAll('[data-aos]').forEach(el => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(20px)';
-    el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-    observer.observe(el);
-  });
+    // Observe elements with data-aos attribute
+    document.querySelectorAll('[data-aos]').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(20px)';
+      el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      observer.observe(el);
+    });
+  }
 
   // ==========================================
-  // Voucher Code Feature (Placeholder)
+  // Voucher redemption should be connected when production checkout is added.
   // ==========================================
   
-  // This can be implemented when checkout flow is built
-  // For now, it's just visual on the pricing page
-
   // ==========================================
   // Console Welcome Message
   // ==========================================
   
-  console.log('%cWelcome to Synapse! 🧠', 'color: #4a7cff; font-size: 24px; font-weight: bold;');
-  console.log('%cTurn passive study notes into active learning', 'color: #64748b; font-size: 14px;');
+  if (window.SYNAPSE_DEBUG === true) {
+    console.log('%cWelcome to Synapse!', 'color: #4a7cff; font-size: 24px; font-weight: bold;');
+    console.log('%cTurn passive study notes into active learning', 'color: #64748b; font-size: 14px;');
+  }
 
 })();

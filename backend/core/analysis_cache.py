@@ -42,6 +42,7 @@ class AnalysisCacheStore:
         return cleaned
 
     def save(self, cache: dict) -> None:
+        temp_path = None
         try:
             cleaned = self.fresh_items(cache)
             if self.should_minify():
@@ -49,8 +50,17 @@ class AnalysisCacheStore:
             else:
                 payload = json.dumps(cleaned, ensure_ascii=False, indent=2)
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-            self.cache_path.write_text(payload, encoding="utf-8")
+            temp_path = self.cache_path.with_name(
+                f".{self.cache_path.name}.{os.getpid()}.{int(time.time() * 1000)}.tmp"
+            )
+            temp_path.write_text(payload, encoding="utf-8")
+            os.replace(temp_path, self.cache_path)
         except Exception:
+            if temp_path:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
             pass
 
     def get(self, fingerprint: str) -> Optional[dict]:

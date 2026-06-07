@@ -1,0 +1,251 @@
+.synapse-select-source {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+}
+
+.synapse-select {
+  --select-ink: #26344f;
+  --select-muted: #6d7890;
+  --select-blue: #4a7cff;
+  --select-violet: #7b61ff;
+  --select-cyan: #24c7d9;
+  --select-mint: #2dd6a3;
+  --select-amber: #ffbf4a;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 100%;
+  color: var(--select-ink);
+  font-family: inherit;
+}
+
+.synapse-select--compact {
+  width: auto;
+  min-width: 138px;
+}
+
+.synapse-select--quiz-type {
+  flex: 1 1 190px;
+  min-width: 0;
+}
+
+.synapse-select__button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(116, 148, 255, 0.38);
+  border-radius: 15px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.94) 48%, rgba(241, 255, 250, 0.9)),
+    radial-gradient(circle at 8% 12%, rgba(36, 199, 217, 0.16), transparent 28%);
+  color: var(--select-ink);
+  box-shadow: 0 12px 30px rgba(74, 124, 255, 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px 11px 14px;
+  font: inherit;
+  font-size: 0.96rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.synapse-select__button:hover {
+  border-color: rgba(36, 199, 217, 0.62);
+  background:
+    linear-gradient(135deg, #ffffff, #f7fbff 45%, #effff8),
+    radial-gradient(circle at 8% 12%, rgba(45, 214, 163, 0.18), transparent 30%);
+  box-shadow: 0 14px 34px rgba(36, 199, 217, 0.13);
+}
+
+.synapse-select.is-open .synapse-select__button,
+.synapse-select__button:focus-visible {
+  outline: none;
+  border-color: var(--select-blue);
+  box-shadow:
+    0 0 0 4px rgba(74, 124, 255, 0.14),
+    0 18px 42px rgba(74, 124, 255, 0.16);
+}
+
+.synapse-select.is-open .synapse-select__button {
+  transform: translateY(-1px);
+}
+
+.synapse-select__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.synapse-select__chevron {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--select-blue);
+  background: linear-gradient(135deg, rgba(74, 124, 255, 0.13), rgba(45, 214, 163, 0.13));
+  transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+.synapse-select.is-open .synapse-select__chevron {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--select-blue), var(--select-cyan));
+  transform: rotate(180deg);
+}
+
+.synapse-select__menu {
+  position: absolute;
+  z-index: 2500;
+  top: calc(100% + 9px);
+  left: 0;
+  width: 100%;
+  max-height: min(360px, 48vh);
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid rgba(149, 172, 255, 0.45);
+  border-radius: 17px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.98)),
+    radial-gradient(circle at top right, rgba(36, 199, 217, 0.14), transparent 34%);
+  box-shadow:
+    0 28px 70px rgba(28, 43, 77, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.78) inset;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-5px) scale(0.985);
+  transform-origin: top center;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.synapse-select.is-open .synapse-select__menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.synapse-select__option {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--select-ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 0.94rem;
+  font-weight: 780;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.synapse-select__option:hover,
+.synapse-select__option.is-active {
+  background: linear-gradient(135deg, rgba(74, 124, 255, 0.11), rgba(45, 214, 163, 0.14));
+  color: #14284c;
+}
+
+.synapse-select__option[aria-selected="true"] {
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, var(--select-blue), var(--select-violet) 58%, var(--select-cyan)),
+    linear-gradient(90deg, var(--select-amber), transparent 22%);
+  box-shadow: 0 10px 24px rgba(74, 124, 255, 0.22);
+}
+
+.synapse-select__option[aria-disabled="true"] {
+  color: var(--select-muted);
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.synapse-select__check {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: transparent;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.synapse-select__option[aria-selected="true"] .synapse-select__check {
+  color: #ffffff;
+}
+
+.synapse-select__button:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.synapse-select--compact .synapse-select__button {
+  min-height: 38px;
+  border-radius: 12px;
+  padding: 8px 9px 8px 11px;
+  color: var(--select-blue);
+  font-size: 0.88rem;
+  box-shadow: 0 8px 20px rgba(74, 124, 255, 0.08);
+}
+
+.synapse-select--compact .synapse-select__chevron {
+  width: 24px;
+  height: 24px;
+}
+
+.synapse-select--auth .synapse-select__button {
+  min-height: 52px;
+  border-color: rgba(216, 230, 255, 0.86);
+  border-radius: var(--radius-md, 16px);
+  padding: 13px 15px;
+  font-weight: 650;
+  box-shadow: 0 10px 26px rgba(74, 124, 255, 0.08);
+}
+
+.synapse-select--hero .synapse-select__button {
+  min-height: 50px;
+  border-radius: 16px;
+}
+
+.synapse-select--form .synapse-select__button {
+  min-height: 40px;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.quiz-type-control-row .synapse-select {
+  flex: 1 1 190px;
+}
+
+.flashcard-builder-card .synapse-select {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .synapse-select__menu {
+    max-height: 42vh;
+  }
+
+  .synapse-select__button {
+    min-height: 46px;
+  }
+}

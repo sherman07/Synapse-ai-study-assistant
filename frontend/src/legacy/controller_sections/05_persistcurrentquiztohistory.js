@@ -846,4 +846,6 @@ function loadFlashcardsForCurrentNote() {
   activeFlashcardIndex = 0;
   flashcardSide = "front";
   flashcardError = "";
+  flashcardActivityMode = "cards";
+  flashcardMatchingState = null;
 }

@@ -6,7 +6,7 @@ from pathlib import Path
 class StaticFrontendServer:
     """Serves the project root without injecting browser auto-refresh scripts."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 3000):
+    def __init__(self, host: str = "0.0.0.0", port: int = 5173):
         self.host = host
         self.port = port
         self.project_root = Path(__file__).resolve().parents[1]

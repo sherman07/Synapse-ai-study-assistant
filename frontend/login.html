@@ -3,11 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Login - Synapse</title>
+  <title>Login | Synapse</title>
+  <meta name="description" content="Login to Synapse to continue turning study material into active learning notes, mind maps, questions, and teach-back practice." />
+  <meta name="robots" content="noindex,follow" />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:title" content="Login | Synapse" />
+  <meta property="og:description" content="Continue your Synapse study workspace." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <meta name="twitter:card" content="summary" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="/logos/synapse.png">
-  <link rel="stylesheet" href="landing-auth.css?v=account-landing-v2">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
+  <link rel="stylesheet" href="landing-auth.css?v=launch-ready-v1">
+  <link rel="stylesheet" href="synapse-selects.css?v=synapse-selects-v1">
 </head>
 <body class="auth-page">
   <div class="auth-container">
@@ -35,10 +44,12 @@
             name="email" 
             class="auth-input" 
             placeholder="your.email@example.com"
+            autocomplete="email"
             required
+            aria-describedby="emailError"
             data-testid="login-email-input"
           />
-          <div class="auth-error" id="emailError"></div>
+          <div class="auth-error" id="emailError" aria-live="polite"></div>
         </div>
         
         <div class="auth-form-group">
@@ -53,14 +64,17 @@
               name="password" 
               class="auth-input" 
               placeholder="Enter your password"
+              autocomplete="current-password"
               required
+              aria-describedby="passwordError"
               data-testid="login-password-input"
             />
-            <button type="button" class="auth-input-icon" id="togglePassword">
+            <button type="button" class="auth-input-icon" id="togglePassword" aria-label="Show password" aria-pressed="false">
               <i class="bi bi-eye"></i>
             </button>
           </div>
-          <div class="auth-error" id="passwordError"></div>
+          <div class="auth-helper">Uses hosted Supabase Auth when configured; passwords are never stored by the Synapse frontend.</div>
+          <div class="auth-error" id="passwordError" aria-live="polite"></div>
         </div>
         
         <div class="auth-form-row">
@@ -82,7 +96,7 @@
         <span>or continue with</span>
       </div>
       
-      <button class="landing-btn landing-btn-outline landing-btn-block auth-social-btn" id="googleLoginBtn" data-testid="google-login-button">
+      <button type="button" class="landing-btn landing-btn-outline landing-btn-block auth-social-btn" id="googleLoginBtn" data-testid="google-login-button">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M17.64 9.20443C17.64 8.56625 17.5827 7.95262 17.4764 7.36353H9V10.8449H13.8436C13.635 11.9699 13.0009 12.9231 12.0477 13.5613V15.8194H14.9564C16.6582 14.2526 17.64 11.9453 17.64 9.20443Z" fill="#4285F4"/>
           <path d="M9 18C11.43 18 13.4673 17.1941 14.9564 15.8195L12.0477 13.5613C11.2418 14.1013 10.2109 14.4204 9 14.4204C6.65591 14.4204 4.67182 12.8372 3.96409 10.71H0.957275V13.0418C2.43818 15.9831 5.48182 18 9 18Z" fill="#34A853"/>
@@ -111,6 +125,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="landing-auth.js?v=account-landing-v2"></script>
+  <script src="config.js?v=runtime-config-v1"></script>
+  <script src="auth-client.js?v=real-auth-v2"></script>
+  <script src="synapse-selects.js?v=synapse-selects-v1"></script>
+  <script src="landing-auth.js?v=launch-ready-v1"></script>
 </body>
 </html>

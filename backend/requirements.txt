@@ -11,6 +11,7 @@ yt-dlp
 opencv-python
 certifi
 requests
+stripe
 
 pymupdf
 

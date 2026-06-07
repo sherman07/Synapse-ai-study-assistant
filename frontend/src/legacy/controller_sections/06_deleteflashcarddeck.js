@@ -11,6 +11,8 @@ function resetFlashcardState() {
   flashcardSide = "front";
   flashcardError = "";
   isFlashcardGenerating = false;
+  flashcardActivityMode = "cards";
+  flashcardMatchingState = null;
   renderFlashcardPanel();
 }
 
@@ -52,6 +54,9 @@ function renderFlashcardPanel() {
 
   panel.innerHTML = currentFlashcards.length ? renderFlashcardStudyView() : renderFlashcardBuilder();
   renderMath();
+  if (flashcardActivityMode === "matching") {
+    requestAnimationFrame(renderFlashcardMatchLines);
+  }
 }
 
 function renderFlashcardBuilder() {
@@ -105,36 +110,376 @@ function renderFlashcardStudyView() {
   activeFlashcardIndex = Math.max(0, Math.min(activeFlashcardIndex, total - 1));
   const card = currentFlashcards[activeFlashcardIndex];
   const sideText = flashcardSide === "front" ? card.front : card.back;
+  const isMatchingMode = flashcardActivityMode === "matching";
   return `
     <div class="flashcard-study-wrap">
       <div class="flashcard-study-shell">
         <div class="flashcard-study-top">
-          <span>Card ${activeFlashcardIndex + 1} of ${total}</span>
-          <button type="button" onclick="flipFlashcard()">
-            <i class="bi bi-arrow-repeat me-1"></i>${flashcardSide === "front" ? "Reveal" : "Show front"}
-          </button>
+          <span>${isMatchingMode ? `${Math.min(total, flashcardMatchingLimit())} matching pairs` : `Card ${activeFlashcardIndex + 1} of ${total}`}</span>
+          <div class="flashcard-study-top-actions">
+            <div class="flashcard-mode-switch" role="group" aria-label="Flashcard activity mode">
+              <button class="${!isMatchingMode ? "active" : ""}" type="button" onclick="setFlashcardActivityMode('cards')">
+                <i class="bi bi-card-text me-1"></i>Cards
+              </button>
+              <button class="${isMatchingMode ? "active" : ""}" type="button" onclick="setFlashcardActivityMode('matching')">
+                <i class="bi bi-bezier2 me-1"></i>Match
+              </button>
+            </div>
+            ${isMatchingMode ? "" : `
+              <button class="flashcard-reveal-btn" type="button" onclick="flipFlashcard()">
+                <i class="bi bi-arrow-repeat me-1"></i>${flashcardSide === "front" ? "Reveal" : "Show front"}
+              </button>
+            `}
+          </div>
         </div>
-        <button class="flashcard-stage ${flashcardSide === "back" ? "back" : ""}" type="button" onclick="flipFlashcard()">
-          <span class="flashcard-side-label">${flashcardSide === "front" ? "Prompt" : "Answer"}</span>
-          <div class="flashcard-main-text">${markdownToHTML(sideText)}</div>
-          ${flashcardSide === "front" && card.hint ? `<div class="flashcard-hint"><strong>Hint:</strong> ${markdownToHTML(card.hint)}</div>` : ""}
-          ${flashcardSide === "back" && card.sourceReference ? `<div class="flashcard-source"><strong>Source basis:</strong> ${inlineMarkdownHTML(card.sourceReference)}</div>` : ""}
-        </button>
-        <div class="flashcard-nav-row">
-          <button class="btn btn-outline-primary" type="button" onclick="setActiveFlashcard(${activeFlashcardIndex - 1})" ${activeFlashcardIndex <= 0 ? "disabled" : ""}>
-            <i class="bi bi-chevron-left me-1"></i>Previous
+        ${isMatchingMode ? renderFlashcardMatchingActivity() : `
+          <button class="flashcard-stage ${flashcardSide === "back" ? "back" : ""}" type="button" onclick="flipFlashcard()">
+            <span class="flashcard-side-label">${flashcardSide === "front" ? "Prompt" : "Answer"}</span>
+            <div class="flashcard-main-text">${markdownToHTML(sideText)}</div>
+            ${flashcardSide === "front" && card.hint ? `<div class="flashcard-hint"><strong>Hint:</strong> ${markdownToHTML(card.hint)}</div>` : ""}
+            ${flashcardSide === "back" && card.sourceReference ? `<div class="flashcard-source"><strong>Source basis:</strong> ${inlineMarkdownHTML(card.sourceReference)}</div>` : ""}
           </button>
-          <button class="btn btn-outline-primary" type="button" onclick="setActiveFlashcard(${activeFlashcardIndex + 1})" ${activeFlashcardIndex >= total - 1 ? "disabled" : ""}>
-            Next<i class="bi bi-chevron-right ms-1"></i>
-          </button>
-        </div>
+          <div class="flashcard-nav-row">
+            <button class="btn btn-outline-primary" type="button" onclick="setActiveFlashcard(${activeFlashcardIndex - 1})" ${activeFlashcardIndex <= 0 ? "disabled" : ""}>
+              <i class="bi bi-chevron-left me-1"></i>Previous
+            </button>
+            <button class="btn btn-outline-primary" type="button" onclick="setActiveFlashcard(${activeFlashcardIndex + 1})" ${activeFlashcardIndex >= total - 1 ? "disabled" : ""}>
+              Next<i class="bi bi-chevron-right ms-1"></i>
+            </button>
+          </div>
+        `}
       </div>
       <div class="flashcard-footer-actions">
         <button type="button" onclick="openFlashcardListModal()">All flashcards</button>
+        ${isMatchingMode ? `<button type="button" onclick="resetFlashcardMatching()"><i class="bi bi-eraser me-1"></i>Reset match</button>` : ""}
         <button type="button" onclick="regenerateFlashcards()"><i class="bi bi-arrow-clockwise me-1"></i>Regenerate</button>
       </div>
     </div>
   `;
+}
+
+function flashcardMatchingLimit() {
+  return Math.max(3, Math.min(8, Number(window.SYNAPSE_FLASHCARD_MATCH_LIMIT || 8)));
+}
+
+function normaliseFlashcardMatchText(value, limit = 140) {
+  const cleaned = cleanMindText(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return shorten(cleaned || "Open the notes for this answer.", limit);
+}
+
+function deckSignatureForMatching(cards = currentFlashcards) {
+  return (cards || [])
+    .map(card => `${card.id || ""}:${normaliseFlashcardMatchText(card.front, 90)}=>${normaliseFlashcardMatchText(card.back, 90)}`)
+    .join("|");
+}
+
+function stableFlashcardShuffle(items, seed = "") {
+  return [...items]
+    .map((item, index) => {
+      let hash = 2166136261;
+      const source = `${seed}:${item.id}:${index}`;
+      for (let i = 0; i < source.length; i += 1) {
+        hash ^= source.charCodeAt(i);
+        hash = Math.imul(hash, 16777619) >>> 0;
+      }
+      return { item, rank: hash };
+    })
+    .sort((a, b) => a.rank - b.rank)
+    .map(entry => entry.item);
+}
+
+function buildFlashcardMatchingPairs(cards = currentFlashcards, limit = flashcardMatchingLimit()) {
+  const seen = new Set();
+  return (cards || [])
+    .map((card, index) => {
+      const front = normaliseFlashcardMatchText(card.front, 120);
+      const back = normaliseFlashcardMatchText(card.back, 180);
+      const key = `${front.toLowerCase()}=>${back.toLowerCase()}`;
+      if (!front || !back || seen.has(key)) return null;
+      seen.add(key);
+      const id = String(card.id || `fc${index + 1}`).replace(/[^A-Za-z0-9_-]/g, "_");
+      return {
+        id,
+        termId: `term-${id}`,
+        branchId: `branch-${id}`,
+        term: front,
+        branch: back,
+        sourceReference: card.sourceReference || "",
+        difficulty: card.difficulty || "medium"
+      };
+    })
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function createFlashcardMatchingState(cards = currentFlashcards) {
+  return {
+    deckSignature: deckSignatureForMatching(cards),
+    matches: {},
+    selectedTermId: "",
+    draggingTermId: "",
+    validated: false,
+    lastScore: null
+  };
+}
+
+function ensureFlashcardMatchingState() {
+  const signature = deckSignatureForMatching();
+  if (!flashcardMatchingState || flashcardMatchingState.deckSignature !== signature) {
+    flashcardMatchingState = createFlashcardMatchingState();
+  }
+  return flashcardMatchingState;
+}
+
+function findFlashcardMatchPairByTerm(termId, pairs = buildFlashcardMatchingPairs()) {
+  return pairs.find(pair => pair.termId === termId) || null;
+}
+
+function findFlashcardMatchPairByBranch(branchId, pairs = buildFlashcardMatchingPairs()) {
+  return pairs.find(pair => pair.branchId === branchId) || null;
+}
+
+function connectFlashcardMatchPair(termId, branchId, state = ensureFlashcardMatchingState()) {
+  if (!termId || !branchId) return state;
+  Object.entries(state.matches || {}).forEach(([existingTermId, existingBranchId]) => {
+    if (existingBranchId === branchId && existingTermId !== termId) {
+      delete state.matches[existingTermId];
+    }
+  });
+  state.matches = { ...(state.matches || {}), [termId]: branchId };
+  state.selectedTermId = "";
+  state.validated = false;
+  state.lastScore = null;
+  return state;
+}
+
+function flashcardMatchValidationSummary(pairs = buildFlashcardMatchingPairs(), state = ensureFlashcardMatchingState()) {
+  const total = pairs.length;
+  const matched = pairs.filter(pair => state.matches?.[pair.termId]).length;
+  const correct = pairs.filter(pair => state.matches?.[pair.termId] === pair.branchId).length;
+  const wrong = Math.max(0, matched - correct);
+  return { total, matched, correct, wrong, complete: total > 0 && correct === total };
+}
+
+function flashcardMatchStatusForPair(pair, state = ensureFlashcardMatchingState()) {
+  if (!state.validated) return "";
+  const branchId = state.matches?.[pair.termId] || "";
+  if (!branchId) return "missing";
+  return branchId === pair.branchId ? "correct" : "incorrect";
+}
+
+function setFlashcardActivityMode(mode) {
+  flashcardActivityMode = mode === "matching" ? "matching" : "cards";
+  if (flashcardActivityMode === "matching") ensureFlashcardMatchingState();
+  renderFlashcardPanel();
+}
+
+function selectFlashcardMatchTerm(termId) {
+  const state = ensureFlashcardMatchingState();
+  state.selectedTermId = state.selectedTermId === termId ? "" : termId;
+  state.validated = false;
+  state.lastScore = null;
+  renderFlashcardPanel();
+}
+
+function selectFlashcardMatchBranch(branchId) {
+  const state = ensureFlashcardMatchingState();
+  if (state.selectedTermId) {
+    connectFlashcardMatchPair(state.selectedTermId, branchId, state);
+    renderFlashcardPanel();
+    return;
+  }
+  const usedTermId = Object.keys(state.matches || {}).find(termId => state.matches[termId] === branchId);
+  if (usedTermId) {
+    state.selectedTermId = usedTermId;
+    state.validated = false;
+    state.lastScore = null;
+    renderFlashcardPanel();
+  }
+}
+
+function handleFlashcardMatchDragStart(event, termId) {
+  const state = ensureFlashcardMatchingState();
+  state.draggingTermId = termId;
+  state.selectedTermId = termId;
+  state.validated = false;
+  state.lastScore = null;
+  if (event?.dataTransfer) {
+    event.dataTransfer.effectAllowed = "link";
+    event.dataTransfer.setData("text/plain", termId);
+  }
+}
+
+function handleFlashcardMatchDrop(event, branchId) {
+  if (event) event.preventDefault();
+  const state = ensureFlashcardMatchingState();
+  const termId = event?.dataTransfer?.getData("text/plain") || state.draggingTermId || state.selectedTermId;
+  state.draggingTermId = "";
+  if (termId) {
+    connectFlashcardMatchPair(termId, branchId, state);
+    renderFlashcardPanel();
+  }
+}
+
+function validateFlashcardMatches() {
+  const state = ensureFlashcardMatchingState();
+  const pairs = buildFlashcardMatchingPairs();
+  state.validated = true;
+  state.lastScore = flashcardMatchValidationSummary(pairs, state);
+  renderFlashcardPanel();
+}
+
+function resetFlashcardMatching() {
+  flashcardMatchingState = createFlashcardMatchingState();
+  renderFlashcardPanel();
+}
+
+function retryFlashcardMatching() {
+  const state = ensureFlashcardMatchingState();
+  const pairs = buildFlashcardMatchingPairs();
+  const kept = {};
+  pairs.forEach(pair => {
+    if (state.matches?.[pair.termId] === pair.branchId) {
+      kept[pair.termId] = pair.branchId;
+    }
+  });
+  flashcardMatchingState = {
+    ...createFlashcardMatchingState(),
+    matches: kept
+  };
+  renderFlashcardPanel();
+}
+
+function renderFlashcardMatchingActivity() {
+  const state = ensureFlashcardMatchingState();
+  const pairs = buildFlashcardMatchingPairs();
+  if (pairs.length < 2) {
+    return `
+      <div class="flashcard-match-empty">
+        <i class="bi bi-bezier2"></i>
+        <strong>Not enough pairs yet</strong>
+        <p>Generate at least two flashcards to build a matching-line activity.</p>
+      </div>
+    `;
+  }
+
+  const branches = stableFlashcardShuffle(
+    pairs.map(pair => ({
+      id: pair.branchId,
+      pairId: pair.id,
+      text: pair.branch,
+      sourceReference: pair.sourceReference
+    })),
+    state.deckSignature
+  );
+  const score = state.lastScore || flashcardMatchValidationSummary(pairs, state);
+  const statusText = state.validated
+    ? (score.complete ? "All matches are correct." : `${score.correct}/${score.total} correct. Missed pairs are marked.`)
+    : `${score.matched}/${score.total} connected.`;
+  return `
+    <div class="flashcard-match-module ${state.validated ? "validated" : ""}">
+      <div class="flashcard-match-head">
+        <div>
+          <span class="flashcard-side-label">Matching lines</span>
+          <h4>Connect each prompt to the correct branch</h4>
+          <p>Each line links a recall prompt with its source-grounded answer.</p>
+        </div>
+        <div class="flashcard-match-score ${score.complete ? "complete" : ""}">
+          <strong>${score.correct}/${score.total}</strong>
+          <span>${escapeHTML(statusText)}</span>
+        </div>
+      </div>
+
+      <div class="flashcard-match-board" id="flashcardMatchBoard">
+        <svg id="flashcardMatchLines" class="flashcard-match-lines" aria-hidden="true"></svg>
+        <div class="flashcard-match-column" data-match-column="terms">
+          <div class="flashcard-match-column-title">Prompts</div>
+          ${pairs.map((pair, index) => {
+            const matchedBranchId = state.matches?.[pair.termId] || "";
+            const status = flashcardMatchStatusForPair(pair, state);
+            return `
+              <button class="flashcard-match-card match-term-card ${state.selectedTermId === pair.termId ? "selected" : ""} ${matchedBranchId ? "connected" : ""} ${status}"
+                type="button"
+                draggable="true"
+                data-term-id="${escapeAttr(pair.termId)}"
+                data-branch-id="${escapeAttr(matchedBranchId)}"
+                onclick="selectFlashcardMatchTerm('${escapeAttr(pair.termId)}')"
+                ondragstart="handleFlashcardMatchDragStart(event, '${escapeAttr(pair.termId)}')">
+                <span class="flashcard-match-index">${index + 1}</span>
+                <span>${escapeHTML(pair.term)}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+
+        <div class="flashcard-match-column" data-match-column="branches">
+          <div class="flashcard-match-column-title">Branches</div>
+          ${branches.map((branch, index) => {
+            const connectedTermId = Object.keys(state.matches || {}).find(termId => state.matches[termId] === branch.id) || "";
+            const connectedPair = connectedTermId ? findFlashcardMatchPairByTerm(connectedTermId, pairs) : null;
+            const status = state.validated && connectedPair
+              ? (connectedPair.branchId === branch.id ? "correct" : "incorrect")
+              : "";
+            return `
+              <button class="flashcard-match-card match-branch-card ${connectedTermId ? "connected" : ""} ${status}"
+                type="button"
+                data-branch-id="${escapeAttr(branch.id)}"
+                data-term-id="${escapeAttr(connectedTermId)}"
+                onclick="selectFlashcardMatchBranch('${escapeAttr(branch.id)}')"
+                ondragover="event.preventDefault()"
+                ondrop="handleFlashcardMatchDrop(event, '${escapeAttr(branch.id)}')">
+                <span class="flashcard-match-index">${String.fromCharCode(65 + index)}</span>
+                <span>${escapeHTML(branch.text)}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="flashcard-match-actions">
+        <button class="btn btn-primary" type="button" onclick="validateFlashcardMatches()" ${score.matched < score.total ? "disabled" : ""}>
+          <i class="bi bi-check2-circle me-1"></i>Check matches
+        </button>
+        <button class="btn btn-outline-primary" type="button" onclick="retryFlashcardMatching()" ${state.validated && score.wrong > 0 ? "" : "disabled"}>
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Retry missed
+        </button>
+        <button class="btn btn-outline-secondary" type="button" onclick="resetFlashcardMatching()">
+          <i class="bi bi-eraser me-1"></i>Reset
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderFlashcardMatchLines() {
+  const board = document.getElementById("flashcardMatchBoard");
+  const svg = document.getElementById("flashcardMatchLines");
+  if (!board || !svg || flashcardActivityMode !== "matching") return;
+  const state = ensureFlashcardMatchingState();
+  const boardRect = board.getBoundingClientRect();
+  svg.setAttribute("viewBox", `0 0 ${Math.max(1, boardRect.width)} ${Math.max(1, boardRect.height)}`);
+  svg.setAttribute("width", boardRect.width);
+  svg.setAttribute("height", boardRect.height);
+
+  const lines = Object.entries(state.matches || []).map(([termId, branchId]) => {
+    const term = Array.from(board.querySelectorAll(".match-term-card")).find(element => element.dataset.termId === termId);
+    const branch = Array.from(board.querySelectorAll(".match-branch-card")).find(element => element.dataset.branchId === branchId);
+    if (!term || !branch) return "";
+    const termRect = term.getBoundingClientRect();
+    const branchRect = branch.getBoundingClientRect();
+    const x1 = termRect.right - boardRect.left;
+    const y1 = termRect.top - boardRect.top + termRect.height / 2;
+    const x2 = branchRect.left - boardRect.left;
+    const y2 = branchRect.top - boardRect.top + branchRect.height / 2;
+    const curve = Math.max(36, Math.min(140, (x2 - x1) * 0.42));
+    const pair = findFlashcardMatchPairByTerm(termId);
+    const status = state.validated && pair ? (branchId === pair.branchId ? "correct" : "incorrect") : "";
+    return `<path class="${status}" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + curve).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - curve).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}" />`;
+  }).join("");
+
+  svg.innerHTML = lines;
 }
 
 function setFlashcardCountMode(mode) {
@@ -158,6 +503,8 @@ function clearFlashcardsAndShowBuilder() {
   activeFlashcardIndex = 0;
   flashcardSide = "front";
   flashcardError = "";
+  flashcardActivityMode = "cards";
+  flashcardMatchingState = null;
   renderFlashcardPanel();
 }
 
@@ -174,6 +521,7 @@ async function generateFlashcards() {
   currentFlashcards = [];
   activeFlashcardIndex = 0;
   flashcardSide = "front";
+  flashcardMatchingState = null;
   switchTool("flashcards");
   renderFlashcardPanel();
 
@@ -209,6 +557,7 @@ async function generateFlashcards() {
 
 function regenerateFlashcards() {
   currentFlashcards = [];
+  flashcardMatchingState = null;
   generateFlashcards();
 }
 

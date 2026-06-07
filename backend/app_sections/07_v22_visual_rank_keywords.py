@@ -613,8 +613,40 @@ def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, L
     return "\n\n".join(slide_texts).strip(), embedded_parts
 
 
+def rasterize_svg_image_bytes(data: bytes, max_width: Optional[int] = None) -> bytes:
+    """Convert generated PPTX SVG fallbacks into PNG without changing labels/text."""
+    if not data or fitz is None:
+        return b""
+    doc = None
+    try:
+        doc = fitz.open(stream=data, filetype="svg")
+        if len(doc) <= 0:
+            return b""
+        page = doc.load_page(0)
+        width = max(float(page.rect.width or 1), 1.0)
+        max_width = int(max_width or env_int("PPTX_SVG_RASTER_MAX_WIDTH", 2200))
+        scale = min(2.0, max(1.0, max_width / width))
+        pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        return pix.tobytes("png")
+    except Exception:
+        return b""
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
+
+
 def source_preview_image_url(data: bytes, content_type: str = "image/jpeg") -> str:
-    if (content_type or "").lower().startswith("image/") and (content_type or "").lower() != "image/svg+xml":
+    normalized_type = (content_type or "").lower()
+    if normalized_type == "image/svg+xml":
+        rasterized = rasterize_svg_image_bytes(data)
+        if rasterized:
+            data, content_type = _v22_resize_image_bytes(rasterized, "image/png")
+        else:
+            content_type = "image/svg+xml"
+    elif normalized_type.startswith("image/"):
         data, content_type = _v22_resize_image_bytes(data, content_type)
     encoded = base64.b64encode(data).decode("utf-8")
     return f"data:{content_type};base64,{encoded}"

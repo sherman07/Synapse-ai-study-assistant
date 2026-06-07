@@ -261,6 +261,8 @@ let activeFlashcardIndex = 0;
 let flashcardSide = "front";
 let flashcardError = "";
 let isFlashcardGenerating = false;
+let flashcardActivityMode = "cards";
+let flashcardMatchingState = null;
 
 function sourceFigureText(item) {
   if (!item || typeof item !== "object") return "";
@@ -704,7 +706,7 @@ async function analyzeMaterials() {
     fullSummary = ensureRenderableSummary(fullSummary, sections);
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
-    visualGalleryData = sanitizeLearningFigures(data.visual_gallery);
+    visualGalleryData = sanitizeLearningFigures(data.visual_gallery || data.visuals || []);
     currentPrimarySourceIdentity = data.primary_source_identity || "";
     currentHistoryId = "";
     resetTimelineState();
@@ -740,8 +742,9 @@ async function analyzeMaterials() {
       sections,
       connections: connectionsData,
       mindMap: currentMindMap,
-      // Do not store base64 slide images in localStorage; they can exceed browser quota.
-      visualGallery: [],
+      // Store only compact browser-safe visual metadata. Large base64 images are
+      // filtered out by compactVisualGalleryForStorage before localStorage write.
+      visualGallery: compactVisualGalleryForStorage(visualGalleryData),
       language: data.output_language || outputLanguage,
       detailLevel: data.detail_level || data.generation_depth || "auto",
       depthLabel: data.depth_label || data.generation_depth || data.detail_level || "Auto",

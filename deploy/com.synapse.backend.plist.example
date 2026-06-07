@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.synapse.backend</string>
+
+  <key>WorkingDirectory</key>
+  <string>/ABSOLUTE/PATH/TO/Synapse-ai-study-assistant</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/ABSOLUTE/PATH/TO/Synapse-ai-study-assistant/.venv/bin/python</string>
+    <string>run_backend.py</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SYNAPSE_BACKEND_RELOAD</key>
+    <string>false</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/ABSOLUTE/PATH/TO/Synapse-ai-study-assistant/.synapse_runtime/backend.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/ABSOLUTE/PATH/TO/Synapse-ai-study-assistant/.synapse_runtime/backend.err.log</string>
+</dict>
+</plist>

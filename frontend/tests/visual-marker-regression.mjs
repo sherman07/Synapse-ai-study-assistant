@@ -27,7 +27,7 @@ const makeRenderer = new Function(
   `
   ${source}
   configureMarkdownRenderer({
-    getLearningFigureByMarker: index => index === 0 ? { index: 0, url: "data:image/png;base64,AA==", title: "Result table" } : null,
+    getLearningFigureByMarker: index => index === 0 ? { index: 0, url: "http://127.0.0.1:8001/assets/visuals/result-table.png", title: "Result table" } : null,
     renderInlineVisualCard: index => '<figure data-visual-card="' + index + '"></figure>',
     renderInlineVisualReference: (index, shownIndex) => '<p data-visual-ref="' + index + ':' + shownIndex + '"></p>'
   });

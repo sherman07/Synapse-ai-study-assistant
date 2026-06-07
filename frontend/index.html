@@ -3,18 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Synapse</title>
+  <title>Synapse Study Workspace</title>
+  <meta name="description" content="Use Synapse to upload study sources and generate notes, mind maps, flashcards, timelines, quizzes, and AI tutor feedback." />
+  <meta name="robots" content="noindex,follow" />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:title" content="Synapse Study Workspace" />
+  <meta property="og:description" content="A source-aware AI study workspace for active learning." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <meta name="twitter:card" content="summary" />
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="/logos/synapse.png">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
   <script src="./src/legacy/devReloadGuard.js?v=live-server-guard-v2"></script>
   <link rel="stylesheet" href="style.css?v=loading-history-v1">
+  <link rel="stylesheet" href="synapse-selects.css?v=synapse-selects-v1">
 </head>
 <body>
   <div id="root"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="config.js?v=runtime-config-v1"></script>
+  <script src="auth-client.js?v=real-auth-v2"></script>
+  <script src="synapse-selects.js?v=synapse-selects-v1"></script>
   <script>
     window.MathJax = {
       tex: {
@@ -31,6 +43,6 @@
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script type="module" src="./src/main.js?v=account-landing-v2"></script>
+  <script type="module" src="./src/main.js?v=account-landing-v3"></script>
 </body>
 </html>

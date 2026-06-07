@@ -19,8 +19,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
-from fastapi import FastAPI, File, Form, Response, UploadFile
+from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 BACKEND_PACKAGE_DIR = Path(__file__).resolve().parent
 if str(BACKEND_PACKAGE_DIR) not in sys.path:
@@ -62,8 +63,10 @@ from core.config import (
     OPENAI_ORG_ID,
     OPENAI_PROJECT_ID,
     OPENAI_TIMEOUT_SECONDS,
+    PUBLIC_BACKEND_BASE_URL,
     REALTIME_MODEL,
     REALTIME_VOICE,
+    RUNTIME_ASSETS_DIR,
     SOURCE_PREVIEW_MAX_EMBEDDED_IMAGES,
     SOURCE_PREVIEW_MAX_PDF_PAGES,
     SOURCE_PREVIEW_MAX_SLIDES,
@@ -161,6 +164,11 @@ try:
 except Exception:
     Presentation = None
 
+try:
+    import stripe
+except Exception:
+    stripe = None
+
 import logging
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 
@@ -184,6 +192,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+RUNTIME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/assets", StaticFiles(directory=str(RUNTIME_ASSETS_DIR)), name="synapse_assets")
 
 APP_SECTION_FILES = (
     "01_health.py",
@@ -201,3 +211,475 @@ APP_SECTION_FILES = (
 )
 
 AppSectionLoader(BACKEND_PACKAGE_DIR, APP_SECTION_FILES).load(globals())
+
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or os.getenv("SYNAPSE_SUPABASE_URL") or "").rstrip("/")
+SUPABASE_ANON_KEY = (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SYNAPSE_SUPABASE_ANON_KEY") or "").strip()
+SUPABASE_SERVICE_ROLE_KEY = (
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    or os.getenv("SYNAPSE_SUPABASE_SERVICE_ROLE_KEY")
+    or ""
+).strip()
+STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK = (
+    os.getenv("SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK", "false").lower() not in {"0", "false", "no"}
+)
+SYNAPSE_FRONTEND_BASE_URL = (
+    os.getenv("SYNAPSE_FRONTEND_BASE_URL")
+    or os.getenv("SYNAPSE_PUBLIC_FRONTEND_URL")
+    or "http://127.0.0.1:5173/frontend"
+).rstrip("/")
+STRIPE_PRICE_IDS = {
+    "starter": (os.getenv("STRIPE_PRICE_STARTER") or os.getenv("SYNAPSE_STRIPE_PRICE_STARTER") or "").strip(),
+    "student": (os.getenv("STRIPE_PRICE_STUDENT") or os.getenv("SYNAPSE_STRIPE_PRICE_STUDENT") or "").strip(),
+    "pro": (os.getenv("STRIPE_PRICE_PRO") or os.getenv("SYNAPSE_STRIPE_PRICE_PRO") or "").strip(),
+}
+
+if stripe and STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+
+
+def json_error(message: str, status_code: int = 400) -> Response:
+    return Response(
+        json.dumps({"error": message}),
+        status_code=status_code,
+        media_type="application/json",
+    )
+
+
+def runtime_path(name: str) -> Path:
+    root = RUNTIME_ASSETS_DIR.parent
+    root.mkdir(parents=True, exist_ok=True)
+    return root / name
+
+
+def read_runtime_json(name: str, fallback: Any) -> Any:
+    path = runtime_path(name)
+    try:
+        if not path.exists():
+            return fallback
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+
+def write_runtime_json(name: str, value: Any) -> None:
+    path = runtime_path(name)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def append_runtime_jsonl(name: str, value: Dict[str, Any]) -> None:
+    path = runtime_path(name)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(value, ensure_ascii=False) + "\n")
+
+
+def read_runtime_jsonl(name: str) -> List[Dict[str, Any]]:
+    path = runtime_path(name)
+    if not path.exists():
+        return []
+    items = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            parsed = json.loads(line)
+            if isinstance(parsed, dict):
+                items.append(parsed)
+        except Exception:
+            continue
+    return items
+
+
+def bearer_token_from_request(request: Request) -> str:
+    header = request.headers.get("authorization", "")
+    match = re.match(r"^Bearer\s+(.+)$", header.strip(), re.I)
+    return match.group(1).strip() if match else ""
+
+
+def verified_supabase_user(request: Request) -> Optional[Dict[str, Any]]:
+    token = bearer_token_from_request(request)
+    if not token:
+        return None
+    if not SUPABASE_URL or not (SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "apikey": SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY,
+    }
+    try:
+        response = requests.get(f"{SUPABASE_URL}/auth/v1/user", headers=headers, timeout=12)
+    except Exception:
+        return None
+    if response.status_code >= 400:
+        return None
+    user = response.json()
+    if not user.get("id"):
+        return None
+    return user
+
+
+def require_verified_user(request: Request) -> Any:
+    user = verified_supabase_user(request)
+    if not user:
+        return json_error("Authentication is required. Configure Supabase and sign in again.", 401)
+    return user
+
+
+def public_user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
+    metadata = user.get("user_metadata") or {}
+    return {
+        "id": user.get("id"),
+        "email": user.get("email"),
+        "created_at": user.get("created_at"),
+        "role": metadata.get("role") or "student",
+        "display_name": (
+            metadata.get("full_name")
+            or metadata.get("name")
+            or " ".join(
+                item for item in [
+                    metadata.get("first_name") or metadata.get("firstName"),
+                    metadata.get("last_name") or metadata.get("lastName"),
+                ]
+                if item
+            ).strip()
+            or user.get("email")
+        ),
+    }
+
+
+def price_id_for_plan(plan_id: str, explicit_price_id: str = "") -> str:
+    clean_plan = re.sub(r"[^a-z0-9_-]", "", str(plan_id or "").lower())
+    clean_explicit = str(explicit_price_id or "").strip()
+    configured_values = {value for value in STRIPE_PRICE_IDS.values() if value}
+    if clean_explicit and clean_explicit in configured_values:
+        return clean_explicit
+    return STRIPE_PRICE_IDS.get(clean_plan, "")
+
+
+def require_stripe_ready() -> Optional[Response]:
+    if not stripe or not STRIPE_SECRET_KEY:
+        return json_error("Stripe billing is not configured. Set STRIPE_SECRET_KEY and Stripe price IDs.", 503)
+    return None
+
+
+def billing_store() -> Dict[str, Any]:
+    store = read_runtime_json("billing_customers.json", {})
+    return store if isinstance(store, dict) else {}
+
+
+def save_billing_store(store: Dict[str, Any]) -> None:
+    write_runtime_json("billing_customers.json", store)
+
+
+def get_billing_profile(user: Dict[str, Any]) -> Dict[str, Any]:
+    store = billing_store()
+    profile = store.get(user["id"])
+    if isinstance(profile, dict):
+        return profile
+    profile = {
+        "user_id": user["id"],
+        "email": user.get("email"),
+        "stripe_customer_id": "",
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+    store[user["id"]] = profile
+    save_billing_store(store)
+    return profile
+
+
+def save_billing_profile(user_id: str, profile: Dict[str, Any]) -> None:
+    store = billing_store()
+    profile["updated_at"] = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    store[user_id] = profile
+    save_billing_store(store)
+
+
+def get_or_create_stripe_customer(user: Dict[str, Any]) -> str:
+    profile = get_billing_profile(user)
+    if profile.get("stripe_customer_id"):
+        return profile["stripe_customer_id"]
+    customer = stripe.Customer.create(
+        email=user.get("email"),
+        metadata={
+            "synapse_user_id": user["id"],
+            "source": "synapse",
+        },
+    )
+    profile["stripe_customer_id"] = customer.id
+    save_billing_profile(user["id"], profile)
+    return customer.id
+
+
+def _clean_contact_text(value: Any, limit: int) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())[:limit]
+
+
+def _valid_contact_email(value: str) -> bool:
+    return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", value or ""))
+
+
+@app.post("/contact")
+async def submit_contact(request: Request) -> Dict[str, Any]:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = dict(await request.form())
+
+    if _clean_contact_text(payload.get("company"), 160):
+        return {"ok": True, "message": "Thanks, your enquiry has been received."}
+
+    name = _clean_contact_text(payload.get("name"), 120)
+    email = _clean_contact_text(payload.get("email"), 180).lower()
+    interest = _clean_contact_text(payload.get("interest"), 80) or "general"
+    message = _clean_contact_text(payload.get("message"), 4000)
+
+    if not name:
+        return Response(
+            json.dumps({"error": "Name is required."}),
+            status_code=422,
+            media_type="application/json",
+        )
+    if not _valid_contact_email(email):
+        return Response(
+            json.dumps({"error": "A valid email address is required."}),
+            status_code=422,
+            media_type="application/json",
+        )
+    if len(message) < 12:
+        return Response(
+            json.dumps({"error": "Message must be at least 12 characters."}),
+            status_code=422,
+            media_type="application/json",
+        )
+
+    record = {
+        "received_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "name": name,
+        "email": email,
+        "interest": interest,
+        "message": message,
+        "source": _clean_contact_text(payload.get("source"), 80) or "website",
+        "user_agent": request.headers.get("user-agent", "")[:300],
+    }
+    contact_path = RUNTIME_ASSETS_DIR.parent / "contact_inquiries.jsonl"
+    contact_path.parent.mkdir(parents=True, exist_ok=True)
+    with contact_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    webhook_url = (os.getenv("SYNAPSE_CONTACT_WEBHOOK_URL") or "").strip()
+    if webhook_url:
+        try:
+            requests.post(webhook_url, json=record, timeout=8)
+        except Exception:
+            return {
+                "ok": True,
+                "message": "Thanks, your enquiry has been saved. Email delivery is configured but the webhook did not respond.",
+            }
+
+    return {
+        "ok": True,
+        "message": "Thanks, your enquiry has been received.",
+    }
+
+
+@app.post("/billing/checkout")
+async def create_billing_checkout(request: Request) -> Any:
+    user_or_response = require_verified_user(request)
+    if isinstance(user_or_response, Response):
+        return user_or_response
+    stripe_error = require_stripe_ready()
+    if stripe_error:
+        return stripe_error
+    user = user_or_response
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    plan_id = _clean_contact_text(payload.get("plan_id"), 40) or "student"
+    price_id = price_id_for_plan(plan_id, _clean_contact_text(payload.get("price_id"), 120))
+    if not price_id:
+        return json_error(f"No Stripe price is configured for the {plan_id} plan.", 422)
+
+    success_url = _clean_contact_text(payload.get("success_url"), 500) or f"{SYNAPSE_FRONTEND_BASE_URL}/index.html?billing=success"
+    cancel_url = _clean_contact_text(payload.get("cancel_url"), 500) or f"{SYNAPSE_FRONTEND_BASE_URL}/index.html?billing=cancelled"
+    customer_id = get_or_create_stripe_customer(user)
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        client_reference_id=user["id"],
+        line_items=[{"price": price_id, "quantity": 1}],
+        mode="payment",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "synapse_user_id": user["id"],
+            "synapse_plan_id": plan_id,
+            "synapse_price_id": price_id,
+        },
+        customer_update={"name": "auto"},
+    )
+    return {
+        "ok": True,
+        "id": session.id,
+        "url": session.url,
+        "customer_id": customer_id,
+    }
+
+
+@app.post("/billing/portal")
+async def create_billing_portal(request: Request) -> Any:
+    user_or_response = require_verified_user(request)
+    if isinstance(user_or_response, Response):
+        return user_or_response
+    stripe_error = require_stripe_ready()
+    if stripe_error:
+        return stripe_error
+    user = user_or_response
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    profile = get_billing_profile(user)
+    customer_id = profile.get("stripe_customer_id")
+    if not customer_id:
+        return json_error("No Stripe customer exists for this account yet. Buy a credit pack first.", 404)
+    return_url = _clean_contact_text(payload.get("return_url"), 500) or f"{SYNAPSE_FRONTEND_BASE_URL}/index.html"
+    session = stripe.billing_portal.Session.create(
+        customer=customer_id,
+        return_url=return_url,
+    )
+    return {
+        "ok": True,
+        "url": session.url,
+        "customer_id": customer_id,
+    }
+
+
+@app.post("/billing/webhook")
+async def stripe_billing_webhook(request: Request) -> Any:
+    body = await request.body()
+    try:
+        if STRIPE_WEBHOOK_SECRET:
+            if not stripe:
+                return json_error("Stripe package is not installed.", 503)
+            signature = request.headers.get("stripe-signature", "")
+            event = stripe.Webhook.construct_event(body, signature, STRIPE_WEBHOOK_SECRET)
+        elif not SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK:
+            return json_error("Stripe webhook signing is not configured.", 503)
+        else:
+            event = json.loads(body.decode("utf-8") or "{}")
+    except Exception:
+        return json_error("Invalid Stripe webhook payload.", 400)
+
+    event_type = event.get("type", "")
+    event_object = (event.get("data") or {}).get("object") or {}
+    record = {
+        "received_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "event_id": event.get("id"),
+        "type": event_type,
+        "object_id": event_object.get("id"),
+        "customer_id": event_object.get("customer"),
+        "synapse_user_id": (event_object.get("metadata") or {}).get("synapse_user_id")
+            or event_object.get("client_reference_id"),
+        "plan_id": (event_object.get("metadata") or {}).get("synapse_plan_id"),
+        "price_id": (event_object.get("metadata") or {}).get("synapse_price_id"),
+        "payment_status": event_object.get("payment_status"),
+        "amount_total": event_object.get("amount_total"),
+        "currency": event_object.get("currency"),
+    }
+    append_runtime_jsonl("billing_ledger.jsonl", record)
+    return {"ok": True, "received": True}
+
+
+@app.get("/account/export")
+async def export_account_data(request: Request) -> Any:
+    user_or_response = require_verified_user(request)
+    if isinstance(user_or_response, Response):
+        return user_or_response
+    user = user_or_response
+    email = (user.get("email") or "").lower()
+    profile = get_billing_profile(user)
+    ledger = [
+        item for item in read_runtime_jsonl("billing_ledger.jsonl")
+        if item.get("synapse_user_id") == user["id"] or item.get("customer_id") == profile.get("stripe_customer_id")
+    ]
+    contacts = [
+        item for item in read_runtime_jsonl("contact_inquiries.jsonl")
+        if (item.get("email") or "").lower() == email
+    ]
+    deletions = [
+        item for item in read_runtime_jsonl("account_deletions.jsonl")
+        if item.get("synapse_user_id") == user["id"]
+    ]
+    return {
+        "ok": True,
+        "exported_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "user": public_user_payload(user),
+        "billing_profile": profile,
+        "billing_ledger": ledger,
+        "contact_inquiries": contacts,
+        "deletion_requests": deletions,
+        "note": "Browser-local note history is exported by the frontend because it is not stored on the server.",
+    }
+
+
+@app.post("/account/delete")
+async def delete_account(request: Request) -> Any:
+    user_or_response = require_verified_user(request)
+    if isinstance(user_or_response, Response):
+        return user_or_response
+    user = user_or_response
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if payload.get("confirm") is not True:
+        return json_error("Account deletion requires confirm=true.", 422)
+
+    profile = get_billing_profile(user)
+    deletion_record = {
+        "deleted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "synapse_user_id": user["id"],
+        "email": user.get("email"),
+        "stripe_customer_id": profile.get("stripe_customer_id"),
+        "supabase_deleted": False,
+        "stripe_marked_deleted": False,
+    }
+
+    if stripe and STRIPE_SECRET_KEY and profile.get("stripe_customer_id"):
+        try:
+            stripe.Customer.modify(
+                profile["stripe_customer_id"],
+                metadata={
+                    "synapse_user_id": user["id"],
+                    "synapse_deleted_at": deletion_record["deleted_at"],
+                },
+            )
+            deletion_record["stripe_marked_deleted"] = True
+        except Exception:
+            deletion_record["stripe_marked_deleted"] = False
+
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            response = requests.delete(
+                f"{SUPABASE_URL}/auth/v1/admin/users/{user['id']}",
+                headers={
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                    "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                },
+                timeout=15,
+            )
+            deletion_record["supabase_deleted"] = response.status_code < 400
+            if response.status_code >= 400:
+                deletion_record["supabase_delete_status"] = response.status_code
+        except Exception:
+            deletion_record["supabase_deleted"] = False
+
+    append_runtime_jsonl("account_deletions.jsonl", deletion_record)
+    return {
+        "ok": True,
+        "message": "Account deletion was processed. Local browser data should now be cleared by the client.",
+        "deletion": deletion_record,
+    }

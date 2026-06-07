@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy | Synapse</title>
+  <meta name="description" content="Read how Synapse handles study materials, account prototype data, contact enquiries, and production privacy setup." />
+  <meta name="robots" content="index,follow" />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:title" content="Privacy Policy | Synapse" />
+  <meta property="og:description" content="Privacy information for the Synapse AI study assistant website." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/logos/synapse.png">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
+  <link rel="stylesheet" href="landing-auth.css?v=launch-ready-v1">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
+  <nav class="landing-nav">
+    <div class="landing-nav-container">
+      <a href="landing.html" class="landing-logo">
+        <img src="/logos/synapse.png" alt="Synapse" class="landing-logo-img">
+        <span class="landing-logo-text">Synapse</span>
+      </a>
+      <div class="landing-nav-actions">
+        <a href="landing.html#contact" class="landing-btn landing-btn-ghost">Contact</a>
+        <a href="login.html" class="landing-btn landing-btn-primary">Login</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content" class="legal-page">
+    <section class="legal-card">
+      <span class="landing-section-badge">Privacy</span>
+      <h1>Privacy Policy</h1>
+      <p class="legal-updated">Last updated: June 7, 2026</p>
+
+      <h2>What Synapse Collects</h2>
+      <p>Synapse processes the study materials you upload, online sources you submit, generated notes, app history, and contact enquiries you send through the website.</p>
+
+      <h2>Prototype Account Data</h2>
+      <p>Synapse uses hosted Supabase Auth when configured. The browser-local account flow remains available only as a development fallback and stores non-sensitive demo account details in local storage. Passwords are never stored by the Synapse frontend.</p>
+
+      <h2>Study Materials</h2>
+      <p>Uploaded study files and generated learning outputs may be sent to the configured Synapse backend and AI providers to create notes, summaries, questions, visual guides, and tutor responses.</p>
+
+      <h2>Contact Enquiries</h2>
+      <p>Contact form submissions are validated before delivery. When the FastAPI backend is configured, enquiries are stored in the runtime contact log and can optionally be forwarded through a webhook.</p>
+
+      <h2>Production Setup</h2>
+      <p>Before a full public launch, configure real authentication, production storage, data retention rules, email delivery, analytics consent if analytics are added, and provider-specific privacy disclosures.</p>
+
+      <h2>Contact</h2>
+      <p>For privacy questions, use the <a href="landing.html#contact">Synapse contact form</a>.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -30,6 +30,8 @@ Object.assign(window, {
   generateQuiz,
   generateTimeline,
   generateVisualGuide,
+  handleFlashcardMatchDragStart,
+  handleFlashcardMatchDrop,
   jumpToFlashcardFromList,
   loadHistoryEntry,
   loadQuizHistoryRecord,
@@ -55,9 +57,12 @@ Object.assign(window, {
   renderMasteryGraphPanel,
   renderSourceTextFallback,
   resetVoiceTutorSession,
+  resetFlashcardMatching,
   resetWorkspace,
   closeAccountPanel,
+  deleteAccountAndLocalData,
   goToAuthPage,
+  exportAccountData,
   renderAccountMenu,
   revealQuizAnswer,
   saveQuizSettingsFromModal,
@@ -65,18 +70,23 @@ Object.assign(window, {
   selectMindBranch,
   selectMindChild,
   selectMindPoint,
+  selectFlashcardMatchBranch,
+  selectFlashcardMatchTerm,
   selectSourceItem,
   selectTimelineEvent,
   sendVoiceTutorText,
   sendVoiceTutorTypedAnswer,
   setActiveFlashcard,
+  setFlashcardActivityMode,
   setActiveQuizQuestion,
   setFlashcardCountMode,
   setMemoryFilter,
   setTimelineFilter,
   showFullSummary,
   signOutAccount,
+  openBillingPortal,
   startVoiceTutorSession,
+  startBillingCheckout,
   submitQuiz,
   switchTab,
   switchTool,
@@ -94,7 +104,10 @@ Object.assign(window, {
   updateQuizDraftTotal,
   updateQuizDraftType,
   updateStudyPathChoiceAnswer,
-  updateStudyPathTextAnswer
+  updateStudyPathTextAnswer,
+  validateFlashcardMatches,
+  retryFlashcardMatching,
+  renderFlashcardMatchLines
 });
 
 if (historySearch) {
@@ -117,6 +130,16 @@ setupMasteryGraphTool();
 setupQuizTool();
 setupFlashcardTool();
 renderAccountMenu();
+window.addEventListener("synapse-auth-changed", () => renderAccountMenu());
+
+if (!window.__synapseFlashcardMatchResizeBound) {
+  window.__synapseFlashcardMatchResizeBound = true;
+  window.addEventListener("resize", () => {
+    if (typeof renderFlashcardMatchLines === "function") {
+      renderFlashcardMatchLines();
+    }
+  });
+}
 
 const activeHistoryId = safeGetLocalStorage(ACTIVE_HISTORY_KEY, "");
 if (activeHistoryId && getHistory().some(item => item.id === activeHistoryId)) {

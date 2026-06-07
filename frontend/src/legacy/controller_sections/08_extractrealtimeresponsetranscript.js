@@ -536,6 +536,82 @@ function accountRoleLabel(role) {
   return labels[String(role || "").toLowerCase()] || "Learner";
 }
 
+function accountAuthModeLabel(session) {
+  if (session?.authMode === "supabase") return "Supabase Auth";
+  if (session?.authMode === "local_demo") return "Local demo auth";
+  return session?.authProvider ? `${session.authProvider} auth` : "Not signed in";
+}
+
+function accountPanelStatusHTML() {
+  return `<div id="accountPanelStatus" class="account-panel-status" role="status" aria-live="polite"></div>`;
+}
+
+function setAccountPanelStatus(type, message) {
+  const status = document.getElementById("accountPanelStatus");
+  if (!status) {
+    if (message) alert(message);
+    return;
+  }
+  status.textContent = message || "";
+  status.className = message ? `account-panel-status show ${type}` : "account-panel-status";
+}
+
+function billingPlansForAccount() {
+  if (window.SynapseAuth?.getBillingPlans) {
+    return window.SynapseAuth.getBillingPlans();
+  }
+  return [];
+}
+
+function billingActionsHTML() {
+  const session = getCurrentAccountSession();
+  const productionAuthReady = session?.authMode === "supabase";
+  const plans = billingPlansForAccount();
+  const planCards = plans.map(plan => {
+    const hasPrice = Boolean(plan.priceId);
+    const configured = hasPrice && productionAuthReady;
+    const description = !productionAuthReady
+      ? "Sign in with Supabase production auth first"
+      : (hasPrice ? (plan.description || "Stripe Checkout") : "Set the Stripe Price ID first");
+    return `
+      <button class="account-plan-action" type="button" ${configured ? "" : "disabled"}
+              onclick="startBillingCheckout('${escapeAttr(plan.id)}')">
+        <span>
+          <strong>${escapeHTML(plan.label || plan.id)}</strong>
+          <small>${escapeHTML(description)}</small>
+        </span>
+        <i class="bi ${configured ? "bi-arrow-right" : "bi-exclamation-circle"}"></i>
+      </button>
+    `;
+  }).join("");
+  return `
+    <div class="account-panel-actions">
+      <div class="account-plan-grid">${planCards || `<p class="account-panel-help">Set window.SYNAPSE_BILLING_PLANS to enable checkout buttons.</p>`}</div>
+      <button class="account-secondary-action" type="button" ${productionAuthReady ? "" : "disabled"}
+              onclick="openBillingPortal()">
+        <i class="bi bi-credit-card"></i>
+        Manage billing portal
+      </button>
+      ${productionAuthReady ? "" : `<p class="account-panel-help">Billing activates after Supabase Auth and Stripe environment variables are configured.</p>`}
+    </div>
+  `;
+}
+
+function dataActionsHTML() {
+  return `
+    <div class="account-panel-actions">
+      <button class="account-secondary-action" type="button" onclick="exportAccountData()">
+        <i class="bi bi-download"></i>
+        Export my data
+      </button>
+      <button class="account-danger-action" type="button" onclick="deleteAccountAndLocalData()">
+        <i class="bi bi-trash3"></i>
+        Delete account
+      </button>
+    </div>
+  `;
+}
+
 function renderAccountMenu() {
   const session = getCurrentAccountSession();
   const signedIn = Boolean(session?.email);
@@ -576,6 +652,16 @@ function goToAuthPage(page = "login") {
 }
 
 function signOutAccount() {
+  if (window.SynapseAuth?.signOut) {
+    window.SynapseAuth.signOut()
+      .catch(error => console.warn("Synapse sign out failed:", error))
+      .finally(() => {
+        safeRemoveLocalStorage(AUTH_SESSION_STORAGE_KEY);
+        renderAccountMenu();
+        goToAuthPage("login");
+      });
+    return;
+  }
   safeRemoveLocalStorage(AUTH_SESSION_STORAGE_KEY);
   renderAccountMenu();
   goToAuthPage("login");
@@ -604,16 +690,17 @@ function openAccountPanel(section = "profile") {
       ["Name", session?.displayName || "Guest Student"],
       ["Email", session?.email || "Not signed in"],
       ["Role", role],
-      ["Created", session?.createdAt ? new Date(session.createdAt).toLocaleDateString() : "Local account"]
+      ["Auth", accountAuthModeLabel(session)],
+      ["Created", session?.createdAt ? new Date(session.createdAt).toLocaleDateString() : "Unknown"]
     ],
     billing: [
       ["Plan", session?.plan || "Starter"],
       ["Credits", String(Number(session?.credits || 0))],
-      ["Billing mode", "Credit-based"],
-      ["Status", "Active"]
+      ["Billing mode", "Stripe Checkout"],
+      ["Status", session?.authMode === "supabase" ? "Ready" : "Configure production auth"]
     ],
     settings: [
-      ["Account", session?.authProvider === "google" ? "Google local session" : "Email local session"],
+      ["Account", accountAuthModeLabel(session)],
       ["Workspace", currentSourceFingerprint ? "Generated notes active" : "Ready for upload"],
       ["History", `${getHistory().length} saved note${getHistory().length === 1 ? "" : "s"}`],
       ["Tutor", voiceTutorHistory.length ? "History available" : "No active chat"]
@@ -625,6 +712,9 @@ function openAccountPanel(section = "profile") {
       ["Next", "Start a new workspace or continue notes"]
     ]
   }[section] || [];
+  const actionHTML = section === "billing"
+    ? billingActionsHTML()
+    : (section === "profile" || section === "settings" ? dataActionsHTML() : "");
   const overlay = document.createElement("div");
   overlay.className = "account-panel-overlay";
   overlay.innerHTML = `
@@ -643,12 +733,166 @@ function openAccountPanel(section = "profile") {
           </div>
         `).join("")}
       </div>
+      ${actionHTML}
+      ${accountPanelStatusHTML()}
     </section>
   `;
   overlay.addEventListener("click", event => {
     if (event.target === overlay) closeAccountPanel();
   });
   document.body.appendChild(overlay);
+}
+
+async function startBillingCheckout(planId) {
+  const session = getCurrentAccountSession();
+  if (!session?.email) {
+    goToAuthPage("login");
+    return;
+  }
+  if (!window.SynapseAuth?.createCheckoutSession) {
+    setAccountPanelStatus("error", "Billing requires production auth configuration.");
+    return;
+  }
+  if (session.authMode !== "supabase") {
+    setAccountPanelStatus("error", "Billing requires Supabase production auth.");
+    return;
+  }
+  const plan = billingPlansForAccount().find(item => item.id === planId);
+  if (!plan?.priceId) {
+    setAccountPanelStatus("error", "This billing plan is missing a Stripe Price ID.");
+    return;
+  }
+  setAccountPanelStatus("info", "Opening secure Stripe Checkout...");
+  try {
+    const checkout = await window.SynapseAuth.createCheckoutSession({
+      planId: plan.id,
+      priceId: plan.priceId
+    });
+    if (!checkout?.url) throw new Error("Stripe did not return a checkout URL.");
+    window.location.href = checkout.url;
+  } catch (error) {
+    setAccountPanelStatus("error", error.message || "Could not start checkout.");
+  }
+}
+
+async function openBillingPortal() {
+  const session = getCurrentAccountSession();
+  if (!session?.email) {
+    goToAuthPage("login");
+    return;
+  }
+  if (!window.SynapseAuth?.createPortalSession) {
+    setAccountPanelStatus("error", "Billing portal requires production auth configuration.");
+    return;
+  }
+  if (session.authMode !== "supabase") {
+    setAccountPanelStatus("error", "Billing portal requires Supabase production auth.");
+    return;
+  }
+  setAccountPanelStatus("info", "Opening Stripe billing portal...");
+  try {
+    const portal = await window.SynapseAuth.createPortalSession();
+    if (!portal?.url) throw new Error("Stripe did not return a billing portal URL.");
+    window.location.href = portal.url;
+  } catch (error) {
+    setAccountPanelStatus("error", error.message || "Could not open billing portal.");
+  }
+}
+
+function fallbackLocalAccountData() {
+  const localStorageData = {};
+  try {
+    Object.keys(window.localStorage || {})
+      .filter(key => key.startsWith("synapse."))
+      .forEach(key => {
+        const raw = window.localStorage.getItem(key);
+        if (key === AUTH_SESSION_STORAGE_KEY) {
+          try {
+            const parsed = JSON.parse(raw);
+            delete parsed.accessToken;
+            localStorageData[key] = JSON.stringify(parsed);
+            return;
+          } catch {}
+        }
+        localStorageData[key] = raw;
+      });
+  } catch {}
+  return {
+    exportedAt: new Date().toISOString(),
+    origin: window.location.origin,
+    session: getCurrentAccountSession(),
+    localStorage: localStorageData,
+    history: getHistory()
+  };
+}
+
+async function exportAccountData() {
+  const session = getCurrentAccountSession();
+  if (!session?.email) {
+    goToAuthPage("login");
+    return;
+  }
+  setAccountPanelStatus("info", "Preparing your data export...");
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    browser: window.SynapseAuth?.collectLocalData ? window.SynapseAuth.collectLocalData() : fallbackLocalAccountData(),
+    server: null,
+    serverExportError: ""
+  };
+  if (window.SynapseAuth?.requestServerExport && session.authMode === "supabase") {
+    try {
+      payload.server = await window.SynapseAuth.requestServerExport();
+    } catch (error) {
+      payload.serverExportError = error.message || "Server export was unavailable.";
+    }
+  }
+  const filenameEmail = String(session.email || "synapse-account").replace(/[^a-z0-9._-]+/gi, "_");
+  const filename = `synapse-data-export-${filenameEmail}-${new Date().toISOString().slice(0, 10)}.json`;
+  if (window.SynapseAuth?.downloadJSON) {
+    window.SynapseAuth.downloadJSON(filename, payload);
+  } else {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  setAccountPanelStatus(payload.serverExportError ? "error" : "success", payload.serverExportError || "Data export downloaded.");
+}
+
+async function deleteAccountAndLocalData() {
+  const session = getCurrentAccountSession();
+  if (!session?.email) {
+    goToAuthPage("login");
+    return;
+  }
+  const confirmed = window.confirm(
+    `Delete the Synapse account for ${session.email}? This clears local Synapse data in this browser and requests server-side account deletion. Export your data first if you need a copy.`
+  );
+  if (!confirmed) return;
+  setAccountPanelStatus("info", "Deleting account and clearing local Synapse data...");
+  let serverError = "";
+  if (window.SynapseAuth?.requestAccountDeletion && session.authMode === "supabase") {
+    try {
+      await window.SynapseAuth.requestAccountDeletion();
+    } catch (error) {
+      serverError = error.message || "Server account deletion failed.";
+    }
+  }
+  if (window.SynapseAuth?.clearLocalSynapseData) {
+    await window.SynapseAuth.clearLocalSynapseData();
+  } else {
+    safeRemoveLocalStorage(AUTH_SESSION_STORAGE_KEY);
+    safeRemoveLocalStorage(ACTIVE_HISTORY_KEY);
+  }
+  setAccountPanelStatus(serverError ? "error" : "success", serverError || "Account deleted. Redirecting to login...");
+  window.setTimeout(() => {
+    goToAuthPage("login");
+  }, serverError ? 1800 : 900);
 }
 
 async function buildClientFingerprint(rawSource, sourceLinks = []) {

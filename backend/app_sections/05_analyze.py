@@ -163,7 +163,15 @@ async def analyze_materials(
                 attach_visuals=True,
                 protect_heading=False,
             )
-            cached_result = {**cached_result, "summary": cached_summary, "visual_gallery": build_visual_gallery(source_units)}
+            live_visual_gallery = build_visual_gallery(source_units)
+            cached_visual_gallery = cached_result.get("visual_gallery") or cached_result.get("visuals") or []
+            visual_gallery = live_visual_gallery or cached_visual_gallery
+            cached_result = {
+                **cached_result,
+                "summary": cached_summary,
+                "visual_gallery": visual_gallery,
+                "visuals": visual_gallery,
+            }
             stored_summary = cached_summary
             stored_sections = parse_sections(stored_summary)
             cached_result["sections"] = stored_sections
@@ -175,6 +183,7 @@ async def analyze_materials(
                 **cached_result,
                 "cached": True,
                 "source_fingerprint": source_fingerprint,
+                "language": postprocess_language,
                 "output_language": postprocess_language,
                 "prompt_mode": selected_prompt_mode,
                 "prompt_mode_label": selected_prompt_label,
@@ -274,13 +283,15 @@ Consistency requirement:
             stored_mind_map = generate_mind_map(stored_title, stored_sections, depth)
         stored_source_identity = source_units[0].get("source_identity", "") if source_units else ""
 
+        visual_gallery = build_visual_gallery(source_units)
         result = {
             "title": stored_title,
             "summary": stored_summary,
             "sections": stored_sections,
             "connections": stored_connections,
             "mind_map": stored_mind_map,
-            "visual_gallery": build_visual_gallery(source_units),
+            "visual_gallery": visual_gallery,
+            "visuals": visual_gallery,
             "primary_source_identity": stored_source_identity,
             "source_count": len(source_units),
             "sources": [
@@ -301,6 +312,7 @@ Consistency requirement:
             "depth_label": depth_config.get("label", depth),
             "depth_reason": depth_plan.get("reason", ""),
             "detail_plan": {k: v for k, v in depth_plan.items() if k != "config"},
+            "language": postprocess_language,
             "output_language": postprocess_language,
             "prompt_mode": selected_prompt_mode,
             "prompt_mode_label": selected_prompt_label,
@@ -309,9 +321,10 @@ Consistency requirement:
             "optional_stages_skipped": skipped_optional_stages,
             "cached": False,
         }
-        # Do not persist large base64 visual images in the JSON cache. The
-        # current response can show them, but cached notes stay lightweight.
-        cache_result = {**result, "visual_gallery": []}
+        # Persist compact browser-safe visual metadata. build_visual_gallery()
+        # converts model-facing data URLs into /assets URLs, so cached notes can
+        # keep inline figure metadata without storing large base64 payloads.
+        cache_result = {**result, "visual_gallery": visual_gallery, "visuals": visual_gallery}
         cache_set(source_fingerprint, cache_result)
         return result
 

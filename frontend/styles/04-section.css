@@ -712,6 +712,109 @@
   text-align: right;
 }
 
+.account-panel-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.account-plan-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.account-plan-action,
+.account-secondary-action,
+.account-danger-action {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border-blue);
+  background: #fff;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+  font-weight: 850;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+
+.account-plan-action span {
+  display: grid;
+  gap: 2px;
+}
+
+.account-plan-action small {
+  color: var(--muted);
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.account-plan-action:hover,
+.account-secondary-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.account-plan-action:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+  transform: none;
+}
+
+.account-danger-action {
+  border-color: rgba(239, 68, 68, .28);
+  color: #b91c1c;
+}
+
+.account-danger-action:hover {
+  background: #fef2f2;
+  border-color: rgba(239, 68, 68, .55);
+}
+
+.account-panel-help {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  font-weight: 650;
+}
+
+.account-panel-status {
+  display: none;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.account-panel-status.show {
+  display: block;
+}
+
+.account-panel-status.info {
+  background: var(--primary-soft);
+  color: #1d4ed8;
+  border: 1px solid var(--border-blue);
+}
+
+.account-panel-status.success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.account-panel-status.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
 .mobile-account-summary {
   min-width: 0;
   display: flex;
@@ -722,6 +825,10 @@
   border-radius: 14px;
   background: #fff;
   flex: 1;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
 .history-search-wrap {

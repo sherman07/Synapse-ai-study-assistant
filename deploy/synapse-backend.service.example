@@ -1,0 +1,19 @@
+[Unit]
+Description=Synapse FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/synapse/Synapse-ai-study-assistant
+ExecStart=/opt/synapse/Synapse-ai-study-assistant/.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=SYNAPSE_BACKEND_RELOAD=false
+Environment=ENABLE_LOCAL_PPTX_APP_RENDER=false
+
+# Put secrets in an EnvironmentFile outside Git.
+EnvironmentFile=/etc/synapse/backend.env
+
+[Install]
+WantedBy=multi-user.target

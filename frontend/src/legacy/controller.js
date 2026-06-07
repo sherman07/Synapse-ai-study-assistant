@@ -43,7 +43,7 @@ import {
 } from "./markdownRenderer.js?v=probability-table-v1";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "account-landing-v2";
+const CONTROLLER_VERSION = "account-landing-v3";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
