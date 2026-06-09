@@ -1,0 +1,728 @@
+.analysis-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.focus-room-entry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  border-radius: 999px;
+  box-shadow: 0 14px 32px rgba(74, 124, 255, 0.22);
+}
+
+.history-focus-room-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(74, 124, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--primary);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.history-focus-room-btn:hover,
+.history-focus-room-btn:focus-visible {
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(74, 124, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.focus-room-surface {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding: 24px;
+  color: #f8fbff;
+  background: #101827;
+  isolation: isolate;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.focus-room-surface.d-none {
+  display: none !important;
+}
+
+.focus-room-bg {
+  position: fixed;
+  inset: -5%;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.04) translate3d(-0.4%, -0.3%, 0);
+  transform-origin: center;
+  animation: focusWallpaperDrift 34s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.focus-room-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(9, 14, 25, 0.72), rgba(9, 14, 25, 0.34) 48%, rgba(9, 14, 25, 0.66)),
+    linear-gradient(180deg, rgba(9, 14, 25, 0.42), rgba(9, 14, 25, 0.24) 46%, rgba(9, 14, 25, 0.78));
+}
+
+.focus-room-topbar,
+.focus-session-toolbar,
+.focus-room-setup-layout,
+.focus-session-layout,
+.focus-history-view > * {
+  position: relative;
+  z-index: 1;
+}
+
+.focus-room-view {
+  position: relative;
+  z-index: 1;
+}
+
+.focus-room-topbar,
+.focus-session-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.focus-room-title-block {
+  min-width: 0;
+}
+
+.focus-room-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.focus-room-brand-mark {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.16);
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.focus-room-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: rgba(255, 255, 255, 0.13);
+  color: rgba(248, 251, 255, 0.86);
+  font-size: 0.82rem;
+  font-weight: 850;
+  backdrop-filter: blur(14px);
+}
+
+.focus-room-kicker {
+  margin: 0 0 4px;
+  color: rgba(248, 251, 255, 0.76);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.focus-room-title {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.focus-room-subtitle {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: rgba(248, 251, 255, 0.78);
+  line-height: 1.6;
+}
+
+.focus-room-back-btn,
+.focus-room-ghost-btn,
+.focus-room-primary-btn,
+.focus-session-end-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.focus-room-back-btn,
+.focus-room-ghost-btn {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  backdrop-filter: blur(14px);
+}
+
+.focus-room-primary-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, #ffffff, #dce8ff);
+  color: #17213f;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.focus-session-end-btn {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.focus-room-back-btn:hover,
+.focus-room-back-btn:focus-visible,
+.focus-room-ghost-btn:hover,
+.focus-room-ghost-btn:focus-visible,
+.focus-room-primary-btn:hover,
+.focus-room-primary-btn:focus-visible,
+.focus-session-end-btn:hover,
+.focus-session-end-btn:focus-visible {
+  border-color: rgba(255, 255, 255, 0.38);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.focus-room-setup-layout,
+.focus-session-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.88fr) minmax(360px, 1.12fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.focus-room-panel,
+.focus-session-panel,
+.focus-summary-card,
+.focus-history-card,
+.focus-room-glass,
+.focus-panel-card,
+.focus-timer-card,
+.focus-learning-panel {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(22px);
+}
+
+.focus-room-panel,
+.focus-session-panel,
+.focus-panel-card,
+.focus-timer-card,
+.focus-learning-panel {
+  padding: 20px;
+}
+
+.focus-room-panel h3,
+.focus-session-panel h3,
+.focus-history-card h3,
+.focus-panel-card h3,
+.focus-timer-card h3,
+.focus-learning-panel h3 {
+  margin: 0 0 14px;
+  color: #ffffff;
+  font-size: 1.04rem;
+  font-weight: 900;
+}
+
+.focus-material-card,
+.focus-scene-card,
+.focus-plan-item,
+.focus-history-session {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.focus-material-card {
+  padding: 16px;
+}
+
+.focus-material-title,
+.focus-scene-name,
+.focus-plan-item strong,
+.focus-history-session strong {
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.focus-material-meta,
+.focus-scene-description,
+.focus-plan-item span,
+.focus-history-session span {
+  color: rgba(248, 251, 255, 0.74);
+}
+
+.focus-setup-form {
+  display: grid;
+  gap: 14px;
+}
+
+.focus-setup-form label {
+  display: grid;
+  gap: 7px;
+  color: rgba(248, 251, 255, 0.8);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.focus-setup-form input,
+.focus-setup-form select,
+.focus-setup-form textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #17213f;
+  padding: 11px 12px;
+  outline: none;
+}
+
+.focus-setup-form textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.focus-scene-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.focus-scene-card {
+  min-height: 150px;
+  padding: 12px;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.focus-scene-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 17, 31, 0.1), rgba(10, 17, 31, 0.72));
+}
+
+.focus-scene-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.focus-scene-card.active {
+  border-color: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.focus-scene-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  display: block;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.focus-timer-card {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.focus-session-timer,
+.focus-timer-value {
+  color: #ffffff;
+  font-size: clamp(3rem, 10vw, 7rem);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.focus-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.focus-progress-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffffff, #a9c5ff);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.3);
+  transition: width 0.35s ease;
+}
+
+.focus-session-controls,
+.focus-control-row,
+.focus-tab-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.focus-control-row,
+.focus-tab-row {
+  align-items: center;
+}
+
+.focus-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.focus-icon-btn,
+.focus-control-btn,
+.focus-tab-btn,
+.focus-duration-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 850;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.focus-icon-btn {
+  width: 42px;
+  padding: 0;
+  border-radius: 14px;
+}
+
+.focus-control-btn:hover,
+.focus-control-btn:focus-visible,
+.focus-tab-btn:hover,
+.focus-tab-btn:focus-visible,
+.focus-duration-btn:hover,
+.focus-duration-btn:focus-visible,
+.focus-icon-btn:hover,
+.focus-icon-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
+}
+
+.focus-control-btn.active,
+.focus-tab-btn.active,
+.focus-duration-btn.active,
+.focus-control-btn[aria-pressed="true"],
+.focus-tab-btn[aria-selected="true"],
+.focus-duration-btn[aria-pressed="true"] {
+  border-color: rgba(255, 255, 255, 0.64);
+  background: rgba(255, 255, 255, 0.9);
+  color: #17213f;
+}
+
+.focus-learning-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.focus-study-card {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.focus-study-card .focus-room-subtitle {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(1rem, 1.6vw, 1.24rem);
+  line-height: 1.65;
+}
+
+.focus-quiz-stack,
+.focus-plan-editor,
+.focus-chat-list {
+  display: grid;
+  gap: 12px;
+}
+
+.focus-answer-input,
+.focus-plan-edit-item input,
+.focus-plan-edit-item textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #17213f;
+  padding: 11px 12px;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.focus-answer-input:focus,
+.focus-plan-edit-item input:focus,
+.focus-plan-edit-item textarea:focus {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 3px rgba(169, 197, 255, 0.28);
+}
+
+.focus-answer-input {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.focus-plan-edit-item {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.22fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.focus-plan-edit-item label {
+  display: grid;
+  gap: 7px;
+  color: rgba(248, 251, 255, 0.8);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.focus-plan-edit-item textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.focus-chat-list {
+  max-height: min(360px, 48vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.focus-chat-message {
+  width: min(92%, 620px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 12px 13px;
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.focus-chat-message.user {
+  justify-self: end;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.focus-chat-message p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.focus-control-btn:disabled,
+.focus-room-primary-btn:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.focus-control-btn:disabled:hover,
+.focus-control-btn:disabled:focus-visible,
+.focus-room-primary-btn:disabled:hover,
+.focus-room-primary-btn:disabled:focus-visible {
+  box-shadow: none;
+  transform: none;
+}
+
+.focus-plan-list,
+.focus-history-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.focus-plan-item,
+.focus-history-session {
+  padding: 13px 14px;
+}
+
+.focus-summary-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(8, 13, 24, 0.62);
+  backdrop-filter: blur(18px);
+}
+
+.focus-summary-overlay.d-none {
+  display: none !important;
+}
+
+.focus-summary-card {
+  width: min(620px, 100%);
+  padding: 24px;
+  color: #ffffff;
+}
+
+.focus-history-view {
+  display: grid;
+  gap: 16px;
+}
+
+.focus-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.focus-history-card {
+  padding: 20px;
+}
+
+@keyframes focusWallpaperDrift {
+  0% {
+    transform: scale(1.04) translate3d(-0.8%, -0.45%, 0);
+  }
+
+  50% {
+    transform: scale(1.065) translate3d(0.8%, 0.4%, 0);
+  }
+
+  100% {
+    transform: scale(1.05) translate3d(-0.15%, 0.75%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-room-bg {
+    animation: none;
+    transform: scale(1.02);
+  }
+}
+
+@media (max-width: 980px) {
+  .focus-room-surface {
+    padding: 18px;
+  }
+
+  .focus-room-topbar,
+  .focus-session-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .focus-room-setup-layout,
+  .focus-session-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .analysis-header-actions {
+    width: 100%;
+  }
+
+  .focus-room-entry-btn {
+    width: 100%;
+  }
+
+  .focus-room-surface {
+    height: 100dvh;
+    padding: 14px;
+  }
+
+  .focus-scene-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-room-panel,
+  .focus-session-panel,
+  .focus-summary-card,
+  .focus-history-card,
+  .focus-panel-card,
+  .focus-timer-card,
+  .focus-learning-panel {
+    border-radius: 18px;
+    padding: 16px;
+  }
+
+  .focus-duration-grid,
+  .focus-history-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-session-controls,
+  .focus-control-row,
+  .focus-tab-row,
+  .focus-session-controls > * {
+    width: 100%;
+  }
+
+  .focus-control-btn,
+  .focus-tab-btn,
+  .focus-duration-btn {
+    width: 100%;
+  }
+
+  .focus-study-card {
+    min-height: 240px;
+  }
+
+  .focus-plan-edit-item {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-chat-message {
+    width: 100%;
+  }
+}

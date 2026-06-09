@@ -11,9 +11,14 @@ export function AnalysisStage() {
           <h1>Generated Study Notes</h1>
           <p>Synapse analysed your materials and built a guided study overview.</p>
         </div>
-        <button class="btn btn-outline-primary new-upload-btn" onclick="resetWorkspace()">
-          <i class="bi bi-plus-lg me-1"></i>New upload
-        </button>
+        <div class="analysis-header-actions">
+          <button id="focusRoomCta" class="btn btn-primary focus-room-entry-btn d-none" type="button" onclick="openSynapseFocusRoom()">
+            <i class="bi bi-door-open me-1"></i>Study in Focus Room
+          </button>
+          <button class="btn btn-outline-primary new-upload-btn" onclick="resetWorkspace()">
+            <i class="bi bi-plus-lg me-1"></i>New upload
+          </button>
+        </div>
       </section>
 
       <div id="loadingBox" class="loading-box d-none">

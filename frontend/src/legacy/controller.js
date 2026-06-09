@@ -55,6 +55,7 @@ const CONTROLLER_DEFINITION_FILES = [
   "07_focusmindmappoint.js",
   "08_extractrealtimeresponsetranscript.js",
   "09_togglesourceviewer.js",
+  "10_focusroombridge.js",
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
 const apiClient = new SynapseApiClient(API_BASE);

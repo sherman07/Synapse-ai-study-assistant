@@ -503,6 +503,8 @@ function resetWorkspace() {
   setupMasteryGraphTool();
   setupQuizTool();
   setupFlashcardTool();
+  if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
+  if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
 
   appLayout.classList.remove("analysis-ready", "loading-state");
   appLayout.classList.add("initial-state", "assistant-closed");

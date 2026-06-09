@@ -32,14 +32,19 @@ Object.assign(window, {
   generateVisualGuide,
   handleFlashcardMatchDragStart,
   handleFlashcardMatchDrop,
+  getSynapseFocusRoomCurrentMaterial,
+  getSynapseFocusRoomMaterial,
+  getSynapseFocusRoomMaterials,
   jumpToFlashcardFromList,
   loadHistoryEntry,
   loadQuizHistoryRecord,
   markMasteryGraphSectionReviewed,
+  notifyFocusRoomMaterialsChanged,
   openActiveMindMapSection,
   openAccountPanel,
   openAssistant,
   openFilePicker,
+  openSynapseFocusRoom,
   openFlashcardListModal,
   openMasteryGraphSection,
   openQuizHistoryModal,
@@ -107,7 +112,9 @@ Object.assign(window, {
   updateStudyPathTextAnswer,
   validateFlashcardMatches,
   retryFlashcardMatching,
-  renderFlashcardMatchLines
+  renderFocusRoomWorkspaceActions,
+  renderFlashcardMatchLines,
+  returnFromFocusRoomToWorkspace,
 });
 
 if (historySearch) {
@@ -124,6 +131,12 @@ if (mobileHistorySearch) {
 }
 cleanExistingHistoryTitles();
 renderHistory();
+if (typeof renderFocusRoomWorkspaceActions === "function") {
+  renderFocusRoomWorkspaceActions();
+}
+if (typeof notifyFocusRoomMaterialsChanged === "function") {
+  notifyFocusRoomMaterialsChanged();
+}
 setupVisualGuideTool();
 setupTimelineTool();
 setupMasteryGraphTool();
