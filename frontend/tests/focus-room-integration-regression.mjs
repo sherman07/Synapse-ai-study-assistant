@@ -16,6 +16,7 @@ const uploadSection = read("frontend/src/legacy/controller_sections/01_uploadedf
 const historySection = read("frontend/src/legacy/controller_sections/09_togglesourceviewer.js");
 const focusBridge = read("frontend/src/legacy/controller_sections/10_focusroombridge.js");
 const style = read("frontend/style.css");
+const focusStyle = read("frontend/styles/09-focus-room.css");
 
 assert.ok(main.includes("initFocusRoom"), "main.js should initialize the Focus Room controller");
 assert.ok(main.includes("bootSynapseRuntime"), "main.js should route legacy and Focus Room startup through a guarded boot helper");
@@ -40,6 +41,10 @@ assert.ok(
 assert.ok(
   boot.includes('typeof notifyFocusRoomMaterialsChanged === "function"'),
   "boot should guard Focus Room material change notifications"
+);
+assert.ok(
+  focusStyle.indexOf("height: 100vh;") > -1 && focusStyle.indexOf("height: 100vh;") < focusStyle.indexOf("height: 100dvh;"),
+  "Focus Room surface should declare a 100vh fallback before 100dvh"
 );
 
 function createFocusBridgeContext(overrides = {}) {
@@ -177,6 +182,33 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(bridgeContext.getSynapseFocusRoomMaterial("history-3").quizzes.map(record => record.id))),
   ["quiz-3", "quiz-3-shared", "quiz-3-history"],
   "Focus Room history materials should merge and dedupe quiz records across keys"
+);
+
+bridgeContext = createFocusBridgeContext({
+  fullSummary: "",
+  getHistory: () => [{
+    id: "history-4",
+    title: "Idless Quiz Note",
+    summary: "# Idless Quiz Note",
+    sourceFingerprint: "fingerprint-4"
+  }],
+  getQuizHistoryStore: () => ({
+    "history:history-4": [{
+      title: "Practice Quiz",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      questions: [{ question: "Which ID-less record is unique?" }]
+    }],
+    "fingerprint:fingerprint-4": [{
+      title: "Practice Quiz",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      questions: [{ question: "Which ID-less record is unique?" }]
+    }]
+  })
+});
+assert.equal(
+  bridgeContext.getSynapseFocusRoomMaterial("history-4").quizzes.length,
+  1,
+  "Focus Room bridge should content-dedupe quiz records that do not have IDs"
 );
 
 const focusComponent = read("frontend/src/react/components/FocusRoom.js");

@@ -54,6 +54,21 @@ function getFocusRoomQuizSummaries(records) {
   }));
 }
 
+function getFocusRoomQuizRecordKey(record) {
+  const id = String(record?.id || "").trim();
+  if (id) return `id:${id}`;
+  try {
+    return `content:${JSON.stringify({
+      title: record?.title || "",
+      createdAt: record?.createdAt || "",
+      updatedAt: record?.updatedAt || "",
+      questions: record?.questions || []
+    })}`;
+  } catch {
+    return "";
+  }
+}
+
 function getFocusRoomQuizRecordsForKeys(keys, fallbackRecords = []) {
   const rawStore = typeof getQuizHistoryStore === "function" ? getQuizHistoryStore() : {};
   const store = rawStore && typeof rawStore === "object" && !Array.isArray(rawStore) ? rawStore : {};
@@ -62,10 +77,9 @@ function getFocusRoomQuizRecordsForKeys(keys, fallbackRecords = []) {
   const seen = new Set();
   return getFocusRoomQuizSummaries(sourceRecords)
     .filter(record => {
-      const id = String(record.id || "");
-      if (!id) return true;
-      if (seen.has(id)) return false;
-      seen.add(id);
+      const key = getFocusRoomQuizRecordKey(record);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
       return true;
     })
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
