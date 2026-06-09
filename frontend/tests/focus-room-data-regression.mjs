@@ -58,6 +58,12 @@ const shortPlan = data.buildFocusRoomStudyPlan({
 });
 assert.equal(shortPlan.reduce((total, item) => total + item.minutes, 0), 10);
 
+const clampedPlan = data.buildFocusRoomStudyPlan({
+  material,
+  durationMinutes: 5
+});
+assert.equal(clampedPlan.reduce((total, item) => total + item.minutes, 0), 10);
+
 const session = data.saveFocusRoomSession({
   sessionId: "session-1",
   materialId: "history-1",
@@ -77,6 +83,11 @@ const session = data.saveFocusRoomSession({
 assert.equal(session.materialTitle, "Vector Calculus Review");
 assert.equal(data.readFocusRoomSessions().length, 1);
 assert.equal(data.formatFocusRoomDuration(3661), "1h 1m");
+assert.equal(data.formatFocusRoomDuration("bad"), "0m");
+
+const defaultSession = data.saveFocusRoomSession();
+assert.equal(defaultSession.materialTitle, "Study material");
+assert.equal(defaultSession.totalFocusTime, 0);
 
 const invalidNumericSession = data.saveFocusRoomSession({
   sessionId: "session-invalid-numeric",

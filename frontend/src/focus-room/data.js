@@ -211,7 +211,7 @@ function finiteNumber(value, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function saveFocusRoomSession(session) {
+function saveFocusRoomSession(session = {}) {
   const now = new Date().toISOString();
   const record = {
     sessionId: session.sessionId || `focus-${Date.now()}`,
@@ -241,7 +241,7 @@ function saveFocusRoomSession(session) {
 }
 
 function formatFocusRoomDuration(seconds) {
-  const total = Math.max(0, Number(seconds || 0));
+  const total = Math.max(0, finiteNumber(seconds || 0, 0));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   if (hours) return `${hours}h ${minutes}m`;
