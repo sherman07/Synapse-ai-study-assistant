@@ -40,6 +40,7 @@ function createFocusBridgeContext(overrides = {}) {
     currentSourceFingerprint: "fingerprint-1",
     currentTimeline: { events: [] },
     fullSummary: "Generated notes",
+    getHistory: () => [],
     makeHistoryTitle: () => "Generated notes",
     quizHistory: [],
     sections: {},
@@ -78,6 +79,93 @@ assert.equal(
   bridgeContext.getSynapseFocusRoomCurrentMaterial().flashcards.length,
   0,
   "Focus Room bridge should tolerate malformed flashcard storage"
+);
+
+bridgeContext = createFocusBridgeContext({
+  fullSummary: "",
+  getFlashcardStore: () => ({
+    "history:history-2": { cards: [{ front: "Saved card", back: "Saved answer" }] }
+  }),
+  getHistory: () => [{
+    id: "history-2",
+    title: "Saved History Note",
+    summary: "# Saved History Note\n\nReview the saved material.",
+    sourceFingerprint: "fingerprint-2"
+  }],
+  getQuizHistoryStore: () => ({
+    "history:history-2": [{
+      id: "quiz-2",
+      title: "Saved History Quiz",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      quiz: { questions: [{ question: "What should history keep connected?" }] },
+      report: { objectivePercent: 100 }
+    }]
+  })
+});
+assert.deepEqual(
+  bridgeContext.getSynapseFocusRoomMaterial("history-2").flashcards,
+  [{ front: "Saved card", back: "Saved answer" }],
+  "Focus Room history materials should include stored flashcards"
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(bridgeContext.getSynapseFocusRoomMaterial("history-2").quizzes)),
+  [{
+    id: "quiz-2",
+    title: "Saved History Quiz",
+    createdAt: "2026-06-09T00:00:00.000Z",
+    updatedAt: "",
+    questions: [{ question: "What should history keep connected?" }],
+    report: { objectivePercent: 100 }
+  }],
+  "Focus Room history materials should include stored quiz records"
+);
+
+bridgeContext = createFocusBridgeContext({
+  fullSummary: "",
+  getFlashcardStore: () => ({
+    "history:history-3": { cards: [] },
+    "fingerprint:fingerprint-3": { cards: [{ front: "Fingerprint card", back: "Fingerprint answer" }] }
+  }),
+  getHistory: () => [{
+    id: "history-3",
+    title: "Fingerprint History Note",
+    summary: "# Fingerprint History Note",
+    sourceFingerprint: "fingerprint-3"
+  }],
+  getQuizHistoryStore: () => ({
+    "history:history-3": [{
+      id: "quiz-3-history",
+      title: "History Quiz",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      questions: [{ question: "Which history key connected?" }]
+    }, {
+      id: "quiz-3-shared",
+      title: "Shared Quiz",
+      createdAt: "2026-06-09T00:01:00.000Z",
+      questions: [{ question: "Should this appear once?" }]
+    }],
+    "fingerprint:fingerprint-3": [{
+      id: "quiz-3",
+      title: "Fingerprint Quiz",
+      createdAt: "2026-06-09T00:02:00.000Z",
+      questions: [{ question: "Which key should still connect?" }]
+    }, {
+      id: "quiz-3-shared",
+      title: "Duplicate Shared Quiz",
+      createdAt: "2026-06-09T00:03:00.000Z",
+      questions: [{ question: "Should duplicate IDs be removed?" }]
+    }]
+  })
+});
+assert.deepEqual(
+  bridgeContext.getSynapseFocusRoomMaterial("history-3").flashcards,
+  [{ front: "Fingerprint card", back: "Fingerprint answer" }],
+  "Focus Room history materials should fall through to fingerprint flashcards"
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(bridgeContext.getSynapseFocusRoomMaterial("history-3").quizzes.map(record => record.id))),
+  ["quiz-3", "quiz-3-shared", "quiz-3-history"],
+  "Focus Room history materials should merge and dedupe quiz records across keys"
 );
 
 const focusComponent = read("frontend/src/react/components/FocusRoom.js");

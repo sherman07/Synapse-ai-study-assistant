@@ -2,26 +2,89 @@ function getFocusRoomSummaryText() {
   return fullSummary || summaryContent?.textContent || "";
 }
 
-function getFocusRoomFlashcardsForCurrentNote() {
-  const fallbackCards = Array.isArray(currentFlashcards) ? currentFlashcards : [];
-  const rawStore = typeof getFlashcardStore === "function" ? getFlashcardStore() : {};
+function getFocusRoomStoreRecordByKeys(readStore, keys, predicate) {
+  const rawStore = typeof readStore === "function" ? readStore() : {};
   const store = rawStore && typeof rawStore === "object" && !Array.isArray(rawStore) ? rawStore : {};
-  const keys = [
-    currentHistoryId ? `history:${currentHistoryId}` : "",
-    currentSourceFingerprint ? `fingerprint:${currentSourceFingerprint}` : ""
+  return keys.map(key => store[key]).find(predicate);
+}
+
+function getFocusRoomKeys({ historyId = "", sourceFingerprint = "" } = {}) {
+  return [
+    historyId ? `history:${historyId}` : "",
+    sourceFingerprint ? `fingerprint:${sourceFingerprint}` : ""
   ].filter(Boolean);
-  const record = keys.map(key => store[key]).find(item => item && Array.isArray(item.cards));
-  return record?.cards || fallbackCards;
+}
+
+function getFocusRoomKeysForCurrentNote() {
+  return getFocusRoomKeys({
+    historyId: currentHistoryId,
+    sourceFingerprint: currentSourceFingerprint
+  });
+}
+
+function getFocusRoomKeysForHistoryItem(item) {
+  const keys = [
+    ...getFocusRoomKeys({
+      historyId: item?.id,
+      sourceFingerprint: item?.sourceFingerprint
+    }),
+    item?.clientFingerprint ? `fingerprint:${item.clientFingerprint}` : ""
+  ].filter(Boolean);
+  return [...new Set(keys)];
+}
+
+function getFocusRoomFlashcardsForKeys(keys, fallbackCards = []) {
+  const fallback = Array.isArray(fallbackCards) ? fallbackCards : [];
+  const record = getFocusRoomStoreRecordByKeys(
+    typeof getFlashcardStore === "function" ? getFlashcardStore : null,
+    keys,
+    item => item && Array.isArray(item.cards) && item.cards.length
+  );
+  return record?.cards || fallback;
+}
+
+function getFocusRoomQuizSummaries(records) {
+  return (Array.isArray(records) ? records : []).map(record => ({
+    id: record.id,
+    title: record.title,
+    createdAt: record.createdAt || record.created_at || "",
+    updatedAt: record.updatedAt || record.updated_at || "",
+    questions: record.quiz?.questions || record.questions || [],
+    report: record.report || null
+  }));
+}
+
+function getFocusRoomQuizRecordsForKeys(keys, fallbackRecords = []) {
+  const rawStore = typeof getQuizHistoryStore === "function" ? getQuizHistoryStore() : {};
+  const store = rawStore && typeof rawStore === "object" && !Array.isArray(rawStore) ? rawStore : {};
+  const records = keys.flatMap(key => Array.isArray(store[key]) ? store[key] : []);
+  const sourceRecords = records.length ? records : fallbackRecords;
+  const seen = new Set();
+  return getFocusRoomQuizSummaries(sourceRecords)
+    .filter(record => {
+      const id = String(record.id || "");
+      if (!id) return true;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function getFocusRoomFlashcardsForCurrentNote() {
+  return getFocusRoomFlashcardsForKeys(getFocusRoomKeysForCurrentNote(), currentFlashcards);
 }
 
 function getFocusRoomQuizRecordsForCurrentNote() {
-  const records = Array.isArray(quizHistory) ? quizHistory : [];
-  return records.map(record => ({
-    id: record.id,
-    title: record.title,
-    questions: record.quiz?.questions || [],
-    report: record.report || null
-  }));
+  return getFocusRoomQuizRecordsForKeys(getFocusRoomKeysForCurrentNote(), quizHistory);
+}
+
+function getFocusRoomFlashcardsForHistoryItem(item) {
+  return getFocusRoomFlashcardsForKeys(getFocusRoomKeysForHistoryItem(item));
+}
+
+function getFocusRoomQuizRecordsForHistoryItem(item) {
+  return getFocusRoomQuizRecordsForKeys(getFocusRoomKeysForHistoryItem(item));
 }
 
 function getSynapseFocusRoomCurrentMaterial() {
@@ -53,8 +116,8 @@ function focusRoomMaterialFromHistoryItem(item) {
     uploadedContent: "",
     aiSummary: item.summary || "",
     sections: item.sections || {},
-    flashcards: [],
-    quizzes: [],
+    flashcards: getFocusRoomFlashcardsForHistoryItem(item),
+    quizzes: getFocusRoomQuizRecordsForHistoryItem(item),
     mindMap: item.mindMap || item.mind_map || item.brainstorm || null,
     studyPlan: [],
     progressHistory: [],
