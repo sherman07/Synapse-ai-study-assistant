@@ -526,6 +526,8 @@ function saveHistoryEntry(payload) {
 
   setHistory(nextItems);
   renderHistory();
+  if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
+  if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
   return entry;
 }
 
@@ -559,6 +561,12 @@ function renderHistoryItemsHTML(items) {
       <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
         <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
         <div class="history-item-meta">${formatHistoryDate(item.createdAt)}</div>
+      </button>
+      <button class="history-focus-room-btn" type="button"
+              title="Study in Focus Room"
+              aria-label="Study ${escapeAttr(makeHistoryTitle(item))} in Focus Room"
+              onclick="event.preventDefault(); event.stopPropagation(); openSynapseFocusRoom('${escapeAttr(item.id)}')">
+        <i class="bi bi-door-open"></i>
       </button>
       <button class="history-delete-btn" type="button"
               title="Delete this history item"
@@ -600,6 +608,8 @@ async function deleteHistoryEntry(event, id) {
   deleteFlashcardDeck(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   deleteVoiceTutorHistory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   renderHistory(historySearch ? historySearch.value : "");
+  if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
+  if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
 }
 
 async function loadHistoryEntry(id, options = {}) {
@@ -646,6 +656,8 @@ async function loadHistoryEntry(id, options = {}) {
   renderVisualGallery();
   loadTutorChatHistoryForCurrentNote();
   renderFullNotes();
+  if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
+  if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
 }
 
 function formatHistoryDate(value) {

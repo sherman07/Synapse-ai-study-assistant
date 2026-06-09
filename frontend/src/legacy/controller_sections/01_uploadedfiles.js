@@ -827,6 +827,12 @@ function showAnalysisView({ scrollToTop = false } = {}) {
   if (assistant) assistant.classList.add("hidden");
   if (openAssistantBtn) openAssistantBtn.style.display = "block";
   renderSourceViewer();
+  if (typeof renderFocusRoomWorkspaceActions === "function") {
+    renderFocusRoomWorkspaceActions();
+  }
+  if (typeof notifyFocusRoomMaterialsChanged === "function") {
+    notifyFocusRoomMaterialsChanged();
+  }
 
   if (scrollToTop) {
     requestAnimationFrame(() => {
