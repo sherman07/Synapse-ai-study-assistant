@@ -13,6 +13,7 @@ const controller = read("frontend/src/legacy/controller.js");
 const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
 const uploadSection = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
 const historySection = read("frontend/src/legacy/controller_sections/09_togglesourceviewer.js");
+const focusBridge = read("frontend/src/legacy/controller_sections/10_focusroombridge.js");
 const style = read("frontend/style.css");
 
 assert.ok(main.includes("initFocusRoom"), "main.js should initialize the Focus Room controller");
@@ -24,6 +25,10 @@ assert.ok(boot.includes("openSynapseFocusRoom"), "boot should expose the Focus R
 assert.ok(uploadSection.includes("renderFocusRoomWorkspaceActions"), "analysis view should refresh Focus Room CTAs");
 assert.ok(historySection.includes("history-focus-room-btn"), "history rows should include a Focus Room action");
 assert.ok(style.includes("09-focus-room.css"), "global stylesheet should import Focus Room styles");
+assert.ok(focusBridge.includes("function getFocusRoomFlashcardsForCurrentNote()"), "Focus Room bridge should read stored flashcards for the active note");
+assert.ok(focusBridge.includes("function getFocusRoomQuizRecordsForCurrentNote()"), "Focus Room bridge should expose saved quiz record metadata");
+assert.ok(focusBridge.includes("flashcards: getFocusRoomFlashcardsForCurrentNote()"), "current Focus Room material should use stored flashcard records");
+assert.ok(focusBridge.includes("quizzes: getFocusRoomQuizRecordsForCurrentNote()"), "current Focus Room material should use saved quiz records");
 
 const focusComponent = read("frontend/src/react/components/FocusRoom.js");
 for (const id of [
@@ -44,7 +49,13 @@ for (const token of [
   "renderFocusRoomSetup",
   "renderFocusRoomSession",
   "saveFocusRoomSession",
-  "returnFromFocusRoom"
+  "returnFromFocusRoom",
+  "state.material.flashcards || []",
+  "slice(0, 12)",
+  "<details>",
+  "state.material.quizzes || []",
+  "questions.length",
+  "onclick=\"returnFromFocusRoom(${jsStringAttr(materialId)})"
 ]) {
   assert.ok(focusController.includes(token), `Focus Room controller should include ${token}`);
 }

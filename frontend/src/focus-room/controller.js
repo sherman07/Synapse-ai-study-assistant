@@ -576,6 +576,82 @@ function renderLearningPanel() {
   `;
 }
 
+function focusRoomWorkspaceButton(label) {
+  const materialId = state.materialId || state.material?.materialId || "";
+  return `
+    <div class="focus-session-controls">
+      <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom(${jsStringAttr(materialId)})">${escapeHTML(label)}</button>
+    </div>
+  `;
+}
+
+function flashcardPrompt(card, index) {
+  return card?.prompt || card?.front || card?.question || card?.term || `Flashcard ${index + 1}`;
+}
+
+function flashcardAnswer(card) {
+  return card?.answer || card?.back || card?.definition || card?.explanation || "Return to the workspace for the saved answer.";
+}
+
+function renderFlashcardPanelCard(card, index) {
+  return `
+    <article class="focus-panel-card">
+      <span class="focus-room-kicker">Card ${index + 1}</span>
+      <h3>${escapeHTML(flashcardPrompt(card, index))}</h3>
+      <details>
+        <summary>Answer</summary>
+        <p class="focus-room-subtitle">${escapeHTML(flashcardAnswer(card))}</p>
+      </details>
+    </article>
+  `;
+}
+
+function quizQuestionList(quiz) {
+  if (Array.isArray(quiz?.questions)) return quiz.questions;
+  if (Array.isArray(quiz?.quiz?.questions)) return quiz.quiz.questions;
+  return [];
+}
+
+function quizReportSummary(report) {
+  if (!report || typeof report !== "object") return "";
+
+  const objectivePercent = Number(report.objectivePercent ?? report.percent ?? report.scorePercent);
+  if (Number.isFinite(objectivePercent)) {
+    const earned = Number(report.objectiveEarned);
+    const possible = Number(report.objectivePossible);
+    if (Number.isFinite(earned) && Number.isFinite(possible) && possible > 0) {
+      return `Objective score: ${earned}/${possible} (${objectivePercent}%)`;
+    }
+    return `Objective score: ${objectivePercent}%`;
+  }
+
+  const score = Number(report.score);
+  if (Number.isFinite(score)) return `Score: ${score}`;
+
+  const subjectiveCount = Number(report.subjectiveCount);
+  const subjectiveAnswered = Number(report.subjectiveAnswered);
+  if (Number.isFinite(subjectiveCount) && subjectiveCount > 0 && Number.isFinite(subjectiveAnswered)) {
+    return `Written questions: ${subjectiveAnswered}/${subjectiveCount} answered`;
+  }
+
+  return "";
+}
+
+function renderQuizPanelCard(quiz, index) {
+  const questions = quizQuestionList(quiz);
+  const questionLabel = `${questions.length} ${questions.length === 1 ? "question" : "questions"}`;
+  const score = quizReportSummary(quiz?.report);
+  return `
+    <article class="focus-panel-card">
+      <span class="focus-room-kicker">Quiz ${index + 1}</span>
+      <h3>${escapeHTML(quiz?.title || quiz?.quiz?.title || "Saved quiz")}</h3>
+      <p class="focus-room-subtitle">${escapeHTML(questionLabel)}</p>
+      ${score ? `<p class="focus-room-subtitle">${escapeHTML(score)}</p>` : ""}
+      ${focusRoomWorkspaceButton("Open Quiz Workspace")}
+    </article>
+  `;
+}
+
 function renderPanelContent() {
   if (!state.material) return "";
 
@@ -599,36 +675,40 @@ function renderPanelContent() {
   }
 
   if (state.panelTab === "flashcards") {
-    const cards = Array.isArray(state.material.flashcards) ? state.material.flashcards.slice(0, 5) : [];
+    const flashcardSource = state.material.flashcards || [];
+    const cards = Array.isArray(flashcardSource) ? flashcardSource.slice(0, 12) : [];
     if (!cards.length) {
-      return `<p class="focus-room-subtitle">No flashcards are attached to this material yet.</p>`;
+      return `
+        <article class="focus-panel-card">
+          <h3>Flashcards</h3>
+          <p class="focus-room-subtitle">No flashcards are attached to this material yet. Return to the Synapse workspace to generate a flashcard deck from these notes, then reopen the Focus Room.</p>
+          ${focusRoomWorkspaceButton("Open Flashcard Generator")}
+        </article>
+      `;
     }
     return `
-      <ul class="focus-plan-list">
-        ${cards.map(card => `
-          <li class="focus-plan-item">
-            <strong>${escapeHTML(card.question || card.front || card.term || "Flashcard")}</strong>
-            <span>${escapeHTML(card.answer || card.back || card.definition || "")}</span>
-          </li>
-        `).join("")}
-      </ul>
+      <div class="focus-plan-list">
+        ${cards.map(renderFlashcardPanelCard).join("")}
+      </div>
     `;
   }
 
   if (state.panelTab === "quiz") {
-    const quizzes = Array.isArray(state.material.quizzes) ? state.material.quizzes.slice(0, 5) : [];
+    const quizSource = state.material.quizzes || [];
+    const quizzes = Array.isArray(quizSource) ? quizSource : [];
     if (!quizzes.length) {
-      return `<p class="focus-room-subtitle">No quiz questions are attached to this material yet.</p>`;
+      return `
+        <article class="focus-panel-card">
+          <h3>Quiz</h3>
+          <p class="focus-room-subtitle">No saved quizzes are attached to this material yet. Return to the Synapse workspace to generate a quiz from these notes, then reopen the Focus Room.</p>
+          ${focusRoomWorkspaceButton("Open Quiz Generator")}
+        </article>
+      `;
     }
     return `
-      <ul class="focus-plan-list">
-        ${quizzes.map((quiz, index) => `
-          <li class="focus-plan-item">
-            <strong>Question ${index + 1}</strong>
-            <span>${escapeHTML(quiz.question || quiz.prompt || quiz.title || "Practice question")}</span>
-          </li>
-        `).join("")}
-      </ul>
+      <div class="focus-plan-list">
+        ${quizzes.map(renderQuizPanelCard).join("")}
+      </div>
     `;
   }
 

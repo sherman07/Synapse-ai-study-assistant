@@ -2,6 +2,26 @@ function getFocusRoomSummaryText() {
   return fullSummary || summaryContent?.textContent || "";
 }
 
+function getFocusRoomFlashcardsForCurrentNote() {
+  const store = getFlashcardStore();
+  const keys = [
+    currentHistoryId ? `history:${currentHistoryId}` : "",
+    currentSourceFingerprint ? `fingerprint:${currentSourceFingerprint}` : ""
+  ].filter(Boolean);
+  const record = keys.map(key => store[key]).find(item => item && Array.isArray(item.cards));
+  return record?.cards || currentFlashcards || [];
+}
+
+function getFocusRoomQuizRecordsForCurrentNote() {
+  const records = Array.isArray(quizHistory) ? quizHistory : [];
+  return records.map(record => ({
+    id: record.id,
+    title: record.title,
+    questions: record.quiz?.questions || [],
+    report: record.report || null
+  }));
+}
+
 function getSynapseFocusRoomCurrentMaterial() {
   const summary = getFocusRoomSummaryText();
   if (!summary || !summary.trim()) return null;
@@ -12,8 +32,8 @@ function getSynapseFocusRoomCurrentMaterial() {
     uploadedContent: "",
     aiSummary: summary,
     sections,
-    flashcards: Array.isArray(currentFlashcards) ? currentFlashcards : [],
-    quizzes: Array.isArray(quizHistory) ? quizHistory : [],
+    flashcards: getFocusRoomFlashcardsForCurrentNote(),
+    quizzes: getFocusRoomQuizRecordsForCurrentNote(),
     mindMap: currentMindMap,
     studyPlan: currentTimeline?.events || [],
     progressHistory: [],

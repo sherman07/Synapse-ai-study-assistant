@@ -33,6 +33,17 @@ const material = data.normalizeFocusRoomMaterial({
     "Key Ideas": "Gradients measure steepest increase.",
     "Worked Examples": "Use partial derivatives."
   },
+  flashcards: [
+    { front: "Gradient", back: "Direction of steepest increase" }
+  ],
+  quizzes: [
+    {
+      id: "quiz-1",
+      title: "Gradient Check",
+      questions: [{ question: "What does a gradient measure?" }],
+      report: { objectivePercent: 100 }
+    }
+  ],
   mindMap: { branches: [{ title: "Gradients" }] },
   sourceFingerprint: "abc123"
 });
@@ -41,6 +52,8 @@ assert.equal(material.materialId, "history-1");
 assert.equal(material.materialTitle, "Vector Calculus Review");
 assert.equal(material.aiSummary.includes("Gradients"), true);
 assert.deepEqual(material.studyHeadings.slice(0, 2), ["Key Ideas", "Worked Examples"]);
+assert.equal(material.flashcards.length, 1);
+assert.equal(material.quizzes[0].report.objectivePercent, 100);
 
 const plan = data.buildFocusRoomStudyPlan({
   material,
