@@ -305,7 +305,7 @@ function renderSoundControls() {
         </select>
       </label>
       <label>
-        Music volume <span id="focusMusicVolumeValue">${state.musicVolume}%</span>
+        Music volume <span data-focus-volume-label="musicVolume">${state.musicVolume}%</span>
         <input type="range" min="0" max="100" value="${state.musicVolume}" oninput="updateFocusSound('musicVolume', this.value)" />
       </label>
       <label>
@@ -317,7 +317,7 @@ function renderSoundControls() {
         </select>
       </label>
       <label>
-        Ambient volume <span id="focusAmbientVolumeValue">${state.ambientVolume}%</span>
+        Ambient volume <span data-focus-volume-label="ambientVolume">${state.ambientVolume}%</span>
         <input type="range" min="0" max="100" value="${state.ambientVolume}" oninput="updateFocusSound('ambientVolume', this.value)" />
       </label>
     </div>
@@ -588,7 +588,7 @@ function renderPanelContent() {
       <ul class="focus-plan-list">
         ${materials.map(material => `
           <li class="focus-plan-item">
-            <button class="focus-control-btn" type="button" onclick="openSynapseFocusRoom(${jsStringAttr(material.materialId)})">
+            <button class="focus-control-btn" type="button" onclick="openFocusRoomMaterial(${jsStringAttr(material.materialId)})">
               <strong>${escapeHTML(material.materialTitle || "Study material")}</strong>
               <span>${escapeHTML(material.materialType || "Generated notes")}</span>
             </button>
@@ -774,6 +774,11 @@ function clearFocusTimer() {
 }
 
 function tickFocusTimer() {
+  if (state.route !== "session" || !state.material) {
+    clearFocusTimer();
+    return;
+  }
+
   const total = durationSeconds();
   state.elapsedSeconds = total
     ? Math.min(total, state.elapsedSeconds + 1)
@@ -951,12 +956,14 @@ function updateFocusGoal(value) {
 function updateFocusSound(key, value) {
   if (key === "musicVolume") {
     state.musicVolume = clampVolume(value, state.musicVolume);
-    const label = byId("focusMusicVolumeValue");
-    if (label) label.textContent = `${state.musicVolume}%`;
+    document.querySelectorAll('[data-focus-volume-label="musicVolume"]').forEach(label => {
+      label.textContent = `${state.musicVolume}%`;
+    });
   } else if (key === "ambientVolume") {
     state.ambientVolume = clampVolume(value, state.ambientVolume);
-    const label = byId("focusAmbientVolumeValue");
-    if (label) label.textContent = `${state.ambientVolume}%`;
+    document.querySelectorAll('[data-focus-volume-label="ambientVolume"]').forEach(label => {
+      label.textContent = `${state.ambientVolume}%`;
+    });
   } else if (key === "musicType") {
     state.musicType = String(value || state.musicType);
     renderActiveRoute();
@@ -995,6 +1002,16 @@ function showFocusStudyHistory() {
   globalThis.location.hash = "#/study-history";
 }
 
+function openFocusRoomMaterial(materialId = "") {
+  const id = String(materialId || "");
+  if (typeof globalThis.openSynapseFocusRoom === "function") {
+    globalThis.openSynapseFocusRoom(id);
+    return;
+  }
+  const suffix = id ? `/${encodeURIComponent(id)}` : "";
+  globalThis.location.hash = `#/focus-room${suffix}`;
+}
+
 function renderActiveRoute() {
   if (state.route === "setup") {
     renderFocusRoomSetup();
@@ -1019,6 +1036,7 @@ function routeFocusRoom(route, options = {}) {
   state.summaryRecord = null;
 
   if (!hasMaterial) {
+    clearFocusTimer();
     state.studyPlan = [];
     setWorkspaceVisible(false);
     setFocusView("setup");
@@ -1041,6 +1059,7 @@ function routeFocusRoom(route, options = {}) {
   }
 
   state.panelOpen = false;
+  clearFocusTimer();
   setWorkspaceVisible(false);
   setFocusView("setup");
   renderFocusRoomSetup();
@@ -1089,6 +1108,7 @@ function exposeFocusRoomGlobals() {
     selectFocusScene,
     setFocusDuration,
     setFocusPanelTab,
+    openFocusRoomMaterial,
     showFocusStudyHistory,
     skipFocusRoomTimer,
     startFocusRoomSession,
