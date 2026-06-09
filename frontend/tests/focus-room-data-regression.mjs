@@ -19,6 +19,12 @@ assert.equal(data.FOCUS_ROOM_SESSION_KEY, "synapse.focusRoom.sessions.v1");
 assert.equal(data.FOCUS_ROOM_SCENES.length, 6);
 assert.ok(data.FOCUS_ROOM_SCENES.every(scene => scene.id && scene.name && scene.image), "each scene should have an image-backed identity");
 
+globalThis.getSynapseFocusRoomMaterials = () => [];
+globalThis.getSynapseFocusRoomCurrentMaterial = () => null;
+assert.deepEqual(data.getFocusRoomMaterials(), []);
+delete globalThis.getSynapseFocusRoomMaterials;
+delete globalThis.getSynapseFocusRoomCurrentMaterial;
+
 const material = data.normalizeFocusRoomMaterial({
   id: "history-1",
   title: "Vector Calculus Review",
@@ -46,6 +52,12 @@ assert.equal(plan.length, 4);
 assert.ok(plan[0].task.includes("Prepare for tomorrow's quiz"));
 assert.ok(plan.some(item => item.task.includes("Worked Examples")));
 
+const shortPlan = data.buildFocusRoomStudyPlan({
+  material,
+  durationMinutes: 10
+});
+assert.equal(shortPlan.reduce((total, item) => total + item.minutes, 0), 10);
+
 const session = data.saveFocusRoomSession({
   sessionId: "session-1",
   materialId: "history-1",
@@ -65,5 +77,22 @@ const session = data.saveFocusRoomSession({
 assert.equal(session.materialTitle, "Vector Calculus Review");
 assert.equal(data.readFocusRoomSessions().length, 1);
 assert.equal(data.formatFocusRoomDuration(3661), "1h 1m");
+
+const invalidNumericSession = data.saveFocusRoomSession({
+  sessionId: "session-invalid-numeric",
+  musicVolume: "bad",
+  ambientVolume: "bad",
+  pomodoroDuration: "bad",
+  totalFocusTime: "bad",
+  flashcardsCompleted: "bad",
+  quizScore: "bad"
+});
+
+assert.equal(invalidNumericSession.musicVolume, 60);
+assert.equal(invalidNumericSession.ambientVolume, 50);
+assert.equal(invalidNumericSession.pomodoroDuration, 25);
+assert.equal(invalidNumericSession.totalFocusTime, 0);
+assert.equal(invalidNumericSession.flashcardsCompleted, 0);
+assert.equal(invalidNumericSession.quizScore, null);
 
 console.log("focus room data regression passed");

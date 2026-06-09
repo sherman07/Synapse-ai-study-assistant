@@ -114,6 +114,10 @@ function headingsFromMaterial(source) {
 }
 
 function normalizeFocusRoomMaterial(source = {}) {
+  if (!source || typeof source !== "object") {
+    source = {};
+  }
+
   const materialId = String(source.materialId || source.id || source.historyId || source.sourceFingerprint || "current-material");
   const aiSummary = String(source.aiSummary || source.summary || source.fullSummary || "");
   const materialTitle = String(source.materialTitle || source.title || titleFromSummary(aiSummary));
@@ -149,7 +153,8 @@ function getLegacyMaterials() {
 
 function getLegacyCurrentMaterial() {
   if (typeof globalThis.getSynapseFocusRoomCurrentMaterial === "function") {
-    return normalizeFocusRoomMaterial(globalThis.getSynapseFocusRoomCurrentMaterial());
+    const material = globalThis.getSynapseFocusRoomCurrentMaterial();
+    return material ? normalizeFocusRoomMaterial(material) : null;
   }
   return null;
 }
@@ -175,10 +180,10 @@ function buildFocusRoomStudyPlan({ material, goal, durationMinutes }) {
     ? material.studyHeadings
     : ["Key ideas", "Examples", "Practice", "Review"];
   const goalText = String(goal || "").trim() || `Study ${material?.materialTitle || "this material"}`;
-  const firstBlock = Math.max(5, Math.round(minutes * 0.2));
-  const secondBlock = Math.max(8, Math.round(minutes * 0.4));
-  const thirdBlock = Math.max(5, Math.round(minutes * 0.2));
-  const finalBlock = Math.max(5, minutes - firstBlock - secondBlock - thirdBlock);
+  const firstBlock = Math.max(1, Math.floor(minutes * 0.2));
+  const secondBlock = Math.max(1, Math.floor(minutes * 0.4));
+  const thirdBlock = Math.max(1, Math.floor(minutes * 0.2));
+  const finalBlock = Math.max(1, minutes - firstBlock - secondBlock - thirdBlock);
 
   return [
     { minutes: firstBlock, task: `Set the goal: ${goalText}` },
@@ -201,6 +206,11 @@ function readFocusRoomSessions() {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function saveFocusRoomSession(session) {
   const now = new Date().toISOString();
   const record = {
@@ -211,13 +221,13 @@ function saveFocusRoomSession(session) {
     selectedScene: session.selectedScene || "morning-window",
     musicType: session.musicType || "Deep Focus",
     ambientSound: session.ambientSound || "Nature",
-    musicVolume: Number(session.musicVolume ?? 60),
-    ambientVolume: Number(session.ambientVolume ?? 50),
-    pomodoroDuration: Number(session.pomodoroDuration || 25),
+    musicVolume: finiteNumber(session.musicVolume ?? 60, 60),
+    ambientVolume: finiteNumber(session.ambientVolume ?? 50, 50),
+    pomodoroDuration: finiteNumber(session.pomodoroDuration || 25, 25),
     startedAt: session.startedAt || now,
     endedAt: session.endedAt || now,
-    totalFocusTime: Math.max(0, Number(session.totalFocusTime || 0)),
-    flashcardsCompleted: Math.max(0, Number(session.flashcardsCompleted || 0)),
+    totalFocusTime: Math.max(0, finiteNumber(session.totalFocusTime || 0, 0)),
+    flashcardsCompleted: Math.max(0, finiteNumber(session.flashcardsCompleted || 0, 0)),
     quizScore: Number.isFinite(Number(session.quizScore)) ? Number(session.quizScore) : null,
     mistakesMade: Array.isArray(session.mistakesMade) ? session.mistakesMade : [],
     completedTasks: Array.isArray(session.completedTasks) ? session.completedTasks : [],
