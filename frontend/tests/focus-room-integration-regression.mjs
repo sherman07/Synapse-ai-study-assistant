@@ -193,7 +193,9 @@ for (const token of [
   "<details>",
   "state.material.quizzes || []",
   "questions.length",
-  "onclick=\"returnFromFocusRoom(${jsStringAttr(materialId)})"
+  "focusRoomWorkspaceButton(\"Open Flashcard Workspace\", \"flashcards\")",
+  "focusRoomWorkspaceButton(\"Open Quiz Workspace\", \"quiz\")",
+  "runFocusWorkspaceAction"
 ]) {
   assert.ok(focusController.includes(token), `Focus Room controller should include ${token}`);
 }

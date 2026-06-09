@@ -576,11 +576,12 @@ function renderLearningPanel() {
   `;
 }
 
-function focusRoomWorkspaceButton(label) {
+function focusRoomWorkspaceButton(label, action = "") {
   const materialId = state.materialId || state.material?.materialId || "";
+  const actionArg = action ? `, ${jsStringAttr(action)}` : "";
   return `
     <div class="focus-session-controls">
-      <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom(${jsStringAttr(materialId)})">${escapeHTML(label)}</button>
+      <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom(${jsStringAttr(materialId)}${actionArg})">${escapeHTML(label)}</button>
     </div>
   `;
 }
@@ -647,7 +648,7 @@ function renderQuizPanelCard(quiz, index) {
       <h3>${escapeHTML(quiz?.title || quiz?.quiz?.title || "Saved quiz")}</h3>
       <p class="focus-room-subtitle">${escapeHTML(questionLabel)}</p>
       ${score ? `<p class="focus-room-subtitle">${escapeHTML(score)}</p>` : ""}
-      ${focusRoomWorkspaceButton("Open Quiz Workspace")}
+      ${focusRoomWorkspaceButton("Open Quiz Workspace", "quiz")}
     </article>
   `;
 }
@@ -682,7 +683,7 @@ function renderPanelContent() {
         <article class="focus-panel-card">
           <h3>Flashcards</h3>
           <p class="focus-room-subtitle">No flashcards are attached to this material yet. Return to the Synapse workspace to generate a flashcard deck from these notes, then reopen the Focus Room.</p>
-          ${focusRoomWorkspaceButton("Open Flashcard Generator")}
+          ${focusRoomWorkspaceButton("Open Flashcard Generator", "flashcards")}
         </article>
       `;
     }
@@ -690,6 +691,7 @@ function renderPanelContent() {
       <div class="focus-plan-list">
         ${cards.map(renderFlashcardPanelCard).join("")}
       </div>
+      ${focusRoomWorkspaceButton("Open Flashcard Workspace", "flashcards")}
     `;
   }
 
@@ -701,7 +703,7 @@ function renderPanelContent() {
         <article class="focus-panel-card">
           <h3>Quiz</h3>
           <p class="focus-room-subtitle">No saved quizzes are attached to this material yet. Return to the Synapse workspace to generate a quiz from these notes, then reopen the Focus Room.</p>
-          ${focusRoomWorkspaceButton("Open Quiz Generator")}
+          ${focusRoomWorkspaceButton("Open Quiz Generator", "quiz")}
         </article>
       `;
     }
@@ -726,6 +728,7 @@ function renderPanelContent() {
       <article class="focus-panel-card">
         <h3>Mind Map</h3>
         <pre class="focus-room-subtitle">${escapeHTML(mindMapJSON)}</pre>
+        ${focusRoomWorkspaceButton("Open Mind Map Workspace", "mindmap")}
       </article>
     `;
   }
@@ -736,7 +739,7 @@ function renderPanelContent() {
         <h3>Assistant</h3>
         <p class="focus-room-subtitle">Return to the workspace to continue with the Synapse assistant for this material.</p>
         <div class="focus-session-controls">
-          <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom(${jsStringAttr(state.materialId)})">Workspace Assistant</button>
+          <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom(${jsStringAttr(state.materialId)}, &quot;assistant&quot;)">Workspace Assistant</button>
         </div>
       </article>
     `;
@@ -747,6 +750,7 @@ function renderPanelContent() {
       <article class="focus-panel-card">
         <h3>Study Plan</h3>
         ${renderStudyPlanList({ interactive: true })}
+        ${focusRoomWorkspaceButton("Open Timeline Workspace", "timeline")}
       </article>
     `;
   }
@@ -983,25 +987,58 @@ function closeFocusSummary() {
   renderFocusSessionSummary();
 }
 
-function returnFromFocusRoom(materialId = "") {
+function normalizeWorkspaceAction(action) {
+  const value = String(action || "").trim().toLowerCase();
+  if (["flashcards", "quiz", "assistant", "mindmap", "timeline"].includes(value)) {
+    return value;
+  }
+  return "";
+}
+
+function runFocusWorkspaceAction(action) {
+  const nextAction = normalizeWorkspaceAction(action);
+  if (!nextAction) return;
+
+  const run = () => {
+    if (nextAction === "assistant") {
+      if (typeof globalThis.openAssistant === "function") {
+        globalThis.openAssistant();
+      }
+      return;
+    }
+
+    if (typeof globalThis.switchTool === "function") {
+      globalThis.switchTool(nextAction);
+    }
+  };
+
+  if (typeof globalThis.requestAnimationFrame === "function") {
+    globalThis.requestAnimationFrame(run);
+  } else {
+    setTimeout(run, 0);
+  }
+}
+
+async function returnFromFocusRoom(materialId = "", action = "") {
   pauseFocusRoomTimer({ render: false });
   closeFocusSummary();
   const returnMaterialId = String(materialId || state.materialId || state.material?.materialId || "");
   if (typeof globalThis.returnFromFocusRoomToWorkspace === "function") {
     try {
       const result = globalThis.returnFromFocusRoomToWorkspace(returnMaterialId);
-      if (result && typeof result.catch === "function") {
-        result.catch(error => {
-          console.error("Could not return from Focus Room:", error);
-          globalThis.location.hash = "";
-        });
+      if (result && typeof result.then === "function") {
+        await result;
       }
+      routeWorkspace();
+      runFocusWorkspaceAction(action);
       return;
     } catch (error) {
       console.error("Could not return from Focus Room:", error);
     }
   }
   globalThis.location.hash = "";
+  routeWorkspace();
+  runFocusWorkspaceAction(action);
 }
 
 function selectFocusScene(sceneId) {
