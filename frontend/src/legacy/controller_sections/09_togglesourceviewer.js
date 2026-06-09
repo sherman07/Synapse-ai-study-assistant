@@ -1,3 +1,5 @@
+const SOURCE_PREVIEW_TIMEOUT_MS = Number(window.SYNAPSE_SOURCE_PREVIEW_TIMEOUT_MS || 90 * 1000);
+
 function toggleSourceViewer(force = null) {
   const desired = typeof force === "boolean" ? force : !sourceViewerOpen;
   sourceViewerOpen = desired;
@@ -92,14 +94,28 @@ async function fetchSourcePreview(item) {
   formData.append("file", item.blob, item.name || item.displayName || "source");
   const response = await apiClient.fetch("/source-preview", {
     method: "POST",
-    body: formData
+    body: formData,
+    timeoutMs: SOURCE_PREVIEW_TIMEOUT_MS
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.error) {
-    throw new Error(data.error || "Source preview could not be generated.");
-  }
+  const data = await readSourcePreviewJson(response);
   item.preview = data;
   item.previewError = "";
+  return data;
+}
+
+async function readSourcePreviewJson(response) {
+  const contentType = response.headers?.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    const body = await response.text().catch(() => "");
+    const preview = body ? ` Response preview: ${shorten(body.replace(/\s+/g, " "), 180)}` : "";
+    throw new Error(
+      `Source preview returned ${contentType || "non-JSON"} from ${response.url || apiClient.endpoint("/source-preview")} (HTTP ${response.status}).${preview}`
+    );
+  }
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data || data.error) {
+    throw new Error(data?.error || `Source preview could not be generated (HTTP ${response.status}).`);
+  }
   return data;
 }
 

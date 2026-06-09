@@ -29,8 +29,10 @@
 
     shouldInstall() {
       const { hostname, port } = this.window.location;
-      const isLocalHost = hostname === "127.0.0.1" || hostname === "localhost";
-      return Boolean(this.NativeWebSocket && isLocalHost && port === "5500");
+      const isLocalHost = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(String(hostname || "").toLowerCase());
+      const portNumber = Number(port);
+      const isLiveServerPort = portNumber >= 5500 && portNumber <= 5599;
+      return Boolean(this.NativeWebSocket && isLocalHost && isLiveServerPort);
     }
 
     isLiveServerSocket(url) {

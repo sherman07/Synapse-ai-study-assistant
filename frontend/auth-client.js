@@ -47,13 +47,18 @@
     return Boolean(config.supabaseUrl && config.supabaseAnonKey);
   }
 
+  function isLocalDevHost(hostname) {
+    const value = String(hostname || "").toLowerCase();
+    return value === "127.0.0.1" || value === "localhost" || value === "::1" || value === "[::1]";
+  }
+
   function apiBase() {
     const configured = readConfig().apiBase;
     if (configured) return configured;
     const { protocol, hostname, port } = window.location;
     const backendPort = String(window.SYNAPSE_BACKEND_PORT || document.body?.dataset?.apiPort || "8001").trim();
     if (protocol === "file:") return `http://127.0.0.1:${backendPort || "8001"}`;
-    if (/^(127\.0\.0\.1|localhost|::1)$/.test(hostname) && port !== backendPort) {
+    if (isLocalDevHost(hostname) && port !== backendPort) {
       return `http://127.0.0.1:${backendPort || "8001"}`;
     }
     return `${protocol}//${window.location.host}`;

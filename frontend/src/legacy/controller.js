@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js";
+import { API_BASE } from "./apiConfig.js?v=local-api-v1";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   safeGetLocalStorage,
@@ -43,7 +43,7 @@ import {
 } from "./markdownRenderer.js?v=probability-table-v1";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "account-landing-v3";
+const CONTROLLER_VERSION = "local-api-v1";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",

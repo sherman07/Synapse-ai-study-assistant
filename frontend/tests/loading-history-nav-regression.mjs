@@ -22,7 +22,7 @@ const loadingNotesBlock = css.match(/\.app-layout\.loading-state \.notes-area\s*
 assert.ok(loadingNotesBlock.includes("margin-left: 300px"));
 assert.ok(loadingNotesBlock.includes("width: calc(100% - 300px)"));
 
-assert.ok(index.includes("style.css?v=loading-history-v1"));
+assert.ok(index.includes("style.css?v=flashcard-match-v4"));
 assert.ok(style.includes("04-section.css?v=loading-history-v1"));
 assert.ok(historyController.includes('onclick="loadHistoryEntry'));
 

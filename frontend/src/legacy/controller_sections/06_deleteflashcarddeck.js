@@ -113,7 +113,7 @@ function renderFlashcardStudyView() {
   const isMatchingMode = flashcardActivityMode === "matching";
   return `
     <div class="flashcard-study-wrap">
-      <div class="flashcard-study-shell">
+      <div class="flashcard-study-shell ${isMatchingMode ? "matching" : ""}">
         <div class="flashcard-study-top">
           <span>${isMatchingMode ? `${Math.min(total, flashcardMatchingLimit())} matching pairs` : `Card ${activeFlashcardIndex + 1} of ${total}`}</span>
           <div class="flashcard-study-top-actions">
@@ -162,16 +162,50 @@ function flashcardMatchingLimit() {
   return Math.max(3, Math.min(8, Number(window.SYNAPSE_FLASHCARD_MATCH_LIMIT || 8)));
 }
 
-function normaliseFlashcardMatchText(value, limit = 140) {
+const FLASHCARD_MATCH_LINE_COLORS = [
+  "#6d5dfc",
+  "#0ea5e9",
+  "#14b8a6",
+  "#f59e0b",
+  "#ec4899",
+  "#8b5cf6",
+  "#22c55e",
+  "#f97316"
+];
+
+function normaliseFlashcardMatchText(value, limit = 110, wordLimit = 18, fallback = "Open the notes for this answer.") {
   const cleaned = cleanMindText(value || "")
+    .replace(/[`*_>#-]+/g, " ")
+    .replace(/\s*(?:\.{3}|…)\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return shorten(cleaned || "Open the notes for this answer.", limit);
+  if (!cleaned) return fallback;
+
+  const sentenceMatch = cleaned.match(/^[^.!?。！？]+[.!?。！？]?/);
+  const sentence = (sentenceMatch?.[0] || cleaned).trim();
+  const words = sentence.split(/\s+/).filter(Boolean);
+  let compact = words.length > wordLimit ? words.slice(0, wordLimit).join(" ") : sentence;
+  if (compact.length > limit) {
+    const sliced = compact.slice(0, limit).trim();
+    const cut = Math.max(
+      sliced.lastIndexOf(" "),
+      sliced.lastIndexOf(","),
+      sliced.lastIndexOf(";"),
+      sliced.lastIndexOf("，"),
+      sliced.lastIndexOf("；")
+    );
+    compact = sliced.slice(0, cut >= Math.floor(limit * 0.45) ? cut : limit).trim();
+  }
+  compact = compact
+    .replace(/\s+(?:and|or|but|because|with|for|to|of|the|a|an)$/i, "")
+    .replace(/[,:;，；-]+$/g, "")
+    .trim();
+  return compact || fallback;
 }
 
 function deckSignatureForMatching(cards = currentFlashcards) {
   return (cards || [])
-    .map(card => `${card.id || ""}:${normaliseFlashcardMatchText(card.front, 90)}=>${normaliseFlashcardMatchText(card.back, 90)}`)
+    .map(card => `${card.id || ""}:${normaliseFlashcardMatchText(card.front, 82, 12, "Prompt")}=>${normaliseFlashcardMatchText(card.back, 110, 18, "Answer")}`)
     .join("|");
 }
 
@@ -194,8 +228,8 @@ function buildFlashcardMatchingPairs(cards = currentFlashcards, limit = flashcar
   const seen = new Set();
   return (cards || [])
     .map((card, index) => {
-      const front = normaliseFlashcardMatchText(card.front, 120);
-      const back = normaliseFlashcardMatchText(card.back, 180);
+      const front = normaliseFlashcardMatchText(card.front, 82, 12, "Recall prompt");
+      const back = normaliseFlashcardMatchText(card.back, 110, 18, "Source answer");
       const key = `${front.toLowerCase()}=>${back.toLowerCase()}`;
       if (!front || !back || seen.has(key)) return null;
       seen.add(key);
@@ -206,6 +240,8 @@ function buildFlashcardMatchingPairs(cards = currentFlashcards, limit = flashcar
         branchId: `branch-${id}`,
         term: front,
         branch: back,
+        termFull: cleanMindText(card.front || front),
+        branchFull: cleanMindText(card.back || back),
         sourceReference: card.sourceReference || "",
         difficulty: card.difficulty || "medium"
       };
@@ -370,6 +406,7 @@ function renderFlashcardMatchingActivity() {
       id: pair.branchId,
       pairId: pair.id,
       text: pair.branch,
+      branchFull: pair.branchFull,
       sourceReference: pair.sourceReference
     })),
     state.deckSignature
@@ -392,50 +429,52 @@ function renderFlashcardMatchingActivity() {
         </div>
       </div>
 
-      <div class="flashcard-match-board" id="flashcardMatchBoard">
+      <div class="flashcard-match-board aligned" id="flashcardMatchBoard">
         <svg id="flashcardMatchLines" class="flashcard-match-lines" aria-hidden="true"></svg>
-        <div class="flashcard-match-column" data-match-column="terms">
+        <div class="flashcard-match-row flashcard-match-row-head">
           <div class="flashcard-match-column-title">Prompts</div>
-          ${pairs.map((pair, index) => {
-            const matchedBranchId = state.matches?.[pair.termId] || "";
-            const status = flashcardMatchStatusForPair(pair, state);
-            return `
-              <button class="flashcard-match-card match-term-card ${state.selectedTermId === pair.termId ? "selected" : ""} ${matchedBranchId ? "connected" : ""} ${status}"
+          <div class="flashcard-match-rail-title" aria-hidden="true"></div>
+          <div class="flashcard-match-column-title">Branches</div>
+        </div>
+        ${pairs.map((pair, index) => {
+          const branch = branches[index];
+          const connectedTermId = branch
+            ? Object.keys(state.matches || {}).find(termId => state.matches[termId] === branch.id) || ""
+            : "";
+          const connectedPair = connectedTermId ? findFlashcardMatchPairByTerm(connectedTermId, pairs) : null;
+          const branchStatus = state.validated && connectedPair
+            ? (connectedPair.branchId === branch.id ? "correct" : "incorrect")
+            : "";
+          const matchedBranchId = state.matches?.[pair.termId] || "";
+          const termStatus = flashcardMatchStatusForPair(pair, state);
+          return `
+            <div class="flashcard-match-row">
+              <button class="flashcard-match-card match-term-card ${state.selectedTermId === pair.termId ? "selected" : ""} ${matchedBranchId ? "connected" : ""} ${termStatus}"
                 type="button"
                 draggable="true"
                 data-term-id="${escapeAttr(pair.termId)}"
                 data-branch-id="${escapeAttr(matchedBranchId)}"
+                title="${escapeAttr(pair.termFull || pair.term)}"
                 onclick="selectFlashcardMatchTerm('${escapeAttr(pair.termId)}')"
                 ondragstart="handleFlashcardMatchDragStart(event, '${escapeAttr(pair.termId)}')">
                 <span class="flashcard-match-index">${index + 1}</span>
-                <span>${escapeHTML(pair.term)}</span>
+                <span class="flashcard-match-text">${escapeHTML(pair.term)}</span>
               </button>
-            `;
-          }).join("")}
-        </div>
-
-        <div class="flashcard-match-column" data-match-column="branches">
-          <div class="flashcard-match-column-title">Branches</div>
-          ${branches.map((branch, index) => {
-            const connectedTermId = Object.keys(state.matches || {}).find(termId => state.matches[termId] === branch.id) || "";
-            const connectedPair = connectedTermId ? findFlashcardMatchPairByTerm(connectedTermId, pairs) : null;
-            const status = state.validated && connectedPair
-              ? (connectedPair.branchId === branch.id ? "correct" : "incorrect")
-              : "";
-            return `
-              <button class="flashcard-match-card match-branch-card ${connectedTermId ? "connected" : ""} ${status}"
+              <div class="flashcard-match-rail" aria-hidden="true"></div>
+              <button class="flashcard-match-card match-branch-card ${connectedTermId ? "connected" : ""} ${branchStatus}"
                 type="button"
                 data-branch-id="${escapeAttr(branch.id)}"
                 data-term-id="${escapeAttr(connectedTermId)}"
+                title="${escapeAttr(branch.branchFull || branch.text)}"
                 onclick="selectFlashcardMatchBranch('${escapeAttr(branch.id)}')"
                 ondragover="event.preventDefault()"
                 ondrop="handleFlashcardMatchDrop(event, '${escapeAttr(branch.id)}')">
                 <span class="flashcard-match-index">${String.fromCharCode(65 + index)}</span>
-                <span>${escapeHTML(branch.text)}</span>
+                <span class="flashcard-match-text">${escapeHTML(branch.text)}</span>
               </button>
-            `;
-          }).join("")}
-        </div>
+            </div>
+          `;
+        }).join("")}
       </div>
 
       <div class="flashcard-match-actions">
@@ -463,7 +502,7 @@ function renderFlashcardMatchLines() {
   svg.setAttribute("width", boardRect.width);
   svg.setAttribute("height", boardRect.height);
 
-  const lines = Object.entries(state.matches || []).map(([termId, branchId]) => {
+  const lines = Object.entries(state.matches || []).map(([termId, branchId], index) => {
     const term = Array.from(board.querySelectorAll(".match-term-card")).find(element => element.dataset.termId === termId);
     const branch = Array.from(board.querySelectorAll(".match-branch-card")).find(element => element.dataset.branchId === branchId);
     if (!term || !branch) return "";
@@ -476,7 +515,8 @@ function renderFlashcardMatchLines() {
     const curve = Math.max(36, Math.min(140, (x2 - x1) * 0.42));
     const pair = findFlashcardMatchPairByTerm(termId);
     const status = state.validated && pair ? (branchId === pair.branchId ? "correct" : "incorrect") : "";
-    return `<path class="${status}" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + curve).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - curve).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}" />`;
+    const color = FLASHCARD_MATCH_LINE_COLORS[index % FLASHCARD_MATCH_LINE_COLORS.length];
+    return `<path class="${status}" style="--match-line-color: ${escapeAttr(color)}" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + curve).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - curve).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}" />`;
   }).join("");
 
   svg.innerHTML = lines;

@@ -227,7 +227,7 @@ SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK = (
 SYNAPSE_FRONTEND_BASE_URL = (
     os.getenv("SYNAPSE_FRONTEND_BASE_URL")
     or os.getenv("SYNAPSE_PUBLIC_FRONTEND_URL")
-    or "http://127.0.0.1:5173/frontend"
+    or "http://127.0.0.1:5500/frontend"
 ).rstrip("/")
 STRIPE_PRICE_IDS = {
     "starter": (os.getenv("STRIPE_PRICE_STARTER") or os.getenv("SYNAPSE_STRIPE_PRICE_STARTER") or "").strip(),

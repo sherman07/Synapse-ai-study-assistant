@@ -6,6 +6,7 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const flashcardPath = path.resolve(__dirname, "../src/legacy/controller_sections/06_deleteflashcarddeck.js");
 const source = fs.readFileSync(flashcardPath, "utf8");
+const styles = fs.readFileSync(path.resolve(__dirname, "../styles/07-section.css"), "utf8");
 
 const makeHelpers = new Function(
   "window",
@@ -18,6 +19,7 @@ const makeHelpers = new Function(
     connectFlashcardMatchPair,
     createFlashcardMatchingState,
     flashcardMatchValidationSummary,
+    normaliseFlashcardMatchText,
     stableFlashcardShuffle
   };
   `
@@ -34,6 +36,7 @@ const {
   connectFlashcardMatchPair,
   createFlashcardMatchingState,
   flashcardMatchValidationSummary,
+  normaliseFlashcardMatchText,
   stableFlashcardShuffle
 } = makeHelpers({ SYNAPSE_FLASHCARD_MATCH_LIMIT: 4 }, cleanMindText, shorten);
 
@@ -63,5 +66,24 @@ connectFlashcardMatchPair(pairs[0].termId, pairs[0].branchId, state);
 connectFlashcardMatchPair(pairs[2].termId, pairs[2].branchId, state);
 const summary = flashcardMatchValidationSummary(pairs, state);
 assert.deepEqual(summary, { total: 3, matched: 3, correct: 3, wrong: 0, complete: true });
+
+const compact = normaliseFlashcardMatchText(
+  "This answer is intentionally verbose because it contains too many words for a matching branch and should be compacted before display.",
+  82,
+  12
+);
+assert.ok(compact.split(/\s+/).length <= 12);
+assert.ok(!/[.…]$/.test(compact), "matching text should not look half-generated");
+
+assert.ok(source.includes("flashcard-match-row"));
+assert.ok(source.includes('flashcard-study-shell ${isMatchingMode ? "matching" : ""}'));
+assert.ok(styles.includes(".flashcard-match-row"));
+assert.ok(styles.includes(".flashcard-study-shell.matching"));
+assert.ok(styles.includes("width: min(1180px, 100%)"));
+assert.ok(styles.includes("grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr)"));
+assert.ok(source.includes("FLASHCARD_MATCH_LINE_COLORS"));
+assert.ok(source.includes("--match-line-color"));
+assert.ok(styles.includes("stroke: var(--match-line-color, #7c8cff)"));
+assert.ok(styles.includes("stroke-width: 5"));
 
 console.log("flashcard matching regression passed");

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import tempfile
 import time
@@ -10,6 +11,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend import app as backend_app_module
 from backend.app import analyze_materials
 from backend.app import build_analysis_fingerprint
 from backend.app import build_visual_gallery
@@ -20,6 +22,7 @@ from backend.app import iter_visual_candidates
 from backend.app import link_to_source_unit
 from backend.app import rebuild_cached_visual_argument_cards
 from backend.app import render_pptx_source_preview_svg_images
+from backend.app import source_preview_image_url
 from backend.core.analysis_cache import AnalysisCacheStore
 from backend.core.visual_assets import visual_asset_url_for_browser
 
@@ -56,6 +59,12 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("public_backend_base_url", payload)
         self.assertIn("runtime_assets_dir", payload)
         self.assertNotIn("OPENAI_API_KEY", payload)
+
+    def test_default_frontend_base_url_matches_documented_live_server(self):
+        self.assertEqual(
+            backend_app_module.SYNAPSE_FRONTEND_BASE_URL,
+            "http://127.0.0.1:5500/frontend",
+        )
 
     def test_explicit_detail_level_overrides_auto_depth(self):
         payload = choose_learning_depth("Tiny note about slope.", [], "detailed")
@@ -262,6 +271,17 @@ class VisualGalleryTests(unittest.TestCase):
         self.assertFalse(gallery[0]["url"].startswith("data:"))
         assert_served_visual_asset(self, gallery[0]["url"], "image/png")
 
+    def test_source_preview_image_url_serves_runtime_asset_when_requested(self):
+        png_data = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
+
+        url = source_preview_image_url(png_data, "image/png", browser_asset=True)
+
+        self.assertFalse(url.startswith("data:"))
+        assert_served_visual_asset(self, url, "image/png")
+
     def test_visual_asset_url_preserves_existing_browser_url(self):
         url = "http://127.0.0.1:8001/assets/visuals/already.png"
 
@@ -287,6 +307,20 @@ class VisualGalleryTests(unittest.TestCase):
         self.assertIn(1, rendered)
         self.assertTrue(rendered[1].startswith("data:image/png;base64,"))
         assert_served_visual_asset(self, visual_asset_url_for_browser(rendered[1]), "image/png")
+
+    def test_pptx_svg_browser_preview_uses_runtime_asset_url(self):
+        if Presentation is None:
+            self.skipTest("python-pptx is not installed")
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(914400, 914400, 5486400, 914400)
+        textbox.text = "Results table and comparison graph"
+
+        rendered = render_pptx_source_preview_svg_images(prs, 1, browser_assets=True)
+
+        self.assertIn(1, rendered)
+        self.assertFalse(rendered[1].startswith("data:"))
+        assert_served_visual_asset(self, rendered[1], "image/png")
 
     def test_youtube_link_preserves_frame_visual_parts_for_inline_candidates(self):
         frame_parts = [

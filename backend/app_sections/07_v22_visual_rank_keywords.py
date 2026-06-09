@@ -638,7 +638,7 @@ def rasterize_svg_image_bytes(data: bytes, max_width: Optional[int] = None) -> b
                 pass
 
 
-def source_preview_image_url(data: bytes, content_type: str = "image/jpeg") -> str:
+def source_preview_image_url(data: bytes, content_type: str = "image/jpeg", browser_asset: bool = False) -> str:
     normalized_type = (content_type or "").lower()
     if normalized_type == "image/svg+xml":
         rasterized = rasterize_svg_image_bytes(data)
@@ -649,7 +649,17 @@ def source_preview_image_url(data: bytes, content_type: str = "image/jpeg") -> s
     elif normalized_type.startswith("image/"):
         data, content_type = _v22_resize_image_bytes(data, content_type)
     encoded = base64.b64encode(data).decode("utf-8")
-    return f"data:{content_type};base64,{encoded}"
+    data_url = f"data:{content_type};base64,{encoded}"
+    if not browser_asset:
+        return data_url
+    try:
+        from core.visual_assets import visual_asset_url_for_browser
+    except ModuleNotFoundError:
+        from backend.core.visual_assets import visual_asset_url_for_browser
+    try:
+        return visual_asset_url_for_browser(data_url) or data_url
+    except Exception:
+        return data_url
 
 
 def source_preview_title_from_text(text: str, fallback: str) -> str:
@@ -881,7 +891,7 @@ def render_pptx_slide_as_svg(slide: Any, slide_width_px: float, slide_height_px:
     return "".join(parts)
 
 
-def render_pptx_source_preview_svg_images(prs: Any, max_slides: int) -> Dict[int, str]:
+def render_pptx_source_preview_svg_images(prs: Any, max_slides: int, browser_assets: bool = False) -> Dict[int, str]:
     """Best-effort complete slide-page fallback when native PPTX rendering is unavailable."""
     if not prs or max_slides <= 0:
         return {}
@@ -893,13 +903,17 @@ def render_pptx_source_preview_svg_images(prs: Any, max_slides: int) -> Dict[int
             break
         try:
             svg = render_pptx_slide_as_svg(slide, slide_width_px, slide_height_px, slide_index)
-            rendered[slide_index] = source_preview_image_url(svg.encode("utf-8"), "image/svg+xml")
+            rendered[slide_index] = source_preview_image_url(
+                svg.encode("utf-8"),
+                "image/svg+xml",
+                browser_asset=browser_assets,
+            )
         except Exception:
             continue
     return rendered
 
 
-def render_pdf_path_to_source_preview_images(pdf_path: Path, max_pages: int) -> Dict[int, str]:
+def render_pdf_path_to_source_preview_images(pdf_path: Path, max_pages: int, browser_assets: bool = False) -> Dict[int, str]:
     if fitz is None or max_pages <= 0 or not pdf_path.exists():
         return {}
     doc = None
@@ -910,7 +924,11 @@ def render_pdf_path_to_source_preview_images(pdf_path: Path, max_pages: int) -> 
         for page_index in range(min(len(doc), max_pages)):
             page = doc.load_page(page_index)
             pix = page.get_pixmap(matrix=matrix, alpha=False)
-            rendered[page_index + 1] = source_preview_image_url(pix.tobytes("png"), "image/png")
+            rendered[page_index + 1] = source_preview_image_url(
+                pix.tobytes("png"),
+                "image/png",
+                browser_asset=browser_assets,
+            )
         return rendered
     except Exception:
         return {}

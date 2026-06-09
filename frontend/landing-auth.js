@@ -14,6 +14,11 @@
     return re.test(email);
   }
 
+  function isLocalDevHost(hostname) {
+    const value = String(hostname || "").toLowerCase();
+    return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]";
+  }
+
   function showError(elementId, message) {
     const errorElement = document.getElementById(elementId);
     if (errorElement) {
@@ -671,7 +676,7 @@
     if (configured) return configured;
 
     const { protocol, hostname } = window.location;
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    if (isLocalDevHost(hostname)) {
       return `${protocol}//127.0.0.1:8001/contact`;
     }
     return '';

@@ -798,6 +798,25 @@ def resolve_flashcard_count(data: dict, context: str) -> Tuple[str, int]:
     return "auto", clamp_flashcard_count(data.get("card_count"), estimated)
 
 
+def compact_flashcard_text(value, fallback: str = "", max_words: int = 18, max_chars: int = 120) -> str:
+    cleaned = clean_quiz_string(value, fallback)
+    cleaned = re.sub(r"\s*(?:\.{2,}|\u2026)+\s*", " ", cleaned)
+    cleaned = re.sub(r"^[*-]\s*", "", cleaned)
+    if not cleaned:
+        return fallback
+
+    first_sentence = re.match(r"^(.{20,}?[.!?])(?:\s|$)", cleaned)
+    if first_sentence:
+        cleaned = first_sentence.group(1)
+
+    words = cleaned.split()
+    if len(words) > max_words:
+        cleaned = " ".join(words[:max_words])
+    cleaned = truncate_text(cleaned, max_chars)
+    cleaned = re.sub(r"[\s,;:.-]+$", "", cleaned)
+    return cleaned or fallback
+
+
 def fallback_flashcard_cards(title: str, context: str, count: int) -> List[dict]:
     topic = title or stored_title or "Study material"
     candidates = []
@@ -815,8 +834,8 @@ def fallback_flashcard_cards(title: str, context: str, count: int) -> List[dict]
         focus = candidates[index % len(candidates)]
         cards.append({
             "id": f"fc{index + 1}",
-            "front": focus[:120],
-            "back": f"Explain this using the source notes: {focus[:260]}",
+            "front": compact_flashcard_text(focus, f"Key idea from {topic}", 12, 90),
+            "back": compact_flashcard_text(focus, f"Source-grounded idea from {topic}", 18, 120),
             "hint": "Look for the definition, example, or evidence around this point.",
             "source_reference": topic,
             "difficulty": "medium",
@@ -838,8 +857,8 @@ def normalise_flashcard_cards(parsed: dict, title: str, context: str, count: int
         tags = raw.get("tags") if isinstance(raw.get("tags"), list) else fallback["tags"]
         cards.append({
             "id": f"fc{index + 1}",
-            "front": clean_quiz_string(raw.get("front") or raw.get("term") or raw.get("question"), fallback["front"]),
-            "back": clean_quiz_string(raw.get("back") or raw.get("definition") or raw.get("answer"), fallback["back"]),
+            "front": compact_flashcard_text(raw.get("front") or raw.get("term") or raw.get("question"), fallback["front"], 12, 90),
+            "back": compact_flashcard_text(raw.get("back") or raw.get("definition") or raw.get("answer"), fallback["back"], 20, 130),
             "hint": clean_quiz_string(raw.get("hint"), fallback["hint"]),
             "source_reference": clean_quiz_string(raw.get("source_reference") or raw.get("source"), fallback["source_reference"]),
             "difficulty": clean_quiz_string(raw.get("difficulty"), fallback["difficulty"]).lower(),

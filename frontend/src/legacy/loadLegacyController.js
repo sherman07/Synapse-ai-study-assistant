@@ -1,7 +1,7 @@
 export function loadLegacyController() {
   if (document.querySelector("script[data-synapse-controller]")) return;
 
-  const version = "account-landing-v3";
+  const version = "local-api-v1";
   const controllerScript = document.createElement("script");
   controllerScript.type = "module";
   controllerScript.src = `${new URL("./controller.js", import.meta.url).href}?v=${version}`;

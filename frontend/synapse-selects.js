@@ -24,11 +24,14 @@
   function labelTextFor(select) {
     const explicit = select.getAttribute("aria-label");
     if (explicit) return explicit.trim();
-    if (select.id) {
-      const label = document.querySelector(`label[for="${cssEscape(select.id)}"]`);
-      if (label) return label.textContent.replace(/\s+/g, " ").trim();
-    }
+    const label = labelElementFor(select);
+    if (label) return label.textContent.replace(/\s+/g, " ").trim();
     return select.name || "Select option";
+  }
+
+  function labelElementFor(select) {
+    if (!select.id) return null;
+    return document.querySelector(`label[for="${cssEscape(select.id)}"]`);
   }
 
   function ensureSelectId(select) {
@@ -89,6 +92,7 @@
     if (!openShell) return;
     openShell.classList.remove("is-open");
     openShell.querySelector(".synapse-select__button")?.setAttribute("aria-expanded", "false");
+    openShell.querySelector(".synapse-select__menu")?.setAttribute("aria-hidden", "true");
     openShell = null;
   }
 
@@ -101,6 +105,7 @@
     const active = shell.querySelector(`.synapse-select__option[data-index="${activeIndex}"]`);
     active?.scrollIntoView({ block: "nearest" });
     shell.querySelector(".synapse-select__button")?.setAttribute("aria-expanded", "true");
+    shell.querySelector(".synapse-select__menu")?.setAttribute("aria-hidden", "false");
   }
 
   function chooseOption(select, index) {
@@ -156,6 +161,7 @@
     const listId = `${selectId}Listbox`;
     const value = selectedLabel(select);
     shell.className = `synapse-select ${variantClass(select)}`.trim();
+    shell.dataset.sourceId = selectId;
     shell.innerHTML = `
       <button class="synapse-select__button" type="button" role="combobox"
               aria-haspopup="listbox" aria-expanded="false" aria-controls="${escapeHTML(listId)}"
@@ -165,12 +171,12 @@
           <i class="bi bi-chevron-down"></i>
         </span>
       </button>
-      <div id="${escapeHTML(listId)}" class="synapse-select__menu" role="listbox" aria-label="${escapeHTML(label)}">
+      <div id="${escapeHTML(listId)}" class="synapse-select__menu" role="listbox" aria-label="${escapeHTML(label)}" aria-hidden="true">
         ${Array.from(select.options).map((option, index) => {
           const selected = index === select.selectedIndex;
           return `
             <button id="${escapeHTML(`${listId}Option${index}`)}" class="synapse-select__option" type="button"
-                    role="option" data-index="${index}" aria-selected="${selected ? "true" : "false"}"
+                    role="option" tabindex="-1" data-index="${index}" aria-selected="${selected ? "true" : "false"}"
                     aria-disabled="${option.disabled ? "true" : "false"}">
               <span>${escapeHTML(option.textContent.replace(/\s+/g, " ").trim())}</span>
               <span class="synapse-select__check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
@@ -181,11 +187,6 @@
     `;
 
     const button = shell.querySelector(".synapse-select__button");
-    button?.addEventListener("click", () => {
-      if (select.disabled) return;
-      if (shell.classList.contains("is-open")) closeCurrent();
-      else openSelect(shell, select);
-    });
     button?.addEventListener("keydown", event => handleButtonKeydown(event, select, shell));
     shell.querySelectorAll(".synapse-select__option").forEach(optionButton => {
       optionButton.addEventListener("mouseenter", () => setActiveOption(shell, Number(optionButton.dataset.index)));
@@ -207,9 +208,20 @@
       select.classList.add(SOURCE_CLASS);
       select.setAttribute("aria-hidden", "true");
       select.tabIndex = -1;
+      select.hidden = true;
       select.setAttribute(SELECT_ATTR, "source");
       select.insertAdjacentElement("afterend", shell);
       select.addEventListener("change", () => syncSelect(select));
+      const label = labelElementFor(select);
+      if (label && !select.__synapseSelectLabelBound) {
+        select.__synapseSelectLabelBound = true;
+        label.addEventListener("click", event => {
+          event.preventDefault();
+          select.__synapseSelectShell
+            ?.querySelector(".synapse-select__button")
+            ?.focus();
+        });
+      }
     }
     renderSelect(select);
   }
@@ -232,7 +244,23 @@
     ));
   }
 
+  function selectForShell(shell) {
+    const sourceId = shell?.dataset?.sourceId;
+    return sourceId ? document.getElementById(sourceId) : null;
+  }
+
   document.addEventListener("click", event => {
+    const button = event.target?.closest?.(".synapse-select__button");
+    if (button) {
+      const shell = button.closest(".synapse-select");
+      const select = selectForShell(shell);
+      if (select && !select.disabled) {
+        event.preventDefault();
+        if (shell.classList.contains("is-open")) closeCurrent();
+        else openSelect(shell, select);
+      }
+      return;
+    }
     if (openShell && !openShell.contains(event.target)) closeCurrent();
   });
 

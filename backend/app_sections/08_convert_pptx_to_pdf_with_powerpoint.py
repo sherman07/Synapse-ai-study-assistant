@@ -109,7 +109,11 @@ def render_pptx_source_preview_images(data: bytes, prs: Any, max_slides: int) ->
                     )
                     pdf_candidates = list(tmpdir.glob("*.pdf"))
                     if pdf_candidates:
-                        rendered = render_pdf_path_to_source_preview_images(pdf_candidates[0], max_slides)
+                        rendered = render_pdf_path_to_source_preview_images(
+                            pdf_candidates[0],
+                            max_slides,
+                            browser_assets=True,
+                        )
                         if rendered:
                             return rendered, "libreoffice"
                 except Exception:
@@ -123,11 +127,15 @@ def render_pptx_source_preview_images(data: bytes, prs: Any, max_slides: int) ->
                 pptx_path.write_bytes(data)
                 ok, app_mode = convert_pptx_to_pdf_with_macos_app(pptx_path, pdf_path)
                 if ok:
-                    rendered = render_pdf_path_to_source_preview_images(pdf_path, max_slides)
+                    rendered = render_pdf_path_to_source_preview_images(
+                        pdf_path,
+                        max_slides,
+                        browser_assets=True,
+                    )
                     if rendered:
                         return rendered, f"local-{app_mode}"
 
-    svg_rendered = render_pptx_source_preview_svg_images(prs, max_slides)
+    svg_rendered = render_pptx_source_preview_svg_images(prs, max_slides, browser_assets=True)
     if svg_rendered:
         return svg_rendered, "server-svg"
     return {}, ""
@@ -161,7 +169,7 @@ def build_pdf_source_preview(data: bytes, source_name: str) -> dict:
             pix = page.get_pixmap(matrix=matrix, alpha=False)
             pages.append({
                 "number": page_index + 1,
-                "image": source_preview_image_url(pix.tobytes("png"), "image/png"),
+                "image": source_preview_image_url(pix.tobytes("png"), "image/png", browser_asset=True),
             })
 
         warning = ""
@@ -236,7 +244,7 @@ def build_pptx_source_preview(data: bytes, source_name: str) -> dict:
                     embedded_image_count += 1
                     images.append({
                         "alt": f"Embedded image {len(images) + 1} on slide {slide_index}",
-                        "url": source_preview_image_url(blob, content_type),
+                        "url": source_preview_image_url(blob, content_type, browser_asset=True),
                     })
                 except Exception:
                     pass

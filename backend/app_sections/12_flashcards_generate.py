@@ -17,8 +17,8 @@ Return JSON only with this exact shape. Keep JSON keys in English. Every user-fa
   "title": "short deck title",
   "cards": [
     {
-      "front": "short recall prompt, term, contrast, or question",
-      "back": "clear answer/explanation grounded in the notes",
+      "front": "compact recall prompt, term, contrast, or question; 12 words or fewer",
+      "back": "concise answer branch grounded in the notes; one short sentence",
       "hint": "small clue before revealing the answer",
       "source_reference": "nearby concept, example, source figure, or evidence",
       "difficulty": "easy | medium | hard",
@@ -37,7 +37,8 @@ Return exactly {card_count} cards.
 
 Card-writing rules:
 - Do not copy long paragraphs. Make each front side compact enough for active recall.
-- The back side should be clear, specific, and usually 1-3 sentences.
+- Make each back side a short answer branch for a matching activity, ideally 10-18 words and never a paragraph.
+- Do not end answers with ellipses or visibly incomplete trailing fragments.
 - Cover definitions, contrasts, mechanisms, processes, examples, important studies/data, source images/figures, formulas, and common confusions when present.
 - Prefer source-grounded cards over generic textbook cards.
 - Do not make cards whose answer is only a page number or slide number.

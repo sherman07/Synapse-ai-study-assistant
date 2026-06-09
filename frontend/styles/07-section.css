@@ -183,6 +183,14 @@
   padding: 22px;
 }
 
+.flashcard-study-shell.matching {
+  width: min(1180px, 100%);
+}
+
+.flashcard-study-shell.matching .flashcard-match-module {
+  padding: clamp(22px, 2.2vw, 30px);
+}
+
 .flashcard-match-head {
   display: flex;
   align-items: flex-start;
@@ -235,14 +243,46 @@
 .flashcard-match-board {
   position: relative;
   display: grid;
-  width: min(100%, 860px);
+  width: 100%;
   max-width: 100%;
-  grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
-  column-gap: 12px;
-  row-gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 12px;
   align-items: start;
-  min-height: 360px;
   margin: 12px auto 0;
+}
+
+.flashcard-match-row {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.flashcard-match-row-head {
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.flashcard-match-rail,
+.flashcard-match-rail-title {
+  min-width: 0;
+}
+
+.flashcard-match-rail {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.flashcard-match-rail::before {
+  content: "";
+  width: 2px;
+  height: 100%;
+  min-height: 34px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(124, 140, 255, 0.12), rgba(36, 199, 217, 0.25), rgba(124, 140, 255, 0.12));
 }
 
 .flashcard-match-lines {
@@ -257,18 +297,21 @@
 
 .flashcard-match-lines path {
   fill: none;
-  stroke: #7c8cff;
-  stroke-width: 4;
+  stroke: var(--match-line-color, #7c8cff);
+  stroke-width: 5;
   stroke-linecap: round;
-  filter: drop-shadow(0 6px 10px rgba(79, 124, 255, 0.18));
+  opacity: 0.96;
+  filter: drop-shadow(0 7px 12px rgba(37, 56, 106, 0.18));
 }
 
 .flashcard-match-lines path.correct {
   stroke: #19a974;
+  opacity: 1;
 }
 
 .flashcard-match-lines path.incorrect {
   stroke: #ef5b68;
+  opacity: 1;
   stroke-dasharray: 7 8;
 }
 
@@ -304,18 +347,29 @@
   gap: 12px;
   align-items: center;
   width: 100%;
-  min-height: 72px;
+  min-height: 74px;
+  height: 100%;
   border: 1px solid #dce5fb;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.96);
   color: #27324d;
   padding: 12px 14px;
   text-align: left;
-  font-weight: 800;
-  line-height: 1.35;
+  font-weight: 850;
+  line-height: 1.28;
   overflow-wrap: break-word;
   box-shadow: 0 10px 22px rgba(37, 56, 106, 0.07);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.flashcard-match-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-branch-card .flashcard-match-text {
+  font-size: 0.94rem;
+  font-weight: 820;
 }
 
 .flashcard-match-card:hover,
@@ -483,6 +537,14 @@
     padding: 22px;
   }
 
+  .flashcard-study-shell.matching {
+    width: 100%;
+  }
+
+  .flashcard-study-shell.matching .flashcard-match-module {
+    padding: 22px;
+  }
+
   .flashcard-count-row,
   .flashcard-list-row {
     grid-template-columns: 1fr;
@@ -510,8 +572,11 @@
 
   .flashcard-match-board {
     width: 100%;
-    grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
-    column-gap: 10px;
+  }
+
+  .flashcard-match-row {
+    grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr);
+    gap: 10px;
   }
 }
 
@@ -521,14 +586,18 @@
   }
 
   .flashcard-match-board {
-    grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
-    column-gap: 8px;
+    gap: 8px;
+  }
+
+  .flashcard-match-row {
+    grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+    gap: 7px;
   }
 
   .flashcard-match-card {
     grid-template-columns: 1fr;
     gap: 8px;
-    min-height: 88px;
+    min-height: 96px;
     padding: 10px;
     font-size: 0.86rem;
   }
