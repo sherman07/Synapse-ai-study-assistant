@@ -45,10 +45,11 @@ function focusRoomMaterialFromHistoryItem(item) {
 function getSynapseFocusRoomMaterials() {
   const historyMaterials = getHistory().map(focusRoomMaterialFromHistoryItem);
   const currentMaterial = getSynapseFocusRoomCurrentMaterial();
-  if (currentMaterial && !historyMaterials.some(item => item.materialId === currentMaterial.materialId)) {
-    return [currentMaterial, ...historyMaterials];
-  }
-  return historyMaterials;
+  if (!currentMaterial) return historyMaterials;
+  return [
+    currentMaterial,
+    ...historyMaterials.filter(item => item.materialId !== currentMaterial.materialId)
+  ];
 }
 
 function getSynapseFocusRoomMaterial(materialId) {
@@ -65,6 +66,9 @@ function renderFocusRoomWorkspaceActions() {
   if (material) {
     button.setAttribute("data-material-id", material.materialId);
     button.setAttribute("aria-label", `Study ${material.materialTitle} in Focus Room`);
+  } else {
+    button.removeAttribute("data-material-id");
+    button.setAttribute("aria-label", "Study in Focus Room");
   }
 }
 
@@ -83,11 +87,17 @@ function openSynapseFocusRoom(materialId = "") {
   window.location.hash = `#/focus-room${suffix}`;
 }
 
-function returnFromFocusRoomToWorkspace(materialId = "") {
+async function returnFromFocusRoomToWorkspace(materialId = "") {
   const id = String(materialId || "");
-  if (id && getHistory().some(item => item.id === id)) {
-    loadHistoryEntry(id, { preserveScroll: true });
+  try {
+    if (id && getHistory().some(item => item.id === id)) {
+      await loadHistoryEntry(id, { preserveScroll: true });
+    }
+  } catch (error) {
+    console.error("Could not restore Focus Room material:", error);
+  } finally {
+    window.location.hash = "";
+    renderFocusRoomWorkspaceActions();
+    notifyFocusRoomMaterialsChanged();
   }
-  window.location.hash = "";
-  renderFocusRoomWorkspaceActions();
 }

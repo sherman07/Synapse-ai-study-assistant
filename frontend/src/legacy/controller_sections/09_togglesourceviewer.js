@@ -525,6 +525,8 @@ function saveHistoryEntry(payload) {
     : [entry, ...items];
 
   setHistory(nextItems);
+  currentHistoryId = entry.id;
+  safeSetLocalStorage(ACTIVE_HISTORY_KEY, entry.id);
   renderHistory();
   if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
