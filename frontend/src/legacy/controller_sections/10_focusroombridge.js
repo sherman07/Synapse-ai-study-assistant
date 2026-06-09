@@ -3,13 +3,15 @@ function getFocusRoomSummaryText() {
 }
 
 function getFocusRoomFlashcardsForCurrentNote() {
-  const store = getFlashcardStore();
+  const fallbackCards = Array.isArray(currentFlashcards) ? currentFlashcards : [];
+  const rawStore = typeof getFlashcardStore === "function" ? getFlashcardStore() : {};
+  const store = rawStore && typeof rawStore === "object" && !Array.isArray(rawStore) ? rawStore : {};
   const keys = [
     currentHistoryId ? `history:${currentHistoryId}` : "",
     currentSourceFingerprint ? `fingerprint:${currentSourceFingerprint}` : ""
   ].filter(Boolean);
   const record = keys.map(key => store[key]).find(item => item && Array.isArray(item.cards));
-  return record?.cards || currentFlashcards || [];
+  return record?.cards || fallbackCards;
 }
 
 function getFocusRoomQuizRecordsForCurrentNote() {

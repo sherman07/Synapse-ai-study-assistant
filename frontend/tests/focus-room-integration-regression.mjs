@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const read = file => fs.readFileSync(path.join(repoRoot, file), "utf8");
@@ -29,6 +30,55 @@ assert.ok(focusBridge.includes("function getFocusRoomFlashcardsForCurrentNote()"
 assert.ok(focusBridge.includes("function getFocusRoomQuizRecordsForCurrentNote()"), "Focus Room bridge should expose saved quiz record metadata");
 assert.ok(focusBridge.includes("flashcards: getFocusRoomFlashcardsForCurrentNote()"), "current Focus Room material should use stored flashcard records");
 assert.ok(focusBridge.includes("quizzes: getFocusRoomQuizRecordsForCurrentNote()"), "current Focus Room material should use saved quiz records");
+
+function createFocusBridgeContext(overrides = {}) {
+  const context = {
+    console,
+    currentFlashcards: [],
+    currentHistoryId: "history-1",
+    currentMindMap: null,
+    currentSourceFingerprint: "fingerprint-1",
+    currentTimeline: { events: [] },
+    fullSummary: "Generated notes",
+    makeHistoryTitle: () => "Generated notes",
+    quizHistory: [],
+    sections: {},
+    storedTitle: "Generated notes",
+    summaryContent: { textContent: "" },
+    ...overrides
+  };
+  vm.createContext(context);
+  vm.runInContext(focusBridge, context);
+  return context;
+}
+
+const fallbackCard = { front: "Fallback card", back: "Fallback answer" };
+let bridgeContext = createFocusBridgeContext({ currentFlashcards: [fallbackCard] });
+assert.deepEqual(
+  bridgeContext.getSynapseFocusRoomCurrentMaterial().flashcards,
+  [fallbackCard],
+  "Focus Room bridge should fall back to current flashcards when getFlashcardStore is missing"
+);
+
+bridgeContext = createFocusBridgeContext({
+  currentFlashcards: "not-an-array",
+  getFlashcardStore: () => ({ "history:history-1": { cards: [{ front: "Stored card", back: "Stored answer" }] } })
+});
+assert.deepEqual(
+  bridgeContext.getSynapseFocusRoomCurrentMaterial().flashcards,
+  [{ front: "Stored card", back: "Stored answer" }],
+  "Focus Room bridge should prefer stored flashcards for the active note"
+);
+
+bridgeContext = createFocusBridgeContext({
+  currentFlashcards: "not-an-array",
+  getFlashcardStore: () => "malformed-store"
+});
+assert.equal(
+  bridgeContext.getSynapseFocusRoomCurrentMaterial().flashcards.length,
+  0,
+  "Focus Room bridge should tolerate malformed flashcard storage"
+);
 
 const focusComponent = read("frontend/src/react/components/FocusRoom.js");
 for (const id of [
