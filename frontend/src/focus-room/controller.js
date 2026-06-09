@@ -39,7 +39,15 @@ const state = {
   panelTab: "summary",
   panelOpen: false,
   summaryRecord: null,
-  completedTasks: []
+  completedTasks: [],
+  flashcardIndex: 0,
+  flashcardSide: "front",
+  flashcardProgress: {},
+  quizAnswers: {},
+  quizChecked: {},
+  chatMessages: [],
+  chatPending: false,
+  chatError: ""
 };
 
 let bodyOverflowBeforeFocus = "";
@@ -87,6 +95,32 @@ function clampVolume(value, fallback = 50) {
 
 function clampDuration(value, fallback = DEFAULT_DURATION_MINUTES) {
   return clampInteger(value, fallback, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES);
+}
+
+function plainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function normalizeStudyPlanItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map(item => ({
+      minutes: clampInteger(item?.minutes, 5, 1, MAX_DURATION_MINUTES),
+      task: String(item?.task || "").trim()
+    }))
+    .filter(item => item.task);
+}
+
+function normalizeChatMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  return messages
+    .map(message => ({
+      role: String(message?.role || "assistant"),
+      text: String(message?.text || "").trim(),
+      createdAt: message?.createdAt || new Date().toISOString()
+    }))
+    .filter(message => message.text)
+    .slice(-24);
 }
 
 function currentScene() {
@@ -210,7 +244,13 @@ function hydrateDraft(material) {
   state.ambientVolume = clampVolume(draft?.ambientVolume, state.ambientVolume);
   state.durationMinutes = clampDuration(draft?.durationMinutes, state.durationMinutes);
   state.studyGoal = String(draft?.studyGoal || `Study ${material?.materialTitle || "this material"}`);
-  rebuildStudyPlan();
+  const draftPlan = normalizeStudyPlanItems(draft?.studyPlan);
+  if (draftPlan.length) {
+    state.studyPlan = draftPlan;
+  } else {
+    rebuildStudyPlan();
+  }
+  resetFocusSessionProgress();
 }
 
 function persistDraft() {
@@ -225,6 +265,7 @@ function persistDraft() {
     ambientVolume: clampVolume(state.ambientVolume),
     durationMinutes: clampDuration(state.durationMinutes),
     studyGoal: state.studyGoal,
+    studyPlan: normalizeStudyPlanItems(state.studyPlan),
     updatedAt: new Date().toISOString()
   };
   writeFocusRoomDraft(root);
@@ -240,6 +281,20 @@ function rebuildStudyPlan() {
     goal: state.studyGoal,
     durationMinutes: state.durationMinutes
   });
+}
+
+function resetFocusSessionProgress({ resetChat = true } = {}) {
+  state.completedTasks = [];
+  state.flashcardIndex = 0;
+  state.flashcardSide = "front";
+  state.flashcardProgress = {};
+  state.quizAnswers = {};
+  state.quizChecked = {};
+  if (resetChat) {
+    state.chatMessages = [];
+    state.chatPending = false;
+    state.chatError = "";
+  }
 }
 
 function renderBackground(scene = currentScene()) {
@@ -376,6 +431,32 @@ function renderStudyPlanList({ interactive = false } = {}) {
         `;
       }).join("")}
     </ul>
+  `;
+}
+
+function renderStudyPlanEditor() {
+  if (!state.studyPlan.length) {
+    return `<p class="focus-room-subtitle">A study plan will appear once material is available.</p>`;
+  }
+
+  return `
+    <div class="focus-plan-editor">
+      ${state.studyPlan.map((item, index) => `
+        <article class="focus-plan-edit-item">
+          <label>
+            Minutes
+            <input type="number" min="1" max="${MAX_DURATION_MINUTES}" value="${escapeAttr(item.minutes)}" onchange="updateFocusPlanTask(${index}, this.value, null)" />
+          </label>
+          <label>
+            Task
+            <textarea oninput="updateFocusPlanTask(${index}, null, this.value, false)" onchange="updateFocusPlanTask(${index}, null, this.value)">${escapeHTML(item.task)}</textarea>
+          </label>
+          <button class="focus-control-btn${state.completedTasks.includes(item.task) ? " active" : ""}" type="button" onclick="toggleFocusTask(${index})">
+            ${state.completedTasks.includes(item.task) ? "Completed" : "Mark complete"}
+          </button>
+        </article>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -594,15 +675,50 @@ function flashcardAnswer(card) {
   return card?.answer || card?.back || card?.definition || card?.explanation || "Return to the workspace for the saved answer.";
 }
 
-function renderFlashcardPanelCard(card, index) {
+function focusFlashcards() {
+  const flashcardSource = state.material?.flashcards || [];
+  return Array.isArray(flashcardSource) ? flashcardSource.slice(0, 24) : [];
+}
+
+function flashcardKey(card, index) {
+  return String(card?.id || card?.front || card?.term || index);
+}
+
+function focusFlashcardsCompletedCount() {
+  return Object.values(plainObject(state.flashcardProgress))
+    .filter(item => item && item.difficulty)
+    .length;
+}
+
+function renderFlashcardStudyMode(cards) {
+  const total = cards.length;
+  const index = clampInteger(state.flashcardIndex, 0, 0, Math.max(0, total - 1));
+  state.flashcardIndex = index;
+  const card = cards[index];
+  const key = flashcardKey(card, index);
+  const progress = state.flashcardProgress[key] || {};
+  const side = state.flashcardSide === "back" ? "back" : "front";
+  const sideText = side === "back" ? flashcardAnswer(card) : flashcardPrompt(card, index);
+
   return `
-    <article class="focus-panel-card">
-      <span class="focus-room-kicker">Card ${index + 1}</span>
-      <h3>${escapeHTML(flashcardPrompt(card, index))}</h3>
-      <details>
-        <summary>Answer</summary>
-        <p class="focus-room-subtitle">${escapeHTML(flashcardAnswer(card))}</p>
-      </details>
+    <article class="focus-panel-card focus-study-card">
+      <span class="focus-room-kicker">Card ${index + 1} of ${total}</span>
+      <h3>${escapeHTML(side === "back" ? "Answer" : "Prompt")}</h3>
+      <p class="focus-room-subtitle">${escapeHTML(sideText)}</p>
+      ${progress.difficulty ? `<p class="focus-room-pill">Marked ${escapeHTML(progress.difficulty)}</p>` : ""}
+      <div class="focus-session-controls">
+        <button class="focus-control-btn" type="button" onclick="setFocusFlashcardIndex(${index - 1})" ${index <= 0 ? "disabled" : ""}>Previous</button>
+        <button class="focus-control-btn" type="button" onclick="flipFocusFlashcard()">${side === "back" ? "Show Prompt" : "Reveal Answer"}</button>
+        <button class="focus-control-btn" type="button" onclick="setFocusFlashcardIndex(${index + 1})" ${index >= total - 1 ? "disabled" : ""}>Next</button>
+      </div>
+      <div class="focus-session-controls">
+        ${["easy", "medium", "hard"].map(difficulty => `
+          <button class="focus-control-btn${progress.difficulty === difficulty ? " active" : ""}" type="button" onclick="rateFocusFlashcard(${jsStringAttr(difficulty)})">
+            Mark ${escapeHTML(difficulty.replace(/^\w/, letter => letter.toUpperCase()))}
+          </button>
+        `).join("")}
+      </div>
+      <p class="focus-room-subtitle">${focusFlashcardsCompletedCount()} completed in this material.</p>
     </article>
   `;
 }
@@ -613,42 +729,304 @@ function quizQuestionList(quiz) {
   return [];
 }
 
-function quizReportSummary(report) {
-  if (!report || typeof report !== "object") return "";
-
-  const objectivePercent = Number(report.objectivePercent ?? report.percent ?? report.scorePercent);
-  if (Number.isFinite(objectivePercent)) {
-    const earned = Number(report.objectiveEarned);
-    const possible = Number(report.objectivePossible);
-    if (Number.isFinite(earned) && Number.isFinite(possible) && possible > 0) {
-      return `Objective score: ${earned}/${possible} (${objectivePercent}%)`;
-    }
-    return `Objective score: ${objectivePercent}%`;
-  }
-
-  const score = Number(report.score);
-  if (Number.isFinite(score)) return `Score: ${score}`;
-
-  const subjectiveCount = Number(report.subjectiveCount);
-  const subjectiveAnswered = Number(report.subjectiveAnswered);
-  if (Number.isFinite(subjectiveCount) && subjectiveCount > 0 && Number.isFinite(subjectiveAnswered)) {
-    return `Written questions: ${subjectiveAnswered}/${subjectiveCount} answered`;
-  }
-
-  return "";
+function focusQuizQuestions() {
+  const quizzes = Array.isArray(state.material?.quizzes) ? state.material.quizzes : [];
+  return quizzes.flatMap(quiz => quizQuestionList(quiz).map(question => ({
+    ...question,
+    quizTitle: quiz?.title || quiz?.quiz?.title || "Saved quiz"
+  }))).slice(0, 12);
 }
 
-function renderQuizPanelCard(quiz, index) {
-  const questions = quizQuestionList(quiz);
-  const questionLabel = `${questions.length} ${questions.length === 1 ? "question" : "questions"}`;
-  const score = quizReportSummary(quiz?.report);
+function questionText(question, index) {
+  return question?.question || question?.prompt || question?.stem || `Question ${index + 1}`;
+}
+
+function questionType(question) {
+  return String(question?.type || "").toLowerCase();
+}
+
+function optionText(option) {
+  return String(option?.label || option?.text || option).trim();
+}
+
+function questionChoices(question) {
+  const choices = question?.choices || question?.options || question?.answers;
+  if (Array.isArray(choices) && choices.length) {
+    return choices.map(optionText).filter(Boolean);
+  }
+  if (questionType(question) === "true_false") {
+    return ["True", "False"];
+  }
+  return [];
+}
+
+function correctOptionIndexes(question) {
+  const indexes = question?.correctOptionIndexes || question?.correct_option_indexes || question?.correctIndexes;
+  return Array.isArray(indexes)
+    ? indexes.map(index => Number(index)).filter(Number.isInteger)
+    : [];
+}
+
+function arraysEqualNumbers(left, right) {
+  const a = Array.isArray(left) ? [...left].map(Number).filter(Number.isInteger).sort((x, y) => x - y) : [];
+  const b = Array.isArray(right) ? [...right].map(Number).filter(Number.isInteger).sort((x, y) => x - y) : [];
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function optionIndexForAnswer(question, value) {
+  if (Number.isInteger(value)) return value;
+  const number = Number(value);
+  if (typeof value !== "string" && Number.isInteger(number)) return number;
+  const choices = questionChoices(question);
+  const normalized = normalizeAnswer(value);
+  return choices.findIndex(choice => normalizeAnswer(choice) === normalized);
+}
+
+function booleanAnswerForQuestion(question, value) {
+  if (typeof value === "boolean") return value;
+  if (value === 0) return true;
+  if (value === 1) return false;
+  const choices = questionChoices(question);
+  const normalized = normalizeAnswer(value);
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  if (normalizeAnswer(choices[0]) === normalized) return true;
+  if (normalizeAnswer(choices[1]) === normalized) return false;
+  return null;
+}
+
+function coerceQuizAnswer(question, value, currentAnswer) {
+  const type = questionType(question);
+  if (type === "multiple_choice") {
+    const index = optionIndexForAnswer(question, value);
+    if (!Number.isInteger(index) || index < 0) return [];
+    const current = Array.isArray(currentAnswer) ? [...currentAnswer] : [];
+    if (current.includes(index)) {
+      return current.filter(item => item !== index);
+    }
+    return [...current, index].sort((a, b) => a - b);
+  }
+  if (type === "single_choice") {
+    const index = optionIndexForAnswer(question, value);
+    return Number.isInteger(index) && index >= 0 ? index : "";
+  }
+  if (type === "true_false") {
+    const answer = booleanAnswerForQuestion(question, value);
+    return answer === null ? "" : answer;
+  }
+  return String(value || "");
+}
+
+function correctAnswerText(question) {
+  const answer = question?.correctAnswer ?? question?.correct_answer ?? question?.answer ?? question?.correct;
+  const indexes = correctOptionIndexes(question);
+  if (indexes.length) {
+    const choices = questionChoices(question);
+    return indexes.map(index => choices[index] || "").filter(Boolean).join(", ");
+  }
+  if (typeof question?.correctBoolean === "boolean" || typeof question?.correct_boolean === "boolean") {
+    const choices = questionChoices(question);
+    const correct = typeof question.correctBoolean === "boolean" ? question.correctBoolean : question.correct_boolean;
+    return correct ? (choices[0] || "True") : (choices[1] || "False");
+  }
+  if (question?.expectedAnswer || question?.expected_answer) {
+    return String(question.expectedAnswer || question.expected_answer || "").trim();
+  }
+  if (Array.isArray(answer)) return answer.map(item => String(item)).join(", ");
+  return String(answer || "").trim();
+}
+
+function normalizeAnswer(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isQuizAnswerCorrect(question, answer) {
+  const type = questionType(question);
+  if (type === "single_choice") {
+    const correct = correctOptionIndexes(question)[0];
+    const selected = optionIndexForAnswer(question, answer);
+    return Number.isInteger(correct) ? selected === correct : null;
+  }
+  if (type === "multiple_choice") {
+    const correct = correctOptionIndexes(question);
+    const selected = Array.isArray(answer)
+      ? answer
+      : [optionIndexForAnswer(question, answer)].filter(Number.isInteger);
+    return correct.length ? arraysEqualNumbers(selected, correct) : null;
+  }
+  if (type === "true_false") {
+    const correct = typeof question?.correctBoolean === "boolean" ? question.correctBoolean : question?.correct_boolean;
+    const selected = booleanAnswerForQuestion(question, answer);
+    return typeof correct === "boolean" && selected !== null ? selected === correct : null;
+  }
+  const correct = correctAnswerText(question);
+  if (!correct) return null;
+  return normalizeAnswer(answer) === normalizeAnswer(correct);
+}
+
+function isFocusQuizAnswerPresent(question, answer) {
+  const type = questionType(question);
+  if (type === "multiple_choice") return Array.isArray(answer) && answer.length > 0;
+  if (type === "single_choice") return Number.isInteger(answer);
+  if (type === "true_false") return typeof answer === "boolean";
+  return String(answer || "").trim().length > 0;
+}
+
+function quizAnswerMatchesChoice(question, answer, choiceIndex) {
+  const type = questionType(question);
+  if (type === "multiple_choice") return Array.isArray(answer) && answer.includes(choiceIndex);
+  if (type === "single_choice") return answer === choiceIndex;
+  if (type === "true_false") return answer === (choiceIndex === 0);
+  return normalizeAnswer(answer) === normalizeAnswer(questionChoices(question)[choiceIndex]);
+}
+
+function focusQuizScore() {
+  const checked = Object.values(plainObject(state.quizChecked)).filter(item => item && item.hasKnownAnswer);
+  if (!checked.length) return null;
+  const correct = checked.filter(item => item.correct).length;
+  return Math.round((correct / checked.length) * 100);
+}
+
+function focusQuizMistakes() {
+  const questions = focusQuizQuestions();
+  return Object.entries(plainObject(state.quizChecked))
+    .filter(([, result]) => result && result.hasKnownAnswer && !result.correct)
+    .map(([index]) => questionText(questions[Number(index)], Number(index)))
+    .filter(Boolean);
+}
+
+function renderFocusQuizMode(questions) {
+  const score = focusQuizScore();
+  return `
+    <div class="focus-quiz-stack">
+      ${score === null ? "" : `<p class="focus-room-pill">Current score ${score}%</p>`}
+      ${questions.map((question, index) => {
+        const answer = state.quizAnswers[index];
+        const checked = state.quizChecked[index] || null;
+        const choices = questionChoices(question);
+        const textAnswer = typeof answer === "string" ? answer : "";
+        const hasAnswer = isFocusQuizAnswerPresent(question, answer);
+        return `
+          <article class="focus-panel-card">
+            <span class="focus-room-kicker">${escapeHTML(question.quizTitle || "Quiz")} / Question ${index + 1}</span>
+            <h3>${escapeHTML(questionText(question, index))}</h3>
+            ${choices.length ? `
+              <div class="focus-session-controls">
+                ${choices.map((choice, choiceIndex) => `
+                  <button class="focus-control-btn${quizAnswerMatchesChoice(question, answer, choiceIndex) ? " active" : ""}" type="button" onclick="answerFocusQuizQuestion(${index}, ${choiceIndex})">
+                    ${escapeHTML(choice)}
+                  </button>
+                `).join("")}
+              </div>
+            ` : `
+              <textarea class="focus-answer-input" oninput="answerFocusQuizQuestion(${index}, this.value, false)">${escapeHTML(textAnswer)}</textarea>
+            `}
+            <div class="focus-session-controls">
+              <button class="focus-room-primary-btn" type="button" onclick="checkFocusQuizQuestion(${index})" ${hasAnswer ? "" : "disabled"}>Check answer</button>
+            </div>
+            ${checked ? `
+              <p class="focus-room-subtitle">
+                ${checked.hasKnownAnswer ? (checked.correct ? "Correct" : "Review this one") : "Answer saved for review"}
+                ${checked.explanation ? ` - ${escapeHTML(checked.explanation)}` : ""}
+              </p>
+            ` : ""}
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function focusAssistantReply(question) {
+  const prompt = String(question || "").trim();
+  const summary = String(state.material?.summaryText || state.material?.aiSummary || "").slice(0, 420);
+  const heading = state.material?.studyHeadings?.[0] || state.material?.materialTitle || "this material";
+  const goal = state.studyGoal || `Study ${state.material?.materialTitle || "this material"}`;
+  if (!prompt) return "";
+  return [
+    `For ${heading}: ${summary || "use the selected material as your main source."}`,
+    `Your current goal is: ${goal}.`,
+    "Try explaining the idea in one sentence, then test yourself with one example before moving on."
+  ].join(" ");
+}
+
+function focusAssistantChatHistory() {
+  return normalizeChatMessages(state.chatMessages)
+    .slice(-10)
+    .map(message => ({
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.text
+    }));
+}
+
+async function requestFocusAssistantAnswer(question, chatHistory) {
+  if (!globalThis.apiClient || typeof globalThis.apiClient.fetch !== "function") {
+    return {
+      answer: focusAssistantReply(question),
+      offline: true
+    };
+  }
+
+  const material = state.material || {};
+  const response = await globalThis.apiClient.fetch("/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      selected_section: material.studyHeadings?.[0] || "",
+      preferred_language: globalThis.preferredLanguage?.value || "auto",
+      title: material.materialTitle || "Study material",
+      summary: material.aiSummary || material.summaryText || "",
+      sections: plainObject(material.sections),
+      source_identity: material.materialId || state.materialId || "",
+      source_fingerprint: material.sourceFingerprint || "",
+      chat_history: chatHistory
+    })
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("Backend returned non-JSON response.");
+  }
+
+  if (!response.ok || data?.error) {
+    throw new Error(data?.error || "AI request failed.");
+  }
+
+  return {
+    answer: data?.answer || "No answer returned.",
+    usedExternalResearch: Boolean(data?.used_external_research),
+    researchSources: Array.isArray(data?.research_sources) ? data.research_sources : []
+  };
+}
+
+function renderFocusChatPanel() {
   return `
     <article class="focus-panel-card">
-      <span class="focus-room-kicker">Quiz ${index + 1}</span>
-      <h3>${escapeHTML(quiz?.title || quiz?.quiz?.title || "Saved quiz")}</h3>
-      <p class="focus-room-subtitle">${escapeHTML(questionLabel)}</p>
-      ${score ? `<p class="focus-room-subtitle">${escapeHTML(score)}</p>` : ""}
-      ${focusRoomWorkspaceButton("Open Quiz Workspace", "quiz")}
+      <h3>AI Study Assistant</h3>
+      <p class="focus-room-subtitle">Ask about the selected material and current study goal.</p>
+      <div class="focus-chat-list">
+        ${state.chatMessages.length ? state.chatMessages.map(message => `
+          <div class="focus-chat-message ${message.role === "user" ? "user" : "assistant"}">
+            <span class="focus-room-kicker">${message.role === "user" ? "You" : "Synapse"}</span>
+            <p>${escapeHTML(message.text)}</p>
+          </div>
+        `).join("") : `<p class="focus-room-subtitle">Try: Explain this topic more simply.</p>`}
+        ${state.chatPending ? `
+          <div class="focus-chat-message assistant">
+            <span class="focus-room-kicker">Synapse</span>
+            <p>Thinking...</p>
+          </div>
+        ` : ""}
+      </div>
+      ${state.chatError ? `<p class="focus-room-subtitle">${escapeHTML(state.chatError)}</p>` : ""}
+      <textarea id="focusChatInput" class="focus-answer-input" placeholder="Ask about this material..."></textarea>
+      <div class="focus-session-controls">
+        <button class="focus-room-primary-btn" type="button" onclick="askFocusAssistant(document.getElementById('focusChatInput')?.value || '')" ${state.chatPending ? "disabled" : ""}>Ask</button>
+        <button class="focus-control-btn" type="button" onclick="askFocusAssistant('Test me on this material.')" ${state.chatPending ? "disabled" : ""}>Test me</button>
+      </div>
     </article>
   `;
 }
@@ -676,8 +1054,7 @@ function renderPanelContent() {
   }
 
   if (state.panelTab === "flashcards") {
-    const flashcardSource = state.material.flashcards || [];
-    const cards = Array.isArray(flashcardSource) ? flashcardSource.slice(0, 12) : [];
+    const cards = focusFlashcards();
     if (!cards.length) {
       return `
         <article class="focus-panel-card">
@@ -688,17 +1065,14 @@ function renderPanelContent() {
       `;
     }
     return `
-      <div class="focus-plan-list">
-        ${cards.map(renderFlashcardPanelCard).join("")}
-      </div>
+      ${renderFlashcardStudyMode(cards)}
       ${focusRoomWorkspaceButton("Open Flashcard Workspace", "flashcards")}
     `;
   }
 
   if (state.panelTab === "quiz") {
-    const quizSource = state.material.quizzes || [];
-    const quizzes = Array.isArray(quizSource) ? quizSource : [];
-    if (!quizzes.length) {
+    const questions = focusQuizQuestions();
+    if (!questions.length) {
       return `
         <article class="focus-panel-card">
           <h3>Quiz</h3>
@@ -708,9 +1082,8 @@ function renderPanelContent() {
       `;
     }
     return `
-      <div class="focus-plan-list">
-        ${quizzes.map(renderQuizPanelCard).join("")}
-      </div>
+      ${renderFocusQuizMode(questions)}
+      ${focusRoomWorkspaceButton("Open Quiz Workspace", "quiz")}
     `;
   }
 
@@ -735,13 +1108,8 @@ function renderPanelContent() {
 
   if (state.panelTab === "chat") {
     return `
-      <article class="focus-panel-card">
-        <h3>Assistant</h3>
-        <p class="focus-room-subtitle">Return to the workspace to continue with the Synapse assistant for this material.</p>
-        <div class="focus-session-controls">
-          <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom(${jsStringAttr(state.materialId)}, &quot;assistant&quot;)">Workspace Assistant</button>
-        </div>
-      </article>
+      ${renderFocusChatPanel()}
+      ${focusRoomWorkspaceButton("Open Workspace Assistant", "assistant")}
     `;
   }
 
@@ -749,7 +1117,7 @@ function renderPanelContent() {
     return `
       <article class="focus-panel-card">
         <h3>Study Plan</h3>
-        ${renderStudyPlanList({ interactive: true })}
+        ${renderStudyPlanEditor()}
         ${focusRoomWorkspaceButton("Open Timeline Workspace", "timeline")}
       </article>
     `;
@@ -785,10 +1153,20 @@ function renderFocusSessionSummary() {
           <p class="focus-timer-value">${escapeHTML(formatFocusRoomDuration(record.totalFocusTime))}</p>
         </div>
         <div class="focus-history-card">
+          <h3>Flashcards</h3>
+          <p class="focus-timer-value">${escapeHTML(record.flashcardsCompleted)}</p>
+        </div>
+        <div class="focus-history-card">
+          <h3>Quiz score</h3>
+          <p class="focus-timer-value">${record.quizScore === null ? "N/A" : `${escapeHTML(record.quizScore)}%`}</p>
+        </div>
+        <div class="focus-history-card">
           <h3>Completed tasks</h3>
           <p class="focus-timer-value">${escapeHTML(record.completedTasks.length)}</p>
         </div>
       </div>
+      ${record.mistakesMade.length ? `<p class="focus-room-subtitle">Review: ${escapeHTML(record.mistakesMade.join("; "))}</p>` : ""}
+      ${record.persisted === false ? `<p class="focus-room-subtitle">This session is visible for now, but could not be saved to this device history.</p>` : ""}
       <p class="focus-room-subtitle">${escapeHTML(record.recommendedNextStep)}</p>
       <div class="focus-session-controls">
         <button class="focus-room-primary-btn" type="button" onclick="closeFocusSummary()">Stay</button>
@@ -816,6 +1194,7 @@ function renderHistoryList({ compact = false } = {}) {
             <strong>${escapeHTML(session.materialTitle || "Study material")}</strong>
             <span>${escapeHTML(readableDate)} / ${escapeHTML(formatFocusRoomDuration(session.totalFocusTime || 0))}</span>
             ${session.studyGoal ? `<span>${escapeHTML(session.studyGoal)}</span>` : ""}
+            ${session.persisted === false ? `<span>Not saved to device history</span>` : ""}
           </li>
         `;
       }).join("")}
@@ -888,9 +1267,8 @@ function startFocusRoomSession() {
   state.startedAt = null;
   state.elapsedSeconds = 0;
   state.summaryRecord = null;
-  state.completedTasks = [];
   state.panelOpen = false;
-  rebuildStudyPlan();
+  resetFocusSessionProgress();
   persistDraft();
   setWorkspaceVisible(false);
   setFocusView("session");
@@ -906,7 +1284,7 @@ function startFocusRoomTimer() {
   clearFocusTimer();
   if (state.timerStatus === "completed" || state.elapsedSeconds >= durationSeconds()) {
     state.elapsedSeconds = 0;
-    state.completedTasks = [];
+    resetFocusSessionProgress();
   }
   if (!state.startedAt || state.timerStatus === "completed") {
     state.startedAt = new Date().toISOString();
@@ -934,7 +1312,7 @@ function resetFocusRoomTimer() {
   state.startedAt = null;
   state.elapsedSeconds = 0;
   state.summaryRecord = null;
-  state.completedTasks = [];
+  resetFocusSessionProgress();
   if (state.route === "session") {
     renderFocusRoomSession();
   }
@@ -971,7 +1349,9 @@ function endFocusRoomSession() {
     startedAt: state.startedAt || now,
     endedAt: now,
     totalFocusTime,
-    flashcardsCompleted: state.completedTasks.length,
+    flashcardsCompleted: focusFlashcardsCompletedCount(),
+    quizScore: focusQuizScore(),
+    mistakesMade: focusQuizMistakes(),
     completedTasks: state.completedTasks,
     recommendedNextStep: "Return to your notes, review any unchecked tasks, then start another short focus block."
   });
@@ -1103,6 +1483,139 @@ function toggleFocusLearningPanel() {
   renderLearningPanel();
 }
 
+function setFocusFlashcardIndex(index) {
+  const cards = focusFlashcards();
+  state.flashcardIndex = clampInteger(index, state.flashcardIndex, 0, Math.max(0, cards.length - 1));
+  state.flashcardSide = "front";
+  persistDraft();
+  renderLearningPanel();
+}
+
+function flipFocusFlashcard() {
+  state.flashcardSide = state.flashcardSide === "back" ? "front" : "back";
+  persistDraft();
+  renderLearningPanel();
+}
+
+function rateFocusFlashcard(difficulty) {
+  const cards = focusFlashcards();
+  if (!cards.length) return;
+  const index = clampInteger(state.flashcardIndex, 0, 0, cards.length - 1);
+  const card = cards[index];
+  const value = ["easy", "medium", "hard"].includes(String(difficulty)) ? String(difficulty) : "medium";
+  state.flashcardProgress = {
+    ...state.flashcardProgress,
+    [flashcardKey(card, index)]: {
+      difficulty: value,
+      reviewedAt: new Date().toISOString()
+    }
+  };
+  state.flashcardSide = "front";
+  if (index < cards.length - 1) {
+    state.flashcardIndex = index + 1;
+  }
+  persistDraft();
+  renderLearningPanel();
+}
+
+function answerFocusQuizQuestion(index, value, shouldRender = true) {
+  const questionIndex = Number(index);
+  const question = focusQuizQuestions()[questionIndex];
+  if (!question) return;
+  const key = String(questionIndex);
+  state.quizAnswers = {
+    ...state.quizAnswers,
+    [key]: coerceQuizAnswer(question, value, state.quizAnswers[key])
+  };
+  persistDraft();
+  if (shouldRender) {
+    renderLearningPanel();
+  }
+}
+
+function checkFocusQuizQuestion(index) {
+  const questions = focusQuizQuestions();
+  const questionIndex = Number(index);
+  const question = questions[questionIndex];
+  if (!question) return;
+  const key = String(questionIndex);
+  const answer = Object.prototype.hasOwnProperty.call(state.quizAnswers, key) ? state.quizAnswers[key] : "";
+  const correct = isQuizAnswerCorrect(question, answer);
+  const correctAnswer = correctAnswerText(question);
+  state.quizChecked = {
+    ...state.quizChecked,
+    [key]: {
+      answer,
+      correct: correct === null ? false : correct,
+      hasKnownAnswer: correct !== null,
+      explanation: question.explanation || question.rationale || (correctAnswer ? `Correct answer: ${correctAnswer}` : ""),
+      checkedAt: new Date().toISOString()
+    }
+  };
+  persistDraft();
+  renderLearningPanel();
+}
+
+function updateFocusPlanTask(index, minutes = null, task = null, shouldRender = true) {
+  const taskIndex = Number(index);
+  const current = state.studyPlan[taskIndex];
+  if (!current) return;
+  const previousTask = String(current.task || "");
+  const nextTask = task === null || task === undefined ? previousTask : String(task || "").trim();
+  const nextMinutes = minutes === null || minutes === undefined
+    ? current.minutes
+    : clampInteger(minutes, current.minutes, 1, MAX_DURATION_MINUTES);
+  state.studyPlan = state.studyPlan.map((item, itemIndex) => itemIndex === taskIndex
+    ? { minutes: nextMinutes, task: nextTask || previousTask }
+    : item);
+  if (previousTask && previousTask !== state.studyPlan[taskIndex].task && state.completedTasks.includes(previousTask)) {
+    state.completedTasks = state.completedTasks
+      .filter(item => item !== previousTask)
+      .concat(state.studyPlan[taskIndex].task);
+  }
+  persistDraft();
+  if (shouldRender) {
+    renderActiveRoute();
+  }
+}
+
+async function askFocusAssistant(question) {
+  const text = String(question || "").trim();
+  if (!text) return;
+  const now = new Date().toISOString();
+  const priorChatHistory = focusAssistantChatHistory();
+  state.chatMessages = normalizeChatMessages([
+    ...state.chatMessages,
+    { role: "user", text, createdAt: now }
+  ]);
+  state.chatPending = true;
+  state.chatError = "";
+  persistDraft();
+  renderLearningPanel();
+
+  try {
+    const result = await requestFocusAssistantAnswer(text, priorChatHistory);
+    state.chatMessages = normalizeChatMessages([
+      ...state.chatMessages,
+      { role: "assistant", text: result.answer, createdAt: new Date().toISOString() }
+    ]);
+    if (result.offline) {
+      state.chatError = "Using a local Focus Room reply because the AI tutor service is not connected.";
+    }
+  } catch (error) {
+    const fallback = focusAssistantReply(text);
+    state.chatMessages = normalizeChatMessages([
+      ...state.chatMessages,
+      { role: "assistant", text: fallback, createdAt: new Date().toISOString() }
+    ]);
+    state.chatError = `AI tutor unavailable: ${error.message || "request failed"}`;
+  } finally {
+    state.chatPending = false;
+    persistDraft();
+    renderLearningPanel();
+  }
+}
+
 function toggleFocusTask(index) {
   const planItem = state.studyPlan[Number(index)];
   if (!planItem) return;
@@ -1112,6 +1625,7 @@ function toggleFocusTask(index) {
   } else {
     state.completedTasks = [...state.completedTasks, task];
   }
+  persistDraft();
   renderFocusRoomSession();
 }
 
@@ -1217,13 +1731,19 @@ function handleRouteChange(options = {}) {
 
 function exposeFocusRoomGlobals() {
   Object.assign(globalThis, {
+    answerFocusQuizQuestion,
+    askFocusAssistant,
     closeFocusSummary,
     endFocusRoomSession,
+    checkFocusQuizQuestion,
+    flipFocusFlashcard,
     pauseFocusRoomTimer,
+    rateFocusFlashcard,
     resetFocusRoomTimer,
     returnFromFocusRoom,
     selectFocusScene,
     setFocusDuration,
+    setFocusFlashcardIndex,
     setFocusPanelTab,
     openFocusRoomMaterial,
     showFocusStudyHistory,
@@ -1232,6 +1752,7 @@ function exposeFocusRoomGlobals() {
     startFocusRoomTimer,
     toggleFocusLearningPanel,
     toggleFocusTask,
+    updateFocusPlanTask,
     updateFocusGoal,
     updateFocusSound
   });

@@ -119,4 +119,22 @@ assert.equal(invalidNumericSession.totalFocusTime, 0);
 assert.equal(invalidNumericSession.flashcardsCompleted, 0);
 assert.equal(invalidNumericSession.quizScore, null);
 
+const originalSetItem = globalThis.localStorage.setItem;
+const originalWarn = console.warn;
+globalThis.localStorage.setItem = () => {
+  throw new Error("storage unavailable");
+};
+console.warn = () => {};
+const unpersistedSession = data.saveFocusRoomSession({
+  sessionId: "session-unpersisted",
+  materialTitle: "Offline Review"
+});
+assert.equal(unpersistedSession.persisted, false);
+assert.ok(
+  data.readFocusRoomSessions().some(item => item.sessionId === "session-unpersisted" && item.persisted === false),
+  "unpersisted sessions should remain visible from the in-memory fallback"
+);
+globalThis.localStorage.setItem = originalSetItem;
+console.warn = originalWarn;
+
 console.log("focus room data regression passed");

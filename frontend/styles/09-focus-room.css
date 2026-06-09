@@ -469,6 +469,116 @@
   gap: 14px;
 }
 
+.focus-study-card {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.focus-study-card .focus-room-subtitle {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(1rem, 1.6vw, 1.24rem);
+  line-height: 1.65;
+}
+
+.focus-quiz-stack,
+.focus-plan-editor,
+.focus-chat-list {
+  display: grid;
+  gap: 12px;
+}
+
+.focus-answer-input,
+.focus-plan-edit-item input,
+.focus-plan-edit-item textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #17213f;
+  padding: 11px 12px;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.focus-answer-input:focus,
+.focus-plan-edit-item input:focus,
+.focus-plan-edit-item textarea:focus {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 3px rgba(169, 197, 255, 0.28);
+}
+
+.focus-answer-input {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.focus-plan-edit-item {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.22fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.focus-plan-edit-item label {
+  display: grid;
+  gap: 7px;
+  color: rgba(248, 251, 255, 0.8);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.focus-plan-edit-item textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.focus-chat-list {
+  max-height: min(360px, 48vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.focus-chat-message {
+  width: min(92%, 620px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 12px 13px;
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.focus-chat-message.user {
+  justify-self: end;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.focus-chat-message p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.focus-control-btn:disabled,
+.focus-room-primary-btn:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.focus-control-btn:disabled:hover,
+.focus-control-btn:disabled:focus-visible,
+.focus-room-primary-btn:disabled:hover,
+.focus-room-primary-btn:disabled:focus-visible {
+  box-shadow: none;
+  transform: none;
+}
+
 .focus-plan-list,
 .focus-history-list {
   display: grid;
@@ -601,6 +711,18 @@
   .focus-control-btn,
   .focus-tab-btn,
   .focus-duration-btn {
+    width: 100%;
+  }
+
+  .focus-study-card {
+    min-height: 240px;
+  }
+
+  .focus-plan-edit-item {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-chat-message {
     width: 100%;
   }
 }

@@ -2,6 +2,8 @@ const FOCUS_ROOM_SESSION_KEY = "synapse.focusRoom.sessions.v1";
 const FOCUS_ROOM_DRAFT_KEY = "synapse.focusRoom.draft.v1";
 const FOCUS_ROOM_SESSION_LIMIT = 40;
 
+let memoryFocusRoomSessions = [];
+
 const FOCUS_ROOM_SCENES = [
   {
     id: "morning-window",
@@ -203,7 +205,16 @@ function writeFocusRoomDraft(draft) {
 
 function readFocusRoomSessions() {
   const parsed = readJSON(FOCUS_ROOM_SESSION_KEY, []);
-  return Array.isArray(parsed) ? parsed : [];
+  const persisted = Array.isArray(parsed) ? parsed : [];
+  const seen = new Set();
+  return [...memoryFocusRoomSessions, ...persisted]
+    .filter(item => {
+      const id = String(item?.sessionId || "");
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .slice(0, FOCUS_ROOM_SESSION_LIMIT);
 }
 
 function finiteNumber(value, fallback) {
@@ -228,16 +239,26 @@ function saveFocusRoomSession(session = {}) {
     endedAt: session.endedAt || now,
     totalFocusTime: Math.max(0, finiteNumber(session.totalFocusTime || 0, 0)),
     flashcardsCompleted: Math.max(0, finiteNumber(session.flashcardsCompleted || 0, 0)),
-    quizScore: Number.isFinite(Number(session.quizScore)) ? Number(session.quizScore) : null,
+    quizScore: session.quizScore === null || session.quizScore === undefined || session.quizScore === ""
+      ? null
+      : (Number.isFinite(Number(session.quizScore)) ? Number(session.quizScore) : null),
     mistakesMade: Array.isArray(session.mistakesMade) ? session.mistakesMade : [],
     completedTasks: Array.isArray(session.completedTasks) ? session.completedTasks : [],
     aiReflection: session.aiReflection || "You protected a focused study block and created momentum for the next session.",
     recommendedNextStep: session.recommendedNextStep || "Review the hardest item, then start another short focus block.",
     sessionDate: session.sessionDate || now
   };
-  const next = [record, ...readFocusRoomSessions().filter(item => item.sessionId !== record.sessionId)].slice(0, FOCUS_ROOM_SESSION_LIMIT);
-  writeJSON(FOCUS_ROOM_SESSION_KEY, next);
-  return record;
+  const candidate = { ...record, persisted: true };
+  const existing = readFocusRoomSessions().filter(item => item.sessionId !== candidate.sessionId);
+  const next = [candidate, ...existing.map(item => ({ ...item, persisted: true }))].slice(0, FOCUS_ROOM_SESSION_LIMIT);
+  const persisted = writeJSON(FOCUS_ROOM_SESSION_KEY, next);
+  const finalRecord = { ...candidate, persisted };
+  if (persisted) {
+    memoryFocusRoomSessions = [];
+  } else {
+    memoryFocusRoomSessions = [finalRecord, ...existing].slice(0, FOCUS_ROOM_SESSION_LIMIT);
+  }
+  return finalRecord;
 }
 
 function formatFocusRoomDuration(seconds) {
