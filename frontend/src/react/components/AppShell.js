@@ -5,6 +5,7 @@ import { SummaryNavigation } from "./SummaryNavigation.js";
 import { UploadStage } from "./UploadStage.js";
 import { AnalysisStage } from "./AnalysisStage.js";
 import { AssistantPanel, OpenAssistantButton } from "./AssistantPanel.js";
+import { FocusRoom } from "./FocusRoom.js";
 
 export function AppShellMarkup() {
   return joinHtml([
@@ -20,6 +21,7 @@ export function AppShellMarkup() {
         ${AssistantPanel()}
       </div>
     `,
+    FocusRoom(),
     OpenAssistantButton(),
   ]);
 }
