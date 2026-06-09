@@ -183,7 +183,7 @@ function notifyFocusRoomMaterialsChanged() {
 function openSynapseFocusRoom(materialId = "") {
   const requestedId = materialId || getSynapseFocusRoomCurrentMaterial()?.materialId || "";
   const suffix = requestedId ? `/${encodeURIComponent(requestedId)}` : "";
-  window.location.hash = `#/focus-room${suffix}`;
+  window.location.href = `focus-room.html#/focus-room${suffix}`;
 }
 
 async function returnFromFocusRoomToWorkspace(materialId = "") {

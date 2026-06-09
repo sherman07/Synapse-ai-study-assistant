@@ -15,14 +15,18 @@ const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
 const uploadSection = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
 const historySection = read("frontend/src/legacy/controller_sections/09_togglesourceviewer.js");
 const focusBridge = read("frontend/src/legacy/controller_sections/10_focusroombridge.js");
+const focusRoomHtml = read("frontend/focus-room.html");
+const focusRoomShell = read("frontend/src/focus-room/shell.js");
+const focusRoomStandalone = read("frontend/src/focus-room/standalone.js");
+const focusRoomStandaloneBridge = read("frontend/src/focus-room/standalone-bridge.js");
 const style = read("frontend/style.css");
 const focusStyle = read("frontend/styles/09-focus-room.css");
 
-assert.ok(main.includes("initFocusRoom"), "main.js should initialize the Focus Room controller");
+assert.ok(!main.includes("initFocusRoom"), "main.js should leave Focus Room controller boot to focus-room.html");
 assert.ok(main.includes("bootSynapseRuntime"), "main.js should route legacy and Focus Room startup through a guarded boot helper");
 assert.ok(main.includes("console.error(\"Synapse boot failed:\", error)"), "main.js should log boot failures with the caught error");
 assert.ok(main.includes("scheduleSynapseRuntimeBoot"), "main.js should be able to retry startup through the async fallback path");
-assert.ok(appShell.includes("FocusRoom()"), "AppShell should render the Focus Room shell");
+assert.ok(!appShell.includes("FocusRoom()"), "AppShell should not render the separate Focus Room shell");
 assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should include the current-material Focus Room CTA");
 assert.ok(controller.includes("\"10_focusroombridge.js\""), "legacy controller should load the Focus Room bridge");
 assert.ok(boot.includes("getSynapseFocusRoomMaterials"), "boot should expose Focus Room material bridge helpers");
@@ -30,6 +34,14 @@ assert.ok(boot.includes("openSynapseFocusRoom"), "boot should expose the Focus R
 assert.ok(uploadSection.includes("renderFocusRoomWorkspaceActions"), "analysis view should refresh Focus Room CTAs");
 assert.ok(historySection.includes("history-focus-room-btn"), "history rows should include a Focus Room action");
 assert.ok(style.includes("09-focus-room.css"), "global stylesheet should import Focus Room styles");
+assert.ok(focusRoomHtml.includes("src/focus-room/standalone.js"), "Focus Room should have its own standalone HTML entry");
+assert.ok(focusRoomHtml.includes("styles/09-focus-room.css"), "Standalone Focus Room page should load Focus Room styles directly");
+assert.ok(focusRoomShell.includes("focusRoomSurface"), "Focus Room shell should live in a shared Focus Room module");
+assert.ok(focusRoomStandalone.includes("renderFocusRoomShell"), "Standalone Focus Room boot should render the shared shell");
+assert.ok(focusRoomStandalone.includes("initFocusRoom"), "Standalone Focus Room boot should initialize the controller");
+assert.ok(focusRoomStandaloneBridge.includes("HISTORY_STORAGE_KEY"), "Standalone Focus Room bridge should read generated history");
+assert.ok(focusRoomStandaloneBridge.includes("getSynapseFocusRoomMaterials"), "Standalone Focus Room bridge should expose material providers");
+assert.ok(focusRoomStandaloneBridge.includes("returnFromFocusRoomToWorkspace"), "Standalone Focus Room bridge should return to the workspace page");
 assert.ok(focusBridge.includes("function getFocusRoomFlashcardsForCurrentNote()"), "Focus Room bridge should read stored flashcards for the active note");
 assert.ok(focusBridge.includes("function getFocusRoomQuizRecordsForCurrentNote()"), "Focus Room bridge should expose saved quiz record metadata");
 assert.ok(focusBridge.includes("flashcards: getFocusRoomFlashcardsForCurrentNote()"), "current Focus Room material should use stored flashcard records");
@@ -41,6 +53,10 @@ assert.ok(
 assert.ok(
   boot.includes('typeof notifyFocusRoomMaterialsChanged === "function"'),
   "boot should guard Focus Room material change notifications"
+);
+assert.ok(
+  focusBridge.includes("focus-room.html#/focus-room"),
+  "Workspace Focus Room opener should navigate to the separate Focus Room HTML entry"
 );
 assert.ok(
   focusStyle.indexOf("height: 100vh;") > -1 && focusStyle.indexOf("height: 100vh;") < focusStyle.indexOf("height: 100dvh;"),
@@ -212,6 +228,7 @@ assert.equal(
 );
 
 const focusComponent = read("frontend/src/react/components/FocusRoom.js");
+assert.ok(focusComponent.includes("renderFocusRoomShell"), "React FocusRoom component should reuse the shared Focus Room shell");
 for (const id of [
   "focusRoomSurface",
   "focusRoomSetup",
@@ -220,7 +237,7 @@ for (const id of [
   "focusSessionSummary",
   "focusStudyHistory"
 ]) {
-  assert.ok(focusComponent.includes(id), `FocusRoom shell should include #${id}`);
+  assert.ok(focusRoomShell.includes(id), `FocusRoom shell should include #${id}`);
 }
 
 const focusController = read("frontend/src/focus-room/controller.js");
