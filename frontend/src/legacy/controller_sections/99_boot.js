@@ -131,8 +131,12 @@ if (mobileHistorySearch) {
 }
 cleanExistingHistoryTitles();
 renderHistory();
-renderFocusRoomWorkspaceActions();
-notifyFocusRoomMaterialsChanged();
+if (typeof renderFocusRoomWorkspaceActions === "function") {
+  renderFocusRoomWorkspaceActions();
+}
+if (typeof notifyFocusRoomMaterialsChanged === "function") {
+  notifyFocusRoomMaterialsChanged();
+}
 setupVisualGuideTool();
 setupTimelineTool();
 setupMasteryGraphTool();

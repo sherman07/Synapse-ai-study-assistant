@@ -22,14 +22,30 @@ if (!window.React || !window.ReactDOM) {
 const reactRoot = window.ReactDOM.createRoot(root);
 const renderApp = () => reactRoot.render(window.React.createElement(App));
 
-if (typeof window.ReactDOM.flushSync === "function") {
-  window.ReactDOM.flushSync(renderApp);
+function bootSynapseRuntime() {
   loadLegacyController();
   initFocusRoom();
+}
+
+function scheduleSynapseRuntimeBoot() {
+  requestAnimationFrame(() => {
+    try {
+      bootSynapseRuntime();
+    } catch (error) {
+      console.error("Synapse boot failed:", error);
+    }
+  });
+}
+
+if (typeof window.ReactDOM.flushSync === "function") {
+  window.ReactDOM.flushSync(renderApp);
+  try {
+    bootSynapseRuntime();
+  } catch (error) {
+    console.error("Synapse boot failed:", error);
+    scheduleSynapseRuntimeBoot();
+  }
 } else {
   renderApp();
-  requestAnimationFrame(() => {
-    loadLegacyController();
-    initFocusRoom();
-  });
+  scheduleSynapseRuntimeBoot();
 }

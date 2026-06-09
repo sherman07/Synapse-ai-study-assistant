@@ -18,6 +18,9 @@ const focusBridge = read("frontend/src/legacy/controller_sections/10_focusroombr
 const style = read("frontend/style.css");
 
 assert.ok(main.includes("initFocusRoom"), "main.js should initialize the Focus Room controller");
+assert.ok(main.includes("bootSynapseRuntime"), "main.js should route legacy and Focus Room startup through a guarded boot helper");
+assert.ok(main.includes("console.error(\"Synapse boot failed:\", error)"), "main.js should log boot failures with the caught error");
+assert.ok(main.includes("scheduleSynapseRuntimeBoot"), "main.js should be able to retry startup through the async fallback path");
 assert.ok(appShell.includes("FocusRoom()"), "AppShell should render the Focus Room shell");
 assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should include the current-material Focus Room CTA");
 assert.ok(controller.includes("\"10_focusroombridge.js\""), "legacy controller should load the Focus Room bridge");
@@ -30,6 +33,14 @@ assert.ok(focusBridge.includes("function getFocusRoomFlashcardsForCurrentNote()"
 assert.ok(focusBridge.includes("function getFocusRoomQuizRecordsForCurrentNote()"), "Focus Room bridge should expose saved quiz record metadata");
 assert.ok(focusBridge.includes("flashcards: getFocusRoomFlashcardsForCurrentNote()"), "current Focus Room material should use stored flashcard records");
 assert.ok(focusBridge.includes("quizzes: getFocusRoomQuizRecordsForCurrentNote()"), "current Focus Room material should use saved quiz records");
+assert.ok(
+  boot.includes('typeof renderFocusRoomWorkspaceActions === "function"'),
+  "boot should guard Focus Room workspace action refreshes"
+);
+assert.ok(
+  boot.includes('typeof notifyFocusRoomMaterialsChanged === "function"'),
+  "boot should guard Focus Room material change notifications"
+);
 
 function createFocusBridgeContext(overrides = {}) {
   const context = {
