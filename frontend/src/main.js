@@ -1,4 +1,5 @@
 import { App } from "./react/App.js?v=account-landing-v3";
+import { initFocusRoom } from "./focus-room/controller.js";
 import { loadLegacyController } from "./legacy/loadLegacyController.js?v=account-landing-v3";
 
 const root = document.getElementById("root");
@@ -24,7 +25,11 @@ const renderApp = () => reactRoot.render(window.React.createElement(App));
 if (typeof window.ReactDOM.flushSync === "function") {
   window.ReactDOM.flushSync(renderApp);
   loadLegacyController();
+  initFocusRoom();
 } else {
   renderApp();
-  requestAnimationFrame(loadLegacyController);
+  requestAnimationFrame(() => {
+    loadLegacyController();
+    initFocusRoom();
+  });
 }
