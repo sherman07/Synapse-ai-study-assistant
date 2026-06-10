@@ -455,6 +455,11 @@
   color: rgba(255, 255, 255, 0.58);
 }
 
+.focus-setup-form option {
+  color: #111827;
+  background: #ffffff;
+}
+
 .focus-setup-form textarea {
   min-height: 92px;
   resize: vertical;
@@ -633,6 +638,8 @@
 .focus-tab-btn:focus-visible,
 .focus-duration-btn:hover,
 .focus-duration-btn:focus-visible,
+.focus-dock-btn:hover,
+.focus-dock-btn:focus-visible,
 .focus-icon-btn:hover,
 .focus-icon-btn:focus-visible {
   background: rgba(255, 255, 255, 0.2);
@@ -853,8 +860,14 @@
   }
 
   .focus-room-setup-layout,
-  .focus-session-layout {
+  .focus-session-layout,
+  .focus-setup-stage {
     grid-template-columns: 1fr;
+  }
+
+  .focus-setup-scenes,
+  .focus-setup-controls {
+    min-height: 0;
   }
 }
 
