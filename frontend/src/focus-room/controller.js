@@ -712,40 +712,48 @@ function renderFocusRoomSession() {
   const remaining = total ? Math.max(0, total - state.elapsedSeconds) : 0;
   session.innerHTML = `
     ${renderBackground(scene)}
-    <div class="focus-session-toolbar">
-      <div class="focus-room-title-block">
-        <p class="focus-room-kicker">${escapeHTML(scene.kicker)} / ${escapeHTML(state.timerStatus)}</p>
-        <h1 class="focus-room-title">${escapeHTML(state.material.materialTitle)}</h1>
-        <p class="focus-room-subtitle">${escapeHTML(state.studyGoal)}</p>
-      </div>
-      <div class="focus-control-row">
-        <button class="focus-room-ghost-btn" type="button" onclick="toggleFocusLearningPanel()">AI Learning Panel</button>
-        <button class="focus-room-back-btn" type="button" onclick="returnFromFocusRoom()">Workspace</button>
-        <button class="focus-session-end-btn" type="button" onclick="endFocusRoomSession()">End</button>
-      </div>
+    <div class="focus-session-shell">
+      <header class="focus-session-hero">
+        <div class="focus-room-title-block">
+          <p class="focus-room-kicker">${escapeHTML(scene.kicker)} / ${escapeHTML(state.timerStatus)}</p>
+          <h1 class="focus-room-title">${escapeHTML(state.material.materialTitle)}</h1>
+          <p class="focus-room-subtitle">${escapeHTML(state.studyGoal)}</p>
+        </div>
+        ${renderSessionNavigation(scene)}
+      </header>
+      <section class="focus-session-layout">
+        <article class="focus-timer-card">
+          <p class="focus-room-pill">${escapeHTML(state.musicType)} / ${escapeHTML(state.ambientSound)}</p>
+          <div class="focus-session-timer" aria-live="polite">${escapeHTML(formatTimerClock(remaining))}</div>
+          <p class="focus-room-subtitle">${escapeHTML(formatFocusRoomDuration(state.elapsedSeconds))} focused of ${escapeHTML(state.durationMinutes)}m</p>
+          <div class="focus-progress-track" aria-label="Focus progress">
+            <div class="focus-progress-fill" style="width: ${progressPercent().toFixed(1)}%;"></div>
+          </div>
+          <div class="focus-session-controls">
+            <button class="focus-control-btn${state.timerStatus === "studying" ? " active" : ""}" type="button" onclick="startFocusRoomTimer()">${timerActionLabel()}</button>
+            <button class="focus-control-btn" type="button" onclick="pauseFocusRoomTimer()">Pause</button>
+            <button class="focus-control-btn" type="button" onclick="resetFocusRoomTimer()">Reset</button>
+            <button class="focus-control-btn" type="button" onclick="skipFocusRoomTimer()">Skip</button>
+          </div>
+        </article>
+        <aside class="focus-session-panel focus-context-panel">
+          <section>
+            <h3>Study plan</h3>
+            ${renderStudyPlanList({ interactive: true })}
+          </section>
+          <section>
+            <h3>Sound</h3>
+            ${renderSoundControls()}
+          </section>
+          <section>
+            <h3>Current material</h3>
+            ${renderMaterialStrip(state.material)}
+          </section>
+          ${renderGoalSummaryCard()}
+        </aside>
+      </section>
+      ${renderFocusSessionDock()}
     </div>
-    <section class="focus-session-layout">
-      <div class="focus-timer-card">
-        <p class="focus-room-pill">${escapeHTML(state.musicType)} / ${escapeHTML(state.ambientSound)}</p>
-        <div class="focus-session-timer" aria-live="polite">${escapeHTML(formatTimerClock(remaining))}</div>
-        <p class="focus-room-subtitle">${escapeHTML(formatFocusRoomDuration(state.elapsedSeconds))} focused of ${escapeHTML(state.durationMinutes)}m</p>
-        <div class="focus-progress-track" aria-label="Focus progress">
-          <div class="focus-progress-fill" style="width: ${progressPercent().toFixed(1)}%;"></div>
-        </div>
-        <div class="focus-session-controls">
-          <button class="focus-control-btn${state.timerStatus === "studying" ? " active" : ""}" type="button" onclick="startFocusRoomTimer()">${timerActionLabel()}</button>
-          <button class="focus-control-btn" type="button" onclick="pauseFocusRoomTimer()">Pause</button>
-          <button class="focus-control-btn" type="button" onclick="resetFocusRoomTimer()">Reset</button>
-          <button class="focus-control-btn" type="button" onclick="skipFocusRoomTimer()">Skip</button>
-        </div>
-      </div>
-      <div class="focus-session-panel">
-        <h3>Study plan</h3>
-        ${renderStudyPlanList({ interactive: true })}
-        <h3>Sound</h3>
-        ${renderSoundControls()}
-      </div>
-    </section>
   `;
   syncCurrentFocusAudio();
   renderLearningPanel();
