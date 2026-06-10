@@ -771,22 +771,29 @@ function renderLearningPanel() {
   }
 
   panel.innerHTML = `
-    <div class="focus-control-row">
-      <h3>AI Learning Panel</h3>
-      <button class="focus-icon-btn" type="button" aria-label="Close AI Learning Panel" onclick="toggleFocusLearningPanel()">x</button>
+    <div class="focus-drawer-shell">
+      <div class="focus-drawer-head">
+        <div>
+          <p class="focus-room-kicker">Synapse</p>
+          <h3>AI Learning Panel</h3>
+        </div>
+        <button class="focus-icon-btn" type="button" aria-label="Close AI Learning Panel" onclick="toggleFocusLearningPanel()">x</button>
+      </div>
+      <div class="focus-tab-row focus-drawer-tabs" role="tablist">
+        ${PANEL_TAB_LIST.map(tab => `
+          <button
+            class="focus-tab-btn${tab === state.panelTab ? " active" : ""}"
+            type="button"
+            role="tab"
+            aria-selected="${tab === state.panelTab ? "true" : "false"}"
+            onclick="setFocusPanelTab(${jsStringAttr(tab)})"
+          >${escapeHTML(panelTabLabel(tab))}</button>
+        `).join("")}
+      </div>
+      <div class="focus-drawer-body">
+        ${renderPanelContent()}
+      </div>
     </div>
-    <div class="focus-tab-row" role="tablist">
-      ${PANEL_TAB_LIST.map(tab => `
-        <button
-          class="focus-tab-btn${tab === state.panelTab ? " active" : ""}"
-          type="button"
-          role="tab"
-          aria-selected="${tab === state.panelTab ? "true" : "false"}"
-          onclick="setFocusPanelTab(${jsStringAttr(tab)})"
-        >${escapeHTML(panelTabLabel(tab))}</button>
-      `).join("")}
-    </div>
-    ${renderPanelContent()}
   `;
 }
 
@@ -1276,7 +1283,7 @@ function renderFocusSessionSummary() {
 
   const record = state.summaryRecord;
   summary.innerHTML = `
-    <article class="focus-summary-card" role="dialog" aria-modal="true" aria-label="Focus session summary">
+    <article class="focus-summary-card focus-summary-glass" role="dialog" aria-modal="true" aria-label="Focus session summary">
       <p class="focus-room-kicker">Session complete</p>
       <h2 class="focus-room-title">${escapeHTML(record.materialTitle)}</h2>
       <p class="focus-room-subtitle">${escapeHTML(record.aiReflection)}</p>
@@ -1349,14 +1356,17 @@ function renderStudyHistory() {
         <button class="focus-room-back-btn" type="button" onclick="returnFromFocusRoom()">Workspace</button>
       `
     })}
-    <section class="focus-history-grid">
-      <article class="focus-history-card">
+    <section class="focus-history-stage">
+      <article class="focus-history-card focus-history-main">
         <h3>Recent sessions</h3>
         ${renderHistoryList()}
       </article>
-      <article class="focus-history-card">
+      <article class="focus-history-card focus-history-next">
         <h3>Next step</h3>
         <p class="focus-room-subtitle">Choose a material from the workspace to start another protected study block.</p>
+        <div class="focus-session-controls">
+          <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom()">Open Workspace</button>
+        </div>
       </article>
     </section>
   `;
