@@ -1,107 +1,176 @@
-import { html } from "../html.js";
-import { languageOptions } from "./LanguageOptions.js";
+import { PROMPT_MODE_OPTIONS } from "../constants.js";
+import { h, icon, legacyAction } from "../runtime.js";
+import { LanguageSelect } from "./LanguageOptions.js?v=react-shell-v2";
 
-const promptModeOptions = [
-  ["quick_answer", "Quick Answer"],
-  ["detailed_explanation", "Detailed Explanation"],
-  ["professor_mode", "Professor Mode"],
-  ["tutor_mode", "Tutor Mode"],
-  ["source_strict_research_mode", "Source-Strict Research Mode"],
-  ["assignment_apa_mode", "Assignment / APA Mode"],
-];
-
-function promptModeOptionMarkup() {
-  return promptModeOptions.map(([value, label]) => html`
-    <option value="${value}" ${value === "professor_mode" ? "selected" : ""}>${label}</option>
-  `).join("");
+function promptModeOptions() {
+  return PROMPT_MODE_OPTIONS.map(([value, label]) =>
+    h("option", { key: value, value }, label)
+  );
 }
 
 export function UploadStage() {
-  return html`
-    <section id="uploadStage" class="upload-stage">
-      <div class="hero-copy text-center">
-        <div class="brand-pill mx-auto mb-4">
-          <i class="bi bi-stars"></i>
-          AI Academic Tutor
-        </div>
-        <h1>Study Smarter</h1>
-        <p>Your private tutor for readings, notes, images, and links.</p>
-      </div>
-
-      <section class="premium-upload-card">
-        <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Upload area — drop files or click to browse">
-          <input id="assetUpload" class="visually-hidden" type="file" multiple accept=".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-
-          <div class="upload-icon-wrap"><i class="bi bi-cloud-arrow-up"></i></div>
-          <h2>Upload your study material</h2>
-          <p>Drop PDFs, images, notes, or documents here. Add links below if your source is online.</p>
-          <button type="button" class="btn btn-primary btn-lg upload-browse-btn" onclick="openFilePicker()">
-            <i class="bi bi-plus-lg me-2"></i>Select files
-          </button>
-        </div>
-
-        <div id="filePreview" class="file-preview d-none"></div>
-
-        <div class="source-box">
-          <label for="linkInput" class="form-label">Add online sources</label>
-          <div class="multi-link-adder">
-            <div class="multi-link-input-wrap">
-              <i class="bi bi-link-45deg"></i>
-              <input id="linkInput" class="multi-link-input" type="text" placeholder="Paste one or many links, then press Enter or Add">
-            </div>
-            <button id="addLinkBtn" class="btn btn-outline-primary multi-link-add-btn" type="button" onclick="addLinksFromInput()">
-              <i class="bi bi-plus-lg"></i>
-              Add
-            </button>
-          </div>
-          <div id="linkPreview" class="link-preview d-none" aria-live="polite"></div>
-          <p class="source-helper source-helper-tight">Supports multiple YouTube, webpage, video, and article links. Paste links separated by spaces, commas, or new lines.</p>
-
-          <label for="sourceInput" class="form-label mt-3">Optional pasted notes or mixed source text</label>
-          <div class="source-input-wrap">
-            <div class="source-hints">
-              <span><i class="bi bi-youtube"></i> YouTube link</span>
-              <span>/</span>
-              <span><i class="bi bi-link-45deg"></i> Web URL</span>
-              <span>/</span>
-              <span><i class="bi bi-camera-video"></i> Video link</span>
-              <span>/</span>
-              <span><i class="bi bi-file-text"></i> Free text</span>
-            </div>
-            <textarea id="sourceInput" class="source-input" rows="5" placeholder="Paste extra notes here, or paste links directly if you do not want to add them one by one..."></textarea>
-          </div>
-          <p class="source-helper">YouTube links pasted here or found inside uploaded PDFs/PPTs are expanded into transcript sources for analysis.</p>
-        </div>
-
-        <div class="language-box">
-          <label for="preferredLanguage" class="form-label">Preferred output language</label>
-          <p class="language-note">Brand names such as Synapse stay unchanged in every language.</p>
-          <select id="preferredLanguage" class="language-select" aria-label="Preferred output language">
-            ${languageOptions()}
-          </select>
-        </div>
-        <input type="hidden" id="detailLevel" value="auto" />
-
-        <div class="language-box prompt-mode-box">
-          <label for="promptMode" class="form-label">Prompt mode</label>
-          <p class="language-note">Choose how Synapse should shape the generated notes.</p>
-          <select id="promptMode" class="language-select prompt-mode-select" aria-label="Prompt mode">
-            ${promptModeOptionMarkup()}
-          </select>
-        </div>
-
-        <div class="language-box auto-depth-box" aria-live="polite">
-          <div class="auto-depth-icon"><i class="bi bi-lightning-charge-fill"></i></div>
-          <div>
-            <label class="form-label mb-1">Adaptive learning depth</label>
-            <p class="language-note mb-0">Synapse automatically chooses the clearest level of detail. Simple sources stay focused; dense legal, mathematical, academic, or multi-section sources stay detailed.</p>
-          </div>
-        </div>
-
-        <button id="generateBtn" type="button" class="btn btn-primary btn-lg w-100 generate-btn" onclick="analyzeMaterials()">
-          <i class="bi bi-stars me-2"></i>Analyze with Synapse
-        </button>
-      </section>
-    </section>
-  `;
+  return h(
+    "section",
+    { id: "uploadStage", className: "upload-stage" },
+    h(
+      "div",
+      { className: "hero-copy text-center" },
+      h("div", { className: "brand-pill mx-auto mb-4" }, icon("bi-stars"), "AI Academic Tutor"),
+      h("h1", null, "Study Smarter"),
+      h("p", null, "Your private tutor for readings, notes, images, and links.")
+    ),
+    h(
+      "section",
+      { className: "premium-upload-card" },
+      h(
+        "div",
+        {
+          id: "dropZone",
+          className: "drop-zone",
+          tabIndex: 0,
+          role: "button",
+          "aria-label": "Upload area — drop files or click to browse",
+        },
+        h("input", {
+          id: "assetUpload",
+          className: "visually-hidden",
+          type: "file",
+          multiple: true,
+          accept: ".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }),
+        h("div", { className: "upload-icon-wrap" }, icon("bi-cloud-arrow-up")),
+        h("h2", null, "Upload your study material"),
+        h("p", null, "Drop PDFs, images, notes, or documents here. Add links below if your source is online."),
+        h(
+          "button",
+          {
+            type: "button",
+            className: "btn btn-primary btn-lg upload-browse-btn",
+            onClick: legacyAction("openFilePicker"),
+          },
+          icon("bi-plus-lg", "me-2"),
+          "Select files"
+        )
+      ),
+      h("div", { id: "filePreview", className: "file-preview d-none" }),
+      h(
+        "div",
+        { className: "source-box" },
+        h("label", { htmlFor: "linkInput", className: "form-label" }, "Add online sources"),
+        h(
+          "div",
+          { className: "multi-link-adder" },
+          h(
+            "div",
+            { className: "multi-link-input-wrap" },
+            icon("bi-link-45deg"),
+            h("input", {
+              id: "linkInput",
+              className: "multi-link-input",
+              type: "text",
+              placeholder: "Paste one or many links, then press Enter or Add",
+            })
+          ),
+          h(
+            "button",
+            {
+              id: "addLinkBtn",
+              className: "btn btn-outline-primary multi-link-add-btn",
+              type: "button",
+              onClick: legacyAction("addLinksFromInput"),
+            },
+            icon("bi-plus-lg"),
+            "Add"
+          )
+        ),
+        h("div", { id: "linkPreview", className: "link-preview d-none", "aria-live": "polite" }),
+        h(
+          "p",
+          { className: "source-helper source-helper-tight" },
+          "Supports multiple YouTube, webpage, video, and article links. Paste links separated by spaces, commas, or new lines."
+        ),
+        h("label", { htmlFor: "sourceInput", className: "form-label mt-3" }, "Optional pasted notes or mixed source text"),
+        h(
+          "div",
+          { className: "source-input-wrap" },
+          h(
+            "div",
+            { className: "source-hints" },
+            h("span", null, icon("bi-youtube"), " YouTube link"),
+            h("span", null, "/"),
+            h("span", null, icon("bi-link-45deg"), " Web URL"),
+            h("span", null, "/"),
+            h("span", null, icon("bi-camera-video"), " Video link"),
+            h("span", null, "/"),
+            h("span", null, icon("bi-file-text"), " Free text")
+          ),
+          h("textarea", {
+            id: "sourceInput",
+            className: "source-input",
+            rows: 5,
+            placeholder: "Paste extra notes here, or paste links directly if you do not want to add them one by one...",
+          })
+        ),
+        h(
+          "p",
+          { className: "source-helper" },
+          "YouTube links pasted here or found inside uploaded PDFs/PPTs are expanded into transcript sources for analysis."
+        )
+      ),
+      h(
+        "div",
+        { className: "language-box" },
+        h("label", { htmlFor: "preferredLanguage", className: "form-label" }, "Preferred output language"),
+        h("p", { className: "language-note" }, "Brand names such as Synapse stay unchanged in every language."),
+        h(LanguageSelect, {
+          id: "preferredLanguage",
+          className: "language-select",
+          ariaLabel: "Preferred output language",
+        })
+      ),
+      h("input", { type: "hidden", id: "detailLevel", value: "auto", readOnly: true }),
+      h(
+        "div",
+        { className: "language-box prompt-mode-box" },
+        h("label", { htmlFor: "promptMode", className: "form-label" }, "Prompt mode"),
+        h("p", { className: "language-note" }, "Choose how Synapse should shape the generated notes."),
+        h(
+          "select",
+          {
+            id: "promptMode",
+            className: "language-select prompt-mode-select",
+            "aria-label": "Prompt mode",
+            defaultValue: "professor_mode",
+          },
+          promptModeOptions()
+        )
+      ),
+      h(
+        "div",
+        { className: "language-box auto-depth-box", "aria-live": "polite" },
+        h("div", { className: "auto-depth-icon" }, icon("bi-lightning-charge-fill")),
+        h(
+          "div",
+          null,
+          h("label", { className: "form-label mb-1" }, "Adaptive learning depth"),
+          h(
+            "p",
+            { className: "language-note mb-0" },
+            "Synapse automatically chooses the clearest level of detail. Simple sources stay focused; dense legal, mathematical, academic, or multi-section sources stay detailed."
+          )
+        )
+      ),
+      h(
+        "button",
+        {
+          id: "generateBtn",
+          type: "button",
+          className: "btn btn-primary btn-lg w-100 generate-btn",
+          onClick: legacyAction("analyzeMaterials"),
+        },
+        icon("bi-stars", "me-2"),
+        "Analyze with Synapse"
+      )
+    )
+  );
 }

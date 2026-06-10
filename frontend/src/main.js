@@ -1,4 +1,4 @@
-import { App } from "./react/App.js?v=local-api-v1";
+import { App } from "./react/App.js?v=react-shell-v2";
 import { loadLegacyController } from "./legacy/loadLegacyController.js?v=local-api-v1";
 
 const root = document.getElementById("root");

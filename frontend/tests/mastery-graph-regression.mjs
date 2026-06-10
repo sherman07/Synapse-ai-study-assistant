@@ -18,12 +18,14 @@ const notes = read("frontend/src/legacy/controller_sections/02_openvisualmodal.j
 const timeline = read("frontend/src/legacy/controller_sections/03_rendertimeline.js");
 const quiz = read("frontend/src/legacy/controller_sections/05_persistcurrentquiztohistory.js");
 const styles = read("frontend/styles/07-section.css");
-const appAssetVersion = "local-api-v1";
+const reactShellAssetVersion = "react-shell-v2";
+const legacyControllerAssetVersion = "local-api-v1";
 
 assert.ok(controller.includes('"04_masterygraph.js"'), "legacy controller should load the memory engine section");
-assert.ok(index.includes(appAssetVersion), "index should bust cached app assets for memory engine");
-assert.ok(main.includes(appAssetVersion), "main should bust cached controller loader");
-assert.ok(loader.includes(appAssetVersion), "controller script URL should bust cached controller");
+assert.ok(index.includes(reactShellAssetVersion), "index should bust cached React shell assets");
+assert.ok(main.includes(reactShellAssetVersion), "main should bust cached React app imports");
+assert.ok(main.includes(legacyControllerAssetVersion), "main should bust cached controller loader");
+assert.ok(loader.includes(legacyControllerAssetVersion), "controller script URL should bust cached controller");
 assert.ok(switchTools.includes('masterygraph: "toolPanelMasteryGraph"'), "switchTool should map masterygraph to its panel");
 assert.ok(switchTools.includes('toolName === "masterygraph"'), "switchTool should activate/render the memory engine");
 assert.ok(masteryGraph.includes("function setupMasteryGraphTool()"), "memory engine setup should exist");

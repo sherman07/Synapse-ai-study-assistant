@@ -1,0 +1,97 @@
+<h2>Which Focus Room layout direction feels right?</h2>
+<p class="subtitle">Click one if a direction stands out. I recommend A because it best matches the prompt: cinematic, immersive, and premium while keeping controls easy to reach.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="height:260px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#16233a 0%,#4f6379 45%,#d4b27b 100%);position:relative;">
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.24),rgba(0,0,0,.72));"></div>
+      <div style="position:absolute;left:18px;right:18px;top:16px;display:flex;justify-content:space-between;align-items:center;color:white;">
+        <div style="font-weight:800;font-size:14px;">Synapse Focus Room</div>
+        <div style="display:flex;gap:8px;">
+          <span style="padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);font-size:11px;">AI Panel</span>
+          <span style="padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);font-size:11px;">Workspace</span>
+        </div>
+      </div>
+      <div style="position:absolute;left:28px;bottom:34px;width:38%;min-height:132px;border-radius:26px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);box-shadow:0 22px 58px rgba(0,0,0,.32);backdrop-filter:blur(18px);display:grid;place-items:center;color:white;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.72;">Rainy Cafe / Lo-fi</div>
+          <div style="font-size:44px;font-weight:900;line-height:1.05;">25:00</div>
+          <div style="margin-top:12px;display:flex;gap:6px;justify-content:center;">
+            <span style="width:44px;height:18px;border-radius:999px;background:rgba(255,255,255,.85);"></span>
+            <span style="width:34px;height:18px;border-radius:999px;background:rgba(255,255,255,.22);"></span>
+            <span style="width:34px;height:18px;border-radius:999px;background:rgba(255,255,255,.22);"></span>
+          </div>
+        </div>
+      </div>
+      <div style="position:absolute;right:28px;bottom:34px;width:34%;min-height:132px;border-radius:24px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.3);box-shadow:0 22px 58px rgba(0,0,0,.28);backdrop-filter:blur(18px);padding:16px;color:white;">
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.72;">Study plan</div>
+        <div style="height:10px;width:80%;border-radius:999px;background:rgba(255,255,255,.7);margin-top:14px;"></div>
+        <div style="height:10px;width:64%;border-radius:999px;background:rgba(255,255,255,.32);margin-top:10px;"></div>
+        <div style="height:10px;width:72%;border-radius:999px;background:rgba(255,255,255,.32);margin-top:10px;"></div>
+        <div style="height:22px;width:92%;border-radius:999px;background:rgba(255,255,255,.16);margin-top:20px;"></div>
+      </div>
+      <div style="position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:42%;height:30px;border-radius:999px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.26);backdrop-filter:blur(18px);"></div>
+    </div>
+    <div class="card-body">
+      <h3>A. Cinematic Split Stage</h3>
+      <p>Full-screen scene first, floating timer left, study/context panel right, compact dock below. Strongest “premium AI study room” feel.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="height:260px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#111827 0%,#334155 55%,#94a3b8 100%);position:relative;">
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.34),rgba(0,0,0,.66));"></div>
+      <div style="position:absolute;inset:16px 18px auto 18px;height:44px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);"></div>
+      <div style="position:absolute;left:36px;right:36px;top:82px;min-height:122px;border-radius:28px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.34);box-shadow:0 22px 58px rgba(0,0,0,.28);backdrop-filter:blur(18px);display:grid;place-items:center;color:white;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.72;">Minimal Desk</div>
+          <div style="font-size:54px;font-weight:900;line-height:1;">25:00</div>
+        </div>
+      </div>
+      <div style="position:absolute;left:36px;right:36px;bottom:24px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+        <div style="height:30px;border-radius:999px;background:rgba(255,255,255,.82);"></div>
+        <div style="height:30px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);"></div>
+        <div style="height:30px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);"></div>
+        <div style="height:30px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Centered Zen Timer</h3>
+      <p>Timer dominates the page with secondary panels pushed below or into drawers. Very calm, but study plan/material context is less visible.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="height:260px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 48%,#8f6f4e 100%);position:relative;">
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.38),rgba(0,0,0,.72));"></div>
+      <div style="position:absolute;left:16px;top:16px;bottom:16px;width:31%;border-radius:24px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(18px);"></div>
+      <div style="position:absolute;left:37%;top:24px;right:18px;height:86px;border-radius:24px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);"></div>
+      <div style="position:absolute;left:37%;top:126px;right:18px;height:52px;border-radius:20px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);"></div>
+      <div style="position:absolute;left:37%;bottom:24px;right:18px;height:46px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.26);"></div>
+      <div style="position:absolute;left:38px;top:82px;color:white;font-size:42px;font-weight:900;">25:00</div>
+    </div>
+    <div class="card-body">
+      <h3>C. Glass Dashboard Upgrade</h3>
+      <p>Keeps the familiar dashboard shape but makes every element glassy. Lower risk, but least aligned with the “not a normal dashboard” requirement.</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>Recommendation</h4>
+    <ul>
+      <li>Use A for the active study page.</li>
+      <li>Use a matching two-column setup screen with scene grid left and controls right.</li>
+      <li>Keep AI Learning Panel as a 420-520px right drawer on desktop.</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>Tradeoff</h4>
+    <ul>
+      <li>A requires more controller markup changes than B or C.</li>
+      <li>We need visual browser checks at desktop and mobile sizes.</li>
+      <li>Existing tests should be extended around the new class hooks and preserved actions.</li>
+    </ul>
+  </div>
+</div>

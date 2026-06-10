@@ -1,51 +1,121 @@
-import { html } from "../html.js";
+import { Fragment, h, icon, legacyAction } from "../runtime.js";
 
 export function MobileNavigation() {
-  return html`
-    <nav class="mobile-topbar" aria-label="Mobile navigation">
-      <button class="mobile-menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav" aria-controls="mobileNav" aria-label="Open menu">
-        <i class="bi bi-list"></i>
-      </button>
-      <div class="mobile-brand">
-        <span class="brand-dot"><img class="brand-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
-        <strong>Synapse</strong>
-      </div>
-      <div class="mobile-topbar-spacer"></div>
-    </nav>
+  const brand = h(
+    "div",
+    { className: "mobile-brand" },
+    h(
+      "span",
+      { className: "brand-dot" },
+      h("img", { className: "brand-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
+    ),
+    h("strong", null, "Synapse")
+  );
 
-    <div class="offcanvas offcanvas-top mobile-offcanvas" tabindex="-1" id="mobileNav" aria-labelledby="mobileNavLabel">
-      <div class="offcanvas-header">
-        <div class="mobile-brand" id="mobileNavLabel">
-          <span class="brand-dot"><img class="brand-logo-img" src="/logos/synapse.png" alt="Synapse logo"></span>
-          <strong>Synapse</strong>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-      </div>
-      <div class="offcanvas-body">
-        <div class="mobile-nav-actions">
-          <button class="mobile-account-summary" type="button" onclick="openAccountPanel('profile')" data-bs-dismiss="offcanvas">
-            <span class="account-avatar account-menu-avatar">S</span>
-            <div>
-              <strong class="account-menu-name">Synapse Student</strong>
-              <p class="account-menu-email">Not signed in</p>
-            </div>
-          </button>
-          <button class="history-new-btn mobile-new-btn" type="button" onclick="resetWorkspace()" data-bs-dismiss="offcanvas">
-            <i class="bi bi-plus-lg"></i> New workspace
-          </button>
-        </div>
-        <div class="history-search-wrap mobile-history-search-wrap">
-          <i class="bi bi-search"></i>
-          <input id="mobileHistorySearch" type="search" placeholder="Search generated notes..." aria-label="Search generated notes history">
-        </div>
-        <div class="history-section-title mobile-history-title">Recent Generated Notes</div>
-        <div id="mobileHistoryList" class="history-list mobile-history-list">
-          <p class="history-empty">No generated notes yet.</p>
-        </div>
-        <div class="mobile-nav-divider"></div>
-        <p class="mobile-nav-caption">Current note sections</p>
-        <div id="mobileSections" class="section-list"></div>
-      </div>
-    </div>
-  `;
+  return h(
+    Fragment,
+    null,
+    h(
+      "nav",
+      { className: "mobile-topbar", "aria-label": "Mobile navigation" },
+      h(
+        "button",
+        {
+          className: "mobile-menu-btn",
+          type: "button",
+          "data-bs-toggle": "offcanvas",
+          "data-bs-target": "#mobileNav",
+          "aria-controls": "mobileNav",
+          "aria-label": "Open menu",
+        },
+        icon("bi-list")
+      ),
+      brand,
+      h("div", { className: "mobile-topbar-spacer" })
+    ),
+    h(
+      "div",
+      {
+        className: "offcanvas offcanvas-top mobile-offcanvas",
+        tabIndex: -1,
+        id: "mobileNav",
+        "aria-labelledby": "mobileNavLabel",
+      },
+      h(
+        "div",
+        { className: "offcanvas-header" },
+        h(
+          "div",
+          { className: "mobile-brand", id: "mobileNavLabel" },
+          h(
+            "span",
+            { className: "brand-dot" },
+            h("img", { className: "brand-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
+          ),
+          h("strong", null, "Synapse")
+        ),
+        h("button", {
+          type: "button",
+          className: "btn-close",
+          "data-bs-dismiss": "offcanvas",
+          "aria-label": "Close",
+        })
+      ),
+      h(
+        "div",
+        { className: "offcanvas-body" },
+        h(
+          "div",
+          { className: "mobile-nav-actions" },
+          h(
+            "button",
+            {
+              className: "mobile-account-summary",
+              type: "button",
+              onClick: legacyAction("openAccountPanel", "profile"),
+              "data-bs-dismiss": "offcanvas",
+            },
+            h("span", { className: "account-avatar account-menu-avatar" }, "S"),
+            h(
+              "div",
+              null,
+              h("strong", { className: "account-menu-name" }, "Synapse Student"),
+              h("p", { className: "account-menu-email" }, "Not signed in")
+            )
+          ),
+          h(
+            "button",
+            {
+              className: "history-new-btn mobile-new-btn",
+              type: "button",
+              onClick: legacyAction("resetWorkspace"),
+              "data-bs-dismiss": "offcanvas",
+            },
+            icon("bi-plus-lg"),
+            " New workspace"
+          )
+        ),
+        h(
+          "div",
+          { className: "history-search-wrap mobile-history-search-wrap" },
+          icon("bi-search"),
+          h("input", {
+            id: "mobileHistorySearch",
+            type: "search",
+            placeholder: "Search generated notes...",
+            "aria-label": "Search generated notes history",
+          })
+        ),
+        h("div", { className: "history-section-title mobile-history-title" }, "Recent Generated Notes"),
+        h(
+          "div",
+          { id: "mobileHistoryList", className: "history-list mobile-history-list" },
+          h("p", { className: "history-empty" }, "No generated notes yet.")
+        ),
+        h("div", { className: "mobile-nav-divider" }),
+        h("p", { className: "mobile-nav-caption" }, "Current note sections"),
+        h("div", { id: "mobileSections", className: "section-list" })
+      )
+    )
+  );
 }

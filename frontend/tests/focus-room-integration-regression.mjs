@@ -8,6 +8,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const read = file => fs.readFileSync(path.join(repoRoot, file), "utf8");
 
 const main = read("frontend/src/main.js");
+const app = read("frontend/src/react/App.js");
 const appShell = read("frontend/src/react/components/AppShell.js");
 const analysisStage = read("frontend/src/react/components/AnalysisStage.js");
 const controller = read("frontend/src/legacy/controller.js");
@@ -27,6 +28,8 @@ assert.ok(!main.includes("initFocusRoom"), "main.js should leave Focus Room cont
 assert.ok(main.includes("bootSynapseRuntime"), "main.js should route legacy and Focus Room startup through a guarded boot helper");
 assert.ok(main.includes("console.error(\"Synapse boot failed:\", error)"), "main.js should log boot failures with the caught error");
 assert.ok(main.includes("scheduleSynapseRuntimeBoot"), "main.js should be able to retry startup through the async fallback path");
+assert.ok(app.includes("h(AppShell)"), "React app should render the shell as React elements");
+assert.ok(!app.includes("dangerouslySetInnerHTML"), "React app should not inject the workspace shell as an HTML string");
 assert.ok(!appShell.includes("FocusRoom()"), "AppShell should not render the separate Focus Room shell");
 assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should include the current-material Focus Room CTA");
 assert.ok(controller.includes("\"10_focusroombridge.js\""), "legacy controller should load the Focus Room bridge");

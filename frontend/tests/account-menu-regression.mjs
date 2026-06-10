@@ -14,12 +14,14 @@ assert.ok(historyNavigation.includes("history-account-btn"));
 assert.ok(historyNavigation.includes("history-account-plan account-menu-plan"));
 assert.ok(!historyNavigation.includes(">Account<"));
 assert.ok(historyNavigation.includes("account-popover"));
-assert.ok(historyNavigation.includes("openAccountPanel('profile')"));
-assert.ok(historyNavigation.includes("signOutAccount()"));
+assert.ok(historyNavigation.includes('legacyAction("openAccountPanel", "profile")'));
+assert.ok(historyNavigation.includes('legacyAction("signOutAccount")'));
 assert.ok(!historyNavigation.includes('class="history-new-btn" type="button" onclick="resetWorkspace()"'));
+assert.ok(!historyNavigation.includes("onclick="));
 
 assert.ok(mobileNavigation.includes("mobile-account-summary"));
 assert.ok(mobileNavigation.includes("New workspace"));
+assert.ok(mobileNavigation.includes('legacyAction("openAccountPanel", "profile")'));
 
 for (const exportedName of [
   "renderAccountMenu",
