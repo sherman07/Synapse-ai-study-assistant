@@ -661,8 +661,62 @@
 }
 
 .focus-learning-panel {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  bottom: 24px;
+  z-index: 3;
+  width: min(520px, calc(100vw - 48px));
+  padding: 0;
+  overflow: hidden;
+  transform: translateX(0);
+  animation: focusDrawerIn 0.28s ease both;
+}
+
+.focus-drawer-shell {
+  height: 100%;
   display: grid;
-  gap: 14px;
+  grid-template-rows: auto auto 1fr;
+  gap: 16px;
+  padding: 22px;
+  min-height: 0;
+}
+
+.focus-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.focus-drawer-head h3 {
+  margin: 4px 0 0;
+  font-size: 1.45rem;
+}
+
+.focus-drawer-tabs {
+  margin-top: 0;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 4px;
+}
+
+.focus-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+@keyframes focusDrawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .focus-study-card {
@@ -791,6 +845,22 @@
   padding: 13px 14px;
 }
 
+.focus-history-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: 18px;
+}
+
+.focus-history-main,
+.focus-history-next,
+.focus-summary-glass {
+  background: rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+
 .focus-summary-overlay {
   position: fixed;
   inset: 0;
@@ -798,8 +868,9 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(8, 13, 24, 0.62);
-  backdrop-filter: blur(18px);
+  background: rgba(6, 10, 18, 0.58);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
 }
 
 .focus-summary-overlay.d-none {
@@ -854,20 +925,27 @@
   }
 
   .focus-room-topbar,
-  .focus-session-toolbar {
+  .focus-session-toolbar,
+  .focus-session-hero {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .focus-setup-stage,
   .focus-room-setup-layout,
   .focus-session-layout,
-  .focus-setup-stage {
+  .focus-history-stage {
     grid-template-columns: 1fr;
   }
 
   .focus-setup-scenes,
-  .focus-setup-controls {
-    min-height: 0;
+  .focus-setup-controls,
+  .focus-session-shell {
+    min-height: auto;
+  }
+
+  .focus-session-nav {
+    justify-content: flex-start;
   }
 }
 
@@ -896,7 +974,18 @@
   .focus-panel-card,
   .focus-timer-card,
   .focus-learning-panel {
-    border-radius: 18px;
+    border-radius: 22px;
+    padding: 16px;
+  }
+
+  .focus-learning-panel {
+    inset: 0;
+    width: 100%;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .focus-drawer-shell {
     padding: 16px;
   }
 
@@ -908,13 +997,22 @@
   .focus-session-controls,
   .focus-control-row,
   .focus-tab-row,
-  .focus-session-controls > * {
+  .focus-session-controls > *,
+  .focus-session-nav > *,
+  .focus-session-dock > * {
     width: 100%;
+  }
+
+  .focus-session-dock {
+    border-radius: 24px;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .focus-control-btn,
   .focus-tab-btn,
-  .focus-duration-btn {
+  .focus-duration-btn,
+  .focus-dock-btn {
     width: 100%;
   }
 

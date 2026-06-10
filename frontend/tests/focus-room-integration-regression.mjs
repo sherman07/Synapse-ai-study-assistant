@@ -19,6 +19,7 @@ const focusRoomHtml = read("frontend/focus-room.html");
 const focusRoomShell = read("frontend/src/focus-room/shell.js");
 const focusRoomStandalone = read("frontend/src/focus-room/standalone.js");
 const focusRoomStandaloneBridge = read("frontend/src/focus-room/standalone-bridge.js");
+const focusRoomData = read("frontend/src/focus-room/data.js");
 const style = read("frontend/style.css");
 const focusStyle = read("frontend/styles/09-focus-room.css");
 
@@ -42,6 +43,7 @@ assert.ok(focusRoomStandalone.includes("initFocusRoom"), "Standalone Focus Room 
 assert.ok(focusRoomStandaloneBridge.includes("HISTORY_STORAGE_KEY"), "Standalone Focus Room bridge should read generated history");
 assert.ok(focusRoomStandaloneBridge.includes("getSynapseFocusRoomMaterials"), "Standalone Focus Room bridge should expose material providers");
 assert.ok(focusRoomStandaloneBridge.includes("returnFromFocusRoomToWorkspace"), "Standalone Focus Room bridge should return to the workspace page");
+assert.ok(focusRoomData.includes("Cafe Rain"), "Focus Room data should include the two-layer Rainy Cafe ambience");
 assert.ok(focusBridge.includes("function getFocusRoomFlashcardsForCurrentNote()"), "Focus Room bridge should read stored flashcards for the active note");
 assert.ok(focusBridge.includes("function getFocusRoomQuizRecordsForCurrentNote()"), "Focus Room bridge should expose saved quiz record metadata");
 assert.ok(focusBridge.includes("flashcards: getFocusRoomFlashcardsForCurrentNote()"), "current Focus Room material should use stored flashcard records");
@@ -62,6 +64,21 @@ assert.ok(
   focusStyle.indexOf("height: 100vh;") > -1 && focusStyle.indexOf("height: 100vh;") < focusStyle.indexOf("height: 100dvh;"),
   "Focus Room surface should declare a 100vh fallback before 100dvh"
 );
+for (const token of [
+  "--focus-glass-bg",
+  "--focus-glass-border",
+  "--focus-glass-shadow",
+  "backdrop-filter: blur(28px) saturate(180%)",
+  ".focus-setup-stage",
+  ".focus-session-shell",
+  ".focus-context-panel",
+  ".focus-session-dock",
+  ".focus-learning-panel",
+  "translateX(0)",
+  "@media (max-width: 640px)"
+]) {
+  assert.ok(focusStyle.includes(token), `Focus Room liquid glass CSS should include ${token}`);
+}
 
 function createFocusBridgeContext(overrides = {}) {
   const context = {
@@ -256,12 +273,29 @@ for (const token of [
   "function renderFocusQuizMode(questions)",
   "function renderFocusChatPanel()",
   "function renderStudyPlanEditor()",
+  "syncFocusRoomAudio",
+  "toggleFocusRoomAudioPlayback",
   "focusQuizScore",
   "focusRoomWorkspaceButton(\"Open Flashcard Workspace\", \"flashcards\")",
   "focusRoomWorkspaceButton(\"Open Quiz Workspace\", \"quiz\")",
   "runFocusWorkspaceAction"
 ]) {
   assert.ok(focusController.includes(token), `Focus Room controller should include ${token}`);
+}
+for (const token of [
+  "focus-setup-stage",
+  "focus-setup-scenes",
+  "focus-setup-controls",
+  "focus-step-label",
+  "focus-session-shell",
+  "focus-session-nav",
+  "focus-context-panel",
+  "focus-session-dock",
+  "focus-drawer-shell",
+  "focus-drawer-tabs",
+  "focus-material-strip"
+]) {
+  assert.ok(focusController.includes(token), `Focus Room redesigned markup should include ${token}`);
 }
 
 console.log("focus room integration regression passed");

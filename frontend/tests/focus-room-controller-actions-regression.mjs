@@ -114,6 +114,20 @@ assert.ok(
   elements.focusLearningPanel.innerHTML.includes('returnFromFocusRoom(&quot;history-1&quot;, &quot;flashcards&quot;)'),
   "Focus Room flashcard panel should route back to the flashcard workspace"
 );
+assert.ok(
+  elements.focusLearningPanel.innerHTML.includes("focus-drawer-shell"),
+  "AI Learning Panel should render inside the redesigned liquid glass drawer shell"
+);
+
+assert.ok(
+  elements.focusLearningPanel.innerHTML.includes("focus-drawer-tabs"),
+  "AI Learning Panel should keep the tab row after the drawer redesign"
+);
+
+assert.ok(
+  elements.focusLearningPanel.innerHTML.includes("Open Flashcard Workspace"),
+  "AI Learning Panel should keep flashcard workspace return actions after the redesign"
+);
 
 await globalThis.returnFromFocusRoom("history-1", "quiz");
 assert.deepEqual(actions, ["restore:history-1", "switch:quiz"]);
