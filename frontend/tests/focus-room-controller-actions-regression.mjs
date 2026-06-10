@@ -58,6 +58,7 @@ const elements = {
 };
 const actions = [];
 const eventHandlers = {};
+const scrollToCalls = [];
 
 globalThis.document = {
   body: {
@@ -80,6 +81,9 @@ globalThis.addEventListener = (eventName, handler) => {
   eventHandlers[eventName] = handler;
 };
 globalThis.requestAnimationFrame = callback => callback();
+globalThis.scrollTo = (x, y) => {
+  scrollToCalls.push([x, y]);
+};
 globalThis.returnFromFocusRoomToWorkspace = async materialId => {
   actions.push(`restore:${materialId}`);
   globalThis.location.hash = "";
@@ -106,7 +110,12 @@ globalThis.getSynapseFocusRoomCurrentMaterial = () => null;
 
 const controller = await import(`../src/focus-room/controller.js?actions=${Date.now()}`);
 controller.initFocusRoom();
+elements.focusRoomSurface.scrollTop = 480;
+elements.focusRoomSurface.scrollLeft = 24;
 globalThis.startFocusRoomSession();
+assert.equal(elements.focusRoomSurface.scrollTop, 0, "Focus Room should reset vertical scroll when entering the session view");
+assert.equal(elements.focusRoomSurface.scrollLeft, 0, "Focus Room should reset horizontal scroll when entering the session view");
+assert.deepEqual(scrollToCalls.at(-1), [0, 0], "Focus Room should also reset the page scroll when switching views");
 globalThis.toggleFocusLearningPanel();
 globalThis.setFocusPanelTab("flashcards");
 

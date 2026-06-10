@@ -200,6 +200,29 @@ function setWorkspaceVisible(visible) {
   setBodyFocusLock(!visible);
 }
 
+function resetFocusSurfaceScroll() {
+  const focusSurface = byId("focusRoomSurface");
+  if (focusSurface) {
+    focusSurface.scrollTop = 0;
+    focusSurface.scrollLeft = 0;
+  }
+  if (typeof globalThis.scrollTo === "function") {
+    globalThis.scrollTo(0, 0);
+  }
+}
+
+function resetFocusSurfaceScrollSoon() {
+  resetFocusSurfaceScroll();
+  if (typeof globalThis.requestAnimationFrame === "function") {
+    globalThis.requestAnimationFrame(resetFocusSurfaceScroll);
+  } else {
+    setTimeout(resetFocusSurfaceScroll, 0);
+  }
+  if (typeof globalThis.setTimeout === "function") {
+    globalThis.setTimeout(resetFocusSurfaceScroll, 60);
+  }
+}
+
 function setFocusView(view) {
   setElementVisible(byId("focusRoomSetup"), view === "setup");
   setElementVisible(byId("focusRoomSession"), view === "session");
@@ -207,6 +230,7 @@ function setFocusView(view) {
   if (view !== "session") {
     state.panelOpen = false;
   }
+  resetFocusSurfaceScroll();
   renderLearningPanel();
 }
 
@@ -1417,6 +1441,7 @@ function startFocusRoomSession() {
   setWorkspaceVisible(false);
   setFocusView("session");
   renderFocusRoomSession();
+  resetFocusSurfaceScrollSoon();
 }
 
 function startFocusRoomTimer() {
@@ -1834,6 +1859,7 @@ function routeFocusRoom(route, options = {}) {
     setWorkspaceVisible(false);
     setFocusView("setup");
     renderFocusRoomSetup();
+    resetFocusSurfaceScrollSoon();
     return;
   }
 
@@ -1848,6 +1874,7 @@ function routeFocusRoom(route, options = {}) {
     setWorkspaceVisible(false);
     setFocusView("session");
     renderFocusRoomSession();
+    resetFocusSurfaceScrollSoon();
     return;
   }
 
@@ -1856,6 +1883,7 @@ function routeFocusRoom(route, options = {}) {
   setWorkspaceVisible(false);
   setFocusView("setup");
   renderFocusRoomSetup();
+  resetFocusSurfaceScrollSoon();
 }
 
 function routeStudyHistory() {
@@ -1864,6 +1892,7 @@ function routeStudyHistory() {
   setWorkspaceVisible(false);
   setFocusView("history");
   renderStudyHistory();
+  resetFocusSurfaceScrollSoon();
 }
 
 function routeWorkspace() {
