@@ -749,6 +749,52 @@ def contains_enough_chinese(text: str) -> bool:
     return cjk >= 80 or cjk >= latin_words * 0.35
 
 
+def requested_language_already_satisfied(summary: str, language_key: str) -> bool:
+    """Avoid a second full rewrite when the primary generation already obeyed the selected language."""
+    text = summary or ""
+    if not text.strip():
+        return True
+
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", text))
+    japanese = len(re.findall(r"[\u3040-\u30ff]", text))
+    korean = len(re.findall(r"[\uac00-\ud7af]", text))
+    arabic = len(re.findall(r"[\u0600-\u06ff]", text))
+    devanagari = len(re.findall(r"[\u0900-\u097f]", text))
+    thai = len(re.findall(r"[\u0e00-\u0e7f]", text))
+    cyrillic = len(re.findall(r"[\u0400-\u04ff]", text))
+    latin_words = len(re.findall(r"\b[A-Za-z]{3,}\b", text))
+    non_latin = cjk + japanese + korean + arabic + devanagari + thai + cyrillic
+
+    if language_key == "english":
+        return non_latin <= max(40, latin_words * 0.18)
+    if language_key == "mixed_chinese_english":
+        return contains_enough_chinese(text)
+    if language_key in {"simplified_chinese", "traditional_chinese"}:
+        if not contains_enough_chinese(text):
+            return False
+        simplified_only = "这习学义证据图复总览语体会与应关数实验证结对观问题说读写"
+        traditional_only = "這習學義證據圖複總覽語體會與應關數實驗證結對觀問題說讀寫"
+        simplified_hits = sum(text.count(char) for char in simplified_only)
+        traditional_hits = sum(text.count(char) for char in traditional_only)
+        if language_key == "simplified_chinese":
+            return traditional_hits <= max(3, simplified_hits * 0.2)
+        return traditional_hits >= max(2, simplified_hits * 0.5)
+
+    script_counts = {
+        "japanese": japanese,
+        "korean": korean,
+        "arabic": arabic,
+        "hindi": devanagari,
+        "thai": thai,
+        "russian": cyrillic,
+    }
+    if language_key in script_counts:
+        count = script_counts[language_key]
+        return count >= 40 or count >= max(12, latin_words * 0.25)
+
+    return False
+
+
 def enforce_requested_language(summary: str, preferred_language: str) -> str:
     """
     Universal language enforcement.
@@ -757,6 +803,8 @@ def enforce_requested_language(summary: str, preferred_language: str) -> str:
     """
     key = normalise_language_key(preferred_language)
     if key == "auto" or not summary:
+        return summary
+    if requested_language_already_satisfied(summary, key):
         return summary
 
     language_name = target_language_name(key)

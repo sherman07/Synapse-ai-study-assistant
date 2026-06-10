@@ -1,36 +1,5 @@
 import assert from "node:assert/strict";
 
-function makeClassList() {
-  const values = new Set();
-  return {
-    add(name) {
-      values.add(name);
-    },
-    remove(name) {
-      values.delete(name);
-    },
-    toggle(name, force) {
-      const shouldAdd = force === undefined ? !values.has(name) : Boolean(force);
-      if (shouldAdd) values.add(name);
-      else values.delete(name);
-      return shouldAdd;
-    },
-    contains(name) {
-      return values.has(name);
-    }
-  };
-}
-
-function makeElement() {
-  return {
-    classList: makeClassList(),
-    hidden: false,
-    innerHTML: "",
-    style: {},
-    textContent: ""
-  };
-}
-
 function makeLocalStorage() {
   const values = new Map();
   return {
@@ -42,41 +11,14 @@ function makeLocalStorage() {
     },
     removeItem(key) {
       values.delete(key);
-    },
-    dump() {
-      return Object.fromEntries(values.entries());
     }
   };
 }
 
-const elements = {
-  appLayout: makeElement(),
-  focusLearningPanel: makeElement(),
-  focusRoomSession: makeElement(),
-  focusRoomSetup: makeElement(),
-  focusRoomSurface: makeElement(),
-  focusSessionSummary: makeElement(),
-  focusStudyHistory: makeElement(),
-  openAssistant: makeElement()
-};
 const storage = makeLocalStorage();
 let askRequest = null;
 
-globalThis.document = {
-  body: {
-    classList: makeClassList(),
-    style: {}
-  },
-  getElementById(id) {
-    return elements[id] || null;
-  },
-  querySelector() {
-    return null;
-  },
-  querySelectorAll() {
-    return [];
-  }
-};
+globalThis.localStorage = storage;
 globalThis.apiClient = {
   async fetch(path, options) {
     askRequest = {
@@ -95,11 +37,8 @@ globalThis.apiClient = {
     };
   }
 };
-globalThis.location = { hash: "#/focus-room/history-tools" };
-globalThis.localStorage = storage;
-globalThis.addEventListener = () => {};
-globalThis.requestAnimationFrame = callback => callback();
-globalThis.getSynapseFocusRoomMaterials = () => [{
+
+const material = {
   materialId: "history-tools",
   materialTitle: "Forces Review",
   materialType: "Generated notes",
@@ -124,55 +63,51 @@ globalThis.getSynapseFocusRoomMaterials = () => [{
   }],
   mindMap: { branches: [{ title: "Forces" }] },
   studyPlan: []
-}];
+};
+
+globalThis.getSynapseFocusRoomMaterials = () => [material];
 globalThis.getSynapseFocusRoomCurrentMaterial = () => null;
 
-const controller = await import(`../src/focus-room/controller.js?study-tools=${Date.now()}`);
-controller.initFocusRoom();
-globalThis.startFocusRoomSession();
-globalThis.toggleFocusLearningPanel();
+const { useFocusRoomStore } = await import(`../src/focus-room/hooks/useFocusRoomStore.js?study-tools=${Date.now()}`);
+const store = useFocusRoomStore;
+store.getState().hydrateFocusRoute({ name: "focus", materialId: "history-tools" }, material);
+store.getState().startSession();
 
-globalThis.setFocusPanelTab("flashcards");
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Card 1 of 2"));
-globalThis.flipFocusFlashcard();
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Mass times acceleration."));
-globalThis.rateFocusFlashcard("hard");
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Card 2 of 2"));
+store.getState().setPanelTab("flashcards");
+assert.equal(store.getState().panelTab, "flashcards");
+store.getState().flipFlashcard();
+assert.equal(store.getState().flashcardSide, "back");
+store.getState().rateFlashcard("hard");
+assert.equal(store.getState().flashcardIndex, 1);
 
-globalThis.setFocusPanelTab("quiz");
-globalThis.answerFocusQuizQuestion(0, "F = ma");
-globalThis.checkFocusQuizQuestion(0);
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Correct"));
-assert.ok(elements.focusLearningPanel.innerHTML.includes("100%"));
+store.getState().setPanelTab("quiz");
+store.getState().answerQuizQuestion(0, "F = ma");
+store.getState().checkQuizQuestion(0);
+assert.equal(store.getState().focusQuizScore(), 100);
 
-globalThis.setFocusPanelTab("plan");
-globalThis.updateFocusPlanTask(0, 12, "Review vector force examples");
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Review vector force examples"));
-globalThis.toggleFocusTask(0);
+store.getState().setPanelTab("plan");
+store.getState().updatePlanTask(0, 12, "Review vector force examples");
+assert.ok(store.getState().studyPlan[0].task.includes("Review vector force examples"));
+store.getState().toggleTask(0);
 
-globalThis.setFocusPanelTab("chat");
-await globalThis.askFocusAssistant("Explain this simply.");
+store.getState().setPanelTab("chat");
+await store.getState().askAssistant("Explain this simply.");
 assert.equal(askRequest.path, "/ask");
 assert.equal(askRequest.payload.question, "Explain this simply.");
 assert.ok(askRequest.payload.summary.includes("Newton's second law"));
 assert.deepEqual(askRequest.payload.chat_history, []);
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Backend tutor says net force controls acceleration."));
+assert.ok(store.getState().chatMessages.some(message => message.text.includes("Backend tutor says")));
 
-globalThis.endFocusRoomSession();
+store.getState().endSession();
 const sessions = JSON.parse(storage.getItem("synapse.focusRoom.sessions.v1"));
 assert.equal(sessions[0].flashcardsCompleted, 1);
 assert.equal(sessions[0].quizScore, 100);
 assert.deepEqual(sessions[0].mistakesMade, []);
 assert.ok(sessions[0].completedTasks.includes("Review vector force examples"));
 
-globalThis.startFocusRoomSession();
-globalThis.setFocusPanelTab("plan");
-assert.ok(elements.focusLearningPanel.innerHTML.includes("Review vector force examples"));
-globalThis.endFocusRoomSession();
-const freshSessions = JSON.parse(storage.getItem("synapse.focusRoom.sessions.v1"));
-assert.equal(freshSessions[0].flashcardsCompleted, 0);
-assert.equal(freshSessions[0].quizScore, null);
-assert.deepEqual(freshSessions[0].mistakesMade, []);
-assert.deepEqual(freshSessions[0].completedTasks, []);
+store.getState().startSession();
+assert.equal(store.getState().flashcardIndex, 0);
+assert.equal(store.getState().focusQuizScore(), null);
+assert.deepEqual(store.getState().completedTasks, []);
 
 console.log("focus room study tools regression passed");

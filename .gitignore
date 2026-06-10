@@ -6,10 +6,15 @@
 .synapse_runtime/
 .venv/
 venv/
+node_modules/
+dist/
+frontend/dist/
 __pycache__/
 *.pyc
 .pytest_cache/
 backend/synapse_analysis_cache.json
+*.sqlite
+*.sqlite3
 .env
 .env.*
 *.env

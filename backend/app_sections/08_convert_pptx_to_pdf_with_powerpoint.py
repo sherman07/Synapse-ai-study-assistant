@@ -725,7 +725,12 @@ def _v23_enrich_visual_card_details(card: dict, labels: dict, preferred_language
     return enriched
 
 
-def generate_visual_argument_cards(source_units: List[dict], source_digest_block: str, preferred_language: str) -> List[dict]:
+def generate_visual_argument_cards(
+    source_units: List[dict],
+    source_digest_block: str,
+    preferred_language: str,
+    allow_model: bool = True,
+) -> List[dict]:
     """v23 override: model filters decorative candidates and keeps only teaching images."""
     labels = source_figure_labels(preferred_language)
     existing = []
@@ -742,6 +747,12 @@ def generate_visual_argument_cards(source_units: List[dict], source_digest_block
     candidate_pool = select_visual_candidates_for_argument(source_units, hard_limit)
     if not candidate_pool:
         return []
+
+    if not allow_model:
+        cards = _v23_fallback_visual_cards(candidate_pool, labels, preferred_language)
+        if source_units:
+            source_units[0]["visual_argument_cards"] = cards
+        return cards
 
     language_rule = language_instruction_for(preferred_language)
     context = truncate_text(source_digest_block or _v22_source_context(source_units), env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 35000))

@@ -37,6 +37,8 @@ class HealthReporter:
             "openai_timeout_seconds": self._get("OPENAI_TIMEOUT_SECONDS"),
             "analysis_max_seconds": self._get("ANALYSIS_MAX_SECONDS"),
             "cache_version": self._get("CACHE_VERSION"),
+            "database_path": str(self._get("DATABASE_PATH", "")),
+            "database_enabled": bool(self._get("synapse_database")),
             "public_backend_base_url": self._get("PUBLIC_BACKEND_BASE_URL"),
             "runtime_assets_dir": str(self._get("RUNTIME_ASSETS_DIR", "")),
             "tutor_web_research_enabled": self._get("ENABLE_TUTOR_WEB_RESEARCH"),

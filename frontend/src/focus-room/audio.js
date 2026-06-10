@@ -1,4 +1,9 @@
+import howler from "howler";
 import { getFocusRoomAudioProfile } from "./data.js";
+
+const { Howl } = howler;
+
+const FADE_MS = 500;
 
 const channels = {
   music: null,
@@ -10,7 +15,7 @@ let shouldPlay = false;
 let lastError = "";
 
 function canUseAudio() {
-  return typeof globalThis.Audio === "function";
+  return typeof Howl === "function";
 }
 
 function normalizeVolume(value, fallback = 50) {
@@ -19,18 +24,49 @@ function normalizeVolume(value, fallback = 50) {
   return Math.min(1, Math.max(0, safe / 100));
 }
 
-function createAudioElement(src) {
-  const audio = new globalThis.Audio(src);
-  audio.loop = true;
-  audio.preload = "auto";
-  return audio;
+function createHowl(src) {
+  return new Howl({
+    src: [src],
+    loop: true,
+    html5: true,
+    preload: true,
+    volume: 0
+  });
+}
+
+function fadeTo(howl, volume, duration = FADE_MS) {
+  if (!howl) return;
+  try {
+    const current = typeof howl.volume === "function" ? howl.volume() : 0;
+    howl.fade(current, volume, duration);
+  } catch {
+    try {
+      howl.volume(volume);
+    } catch {
+      // Howler can reject volume updates when a browser blocks media setup.
+    }
+  }
+}
+
+function stopHowl(howl, { unload = false } = {}) {
+  if (!howl) return;
+  fadeTo(howl, 0, Math.min(FADE_MS, 300));
+  globalThis.setTimeout?.(() => {
+    try {
+      howl.pause();
+      if (unload) howl.unload();
+    } catch {
+      // Remote media can fail during teardown without affecting app state.
+    }
+  }, Math.min(FADE_MS, 320));
 }
 
 function ensureMusicChannel(track) {
   if (!track?.streamUrl || !canUseAudio()) return null;
-  if (!channels.music || channels.music.src !== track.streamUrl) {
-    channels.music?.pause?.();
-    channels.music = createAudioElement(track.streamUrl);
+  if (!channels.music || channels.music.__synapseSrc !== track.streamUrl) {
+    stopHowl(channels.music, { unload: true });
+    channels.music = createHowl(track.streamUrl);
+    channels.music.__synapseSrc = track.streamUrl;
   }
   return channels.music;
 }
@@ -39,30 +75,16 @@ function ensureAmbientChannel(layer) {
   if (!layer?.streamUrl || !canUseAudio()) return null;
   const key = layer.id || layer.streamUrl;
   const existing = channels.ambient.get(key);
-  if (existing && existing.src === layer.streamUrl) return existing;
+  if (existing && existing.__synapseSrc === layer.streamUrl) return existing;
 
-  existing?.pause?.();
-  const next = createAudioElement(layer.streamUrl);
+  stopHowl(existing, { unload: true });
+  const next = createHowl(layer.streamUrl);
+  next.__synapseSrc = layer.streamUrl;
   channels.ambient.set(key, next);
   return next;
 }
 
-function pauseAudio(audio) {
-  if (!audio) return;
-  audio.pause?.();
-}
-
-async function playAudio(audio) {
-  if (!audio || !audio.paused) return;
-  try {
-    await audio.play();
-    lastError = "";
-  } catch (error) {
-    lastError = error?.message || "Audio playback is blocked until the browser receives a user action.";
-  }
-}
-
-function activeAudioElements() {
+function activeHowls() {
   return [
     channels.music,
     ...channels.ambient.values()
@@ -70,14 +92,27 @@ function activeAudioElements() {
 }
 
 function pauseAllAudio() {
-  activeAudioElements().forEach(pauseAudio);
+  activeHowls().forEach(howl => stopHowl(howl));
 }
 
 function removeInactiveAmbientChannels(activeKeys) {
-  for (const [key, audio] of channels.ambient.entries()) {
+  for (const [key, howl] of channels.ambient.entries()) {
     if (activeKeys.has(key)) continue;
-    pauseAudio(audio);
+    stopHowl(howl, { unload: true });
     channels.ambient.delete(key);
+  }
+}
+
+function playHowl(howl, targetVolume) {
+  if (!howl) return;
+  try {
+    if (!howl.playing()) {
+      howl.play();
+    }
+    fadeTo(howl, targetVolume);
+    lastError = "";
+  } catch (error) {
+    lastError = error?.message || "Audio playback is blocked until the browser receives a user action.";
   }
 }
 
@@ -86,29 +121,28 @@ async function syncFocusRoomAudio(config = {}) {
   const profile = getFocusRoomAudioProfile(activeConfig);
   if (!canUseAudio()) return getFocusRoomAudioState(profile);
 
-  const music = ensureMusicChannel(profile.musicTrack);
-  if (music) {
-    music.volume = normalizeVolume(activeConfig.musicVolume, 60);
-  }
-
-  const ambientBaseVolume = normalizeVolume(activeConfig.ambientVolume, 50);
-  const activeAmbientKeys = new Set();
-  profile.ambientLayers.forEach(layer => {
-    const key = layer.id || layer.streamUrl;
-    activeAmbientKeys.add(key);
-    const audio = ensureAmbientChannel(layer);
-    if (audio) {
-      audio.volume = Math.min(1, Math.max(0, ambientBaseVolume * (layer.volumeBias ?? 1)));
-    }
-  });
-  removeInactiveAmbientChannels(activeAmbientKeys);
-
   if (!shouldPlay) {
     pauseAllAudio();
     return getFocusRoomAudioState(profile);
   }
 
-  await Promise.all(activeAudioElements().map(playAudio));
+  const music = ensureMusicChannel(profile.musicTrack);
+  const musicVolume = normalizeVolume(activeConfig.musicVolume, 60);
+
+  const ambientBaseVolume = normalizeVolume(activeConfig.ambientVolume, 50);
+  const activeAmbientKeys = new Set();
+  const ambientTargets = [];
+  profile.ambientLayers.forEach(layer => {
+    const key = layer.id || layer.streamUrl;
+    activeAmbientKeys.add(key);
+    const howl = ensureAmbientChannel(layer);
+    const targetVolume = Math.min(1, Math.max(0, ambientBaseVolume * (layer.volumeBias ?? 1)));
+    ambientTargets.push([howl, targetVolume]);
+  });
+  removeInactiveAmbientChannels(activeAmbientKeys);
+
+  playHowl(music, musicVolume);
+  ambientTargets.forEach(([howl, targetVolume]) => playHowl(howl, targetVolume));
   return getFocusRoomAudioState(profile);
 }
 
@@ -125,12 +159,11 @@ async function toggleFocusRoomAudio(config = activeConfig) {
 
 function stopFocusRoomAudio() {
   shouldPlay = false;
-  pauseAllAudio();
-  activeAudioElements().forEach(audio => {
+  activeHowls().forEach(howl => {
     try {
-      audio.currentTime = 0;
+      howl.stop();
     } catch {
-      // Some remote media elements do not allow seeking before metadata loads.
+      stopHowl(howl);
     }
   });
 }

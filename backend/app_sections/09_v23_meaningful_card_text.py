@@ -352,7 +352,29 @@ Return the expanded final markdown only.
     return summary
 
 
-def generate_reference_style_multisource_notes(source_units: List[dict], preferred_language: str, depth_plan: dict, prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE) -> str:
+def analysis_stage_has_budget(analysis_started_at: Optional[float], min_remaining_seconds: int) -> bool:
+    if analysis_started_at is None:
+        return True
+    try:
+        remaining = analysis_remaining_seconds_since(float(analysis_started_at))
+        return remaining >= max(0, int(min_remaining_seconds))
+    except Exception:
+        return True
+
+
+def record_skipped_analysis_stage(skipped_optional_stages: Optional[List[str]], stage: str) -> None:
+    if isinstance(skipped_optional_stages, list) and stage not in skipped_optional_stages:
+        skipped_optional_stages.append(stage)
+
+
+def generate_reference_style_multisource_notes(
+    source_units: List[dict],
+    preferred_language: str,
+    depth_plan: dict,
+    prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE,
+    analysis_started_at: Optional[float] = None,
+    skipped_optional_stages: Optional[List[str]] = None,
+) -> str:
     """v23: controlled notes with relevant in-text diagrams/tables/charts only."""
     source_context = _v22_source_context(source_units)
     generation_language = resolve_generation_language_key(preferred_language, source_context)
@@ -362,7 +384,18 @@ def generate_reference_style_multisource_notes(source_units: List[dict], preferr
     prompt_mode_label = note_prompt_mode_label(prompt_mode_key)
     prompt_mode_text = load_note_prompt_mode_text(prompt_mode_key)
     mode_min_units = note_prompt_mode_min_units(prompt_mode_key, env_int("CONTROLLED_MIN_OUTPUT_UNITS", 2600))
-    visual_cards = generate_visual_argument_cards(source_units, source_context, generation_language)
+    allow_visual_model = analysis_stage_has_budget(
+        analysis_started_at,
+        env_int("VISUAL_CARD_STAGE_MIN_SECONDS", 80),
+    )
+    if not allow_visual_model:
+        record_skipped_analysis_stage(skipped_optional_stages, "visual_card_filter")
+    visual_cards = generate_visual_argument_cards(
+        source_units,
+        source_context,
+        generation_language,
+        allow_model=allow_visual_model,
+    )
     visual_context = _v22_visual_context_for_prompt(visual_cards)
     source_list = "\n".join(
         f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
@@ -495,6 +528,12 @@ Quality bar:
                 or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES)
             )
         )
+        if should_expand and not analysis_stage_has_budget(
+            analysis_started_at,
+            env_int("NOTE_EXPANSION_STAGE_MIN_SECONDS", 90),
+        ):
+            record_skipped_analysis_stage(skipped_optional_stages, "note_expansion")
+            should_expand = False
         if should_expand:
             result = expand_sparse_inline_summary(
                 result,

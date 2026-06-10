@@ -37,6 +37,7 @@ from core.config import (
     CORS_ALLOW_CREDENTIALS,
     CORS_ALLOW_ORIGIN_REGEX,
     CORS_ALLOW_ORIGINS,
+    DATABASE_PATH,
     ENABLE_LOCAL_PPTX_APP_RENDER,
     ENABLE_MULTI_SOURCE_DIGESTS,
     ENABLE_PPTX_SLIDE_RENDER,
@@ -90,6 +91,7 @@ from core.config import (
     model_for_depth,
     require_openai,
 )
+from core.database import synapse_database
 from core.request_limits import read_upload_bytes
 from core.section_loader import AppSectionLoader
 from core.note_prompt_modes import (
@@ -348,6 +350,84 @@ def public_user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _clean_identity_header(value: Any, limit: int = 180) -> str:
+    return re.sub(r"[\r\n]+", " ", str(value or "").strip())[:limit]
+
+
+def database_identity_from_verified_user(user: Dict[str, Any]) -> Dict[str, Any]:
+    public = public_user_payload(user)
+    return {
+        "auth_provider": "supabase",
+        "auth_subject": public.get("id") or public.get("email") or "unknown",
+        "email": public.get("email") or "",
+        "display_name": public.get("display_name") or "",
+        "auth_mode": "supabase",
+        "role": public.get("role") or "student",
+        "metadata": {"supabase_user_id": public.get("id")},
+    }
+
+
+def database_identity_from_request(request: Optional[Request], client_fingerprint: str = "") -> Dict[str, Any]:
+    if request is not None:
+        supabase_user = verified_supabase_user(request)
+        if supabase_user:
+            return database_identity_from_verified_user(supabase_user)
+
+        client_id = _clean_identity_header(request.headers.get("x-synapse-client-id"), 160)
+        local_user_id = _clean_identity_header(request.headers.get("x-synapse-user-id"), 160)
+        auth_mode = _clean_identity_header(request.headers.get("x-synapse-auth-mode"), 60) or "anonymous"
+        if local_user_id or client_id:
+            subject = local_user_id or client_id
+            provider = "local_demo" if auth_mode == "local_demo" or local_user_id else "anonymous"
+            return {
+                "auth_provider": provider,
+                "auth_subject": subject,
+                "email": _clean_identity_header(request.headers.get("x-synapse-user-email"), 220).lower(),
+                "display_name": _clean_identity_header(request.headers.get("x-synapse-user-name"), 180),
+                "auth_mode": auth_mode,
+                "role": _clean_identity_header(request.headers.get("x-synapse-user-role"), 80) or "student",
+                "metadata": {"client_id": client_id},
+            }
+
+        user_agent = _clean_identity_header(request.headers.get("user-agent"), 260)
+        fallback_subject = sha256_text(f"{client_fingerprint}|{user_agent}")[:32] if (client_fingerprint or user_agent) else "anonymous"
+        return {
+            "auth_provider": "anonymous",
+            "auth_subject": fallback_subject,
+            "email": "",
+            "display_name": "Anonymous Synapse user",
+            "auth_mode": "anonymous",
+            "role": "student",
+            "metadata": {},
+        }
+
+    fallback_subject = sha256_text(client_fingerprint or "direct-call")[:32]
+    return {
+        "auth_provider": "direct",
+        "auth_subject": fallback_subject,
+        "email": "",
+        "display_name": "Direct backend call",
+        "auth_mode": "direct",
+        "role": "student",
+        "metadata": {},
+    }
+
+
+def persist_generated_analysis_result(
+    request: Optional[Request],
+    result: Dict[str, Any],
+    client_fingerprint: str = "",
+) -> Dict[str, Any]:
+    if not isinstance(result, dict) or result.get("error"):
+        return {}
+    try:
+        identity = database_identity_from_request(request, client_fingerprint)
+        return synapse_database.upsert_generated_content(identity, result, client_fingerprint)
+    except Exception as error:
+        print(f"[database] generated content persistence skipped: {error}", flush=True)
+        return {}
+
+
 def price_id_for_plan(plan_id: str, explicit_price_id: str = "") -> str:
     clean_plan = re.sub(r"[^a-z0-9_-]", "", str(plan_id or "").lower())
     clean_explicit = str(explicit_price_id or "").strip()
@@ -484,6 +564,60 @@ async def submit_contact(request: Request) -> Dict[str, Any]:
     }
 
 
+@app.get("/db/status")
+def database_status() -> Dict[str, Any]:
+    try:
+        counts = synapse_database.counts()
+        return {
+            "ok": True,
+            "database_path": str(DATABASE_PATH),
+            "users": counts.get("users", 0),
+            "generated_contents": counts.get("generated_contents", 0),
+        }
+    except Exception as error:
+        return {
+            "ok": False,
+            "database_path": str(DATABASE_PATH),
+            "error": str(error),
+        }
+
+
+@app.get("/content/history")
+async def list_generated_content_history(request: Request, limit: int = 50) -> Any:
+    try:
+        identity = database_identity_from_request(request)
+        return {
+            "ok": True,
+            "items": synapse_database.list_generated_content(identity, limit),
+        }
+    except Exception as error:
+        return json_error(f"Could not load generated content history: {error}", 500)
+
+
+@app.get("/content/{content_id}")
+async def get_generated_content_record(content_id: str, request: Request) -> Any:
+    try:
+        identity = database_identity_from_request(request)
+        record = synapse_database.get_generated_content(identity, content_id)
+        if not record:
+            return json_error("Generated content was not found for this user.", 404)
+        return {"ok": True, "content": record}
+    except Exception as error:
+        return json_error(f"Could not load generated content: {error}", 500)
+
+
+@app.delete("/content/{content_id}")
+async def delete_generated_content_record(content_id: str, request: Request) -> Any:
+    try:
+        identity = database_identity_from_request(request)
+        deleted = synapse_database.delete_generated_content(identity, content_id)
+        if not deleted:
+            return json_error("Generated content was not found for this user.", 404)
+        return {"ok": True, "deleted": True, "id": content_id}
+    except Exception as error:
+        return json_error(f"Could not delete generated content: {error}", 500)
+
+
 @app.post("/billing/checkout")
 async def create_billing_checkout(request: Request) -> Any:
     user_or_response = require_verified_user(request)
@@ -613,6 +747,8 @@ async def export_account_data(request: Request) -> Any:
         item for item in read_runtime_jsonl("account_deletions.jsonl")
         if item.get("synapse_user_id") == user["id"]
     ]
+    database_identity = database_identity_from_verified_user(user)
+    generated_content = synapse_database.export_user_content(database_identity)
     return {
         "ok": True,
         "exported_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
@@ -621,7 +757,8 @@ async def export_account_data(request: Request) -> Any:
         "billing_ledger": ledger,
         "contact_inquiries": contacts,
         "deletion_requests": deletions,
-        "note": "Browser-local note history is exported by the frontend because it is not stored on the server.",
+        "generated_content": generated_content,
+        "note": "Browser-local-only history is exported by the frontend. Server-generated content saved after this database feature is included here.",
     }
 
 
@@ -644,9 +781,16 @@ async def delete_account(request: Request) -> Any:
         "synapse_user_id": user["id"],
         "email": user.get("email"),
         "stripe_customer_id": profile.get("stripe_customer_id"),
+        "generated_content_deleted": 0,
         "supabase_deleted": False,
         "stripe_marked_deleted": False,
     }
+    try:
+        deletion_record["generated_content_deleted"] = synapse_database.delete_user_content(
+            database_identity_from_verified_user(user)
+        )
+    except Exception:
+        deletion_record["generated_content_deleted"] = 0
 
     if stripe and STRIPE_SECRET_KEY and profile.get("stripe_customer_id"):
         try:

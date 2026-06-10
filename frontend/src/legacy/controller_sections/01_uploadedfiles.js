@@ -757,6 +757,7 @@ async function analyzeMaterials() {
       sources: data.sources || [],
       sourceItems: compactSourceItemsForHistory(sourceViewerItems),
       visualGalleryCount: visualGalleryData.length,
+      databaseRecord: data.database_record || null,
       cached: Boolean(data.cached)
     });
     if (savedEntry && savedEntry.id) {

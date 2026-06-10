@@ -20,7 +20,13 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements.txt
 ```
 
-Node is only needed to run the static/regression checks. The frontend does not currently use an npm build pipeline.
+Install the frontend toolchain from the project root:
+
+```bash
+npm install
+```
+
+Node is used for the Vite frontend build/dev server and the regression checks.
 
 ## Environment Variables
 
@@ -70,10 +76,10 @@ Start the backend:
 .venv/bin/python run_backend.py
 ```
 
-Start the static frontend:
+Start the Vite frontend:
 
 ```bash
-.venv/bin/python run_frontend.py
+npm run dev
 ```
 
 Open the public site:
@@ -86,6 +92,12 @@ Open the study workspace:
 
 ```text
 http://127.0.0.1:5173/frontend/index.html
+```
+
+Open the standalone Focus Room:
+
+```text
+http://127.0.0.1:5173/frontend/focus-room.html#/focus-room/:materialId
 ```
 
 The project-root `index.html` redirects to the public landing page. `app.html` redirects to the study workspace.
@@ -101,7 +113,13 @@ node scripts/validate_static_site.mjs
 Run frontend regression scripts:
 
 ```bash
-find frontend/tests -maxdepth 1 -name '*.mjs' -exec node {} \;
+npm run test:focus-room
+```
+
+Build the Vite frontend:
+
+```bash
+npm run build
 ```
 
 Run backend tests:
@@ -110,7 +128,7 @@ Run backend tests:
 .venv/bin/python -m unittest backend.tests.test_visual_gallery_and_cache
 ```
 
-There is no separate frontend build artifact yet; a successful static validation plus regression checks is the current build-equivalent check for the static website.
+The Vite build writes `dist/`; keep static validation and regression checks in the release gate because the app still preserves several direct HTML entry points.
 
 ## Deploy
 

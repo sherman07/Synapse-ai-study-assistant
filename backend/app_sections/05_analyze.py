@@ -27,8 +27,8 @@ async def analyze_materials(
     detail_level: str = Form(default="auto"),
     prompt_mode: str = Form(default=DEFAULT_NOTE_PROMPT_MODE),
     client_fingerprint: str = Form(default=""),
+    request: Request = None,
 ):
-    del client_fingerprint  # server now uses stable source identity instead
     global stored_summary, stored_sections, stored_connections, stored_mind_map, stored_title, stored_source_identity
 
     try:
@@ -179,7 +179,7 @@ async def analyze_materials(
             stored_mind_map = cached_result.get("mind_map", {})
             stored_title = cached_result.get("title", "Generated Study Notes")
             stored_source_identity = cached_result.get("primary_source_identity", "")
-            return {
+            response_payload = {
                 **cached_result,
                 "cached": True,
                 "source_fingerprint": source_fingerprint,
@@ -191,6 +191,10 @@ async def analyze_materials(
                 "analysis_elapsed_seconds": round(analysis_elapsed_seconds(), 2),
                 "optional_stages_skipped": [],
             }
+            database_record = persist_generated_analysis_result(request, response_payload, client_fingerprint)
+            if database_record:
+                response_payload["database_record"] = database_record
+            return response_payload
 
         language_rule = language_instruction_for_generation(preferred_language, combined_source_text)
 
@@ -253,7 +257,14 @@ Consistency requirement:
 - If the source title says Partnership Law Act 2019, do NOT change it to Arms Legislation Act 2019 or any other act.
 """
 
-        stored_summary = generate_reference_style_multisource_notes(source_units, preferred_language, depth_plan, selected_prompt_mode)
+        stored_summary = generate_reference_style_multisource_notes(
+            source_units,
+            preferred_language,
+            depth_plan,
+            selected_prompt_mode,
+            analysis_started_at=analysis_started_at,
+            skipped_optional_stages=skipped_optional_stages,
+        )
 
         stored_summary = enforce_requested_language(stored_summary, preferred_language)
         stored_summary = finalize_generated_summary(
@@ -326,6 +337,9 @@ Consistency requirement:
         # keep inline figure metadata without storing large base64 payloads.
         cache_result = {**result, "visual_gallery": visual_gallery, "visuals": visual_gallery}
         cache_set(source_fingerprint, cache_result)
+        database_record = persist_generated_analysis_result(request, result, client_fingerprint)
+        if database_record:
+            result["database_record"] = database_record
         return result
 
     except Exception as error:

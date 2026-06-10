@@ -16,8 +16,10 @@ from backend.app import analyze_materials
 from backend.app import build_analysis_fingerprint
 from backend.app import build_visual_gallery
 from backend.app import choose_learning_depth
+from backend.app import enforce_requested_language
 from backend.app import file_to_source_unit
 from backend.app import finalize_generated_summary
+from backend.app import generate_reference_style_multisource_notes
 from backend.app import iter_visual_candidates
 from backend.app import link_to_source_unit
 from backend.app import rebuild_cached_visual_argument_cards
@@ -115,6 +117,49 @@ class ApiShapeTests(unittest.TestCase):
         self.assertEqual(payload["output_language"], "english")
         self.assertTrue(payload["mind_map"].get("branches"))
 
+    def test_deadline_skips_visual_filter_and_note_expansion_model_stages(self):
+        long_summary = "# Overview\n\n" + ("This source explains table data, comparison, evidence, and exam use. " * 700)
+        candidate = {
+            "source_index": 1,
+            "source_title": "Lecture results",
+            "display_name": "lecture.pdf",
+            "caption": "A table with data, results, comparison groups, and statistical evidence.",
+            "location": "PDF page 2",
+            "url": "data:image/png;base64,AA==",
+            "score": 32,
+            "visual_kind": "data/table",
+            "teaching_signals": 4,
+            "decorative_signals": 0,
+            "is_likely_decorative": False,
+        }
+        source_units = [{
+            "display_name": "lecture.pdf",
+            "title_candidate": "Lecture results",
+            "text_excerpt": "The source includes a table with data, results, and comparison evidence.",
+            "visual_parts": [],
+        }]
+        skipped = []
+
+        with (
+            patch("backend.app.analysis_remaining_seconds_since", return_value=20),
+            patch("backend.app.select_visual_candidates_for_argument", return_value=[candidate]),
+            patch("backend.app.generate_chat", return_value=long_summary) as generate_chat_mock,
+            patch("backend.app.expand_sparse_inline_summary", side_effect=AssertionError("expansion should be skipped")),
+        ):
+            summary = generate_reference_style_multisource_notes(
+                source_units,
+                "english",
+                {"depth": "detailed", "config": backend_app_module.DEPTH_CONFIG["detailed"]},
+                "professor_mode",
+                analysis_started_at=1.0,
+                skipped_optional_stages=skipped,
+            )
+
+        self.assertEqual(generate_chat_mock.call_count, 1)
+        self.assertIn("visual_card_filter", skipped)
+        self.assertIn("note_expansion", skipped)
+        self.assertIn("[[VISUAL:0]]", summary)
+
     def test_analyze_cache_preserves_browser_visual_metadata(self):
         captured = {}
         gallery = [{
@@ -194,6 +239,40 @@ class ApiShapeTests(unittest.TestCase):
         self.assertTrue(payload["cached"])
         self.assertEqual(payload["visual_gallery"], cached_gallery)
         self.assertEqual(payload["visuals"], cached_gallery)
+
+    def test_language_enforcement_skips_rewrite_when_english_already_satisfied(self):
+        summary = "# Overview\n\nThis study note explains the source evidence, comparison table, and revision use."
+
+        with patch("backend.app.generate_chat", side_effect=AssertionError("English notes should not be rewritten")):
+            result = enforce_requested_language(summary, "english")
+
+        self.assertEqual(result, summary)
+
+    def test_language_enforcement_skips_rewrite_when_chinese_already_satisfied(self):
+        summary = "# 概述\n\n这份学习笔记解释来源证据、比较表格、核心概念和复习用途，帮助学生直接按照材料复习。"
+
+        with patch("backend.app.generate_chat", side_effect=AssertionError("Chinese notes should not be rewritten")):
+            result = enforce_requested_language(summary, "simplified_chinese")
+
+        self.assertEqual(result, summary)
+
+    def test_language_enforcement_rewrites_visible_mismatch(self):
+        rewritten = "# 概述\n\n这份笔记已经改写为中文。"
+
+        with patch("backend.app.generate_chat", return_value=rewritten) as generate_chat_mock:
+            result = enforce_requested_language("# Overview\n\nThis note is still English.", "simplified_chinese")
+
+        self.assertEqual(result, rewritten)
+        self.assertEqual(generate_chat_mock.call_count, 1)
+
+    def test_language_enforcement_rewrites_simplified_when_traditional_requested(self):
+        rewritten = "# 概覽\n\n這份筆記已經改寫為繁體中文。"
+
+        with patch("backend.app.generate_chat", return_value=rewritten) as generate_chat_mock:
+            result = enforce_requested_language("# 概述\n\n这份学习笔记解释来源证据和复习用途。", "traditional_chinese")
+
+        self.assertEqual(result, rewritten)
+        self.assertEqual(generate_chat_mock.call_count, 1)
 
 
 class VisualGalleryTests(unittest.TestCase):
