@@ -643,6 +643,7 @@
 .focus-control-btn.active,
 .focus-tab-btn.active,
 .focus-duration-btn.active,
+.focus-dock-btn.active,
 .focus-room-primary-btn,
 .focus-control-btn[aria-pressed="true"],
 .focus-tab-btn[aria-selected="true"],
