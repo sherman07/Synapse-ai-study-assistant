@@ -913,8 +913,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .focus-room-bg {
+  .focus-room-bg,
+  .focus-learning-panel {
     animation: none;
+  }
+
+  .focus-room-bg {
     transform: scale(1.02);
   }
 }
@@ -972,8 +976,7 @@
   .focus-summary-card,
   .focus-history-card,
   .focus-panel-card,
-  .focus-timer-card,
-  .focus-learning-panel {
+  .focus-timer-card {
     border-radius: 22px;
     padding: 16px;
   }
