@@ -579,12 +579,15 @@ function renderNoMaterialState() {
         <button class="focus-room-ghost-btn" type="button" onclick="showFocusStudyHistory()">Study History</button>
       `
     })}
-    <section class="focus-room-setup-layout">
-      <article class="focus-room-panel">
-        <h3>Waiting for material</h3>
-        <p class="focus-room-subtitle">Return to the workspace, generate study notes, or choose a saved history item to start a Focus Room session.</p>
+    <section class="focus-setup-stage focus-empty-stage">
+      <article class="focus-room-panel focus-empty-card">
+        ${renderStepHeading("Ready when you are", "Waiting for material", "Return to the workspace, generate study notes, or choose a saved history item to start a Focus Room session.")}
+        <div class="focus-session-controls">
+          <button class="focus-room-primary-btn" type="button" onclick="returnFromFocusRoom()">Open Workspace</button>
+          <button class="focus-room-ghost-btn" type="button" onclick="showFocusStudyHistory()">View Study History</button>
+        </div>
       </article>
-      <article class="focus-room-panel">
+      <article class="focus-room-panel focus-history-preview">
         <h3>Saved sessions</h3>
         ${renderHistoryList({ compact: true })}
       </article>
@@ -613,29 +616,24 @@ function renderFocusRoomSetup() {
         <button class="focus-room-ghost-btn" type="button" onclick="showFocusStudyHistory()">Study History</button>
       `
     })}
-    <section class="focus-room-setup-layout">
-      <div class="focus-room-panel">
-        <h3>Material</h3>
-        ${renderMaterialCard(state.material)}
-        <div class="focus-control-row">
-          <span class="focus-room-pill">${escapeHTML(state.musicType)}</span>
-          <span class="focus-room-pill">${escapeHTML(state.ambientSound)}</span>
-          <span class="focus-room-pill">${escapeHTML(state.durationMinutes)}m</span>
-        </div>
-        <h3>Scenes</h3>
+    <section class="focus-setup-stage">
+      <div class="focus-room-panel focus-setup-scenes">
+        ${renderStepHeading("Step 01", "Choose your study scene", "Pick the atmosphere that matches this focus block.")}
+        ${renderMaterialStrip(state.material)}
         <div class="focus-scene-grid">${renderSceneCards()}</div>
       </div>
-      <div class="focus-room-panel">
-        <h3>Sound</h3>
+      <div class="focus-room-panel focus-setup-controls">
+        ${renderStepHeading("Step 02", "Set sound atmosphere", "Tune the music and ambient layer before you begin.")}
         ${renderSoundControls()}
-        <h3>Duration</h3>
+        ${renderStepHeading("Step 03", "Set Pomodoro", "Choose a focus length and goal for this session.")}
         ${renderDurationControls()}
-        <h3>Goal</h3>
         ${renderGoalEditor()}
-        <h3>Study plan</h3>
-        <div id="focusPlanPreview">${renderStudyPlanList()}</div>
-        <div class="focus-session-controls">
-          <button class="focus-room-primary-btn" type="button" onclick="startFocusRoomSession()">Enter Focus Room</button>
+        <div class="focus-plan-preview" id="focusPlanPreview">
+          <h3>Study plan</h3>
+          ${renderStudyPlanList()}
+        </div>
+        <div class="focus-session-controls focus-enter-row">
+          <button class="focus-room-primary-btn focus-enter-btn" type="button" onclick="startFocusRoomSession()">Enter Focus Room</button>
         </div>
       </div>
     </section>
