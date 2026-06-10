@@ -1,8 +1,11 @@
 import {
+  FOCUS_ROOM_AMBIENT_SOUNDS,
   FOCUS_ROOM_DURATIONS,
+  FOCUS_ROOM_MUSIC_TRACKS,
   FOCUS_ROOM_SCENES,
   buildFocusRoomStudyPlan,
   formatFocusRoomDuration,
+  getFocusRoomAudioProfile,
   getFocusRoomMaterial,
   getFocusRoomMaterials,
   readFocusRoomDraft,
@@ -10,6 +13,13 @@ import {
   saveFocusRoomSession,
   writeFocusRoomDraft
 } from "./data.js";
+import {
+  getFocusRoomAudioState,
+  setFocusRoomAudioPlaying,
+  stopFocusRoomAudio,
+  syncFocusRoomAudio,
+  toggleFocusRoomAudio
+} from "./audio.js";
 
 const DEFAULT_SCENE_ID = FOCUS_ROOM_SCENES[0]?.id || "morning-window";
 const DEFAULT_DURATION_MINUTES = FOCUS_ROOM_DURATIONS[0] || 25;
@@ -271,6 +281,19 @@ function persistDraft() {
   writeFocusRoomDraft(root);
 }
 
+function focusAudioConfig() {
+  return {
+    musicType: state.musicType,
+    ambientSound: state.ambientSound,
+    musicVolume: state.musicVolume,
+    ambientVolume: state.ambientVolume
+  };
+}
+
+function syncCurrentFocusAudio() {
+  void syncFocusRoomAudio(focusAudioConfig());
+}
+
 function rebuildStudyPlan() {
   if (!state.material) {
     state.studyPlan = [];
@@ -329,6 +352,39 @@ function renderMaterialCard(material) {
   `;
 }
 
+function renderStepHeading(step, title, subtitle = "") {
+  return `
+    <div class="focus-step-heading">
+      <span class="focus-step-label">${escapeHTML(step)}</span>
+      <h2>${escapeHTML(title)}</h2>
+      ${subtitle ? `<p>${escapeHTML(subtitle)}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderMaterialStrip(material) {
+  const headings = Array.isArray(material?.studyHeadings) ? material.studyHeadings.slice(0, 2) : [];
+  const meta = headings.length ? headings.join(" / ") : material?.materialType || "Generated notes";
+  return `
+    <article class="focus-material-strip">
+      <span class="focus-room-pill">${escapeHTML(material?.materialType || "Study material")}</span>
+      <div>
+        <strong>${escapeHTML(material?.materialTitle || "Study material")}</strong>
+        <p>${escapeHTML(meta)}</p>
+      </div>
+    </article>
+  `;
+}
+
+function renderGoalSummaryCard() {
+  return `
+    <article class="focus-mini-card">
+      <span class="focus-room-kicker">Goal summary</span>
+      <p>${escapeHTML(state.studyGoal || `Study ${state.material?.materialTitle || "this material"}`)}</p>
+    </article>
+  `;
+}
+
 function renderSceneCards() {
   return FOCUS_ROOM_SCENES.map(scene => {
     const active = scene.id === state.selectedScene;
@@ -348,14 +404,49 @@ function renderSceneCards() {
   }).join("");
 }
 
+function renderAudioSourceLinks(profile) {
+  const sources = [
+    profile.musicTrack,
+    ...profile.ambientLayers
+  ].filter(source => source?.pageUrl);
+  return sources.map(source => `
+    <a href="${escapeAttr(source.pageUrl)}" target="_blank" rel="noreferrer">
+      ${escapeHTML(source.title || source.label || "Audio source")}
+    </a>
+  `).join("");
+}
+
+function renderAudioNowPlaying(profile) {
+  const audioState = getFocusRoomAudioState(profile);
+  const ambientTitle = profile.ambientLayers.map(layer => layer.title).filter(Boolean).join(" + ");
+  return `
+    <div class="focus-audio-card">
+      <div>
+        <span class="focus-room-kicker">Theme audio</span>
+        <strong>${escapeHTML(profile.musicTrack.title)}</strong>
+        <span>${escapeHTML(ambientTitle)}</span>
+      </div>
+      <button
+        class="focus-control-btn${audioState.playing ? " active" : ""}"
+        type="button"
+        aria-pressed="${audioState.playing ? "true" : "false"}"
+        onclick="toggleFocusRoomAudioPlayback()"
+      >${audioState.playing ? "Pause audio" : "Play audio"}</button>
+      <div class="focus-audio-links">${renderAudioSourceLinks(profile)}</div>
+      ${audioState.error ? `<p class="focus-audio-error">${escapeHTML(audioState.error)}</p>` : ""}
+    </div>
+  `;
+}
+
 function renderSoundControls() {
+  const profile = getFocusRoomAudioProfile(focusAudioConfig());
   return `
     <div class="focus-setup-form">
       <label>
         Music
         <select onchange="updateFocusSound('musicType', this.value)">
-          ${["Deep Focus", "Lo-fi", "Piano", "Minimal"].map(label => `
-            <option value="${escapeAttr(label)}"${label === state.musicType ? " selected" : ""}>${escapeHTML(label)}</option>
+          ${FOCUS_ROOM_MUSIC_TRACKS.map(track => `
+            <option value="${escapeAttr(track.label)}"${track.label === state.musicType ? " selected" : ""}>${escapeHTML(track.label)}</option>
           `).join("")}
         </select>
       </label>
@@ -366,8 +457,8 @@ function renderSoundControls() {
       <label>
         Ambient sound
         <select onchange="updateFocusSound('ambientSound', this.value)">
-          ${["Nature", "Rain", "White Noise", "Ocean", "Wind"].map(label => `
-            <option value="${escapeAttr(label)}"${label === state.ambientSound ? " selected" : ""}>${escapeHTML(label)}</option>
+          ${FOCUS_ROOM_AMBIENT_SOUNDS.map(sound => `
+            <option value="${escapeAttr(sound.label)}"${sound.label === state.ambientSound ? " selected" : ""}>${escapeHTML(sound.label)}</option>
           `).join("")}
         </select>
       </label>
@@ -375,6 +466,7 @@ function renderSoundControls() {
         Ambient volume <span data-focus-volume-label="ambientVolume">${state.ambientVolume}%</span>
         <input type="range" min="0" max="100" value="${state.ambientVolume}" oninput="updateFocusSound('ambientVolume', this.value)" />
       </label>
+      ${renderAudioNowPlaying(profile)}
     </div>
   `;
 }
@@ -474,6 +566,7 @@ function renderGoalEditor() {
 function renderNoMaterialState() {
   const setup = byId("focusRoomSetup");
   if (!setup) return;
+  stopFocusRoomAudio();
   const scene = currentScene();
   setup.innerHTML = `
     ${renderBackground(scene)}
@@ -497,6 +590,7 @@ function renderNoMaterialState() {
       </article>
     </section>
   `;
+  syncCurrentFocusAudio();
 }
 
 function renderFocusRoomSetup() {
@@ -546,6 +640,7 @@ function renderFocusRoomSetup() {
       </div>
     </section>
   `;
+  syncCurrentFocusAudio();
 }
 
 function durationSeconds() {
@@ -575,11 +670,42 @@ function timerActionLabel() {
   return "Start";
 }
 
+function renderSessionNavigation(scene) {
+  const navItems = ["Scene", "Music", "Plan", "Materials"];
+  return `
+    <nav class="focus-session-nav" aria-label="Focus Room controls">
+      ${navItems.map(label => `
+        <span class="focus-nav-pill">${escapeHTML(label)}</span>
+      `).join("")}
+      <button class="focus-room-ghost-btn" type="button" onclick="toggleFocusLearningPanel()">AI Learning Panel</button>
+      <button class="focus-room-back-btn" type="button" onclick="returnFromFocusRoom()">Workspace</button>
+      <button class="focus-room-ghost-btn" type="button" onclick="showFocusStudyHistory()">Study History</button>
+      <button class="focus-session-end-btn" type="button" onclick="endFocusRoomSession()">End</button>
+      <span class="focus-room-pill">${escapeHTML(scene.kicker)}</span>
+    </nav>
+  `;
+}
+
+function renderFocusSessionDock() {
+  const audioState = getFocusRoomAudioState(getFocusRoomAudioProfile(focusAudioConfig()));
+  return `
+    <div class="focus-session-dock" aria-label="Compact session controls">
+      <button class="focus-dock-btn${audioState.playing ? " active" : ""}" type="button" onclick="toggleFocusRoomAudioPlayback()">
+        ${audioState.playing ? "Pause audio" : "Play audio"}
+      </button>
+      <button class="focus-dock-btn" type="button" onclick="pauseFocusRoomTimer()">Pause</button>
+      <button class="focus-dock-btn" type="button" onclick="resetFocusRoomTimer()">Reset</button>
+      <button class="focus-dock-btn" type="button" onclick="endFocusRoomSession()">End session</button>
+    </div>
+  `;
+}
+
 function renderFocusRoomSession() {
   const session = byId("focusRoomSession");
   if (!session) return;
   if (!state.material) {
     session.innerHTML = "";
+    stopFocusRoomAudio();
     return;
   }
 
@@ -623,6 +749,7 @@ function renderFocusRoomSession() {
       </div>
     </section>
   `;
+  syncCurrentFocusAudio();
   renderLearningPanel();
   renderFocusSessionSummary();
 }
@@ -1261,6 +1388,7 @@ function startFocusRoomSession() {
     return;
   }
 
+  setFocusRoomAudioPlaying(true);
   clearFocusTimer();
   state.route = "session";
   state.timerStatus = "idle";
@@ -1281,6 +1409,7 @@ function startFocusRoomTimer() {
   }
   if (!state.material) return;
 
+  setFocusRoomAudioPlaying(true);
   clearFocusTimer();
   if (state.timerStatus === "completed" || state.elapsedSeconds >= durationSeconds()) {
     state.elapsedSeconds = 0;
@@ -1298,6 +1427,10 @@ function startFocusRoomTimer() {
 function pauseFocusRoomTimer(options = {}) {
   const shouldRender = options.render !== false;
   clearFocusTimer();
+  if (options.pauseAudio !== false) {
+    setFocusRoomAudioPlaying(false);
+    syncCurrentFocusAudio();
+  }
   if (state.timerStatus === "studying") {
     state.timerStatus = "paused";
   }
@@ -1308,6 +1441,7 @@ function pauseFocusRoomTimer(options = {}) {
 
 function resetFocusRoomTimer() {
   clearFocusTimer();
+  setFocusRoomAudioPlaying(false);
   state.timerStatus = "idle";
   state.startedAt = null;
   state.elapsedSeconds = 0;
@@ -1320,6 +1454,7 @@ function resetFocusRoomTimer() {
 
 function skipFocusRoomTimer() {
   clearFocusTimer();
+  setFocusRoomAudioPlaying(false);
   state.elapsedSeconds = durationSeconds();
   state.timerStatus = "completed";
   if (!state.startedAt) {
@@ -1330,6 +1465,7 @@ function skipFocusRoomTimer() {
 
 function endFocusRoomSession() {
   clearFocusTimer();
+  setFocusRoomAudioPlaying(false);
   const now = new Date().toISOString();
   const material = state.material || getFocusRoomMaterial(state.materialId);
   if (!material) return;
@@ -1456,11 +1592,13 @@ function updateFocusSound(key, value) {
     document.querySelectorAll('[data-focus-volume-label="musicVolume"]').forEach(label => {
       label.textContent = `${state.musicVolume}%`;
     });
+    syncCurrentFocusAudio();
   } else if (key === "ambientVolume") {
     state.ambientVolume = clampVolume(value, state.ambientVolume);
     document.querySelectorAll('[data-focus-volume-label="ambientVolume"]').forEach(label => {
       label.textContent = `${state.ambientVolume}%`;
     });
+    syncCurrentFocusAudio();
   } else if (key === "musicType") {
     state.musicType = String(value || state.musicType);
     renderActiveRoute();
@@ -1469,6 +1607,11 @@ function updateFocusSound(key, value) {
     renderActiveRoute();
   }
   persistDraft();
+}
+
+async function toggleFocusRoomAudioPlayback() {
+  await toggleFocusRoomAudio(focusAudioConfig());
+  renderActiveRoute();
 }
 
 function setFocusPanelTab(tab) {
@@ -1750,6 +1893,7 @@ function exposeFocusRoomGlobals() {
     skipFocusRoomTimer,
     startFocusRoomSession,
     startFocusRoomTimer,
+    toggleFocusRoomAudioPlayback,
     toggleFocusLearningPanel,
     toggleFocusTask,
     updateFocusPlanTask,
