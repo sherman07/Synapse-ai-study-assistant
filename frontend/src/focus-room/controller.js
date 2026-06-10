@@ -1578,7 +1578,10 @@ function updateFocusGoal(value) {
   persistDraft();
   const preview = byId("focusPlanPreview");
   if (preview && state.route === "setup") {
-    preview.innerHTML = renderStudyPlanList();
+    preview.innerHTML = `
+      <h3>Study plan</h3>
+      ${renderStudyPlanList()}
+    `;
   } else {
     renderActiveRoute();
   }
