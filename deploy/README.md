@@ -4,6 +4,7 @@ Synapse has two separate parts:
 
 - Frontend: browser UI, usually served from `frontend/`.
 - Backend: FastAPI API on port `8001`, required for analysis, tutor, quiz, flashcards, source previews, and generated assets.
+- Data API: Express API on port `3001`, required for durable MySQL users, generated content records, focus sessions, flashcards, study rooms, and progress.
 
 If the frontend shows `Cannot reach the Synapse backend at http://127.0.0.1:8001`, the backend process is not running or is not reachable from the browser.
 
@@ -99,6 +100,8 @@ Set these as environment variables:
 ```env
 OPENAI_API_KEY=...
 SYNAPSE_PUBLIC_BACKEND_URL=https://api.your-domain.com
+SYNAPSE_DATA_API_INTERNAL_URL=https://data-api.your-domain.com
+SYNAPSE_INTERNAL_API_TOKEN=long_random_internal_token
 SYNAPSE_CORS_ALLOW_ORIGINS=https://your-frontend-domain.com
 ENABLE_LOCAL_PPTX_APP_RENDER=false
 ENABLE_SOURCE_PPTX_PREVIEW_RENDER=true
@@ -113,6 +116,22 @@ STRIPE_PRICE_STUDENT=price_...
 STRIPE_PRICE_PRO=price_...
 SYNAPSE_FRONTEND_BASE_URL=https://your-frontend-domain.com
 SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK=false
+```
+
+Set these for the Express data API service only:
+
+```env
+SYNAPSE_DATA_API_PORT=3001
+SYNAPSE_DATA_CORS_ORIGINS=https://your-frontend-domain.com
+MYSQL_HOST=your-private-mysql-host
+MYSQL_PORT=3306
+MYSQL_DATABASE=synapse
+MYSQL_USER=synapse_app
+MYSQL_PASSWORD=your-secret-password
+ALLOW_LOCAL_DEMO_AUTH=false
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-public-anon-key
+SYNAPSE_INTERNAL_API_TOKEN=the_same_long_random_internal_token
 ```
 
 Install LibreOffice on the production server if you want high-quality PPTX previews:
@@ -135,6 +154,7 @@ In production, set the frontend to use the deployed backend URL. For this codeba
 
 ```js
 window.SYNAPSE_API_BASE = "https://api.your-domain.com";
+window.SYNAPSE_DATA_API_BASE = "https://data-api.your-domain.com";
 window.SYNAPSE_CONTACT_ENDPOINT = "https://api.your-domain.com/contact";
 window.SYNAPSE_SUPABASE_URL = "https://your-project.supabase.co";
 window.SYNAPSE_SUPABASE_ANON_KEY = "your-public-anon-key";

@@ -3,6 +3,7 @@
   before auth-client.js in each public HTML entrypoint.
 */
 window.SYNAPSE_API_BASE = "https://api.your-domain.com";
+window.SYNAPSE_DATA_API_BASE = "https://data-api.your-domain.com";
 window.SYNAPSE_CONTACT_ENDPOINT = "https://api.your-domain.com/contact";
 
 window.SYNAPSE_SUPABASE_URL = "https://your-project.supabase.co";

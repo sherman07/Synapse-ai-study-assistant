@@ -7,6 +7,7 @@ Synapse is an AI-powered study website and workspace that turns PDFs, lecture sl
 - `frontend/` - static public website, auth prototype pages, and the study workspace shell.
 - `frontend/src/` - React shell plus the existing legacy controller modules.
 - `backend/` - FastAPI backend for analysis, tutoring, quizzes, flashcards, source previews, contact enquiries, and generated assets.
+- `server/` - Express + MySQL data API for users, generated content records, study rooms, focus sessions, flashcards, and progress.
 - `logos/` and `frontend/logos/` - Synapse logo assets for local root serving and static frontend publishing.
 - `scripts/validate_static_site.mjs` - launch-readiness validation for static HTML.
 - `deploy/` - production runtime notes and service templates.
@@ -27,6 +28,16 @@ npm install
 ```
 
 Node is used for the Vite frontend build/dev server and the regression checks.
+
+If `node` or `npm` is not available in your terminal, use the project-local Node helper:
+
+```bash
+source scripts/use_local_node.sh
+node --version
+npm --version
+```
+
+Run the `source` command in each new terminal tab before using `npm`; it only updates that terminal session.
 
 ## Environment Variables
 
@@ -66,6 +77,8 @@ The landing page reads `window.SYNAPSE_CONTACT_ENDPOINT` when you want to post c
 
 The auth pages use Supabase Auth when `window.SYNAPSE_SUPABASE_URL` and `window.SYNAPSE_SUPABASE_ANON_KEY` are configured. Without those public frontend values, the older browser-local demo auth remains available for development only.
 
+The MySQL data API is configured separately in `server/.env`. Keep `MYSQL_PASSWORD` and `SYNAPSE_INTERNAL_API_TOKEN` out of frontend files and Git. See `server/README.md` for local MySQL setup.
+
 Edit or replace `frontend/config.js` during deployment with your public backend, Supabase, and Stripe Price ID values. `frontend/config.example.js` shows the same shape with filled example placeholders.
 
 ## Run Locally
@@ -79,6 +92,15 @@ Start the backend:
 Start the Vite frontend:
 
 ```bash
+npm run dev
+```
+
+Start the MySQL data API in another terminal when you want durable app data:
+
+```bash
+cd server
+npm install
+npm run db:setup
 npm run dev
 ```
 

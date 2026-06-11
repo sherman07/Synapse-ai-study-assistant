@@ -123,11 +123,12 @@ ANALYSIS_CACHE_TTL_SECONDS = env_int("ANALYSIS_CACHE_TTL_SECONDS", 7 * 24 * 60 *
 DEFAULT_CACHE_PATH = BACKEND_DIR / "synapse_analysis_cache.json"
 RUNTIME_DIR = PROJECT_ROOT / ".synapse_runtime"
 RUNTIME_ASSETS_DIR = RUNTIME_DIR / "assets"
-DATABASE_PATH = Path(env_str("SYNAPSE_DATABASE_PATH", str(RUNTIME_DIR / "synapse.sqlite3")))
 PUBLIC_BACKEND_BASE_URL = env_str("SYNAPSE_PUBLIC_BACKEND_URL", "http://127.0.0.1:8001").rstrip("/")
+SYNAPSE_DATA_API_INTERNAL_URL = env_str("SYNAPSE_DATA_API_INTERNAL_URL", "http://127.0.0.1:3001").rstrip("/")
+SYNAPSE_DATA_API_TIMEOUT_SECONDS = max(1.0, env_float("SYNAPSE_DATA_API_TIMEOUT_SECONDS", 5.0))
+SYNAPSE_INTERNAL_API_TOKEN = env_str("SYNAPSE_INTERNAL_API_TOKEN", "")
 try:
     RUNTIME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     CACHE_PATH = RUNTIME_DIR / "synapse_analysis_cache.json"
 except Exception:
     CACHE_PATH = DEFAULT_CACHE_PATH

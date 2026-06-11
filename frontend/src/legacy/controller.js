@@ -1,6 +1,11 @@
 import { API_BASE } from "./apiConfig.js?v=local-api-v1";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
+  DATA_API_BASE,
+  dataApiClient,
+  persistGeneratedContentToDataApi
+} from "./dataApiClient.js";
+import {
   safeGetLocalStorage,
   safeReadJSONStorage,
   safeRemoveLocalStorage,
@@ -68,6 +73,7 @@ const controllerLoader = new LegacyControllerLoader({
   globalScope: window,
   utilities: {
     API_BASE,
+    DATA_API_BASE,
     ApiConnectionError,
     apiClient,
     cacheRecordKeys,
@@ -84,6 +90,8 @@ const controllerLoader = new LegacyControllerLoader({
     loadFirstCacheItems,
     markdownToHTML,
     pruneCacheRecords,
+    dataApiClient,
+    persistGeneratedContentToDataApi,
     removeAutoBilingualHeadings,
     removeDetectedUrlsClient,
     renderMath,

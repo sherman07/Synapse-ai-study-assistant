@@ -37,7 +37,6 @@ from core.config import (
     CORS_ALLOW_CREDENTIALS,
     CORS_ALLOW_ORIGIN_REGEX,
     CORS_ALLOW_ORIGINS,
-    DATABASE_PATH,
     ENABLE_LOCAL_PPTX_APP_RENDER,
     ENABLE_MULTI_SOURCE_DIGESTS,
     ENABLE_PPTX_SLIDE_RENDER,
@@ -567,18 +566,18 @@ async def submit_contact(request: Request) -> Dict[str, Any]:
 @app.get("/db/status")
 def database_status() -> Dict[str, Any]:
     try:
-        counts = synapse_database.counts()
+        status = synapse_database.status()
         return {
             "ok": True,
-            "database_path": str(DATABASE_PATH),
-            "users": counts.get("users", 0),
-            "generated_contents": counts.get("generated_contents", 0),
+            "database": "mysql-data-api",
+            "data_api_reachable": bool(status.get("ok")),
+            "data_api_status": status.get("status", "unknown"),
         }
     except Exception as error:
         return {
             "ok": False,
-            "database_path": str(DATABASE_PATH),
-            "error": str(error),
+            "database": "mysql-data-api",
+            "error": "Data API status check failed.",
         }
 
 

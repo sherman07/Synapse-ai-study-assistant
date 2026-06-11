@@ -1,0 +1,78 @@
+import { SynapseApiClient } from "./apiClient.js";
+import { DATA_API_BASE } from "./dataApiConfig.js";
+
+const dataApiClient = new SynapseApiClient(DATA_API_BASE);
+const configuredTimeoutMs = Number((globalThis.window || globalThis).SYNAPSE_DATA_API_TIMEOUT_MS || 6000);
+const DATA_API_TIMEOUT_MS = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0
+  ? configuredTimeoutMs
+  : 6000;
+
+function warnDataApiSkip(message, error) {
+  if (typeof window === "undefined") return;
+  console.warn(message, error);
+}
+
+async function parseJsonResponse(response) {
+  const contentType = response.headers?.get?.("content-type") || "";
+  const payload = contentType.includes("application/json") ? await response.json() : {};
+  if (!response.ok || payload?.ok === false) {
+    throw new Error(payload?.error || `Synapse data API returned HTTP ${response.status}`);
+  }
+  return payload;
+}
+
+async function dataApiFetch(path, options = {}) {
+  const response = await dataApiClient.fetch(path, {
+    timeoutMs: DATA_API_TIMEOUT_MS,
+    ...options
+  });
+  return parseJsonResponse(response);
+}
+
+async function persistGeneratedContentToDataApi(result) {
+  try {
+    const payload = await dataApiFetch("/api/generated-content", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(result || {})
+    });
+    return payload.database_record || payload.item?.database_record || null;
+  } catch (error) {
+    warnDataApiSkip("Synapse data API generated-content save skipped:", error);
+    return null;
+  }
+}
+
+async function fetchGeneratedContentFromDataApi(limit = 50) {
+  const payload = await dataApiFetch(`/api/generated-content?limit=${encodeURIComponent(limit)}`);
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
+async function saveFocusSessionToDataApi(session) {
+  try {
+    const payload = await dataApiFetch("/api/focus-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(session || {})
+    });
+    return payload.item || null;
+  } catch (error) {
+    warnDataApiSkip("Synapse data API focus-session save skipped:", error);
+    return null;
+  }
+}
+
+async function fetchFocusSessionsFromDataApi(limit = 40) {
+  const payload = await dataApiFetch(`/api/focus-sessions?limit=${encodeURIComponent(limit)}`);
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
+export {
+  DATA_API_BASE,
+  dataApiClient,
+  dataApiFetch,
+  fetchFocusSessionsFromDataApi,
+  fetchGeneratedContentFromDataApi,
+  persistGeneratedContentToDataApi,
+  saveFocusSessionToDataApi
+};

@@ -736,6 +736,32 @@ async function analyzeMaterials() {
     switchTool("mindmap");
     renderMindMap(currentMindMap);
     renderVisualGallery();
+    let dataApiRecord = null;
+    if (typeof persistGeneratedContentToDataApi === "function") {
+      try {
+        dataApiRecord = await persistGeneratedContentToDataApi({
+          ...data,
+          title: data.title || storedTitle,
+          summary: fullSummary,
+          sections,
+          connections: connectionsData,
+          mind_map: currentMindMap,
+          visual_gallery: compactVisualGalleryForStorage(visualGalleryData),
+          visuals: compactVisualGalleryForStorage(visualGalleryData),
+          sources: data.sources || [],
+          source_fingerprint: data.source_fingerprint || currentSourceFingerprint,
+          client_fingerprint: currentSourceFingerprint,
+          output_language: data.output_language || outputLanguage
+        });
+      } catch (error) {
+        console.warn("Synapse data API save failed after analysis:", {
+          error,
+          title: storedTitle,
+          sourceFingerprint: currentSourceFingerprint
+        });
+        dataApiRecord = null;
+      }
+    }
     const savedEntry = saveHistoryEntry({
       title: data.title || null,
       summary: fullSummary,
@@ -757,7 +783,7 @@ async function analyzeMaterials() {
       sources: data.sources || [],
       sourceItems: compactSourceItemsForHistory(sourceViewerItems),
       visualGalleryCount: visualGalleryData.length,
-      databaseRecord: data.database_record || null,
+      databaseRecord: dataApiRecord || data.database_record || null,
       cached: Boolean(data.cached)
     });
     if (savedEntry && savedEntry.id) {

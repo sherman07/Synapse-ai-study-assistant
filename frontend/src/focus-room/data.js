@@ -1,3 +1,12 @@
+import {
+  fetchFocusSessionsFromDataApi,
+  saveFocusSessionToDataApi
+} from "../legacy/dataApiClient.js";
+import {
+  safeReadJSONStorage,
+  safeWriteJSONStorage
+} from "../legacy/storage.js";
+
 const FOCUS_ROOM_SESSION_KEY = "synapse.focusRoom.sessions.v1";
 const FOCUS_ROOM_DRAFT_KEY = "synapse.focusRoom.draft.v1";
 const FOCUS_ROOM_SESSION_LIMIT = 40;
@@ -229,28 +238,6 @@ function getFocusRoomAudioProfile(source = {}) {
   };
 }
 
-function readJSON(key, fallback) {
-  try {
-    const raw = globalThis.localStorage?.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return parsed === null || parsed === undefined ? fallback : parsed;
-  } catch (error) {
-    console.warn(`Could not read ${key}:`, error);
-    return fallback;
-  }
-}
-
-function writeJSON(key, value) {
-  try {
-    globalThis.localStorage?.setItem(key, JSON.stringify(value));
-    return true;
-  } catch (error) {
-    console.warn(`Could not write ${key}:`, error);
-    return false;
-  }
-}
-
 function stripHTML(value) {
   return String(value || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -362,15 +349,15 @@ function buildFocusRoomStudyPlan({ material, goal, durationMinutes }) {
 }
 
 function readFocusRoomDraft() {
-  return readJSON(FOCUS_ROOM_DRAFT_KEY, null);
+  return safeReadJSONStorage(FOCUS_ROOM_DRAFT_KEY, null);
 }
 
 function writeFocusRoomDraft(draft) {
-  return writeJSON(FOCUS_ROOM_DRAFT_KEY, draft || null);
+  return safeWriteJSONStorage(FOCUS_ROOM_DRAFT_KEY, draft || null);
 }
 
 function readFocusRoomSessions() {
-  const parsed = readJSON(FOCUS_ROOM_SESSION_KEY, []);
+  const parsed = safeReadJSONStorage(FOCUS_ROOM_SESSION_KEY, []);
   const persisted = Array.isArray(parsed) ? parsed : [];
   const seen = new Set();
   return [...memoryFocusRoomSessions, ...persisted]
@@ -381,6 +368,23 @@ function readFocusRoomSessions() {
       return true;
     })
     .slice(0, FOCUS_ROOM_SESSION_LIMIT);
+}
+
+async function readFocusRoomSessionsWithDataApi() {
+  try {
+    const remoteSessions = await fetchFocusSessionsFromDataApi(FOCUS_ROOM_SESSION_LIMIT);
+    if (remoteSessions.length) {
+      return remoteSessions.map(session => ({
+        ...session.metrics,
+        ...session,
+        sessionId: session.sessionId || session.id,
+        persisted: true
+      }));
+    }
+  } catch (error) {
+    console.warn("Synapse data API focus-session read skipped:", error);
+  }
+  return readFocusRoomSessions();
 }
 
 function finiteNumber(value, fallback) {
@@ -417,8 +421,11 @@ function saveFocusRoomSession(session = {}) {
   const candidate = { ...record, persisted: true };
   const existing = readFocusRoomSessions().filter(item => item.sessionId !== candidate.sessionId);
   const next = [candidate, ...existing.map(item => ({ ...item, persisted: true }))].slice(0, FOCUS_ROOM_SESSION_LIMIT);
-  const persisted = writeJSON(FOCUS_ROOM_SESSION_KEY, next);
+  const persisted = safeWriteJSONStorage(FOCUS_ROOM_SESSION_KEY, next);
   const finalRecord = { ...candidate, persisted };
+  saveFocusSessionToDataApi(finalRecord).catch(error => {
+    console.warn("Synapse data API focus-session background save failed:", error);
+  });
   if (persisted) {
     memoryFocusRoomSessions = [];
   } else {
@@ -450,6 +457,7 @@ export {
   normalizeFocusRoomMaterial,
   readFocusRoomDraft,
   readFocusRoomSessions,
+  readFocusRoomSessionsWithDataApi,
   saveFocusRoomSession,
   writeFocusRoomDraft
 };

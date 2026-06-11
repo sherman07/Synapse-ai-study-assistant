@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../..");
 const apiConfigPath = path.join(repoRoot, "frontend/src/legacy/apiConfig.js");
+const dataApiConfigPath = path.join(repoRoot, "frontend/src/legacy/dataApiConfig.js");
 
 async function loadApiBase({ protocol = "http:", hostname = "127.0.0.1", port = "5500", configured = "", backendPort = "" }) {
   const host = hostname.startsWith("[") ? `${hostname}:${port}` : `${hostname}:${port}`;
@@ -19,6 +20,19 @@ async function loadApiBase({ protocol = "http:", hostname = "127.0.0.1", port = 
   const url = `${pathToFileURL(apiConfigPath).href}?case=${encodeURIComponent(`${protocol}:${hostname}:${port}:${configured}:${backendPort}:${Date.now()}`)}`;
   return (await import(url)).API_BASE;
 }
+
+async function loadDataApiBaseWithoutBrowserGlobals() {
+  delete globalThis.window;
+  delete globalThis.document;
+  const url = `${pathToFileURL(dataApiConfigPath).href}?case=node-safe-${Date.now()}`;
+  return (await import(url)).DATA_API_BASE;
+}
+
+assert.equal(
+  await loadDataApiBaseWithoutBrowserGlobals(),
+  "http://127.0.0.1:3001",
+  "data API config should be safe to import from Node regression tests"
+);
 
 assert.equal(
   await loadApiBase({ hostname: "[::1]", port: "5500" }),

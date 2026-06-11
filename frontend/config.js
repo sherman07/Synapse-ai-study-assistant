@@ -3,6 +3,7 @@
   Replace these values during deployment. Do not put secret keys in this file.
 */
 window.SYNAPSE_API_BASE = window.SYNAPSE_API_BASE || "";
+window.SYNAPSE_DATA_API_BASE = window.SYNAPSE_DATA_API_BASE || "";
 window.SYNAPSE_CONTACT_ENDPOINT = window.SYNAPSE_CONTACT_ENDPOINT || "";
 
 window.SYNAPSE_SUPABASE_URL = window.SYNAPSE_SUPABASE_URL || "";

@@ -53,9 +53,10 @@ function headersToObject(headers = {}) {
 }
 
 class SynapseApiClient {
-  constructor(baseUrl, { fetchImpl = window.fetch.bind(window) } = {}) {
+  constructor(baseUrl, { fetchImpl } = {}) {
+    const win = browserWindow();
     this.baseUrl = String(baseUrl || "").replace(/\/+$/, "");
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = fetchImpl || win.fetch?.bind(win) || globalThis.fetch?.bind(globalThis);
   }
 
   endpoint(path) {
@@ -114,7 +115,7 @@ class SynapseApiClient {
           callerSignal.addEventListener("abort", abortFromCaller, { once: true });
         }
       }
-      timeoutId = window.setTimeout(() => controller.abort(), timeoutLimit);
+      timeoutId = browserWindow().setTimeout(() => controller.abort(), timeoutLimit);
       fetchOptions.signal = controller.signal;
     }
     try {
@@ -131,7 +132,7 @@ class SynapseApiClient {
         { cause: error }
       );
     } finally {
-      if (timeoutId) window.clearTimeout(timeoutId);
+      if (timeoutId) browserWindow().clearTimeout(timeoutId);
       if (callerSignal && abortFromCaller) {
         callerSignal.removeEventListener("abort", abortFromCaller);
       }
