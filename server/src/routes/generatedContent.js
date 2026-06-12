@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireInternal, requireUser, requireUserOrInternal } from "../middleware/auth.js";
+import { requireActivePro } from "../middleware/billing.js";
 import { upsertUser } from "../repositories/usersRepository.js";
 import { cleanString, limitValue } from "../utils/validators.js";
 import { asyncRoute, sendNotFound } from "./helpers.js";
@@ -15,6 +16,7 @@ import {
 
 const router = Router();
 const internalRouter = Router();
+const PRO_FEATURES = new Set(["advanced_analytics", "priority_processing", "pro_study", "unlimited_uploads"]);
 
 async function actorFromRequest(req) {
   if (req.user) return req.user;
@@ -22,12 +24,29 @@ async function actorFromRequest(req) {
   return null;
 }
 
+function requestRequiresPro(body = {}) {
+  const result = body?.result || {};
+  const feature = cleanString(body?.feature || result.feature, 80);
+  return Boolean(
+    body?.requires_pro ||
+    body?.requiresPro ||
+    result.requires_pro ||
+    result.requiresPro ||
+    PRO_FEATURES.has(feature)
+  );
+}
+
+function requireProWhenRequested(req, res, next) {
+  if (req.internal || !requestRequiresPro(req.body)) return next();
+  return requireActivePro(req, res, next);
+}
+
 router.get("/", requireUser, asyncRoute(async (req, res) => {
   const items = await listGeneratedContent(req.user.id, limitValue(req.query.limit, 50, 100));
   res.json({ ok: true, items });
 }));
 
-router.post("/", requireUserOrInternal, asyncRoute(async (req, res) => {
+router.post("/", requireUserOrInternal, requireProWhenRequested, asyncRoute(async (req, res) => {
   const actor = await actorFromRequest(req);
   if (!actor) return res.status(401).json({ ok: false, error: "User identity is required." });
   const clientFingerprint = cleanString(req.body?.client_fingerprint || req.body?.clientFingerprint, 191);

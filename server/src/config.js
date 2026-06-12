@@ -41,6 +41,12 @@ const config = {
   internalApiToken: envString("SYNAPSE_INTERNAL_API_TOKEN"),
   supabaseUrl: envString("SUPABASE_URL"),
   supabaseAnonKey: envString("SUPABASE_ANON_KEY"),
+  stripe: {
+    secretKey: envString("STRIPE_SECRET_KEY"),
+    webhookSecret: envString("STRIPE_WEBHOOK_SECRET"),
+    priceProMonthly: envString("STRIPE_PRICE_PRO_MONTHLY"),
+    priceProYearly: envString("STRIPE_PRICE_PRO_YEARLY")
+  },
   mysql: {
     host: envString("MYSQL_HOST", "127.0.0.1"),
     port: envInt("MYSQL_PORT", 3306),

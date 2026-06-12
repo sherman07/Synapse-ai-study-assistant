@@ -61,9 +61,10 @@ async function createProgress(userId, payload = {}) {
 }
 
 async function listProgress(userId, limit = 50) {
+  const safeLimit = limitValue(limit);
   const [rows] = await createPool().execute(
-    "SELECT * FROM progress_records WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?",
-    [userId, limitValue(limit)]
+    `SELECT * FROM progress_records WHERE user_id = ? ORDER BY updated_at DESC LIMIT ${safeLimit}`,
+    [userId]
   );
   return rows.map(mapProgress);
 }

@@ -9,26 +9,31 @@ window.SYNAPSE_CONTACT_ENDPOINT = "https://api.your-domain.com/contact";
 window.SYNAPSE_SUPABASE_URL = "https://your-project.supabase.co";
 window.SYNAPSE_SUPABASE_ANON_KEY = "your-public-anon-key";
 
-window.SYNAPSE_STRIPE_PRICE_STARTER = "price_starter";
-window.SYNAPSE_STRIPE_PRICE_STUDENT = "price_student";
-window.SYNAPSE_STRIPE_PRICE_PRO = "price_pro";
+// Stripe secret keys and price IDs live on the Express data API server only.
+// The frontend sends only these public plan IDs.
 window.SYNAPSE_BILLING_PLANS = [
   {
-    id: "starter",
-    label: "Starter",
-    priceId: window.SYNAPSE_STRIPE_PRICE_STARTER,
-    description: "500 credits for quick revision sessions"
+    id: "free",
+    label: "Free",
+    mode: null,
+    price: "$0",
+    cadence: "forever",
+    description: "Core study generation for getting started"
   },
   {
-    id: "student",
-    label: "Student",
-    priceId: window.SYNAPSE_STRIPE_PRICE_STUDENT,
-    description: "1500 credits for regular coursework"
+    id: "pro_monthly",
+    label: "Pro Monthly",
+    mode: "subscription",
+    price: "$9",
+    cadence: "per month",
+    description: "Upgrade to Pro with monthly billing"
   },
   {
-    id: "pro",
-    label: "Pro",
-    priceId: window.SYNAPSE_STRIPE_PRICE_PRO,
-    description: "4000 credits for heavier study periods"
+    id: "pro_yearly",
+    label: "Pro Yearly",
+    mode: "payment",
+    price: "$90",
+    cadence: "per year",
+    description: "Upgrade to Pro with one-time annual access"
   }
 ];

@@ -6,11 +6,19 @@ CREATE TABLE IF NOT EXISTS users (
   display_name VARCHAR(255) NULL,
   auth_mode VARCHAR(80) NULL,
   role VARCHAR(80) NOT NULL DEFAULT 'student',
+  stripe_customer_id VARCHAR(255) NULL,
+  stripe_subscription_id VARCHAR(255) NULL,
+  plan VARCHAR(80) NOT NULL DEFAULT 'free',
+  subscription_status VARCHAR(80) NOT NULL DEFAULT 'inactive',
+  current_period_end DATETIME(3) NULL,
   metadata_json JSON NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_users_provider_subject (auth_provider, auth_subject),
-  KEY idx_users_email (email)
+  KEY idx_users_email (email),
+  KEY idx_users_stripe_customer (stripe_customer_id),
+  KEY idx_users_stripe_subscription (stripe_subscription_id),
+  KEY idx_users_plan_status (plan, subscription_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS generated_contents (

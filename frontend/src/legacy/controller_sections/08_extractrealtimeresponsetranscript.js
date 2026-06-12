@@ -562,39 +562,65 @@ function billingPlansForAccount() {
   if (window.SynapseAuth?.getBillingPlans) {
     return window.SynapseAuth.getBillingPlans();
   }
-  return [];
+  return [
+    { id: "free", label: "Free", price: "$0", cadence: "forever", description: "Core study generation for getting started" },
+    { id: "pro_monthly", label: "Pro Monthly", price: "$9", cadence: "per month", description: "Upgrade to Pro with monthly billing" },
+    { id: "pro_yearly", label: "Pro Yearly", price: "$90", cadence: "per year", description: "Upgrade to Pro with annual billing" }
+  ];
+}
+
+function normaliseBillingPlanId(value) {
+  const text = String(value || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (text === "starter") return "free";
+  if (text === "pro") return "pro_monthly";
+  if (text === "pro_month") return "pro_monthly";
+  if (text === "pro_year") return "pro_yearly";
+  return text || "free";
+}
+
+function formatBillingDate(value) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Not set";
+  return date.toLocaleDateString();
 }
 
 function billingActionsHTML() {
   const session = getCurrentAccountSession();
-  const productionAuthReady = session?.authMode === "supabase";
+  const signedIn = Boolean(session?.email);
+  const currentPlanId = normaliseBillingPlanId(session?.billingPlan || session?.plan || "free");
   const plans = billingPlansForAccount();
   const planCards = plans.map(plan => {
-    const hasPrice = Boolean(plan.priceId);
-    const configured = hasPrice && productionAuthReady;
-    const description = !productionAuthReady
-      ? "Sign in with Supabase production auth first"
-      : (hasPrice ? (plan.description || "Stripe Checkout") : "Set the Stripe Price ID first");
+    const planId = normaliseBillingPlanId(plan.id);
+    const isFree = planId === "free";
+    const isCurrent = currentPlanId === planId;
+    const disabled = !signedIn || isFree || isCurrent;
+    const description = isFree
+      ? "Included with every account"
+      : (plan.description || "Secure Stripe Checkout");
+    const checkoutMode = plan.mode || (planId === "pro_yearly" ? "payment" : "subscription");
+    const actionLabel = isCurrent ? "Current plan" : (isFree ? "Included" : "Upgrade to Pro");
     return `
-      <button class="account-plan-action" type="button" ${configured ? "" : "disabled"}
-              onclick="startBillingCheckout('${escapeAttr(plan.id)}')">
+      <button class="account-plan-action ${isCurrent ? "current" : ""}" type="button" ${disabled ? "disabled" : ""}
+              onclick="startBillingCheckout('${escapeAttr(planId)}', '${escapeAttr(checkoutMode)}')">
         <span>
-          <strong>${escapeHTML(plan.label || plan.id)}</strong>
-          <small>${escapeHTML(description)}</small>
+          <strong>${escapeHTML(plan.label || planId)}</strong>
+          <small>${escapeHTML([plan.price, plan.cadence].filter(Boolean).join(" / ") || description)}</small>
+          <em>${escapeHTML(description)}</em>
         </span>
-        <i class="bi ${configured ? "bi-arrow-right" : "bi-exclamation-circle"}"></i>
+        <b>${escapeHTML(actionLabel)}</b>
       </button>
     `;
   }).join("");
   return `
     <div class="account-panel-actions">
       <div class="account-plan-grid">${planCards || `<p class="account-panel-help">Set window.SYNAPSE_BILLING_PLANS to enable checkout buttons.</p>`}</div>
-      <button class="account-secondary-action" type="button" ${productionAuthReady ? "" : "disabled"}
+      <button class="account-secondary-action" type="button" ${signedIn ? "" : "disabled"}
               onclick="openBillingPortal()">
         <i class="bi bi-credit-card"></i>
         Manage billing portal
       </button>
-      ${productionAuthReady ? "" : `<p class="account-panel-help">Billing activates after Supabase Auth and Stripe environment variables are configured.</p>`}
+      <p class="account-panel-help">Payment status is updated only from verified Stripe webhooks. Server env required: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_PRO_MONTHLY, STRIPE_PRICE_PRO_YEARLY.</p>
     </div>
   `;
 }
@@ -619,7 +645,7 @@ function renderAccountMenu() {
   const signedIn = Boolean(session?.email);
   const displayName = signedIn ? (session.displayName || session.email) : "Guest Student";
   const email = signedIn ? session.email : "Not signed in";
-  const plan = signedIn ? (session.plan || "Starter") : "Starter";
+  const plan = signedIn ? (session.plan || "Free") : "Free";
   const credits = signedIn ? Number(session.credits || 0) : 0;
   document.querySelectorAll(".account-menu-avatar").forEach(node => {
     node.textContent = accountInitials(session);
@@ -696,10 +722,11 @@ function openAccountPanel(section = "profile") {
       ["Created", session?.createdAt ? new Date(session.createdAt).toLocaleDateString() : "Unknown"]
     ],
     billing: [
-      ["Plan", session?.plan || "Starter"],
+      ["Plan", session?.plan || "Free"],
       ["Credits", String(Number(session?.credits || 0))],
       ["Billing mode", "Stripe Checkout"],
-      ["Status", session?.authMode === "supabase" ? "Ready" : "Configure production auth"]
+      ["Status", session?.subscriptionStatus || "inactive"],
+      ["Current period end", formatBillingDate(session?.currentPeriodEnd)]
     ],
     settings: [
       ["Account", accountAuthModeLabel(session)],
@@ -745,7 +772,7 @@ function openAccountPanel(section = "profile") {
   document.body.appendChild(overlay);
 }
 
-async function startBillingCheckout(planId) {
+async function startBillingCheckout(planId, checkoutMode) {
   const session = getCurrentAccountSession();
   if (!session?.email) {
     goToAuthPage("login");
@@ -755,20 +782,16 @@ async function startBillingCheckout(planId) {
     setAccountPanelStatus("error", "Billing requires production auth configuration.");
     return;
   }
-  if (session.authMode !== "supabase") {
-    setAccountPanelStatus("error", "Billing requires Supabase production auth.");
-    return;
-  }
-  const plan = billingPlansForAccount().find(item => item.id === planId);
-  if (!plan?.priceId) {
-    setAccountPanelStatus("error", "This billing plan is missing a Stripe Price ID.");
+  const plan = billingPlansForAccount().find(item => normaliseBillingPlanId(item.id) === normaliseBillingPlanId(planId));
+  if (!plan || normaliseBillingPlanId(plan.id) === "free") {
+    setAccountPanelStatus("error", "Choose Pro Monthly or Pro Yearly to open Checkout.");
     return;
   }
   setAccountPanelStatus("info", "Opening secure Stripe Checkout...");
   try {
     const checkout = await window.SynapseAuth.createCheckoutSession({
-      planId: plan.id,
-      priceId: plan.priceId
+      planId: normaliseBillingPlanId(plan.id),
+      checkoutMode: checkoutMode || plan.mode || (normaliseBillingPlanId(plan.id) === "pro_yearly" ? "payment" : "subscription")
     });
     if (!checkout?.url) throw new Error("Stripe did not return a checkout URL.");
     window.location.href = checkout.url;
@@ -785,10 +808,6 @@ async function openBillingPortal() {
   }
   if (!window.SynapseAuth?.createPortalSession) {
     setAccountPanelStatus("error", "Billing portal requires production auth configuration.");
-    return;
-  }
-  if (session.authMode !== "supabase") {
-    setAccountPanelStatus("error", "Billing portal requires Supabase production auth.");
     return;
   }
   setAccountPanelStatus("info", "Opening Stripe billing portal...");

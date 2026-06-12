@@ -12,6 +12,7 @@
     "test:focus-room": "node frontend/tests/focus-room-integration-regression.mjs && node frontend/tests/focus-room-data-regression.mjs && node frontend/tests/focus-room-audio-regression.mjs && node frontend/tests/focus-room-controller-actions-regression.mjs && node frontend/tests/focus-room-study-tools-regression.mjs"
   },
   "dependencies": {
+    "@react-three/fiber": "^8.18.0",
     "@tanstack/react-query": "^5.80.7",
     "@vitejs/plugin-react": "^4.5.2",
     "gsap": "^3.13.0",
@@ -22,8 +23,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.6.2",
+    "three": "^0.181.2",
     "vite": "^6.3.5",
     "zustand": "^5.0.5"
-  },
-  "devDependencies": {}
+  }
 }

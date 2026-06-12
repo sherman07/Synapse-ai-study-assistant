@@ -744,13 +744,33 @@
 
 .account-plan-action span {
   display: grid;
-  gap: 2px;
+  gap: 3px;
+  min-width: 0;
 }
 
 .account-plan-action small {
   color: var(--muted);
   font-weight: 650;
   line-height: 1.35;
+}
+
+.account-plan-action em {
+  color: var(--text-soft);
+  font-style: normal;
+  font-size: .78rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.account-plan-action b {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  padding: 8px 10px;
+  font-size: .76rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .account-plan-action:hover,
@@ -765,6 +785,12 @@
   cursor: not-allowed;
   opacity: .58;
   transform: none;
+}
+
+.account-plan-action.current {
+  border-color: rgba(74, 124, 255, .34);
+  background: linear-gradient(135deg, rgba(74, 124, 255, .1), rgba(255, 255, 255, .94));
+  opacity: 1;
 }
 
 .account-danger-action {

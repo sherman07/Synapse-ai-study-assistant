@@ -82,9 +82,10 @@ async function createDeck(userId, payload = {}) {
 }
 
 async function listDecks(userId, limit = 50) {
+  const safeLimit = limitValue(limit);
   const [rows] = await createPool().execute(
-    "SELECT * FROM flashcard_decks WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?",
-    [userId, limitValue(limit)]
+    `SELECT * FROM flashcard_decks WHERE user_id = ? ORDER BY updated_at DESC LIMIT ${safeLimit}`,
+    [userId]
   );
   return rows.map(mapDeck);
 }
@@ -169,19 +170,19 @@ async function createCard(userId, payload = {}) {
 }
 
 async function listCards(userId, deckId = "", limit = 200) {
+  const safeLimit = limitValue(limit, 200, 500);
   const params = [userId];
   let where = "d.user_id = ?";
   if (deckId) {
     where += " AND c.deck_id = ?";
     params.push(cleanString(deckId, 96));
   }
-  params.push(limitValue(limit, 200, 500));
   const [rows] = await createPool().execute(
     `SELECT c.* FROM flashcards c
      JOIN flashcard_decks d ON d.id = c.deck_id
      WHERE ${where}
      ORDER BY c.card_order ASC, c.created_at ASC
-     LIMIT ?`,
+     LIMIT ${safeLimit}`,
     params
   );
   return rows.map(mapCard);

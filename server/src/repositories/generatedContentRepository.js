@@ -131,6 +131,7 @@ async function upsertGeneratedContent(userId, payload = {}) {
 }
 
 async function listGeneratedContent(userId, limit = 50) {
+  const safeLimit = limitValue(limit);
   const [rows] = await createPool().execute(
     `SELECT id, user_id, source_fingerprint, client_fingerprint, title, summary, language,
       detail_level, prompt_mode, source_count, cached, sections_json, connections_json,
@@ -138,8 +139,8 @@ async function listGeneratedContent(userId, limit = 50) {
     FROM generated_contents
     WHERE user_id = ?
     ORDER BY updated_at DESC
-    LIMIT ?`,
-    [userId, limitValue(limit)]
+    LIMIT ${safeLimit}`,
+    [userId]
   );
   return rows.map(row => mapGeneratedContent(row));
 }

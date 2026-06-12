@@ -93,11 +93,33 @@ window.SYNAPSE_DATA_API_BASE = "http://127.0.0.1:3001";
 
 For production, set this to your deployed data API URL in `frontend/config.js` or injected runtime config. Do not put MySQL host, username, or password in frontend files.
 
+## Stripe Billing
+
+Synapse uses Stripe-hosted Checkout and the Stripe Customer Portal. The frontend only sends a server-owned plan id (`pro_monthly` or `pro_yearly`); the Express API looks up the Stripe Price IDs from environment variables and only updates access from verified webhooks. Pro Monthly uses subscription Checkout. Pro Yearly uses one-time Checkout and grants one year of Pro access after Stripe reports the payment as paid.
+
+Required server environment variables:
+
+```env
+STRIPE_SECRET_KEY=sk_live_or_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_PRO_YEARLY=price_...
+```
+
+Local webhook testing:
+
+```bash
+stripe listen --forward-to http://127.0.0.1:3001/api/billing/webhook
+```
+
+Configure the Stripe Customer Portal in the Stripe Dashboard before using “Manage billing portal”. Keep `ALLOW_LOCAL_DEMO_AUTH=false` in production so only verified Supabase users can start Checkout.
+
 ## Production Notes
 
 - Use a managed MySQL database or a secured private MySQL server.
 - Set `ALLOW_LOCAL_DEMO_AUTH=false` before accepting real accounts.
 - Configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` for bearer-token verification.
+- Configure Stripe secrets and price IDs in server-side environment variables only.
 - Restrict `SYNAPSE_DATA_CORS_ORIGINS` to deployed frontend origins.
 - Store all secrets in the platform secret manager.
 - Use TLS between public clients and the API; keep MySQL private.

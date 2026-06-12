@@ -4,31 +4,176 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const landingHtml = fs.readFileSync(path.join(repoRoot, "frontend/landing.html"), "utf8");
-const landingCss = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.css"), "utf8");
+const frontendRoot = path.join(repoRoot, "frontend");
+const landingRoot = path.join(frontendRoot, "src", "landing");
 
-assert.equal((landingHtml.match(/data-cycle-step="/g) || []).length, 6);
-assert.ok(!landingHtml.includes("landing-step-arrow"));
-assert.ok(landingCss.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"));
-assert.ok(landingCss.includes('.landing-step[data-cycle-step="3"]::after'));
-assert.ok(landingCss.includes('.landing-step[data-cycle-step="4"]'));
-assert.ok(landingCss.includes("grid-column: 3"));
-assert.ok(landingCss.includes('.landing-step[data-cycle-step="6"]::after'));
+function read(relativePath) {
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
 
-const step4ArrowBlock = landingCss.match(/\.landing-step\[data-cycle-step="4"\]::after\s*\{[^}]+\}/)?.[0] || "";
-assert.ok(step4ArrowBlock.includes("display: none"));
+function exists(relativePath) {
+  return fs.existsSync(path.join(repoRoot, relativePath));
+}
 
-const step6ArrowBlock = landingCss.match(/\.landing-step\[data-cycle-step="6"\]::after\s*\{[^}]+\}/)?.[0] || "";
-assert.ok(step6ArrowBlock.includes('content: "\\2191"'));
-assert.ok(step6ArrowBlock.includes("animation: arrow-pulse-up"));
+function readTreeText(dir) {
+  if (!fs.existsSync(dir)) return "";
+  return fs.readdirSync(dir, { withFileTypes: true }).map((entry) => {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) return readTreeText(entryPath);
+    if (!/\.(jsx|js|css)$/.test(entry.name)) return "";
+    return fs.readFileSync(entryPath, "utf8");
+  }).join("\n");
+}
 
-const badgeBlock = landingCss.match(/\.landing-pricing-badge\s*\{[^}]+\}/)?.[0] || "";
-assert.ok(badgeBlock.includes("top: 18px"));
-assert.ok(badgeBlock.includes("min-width: 168px"));
-assert.ok(badgeBlock.includes("white-space: nowrap"));
-assert.ok(badgeBlock.includes("z-index: 4"));
+const landingHtml = read("frontend/landing.html");
+const landingStaticCss = read("frontend/landing-static.css");
+const landingStaticJs = read("frontend/landing-static.js");
+const landingSource = readTreeText(landingRoot);
+const packageJson = JSON.parse(read("package.json"));
+const viteConfig = read("vite.config.js");
 
-const featuredBlock = landingCss.match(/\.landing-pricing-featured\s*\{[^}]+\}/)?.[0] || "";
-assert.ok(featuredBlock.includes("padding-top: 72px"));
+const requiredSections = [
+  "HeroSection",
+  "ProductDemoSection",
+  "FeaturesSection",
+  "HowItWorksSection",
+  "ComparisonSection",
+  "LearningIntelligenceSection",
+  "PricingSection",
+  "ContactSection",
+  "CTASection"
+];
 
-console.log("landing layout regression passed");
+const reactBitsComponents = [
+  "AnimatedList",
+  "Aurora",
+  "BlurText",
+  "BorderGlow",
+  "CountUp",
+  "GlassSurface",
+  "GradientText",
+  "MagicBento",
+  "Magnet",
+  "ScrollStack",
+  "SplitText",
+  "SpotlightCard"
+];
+
+const threeComponentNames = [
+  "ConnectionLines",
+  "FloatingStudyCards",
+  "Hero3DScene",
+  "MindMapCluster",
+  "ParticleField",
+  "SceneLighting",
+  "SynapseCore",
+  "SceneFallback"
+];
+
+assert.match(landingHtml, /id="landing-root"/, "landing.html should mount the React landing app");
+assert.doesNotMatch(landingHtml, /<script[^>]+src="\.\/src\/landing\/main\.jsx"/, "landing.html must not ask static servers to load raw JSX");
+assert.match(landingHtml, /import\("\.\/src\/landing\/main\.jsx"\)/, "landing.html should dynamically load the React landing entry through Vite");
+assert.match(landingHtml, /import\.meta\.env\?\.DEV \|\| import\.meta\.env\?\.PROD/, "landing.html should gate the React entry to Vite-built contexts");
+assert.match(landingHtml, /landing-static\.css/, "landing.html should include a styled static fallback CSS file");
+assert.match(landingHtml, /landing-static\.js/, "landing.html should include static fallback behavior");
+assert.ok(landingSource.includes('removeAttribute("data-static-fallback")'), "React entry should remove static fallback diagnostics after mounting");
+assert.match(landingHtml, /<meta name="theme-color" content="#4a7cff" \/>/, "landing page must keep the original Synapse theme color");
+assert.match(viteConfig, /landing:\s*resolve\(__dirname,\s*"frontend\/landing\.html"\)/, "Vite should build the public landing page");
+
+for (const requiredId of ["product", "features", "how-it-works", "about", "pricing", "contact", "contactForm", "authModal"]) {
+  assert.ok(landingHtml.includes(`id="${requiredId}"`) || landingSource.includes(`id="${requiredId}"`), `landing page is missing #${requiredId}`);
+}
+
+assert.equal((landingHtml.match(/data-cycle-step="/g) || []).length, 6, "static fallback should keep six journey steps");
+assert.ok(landingSource.includes("data-cycle-step={index + 1}"), "React journey should expose mapped cycle-step attributes");
+for (const stepTitle of ["Upload Material", "Generate Notes", "Organise Ideas", "Teach and Practice", "Get Feedback", "Revise and Master"]) {
+  assert.ok(landingSource.includes(stepTitle), `React journey should include ${stepTitle}`);
+}
+
+for (const sectionName of requiredSections) {
+  assert.ok(
+    exists(`frontend/src/landing/components/sections/${sectionName}.jsx`),
+    `${sectionName} should be implemented as a focused React section`
+  );
+  assert.ok(landingSource.includes(sectionName), `${sectionName} should be used by the landing app`);
+}
+
+for (const componentName of reactBitsComponents) {
+  assert.ok(
+    exists(`frontend/src/landing/components/react-bits/${componentName}.jsx`),
+    `${componentName} React Bits wrapper should exist`
+  );
+  assert.ok(landingSource.includes(componentName), `${componentName} should be used by the landing page`);
+}
+
+for (const componentName of ["Hero3DScene", "SceneFallback"]) {
+  assert.ok(exists(`frontend/src/landing/components/three/${componentName}.jsx`), `${componentName} 3D component file should exist`);
+}
+
+for (const componentName of threeComponentNames) {
+  assert.ok(landingSource.includes(componentName), `${componentName} should be used by the landing page`);
+}
+
+assert.ok(packageJson.dependencies.three, "Three.js should be installed for the 3D hero scene");
+assert.ok(packageJson.dependencies["@react-three/fiber"], "React Three Fiber should be installed for React-owned 3D components");
+assert.ok(!landingSource.includes("@react-three/drei"), "3D scene should avoid Drei helpers to keep the lazy WebGL chunk light");
+
+for (const requiredCopy of [
+  "Turn passive study notes into active learning.",
+  "Upload Material",
+  "Generate Notes",
+  "Mind Map",
+  "Teach-Back Feedback",
+  "Get Started for Free"
+]) {
+  assert.ok(landingHtml.includes(requiredCopy) || landingSource.includes(requiredCopy), `landing page should include: ${requiredCopy}`);
+}
+
+const landingCss = read("frontend/src/landing/landing.css");
+assert.ok(landingCss.includes("--primary: #4a7cff"), "landing CSS must keep #4a7cff as the primary token");
+assert.ok(landingCss.includes("--accent: #667eea"), "landing CSS should keep the original blue/purple accent family");
+assert.ok(landingCss.includes("--accent-deep: #764ba2"), "landing CSS should keep the original deep purple accent");
+assert.ok(landingStaticCss.includes("--static-primary: #4a7cff"), "static fallback CSS must keep #4a7cff as the primary token");
+assert.ok(landingStaticCss.includes("--static-accent: #667eea"), "static fallback CSS should keep the original blue accent");
+assert.ok(landingStaticCss.includes("--static-accent-deep: #764ba2"), "static fallback CSS should keep the original purple accent");
+for (const forbiddenToken of ["--cyan", "--mint", "--sky", "#06b6d4", "#10b981"]) {
+  assert.ok(!landingCss.includes(forbiddenToken), `landing CSS should not reintroduce ${forbiddenToken}`);
+  assert.ok(!landingStaticCss.includes(forbiddenToken), `static fallback CSS should not reintroduce ${forbiddenToken}`);
+}
+
+for (const requiredCss of [
+  "@media (max-width: 1024px)",
+  "@media (max-width: 768px)",
+  "@media (max-width: 480px)",
+  "@media (prefers-reduced-motion: reduce)",
+  ".synapse-hero-grid",
+  ".three-scene-shell",
+  ".magic-bento-grid",
+  ".pricing-card.recommended"
+]) {
+  assert.ok(landingCss.includes(requiredCss), `landing CSS should include ${requiredCss}`);
+}
+
+for (const requiredCss of [
+  "@media (max-width: 1024px)",
+  "@media (max-width: 768px)",
+  "@media (max-width: 480px)",
+  "@media (prefers-reduced-motion: reduce)",
+  ".static-hero",
+  ".static-hero-visual",
+  ".static-feature-grid",
+  ".static-pricing-grid"
+]) {
+  assert.ok(landingStaticCss.includes(requiredCss), `static fallback CSS should include ${requiredCss}`);
+}
+
+for (const requiredBehavior of [
+  "mobileToggle",
+  "openAuthModal",
+  "contactForm",
+  "static-modal-open"
+]) {
+  assert.ok(landingStaticJs.includes(requiredBehavior), `static fallback JS should include ${requiredBehavior}`);
+}
+
+console.log("landing React upgrade regression passed");

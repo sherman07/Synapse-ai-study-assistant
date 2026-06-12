@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billing Cancelled | Synapse</title>
+  <meta name="description" content="Your Synapse Stripe Checkout session was cancelled. You can return to pricing or continue with the free plan." />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:title" content="Billing Cancelled | Synapse" />
+  <meta property="og:description" content="Return to Synapse pricing or continue studying on the free plan." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <link rel="icon" type="image/png" href="/logos/synapse.png">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
+  <link rel="stylesheet" href="billing-pages.css?v=stripe-billing-v1">
+</head>
+<body>
+  <div class="billing-shell">
+    <nav class="billing-nav" aria-label="Billing navigation">
+      <div class="billing-nav-inner">
+        <a class="billing-logo" href="landing.html">
+          <img src="/logos/synapse.png" alt="" />
+          <span>Synapse</span>
+        </a>
+        <div class="billing-nav-links">
+          <a href="pricing.html">Pricing</a>
+          <a href="index.html">Workspace</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="billing-result">
+      <section class="billing-result-card">
+        <p class="billing-kicker">Checkout cancelled</p>
+        <h1>No payment was taken.</h1>
+        <p>You can return to pricing whenever you are ready, or keep using the Free plan.</p>
+        <div class="billing-result-actions">
+          <a class="billing-button primary" href="pricing.html">Back to Pricing</a>
+          <a class="billing-button" href="index.html">Continue Free</a>
+        </div>
+        <div class="billing-status-card" id="billingStatusCard" role="status" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js?v=runtime-config-v1"></script>
+  <script src="auth-client.js?v=stripe-billing-v1"></script>
+  <script src="billing-result.js?v=stripe-billing-v1"></script>
+</body>
+</html>

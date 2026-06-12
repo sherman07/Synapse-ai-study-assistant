@@ -29,6 +29,11 @@ function mapUser(row = {}) {
     displayName: row.display_name || "",
     authMode: row.auth_mode || row.auth_provider || "",
     role: row.role || "student",
+    stripeCustomerId: row.stripe_customer_id || "",
+    stripeSubscriptionId: row.stripe_subscription_id || "",
+    plan: row.plan || "free",
+    subscriptionStatus: row.subscription_status || "inactive",
+    currentPeriodEnd: row.current_period_end || null,
     metadata: jsonValue(row.metadata_json, {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -74,6 +79,22 @@ async function getUserById(userId) {
   return rows[0] ? mapUser(rows[0]) : null;
 }
 
+async function getUserByStripeCustomerId(customerId) {
+  const [rows] = await createPool().execute(
+    "SELECT * FROM users WHERE stripe_customer_id = ? LIMIT 1",
+    [cleanString(customerId, 255)]
+  );
+  return rows[0] ? mapUser(rows[0]) : null;
+}
+
+async function getUserByStripeSubscriptionId(subscriptionId) {
+  const [rows] = await createPool().execute(
+    "SELECT * FROM users WHERE stripe_subscription_id = ? LIMIT 1",
+    [cleanString(subscriptionId, 255)]
+  );
+  return rows[0] ? mapUser(rows[0]) : null;
+}
+
 async function patchUser(userId, patch = {}) {
   const fields = [];
   const values = [];
@@ -99,4 +120,51 @@ async function patchUser(userId, patch = {}) {
   return getUserById(userId);
 }
 
-export { getUserById, mapUser, normalizeIdentity, patchUser, upsertUser };
+async function updateUserStripeCustomer(userId, stripeCustomerId) {
+  await createPool().execute(
+    "UPDATE users SET stripe_customer_id = ? WHERE id = ?",
+    [nullableString(stripeCustomerId, 255), cleanString(userId, 80)]
+  );
+  return getUserById(userId);
+}
+
+async function updateUserSubscription(userId, patch = {}) {
+  const fields = [];
+  const values = [];
+  if (patch.stripeCustomerId !== undefined || patch.stripe_customer_id !== undefined) {
+    fields.push("stripe_customer_id = ?");
+    values.push(nullableString(patch.stripeCustomerId || patch.stripe_customer_id, 255));
+  }
+  if (patch.stripeSubscriptionId !== undefined || patch.stripe_subscription_id !== undefined) {
+    fields.push("stripe_subscription_id = ?");
+    values.push(nullableString(patch.stripeSubscriptionId || patch.stripe_subscription_id, 255));
+  }
+  if (patch.plan !== undefined) {
+    fields.push("plan = ?");
+    values.push(cleanString(patch.plan, 80) || "free");
+  }
+  if (patch.subscriptionStatus !== undefined || patch.subscription_status !== undefined) {
+    fields.push("subscription_status = ?");
+    values.push(cleanString(patch.subscriptionStatus || patch.subscription_status, 80) || "inactive");
+  }
+  if (patch.currentPeriodEnd !== undefined || patch.current_period_end !== undefined) {
+    fields.push("current_period_end = ?");
+    values.push(patch.currentPeriodEnd || patch.current_period_end || null);
+  }
+  if (!fields.length) return getUserById(userId);
+  values.push(cleanString(userId, 80));
+  await createPool().execute(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`, values);
+  return getUserById(userId);
+}
+
+export {
+  getUserById,
+  getUserByStripeCustomerId,
+  getUserByStripeSubscriptionId,
+  mapUser,
+  normalizeIdentity,
+  patchUser,
+  updateUserStripeCustomer,
+  updateUserSubscription,
+  upsertUser
+};

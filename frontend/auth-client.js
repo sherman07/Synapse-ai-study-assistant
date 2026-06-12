@@ -19,24 +19,31 @@
       supabaseUrl: String(window.SYNAPSE_SUPABASE_URL || body.supabaseUrl || "").trim(),
       supabaseAnonKey: String(window.SYNAPSE_SUPABASE_ANON_KEY || body.supabaseAnonKey || "").trim(),
       apiBase: String(window.SYNAPSE_API_BASE || body.apiBase || "").replace(/\/+$/, ""),
+      dataApiBase: String(window.SYNAPSE_DATA_API_BASE || body.dataApiBase || "").replace(/\/+$/, ""),
       billingPlans: Array.isArray(window.SYNAPSE_BILLING_PLANS) ? window.SYNAPSE_BILLING_PLANS : [
         {
-          id: "starter",
-          label: "Starter",
-          priceId: String(window.SYNAPSE_STRIPE_PRICE_STARTER || "").trim(),
-          description: "500 credits for quick revision sessions"
+          id: "free",
+          label: "Free",
+          mode: null,
+          price: "$0",
+          cadence: "forever",
+          description: "Core study generation for getting started"
         },
         {
-          id: "student",
-          label: "Student",
-          priceId: String(window.SYNAPSE_STRIPE_PRICE_STUDENT || "").trim(),
-          description: "1500 credits for regular coursework"
+          id: "pro_monthly",
+          label: "Pro Monthly",
+          mode: "subscription",
+          price: "$9",
+          cadence: "per month",
+          description: "Upgrade to Pro with monthly billing"
         },
         {
-          id: "pro",
-          label: "Pro",
-          priceId: String(window.SYNAPSE_STRIPE_PRICE_PRO || "").trim(),
-          description: "4000 credits for heavier study periods"
+          id: "pro_yearly",
+          label: "Pro Yearly",
+          mode: "payment",
+          price: "$90",
+          cadence: "per year",
+          description: "Upgrade to Pro with one-time annual access"
         }
       ]
     };
@@ -60,6 +67,18 @@
     if (protocol === "file:") return `http://127.0.0.1:${backendPort || "8001"}`;
     if (isLocalDevHost(hostname) && port !== backendPort) {
       return `http://127.0.0.1:${backendPort || "8001"}`;
+    }
+    return `${protocol}//${window.location.host}`;
+  }
+
+  function dataApiBase() {
+    const configured = readConfig().dataApiBase;
+    if (configured) return configured;
+    const { protocol, hostname, port } = window.location;
+    const dataPort = String(window.SYNAPSE_DATA_API_PORT || document.body?.dataset?.dataApiPort || "3001").trim();
+    if (protocol === "file:") return `http://127.0.0.1:${dataPort || "3001"}`;
+    if (isLocalDevHost(hostname) && port !== dataPort) {
+      return `http://127.0.0.1:${dataPort || "3001"}`;
     }
     return `${protocol}//${window.location.host}`;
   }
@@ -104,6 +123,39 @@
     window.dispatchEvent(new CustomEvent("synapse-auth-changed", { detail: { session } }));
   }
 
+  function displayPlan(plan) {
+    const labels = {
+      free: "Free",
+      starter: "Free",
+      pro_monthly: "Pro Monthly",
+      pro_yearly: "Pro Yearly"
+    };
+    return labels[String(plan || "").toLowerCase()] || "Free";
+  }
+
+  function creditsForPlan(plan) {
+    const key = String(plan || "").toLowerCase();
+    if (key === "pro_monthly" || key === "pro_yearly") return 4000;
+    return 500;
+  }
+
+  function mergeServerUserIntoSession(session, user = {}) {
+    if (!session) return session;
+    const plan = user.plan || session.plan || "free";
+    return {
+      ...session,
+      accountId: user.id || session.accountId,
+      email: user.email || session.email,
+      displayName: user.displayName || session.displayName,
+      role: user.role || session.role,
+      plan: displayPlan(plan),
+      billingPlan: plan,
+      subscriptionStatus: user.subscriptionStatus || session.subscriptionStatus || "inactive",
+      currentPeriodEnd: user.currentPeriodEnd || session.currentPeriodEnd || null,
+      credits: creditsForPlan(plan)
+    };
+  }
+
   function publicSessionFromSupabase(sessionPayload) {
     const user = sessionPayload?.user || null;
     const metadata = user?.user_metadata || {};
@@ -121,8 +173,11 @@
       firstName,
       lastName,
       role: metadata.role || "student",
-      plan: metadata.plan || "Starter",
-      credits: Number(metadata.credits || 0),
+      plan: displayPlan(metadata.plan || "free"),
+      billingPlan: metadata.plan || "free",
+      subscriptionStatus: metadata.subscription_status || metadata.subscriptionStatus || "inactive",
+      currentPeriodEnd: metadata.current_period_end || metadata.currentPeriodEnd || null,
+      credits: Number(metadata.credits || creditsForPlan(metadata.plan || "free")),
       authProvider: metadata.provider || user?.app_metadata?.provider || "supabase",
       authMode: "supabase",
       createdAt: user?.created_at || new Date().toISOString(),
@@ -191,12 +246,13 @@
   }
 
   async function syncSessionFromProvider() {
-    if (!isConfigured()) return getStoredSession();
+    let session = getStoredSession();
+    if (!isConfigured()) return syncBillingSessionFromServer(session);
     const client = await getSupabaseClient();
     const { data, error } = await client.auth.getSession();
     if (error) throw error;
-    if (data?.session?.user) return saveSession(publicSessionFromSupabase(data.session));
-    return getStoredSession();
+    if (data?.session?.user) session = saveSession(publicSessionFromSupabase(data.session));
+    return syncBillingSessionFromServer(session);
   }
 
   async function signUpEmail({ firstName, lastName, email, password, role }) {
@@ -275,28 +331,103 @@
 
   async function authHeaders(extra = {}) {
     const token = await accessToken();
-    return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+    const session = getStoredSession();
+    const headers = { ...extra };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (session && typeof session === "object") {
+      if (session.accountId) headers["X-Synapse-User-Id"] = cleanHeaderValue(session.accountId, 160);
+      if (session.email) headers["X-Synapse-User-Email"] = cleanHeaderValue(session.email, 220);
+      if (session.displayName) headers["X-Synapse-User-Name"] = cleanHeaderValue(session.displayName, 180);
+      if (session.authMode) headers["X-Synapse-Auth-Mode"] = cleanHeaderValue(session.authMode, 60);
+      if (session.role) headers["X-Synapse-User-Role"] = cleanHeaderValue(session.role, 80);
+    }
+    headers["X-Synapse-Client-Id"] = cleanHeaderValue(getSynapseClientId(), 160);
+    return headers;
   }
 
-  async function apiFetch(path, options = {}) {
+  function cleanHeaderValue(value, limit = 220) {
+    return String(value || "")
+      .replace(/[\r\n]+/g, " ")
+      .trim()
+      .slice(0, limit);
+  }
+
+  function randomClientId() {
+    const cryptoApi = window.crypto || globalThis.crypto;
+    if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
+    return `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  function getSynapseClientId() {
+    const key = "synapse.client.id.v1";
+    try {
+      const existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      const next = randomClientId();
+      window.localStorage.setItem(key, next);
+      return next;
+    } catch {
+      return randomClientId();
+    }
+  }
+
+  async function baseFetch(base, path, options = {}) {
     const headers = await authHeaders({
       "Content-Type": "application/json",
       ...(options.headers || {})
     });
-    return window.fetch(`${apiBase()}/${String(path || "").replace(/^\/+/, "")}`, {
+    return window.fetch(`${base}/${String(path || "").replace(/^\/+/, "")}`, {
       ...options,
       headers
     });
   }
 
-  async function createCheckoutSession({ planId, priceId, successUrl, cancelUrl }) {
-    const response = await apiFetch("/billing/checkout", {
+  async function apiFetch(path, options = {}) {
+    return baseFetch(apiBase(), path, options);
+  }
+
+  async function dataApiFetch(path, options = {}) {
+    return baseFetch(dataApiBase(), path, options);
+  }
+
+  async function syncBillingSessionFromServer(session = getStoredSession()) {
+    if (!session) return null;
+    try {
+      const response = await dataApiFetch("/api/users/me", { method: "GET" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.error || !data.user) return session;
+      return saveSession(mergeServerUserIntoSession(session, data.user));
+    } catch {
+      return session;
+    }
+  }
+
+  async function fetchBillingPlans() {
+    const response = await dataApiFetch("/api/billing/plans", { method: "GET" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) throw new Error(data.error || "Could not load billing plans.");
+    return data;
+  }
+
+  async function fetchBillingEntitlements() {
+    const response = await dataApiFetch("/api/billing/entitlements", { method: "GET" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) throw new Error(data.error || "Could not load billing status.");
+    if (data.user) {
+      const session = getStoredSession();
+      if (session) saveSession(mergeServerUserIntoSession(session, data.user));
+    }
+    return data;
+  }
+
+  async function createCheckoutSession({ planId, checkoutMode, successUrl, cancelUrl }) {
+    const response = await dataApiFetch("/api/billing/create-checkout-session", {
       method: "POST",
       body: JSON.stringify({
         plan_id: planId,
-        price_id: priceId,
-        success_url: successUrl || `${window.location.origin}${window.location.pathname}?billing=success`,
-        cancel_url: cancelUrl || `${window.location.origin}${window.location.pathname}?billing=cancelled`
+        checkout_mode: checkoutMode,
+        success_url: successUrl || new URL("billing-success.html?session_id={CHECKOUT_SESSION_ID}", window.location.href).toString(),
+        cancel_url: cancelUrl || new URL("billing-cancel.html", window.location.href).toString()
       })
     });
     const data = await response.json().catch(() => ({}));
@@ -305,7 +436,7 @@
   }
 
   async function createPortalSession({ returnUrl } = {}) {
-    const response = await apiFetch("/billing/portal", {
+    const response = await dataApiFetch("/api/billing/create-portal-session", {
       method: "POST",
       body: JSON.stringify({
         return_url: returnUrl || `${window.location.origin}${window.location.pathname}`
@@ -394,7 +525,10 @@
     collectLocalData,
     createCheckoutSession,
     createPortalSession,
+    dataApiBase,
     downloadJSON,
+    fetchBillingEntitlements,
+    fetchBillingPlans,
     getBillingPlans: () => readConfig().billingPlans,
     getStoredSession,
     isConfigured,
@@ -406,6 +540,7 @@
     signInWithGoogle,
     signOut,
     signUpEmail,
+    syncBillingSessionFromServer,
     syncSessionFromProvider
   };
   document.documentElement.dataset.synapseAuthClient = "loaded";

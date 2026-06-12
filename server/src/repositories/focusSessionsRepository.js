@@ -129,9 +129,10 @@ async function createFocusSession(userId, payload = {}) {
 }
 
 async function listFocusSessions(userId, limit = 50) {
+  const safeLimit = limitValue(limit);
   const [rows] = await createPool().execute(
-    "SELECT * FROM focus_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?",
-    [userId, limitValue(limit)]
+    `SELECT * FROM focus_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT ${safeLimit}`,
+    [userId]
   );
   return rows.map(mapFocusSession);
 }

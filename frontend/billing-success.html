@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billing Success | Synapse</title>
+  <meta name="description" content="Your Synapse Stripe Checkout session completed. Pro access updates after the verified webhook is received." />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:title" content="Billing Success | Synapse" />
+  <meta property="og:description" content="Synapse billing is updated from verified Stripe webhooks." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <link rel="icon" type="image/png" href="/logos/synapse.png">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
+  <link rel="stylesheet" href="billing-pages.css?v=stripe-billing-v1">
+</head>
+<body>
+  <div class="billing-shell">
+    <nav class="billing-nav" aria-label="Billing navigation">
+      <div class="billing-nav-inner">
+        <a class="billing-logo" href="landing.html">
+          <img src="/logos/synapse.png" alt="" />
+          <span>Synapse</span>
+        </a>
+        <div class="billing-nav-links">
+          <a href="pricing.html">Pricing</a>
+          <a href="index.html">Workspace</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="billing-result">
+      <section class="billing-result-card">
+        <p class="billing-kicker">Checkout complete</p>
+        <h1>Thanks for upgrading.</h1>
+        <p>Your payment was handled by Stripe Checkout. Synapse will activate Pro access after the verified Stripe webhook updates your account.</p>
+        <div class="billing-result-actions">
+          <a class="billing-button primary" href="index.html">Return to Workspace</a>
+          <a class="billing-button" href="pricing.html">View Pricing</a>
+        </div>
+        <div class="billing-status-card" id="billingStatusCard" role="status" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js?v=runtime-config-v1"></script>
+  <script src="auth-client.js?v=stripe-billing-v1"></script>
+  <script src="billing-result.js?v=stripe-billing-v1"></script>
+</body>
+</html>

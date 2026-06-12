@@ -16,12 +16,13 @@ function mapStudyRoom(row = {}) {
 }
 
 async function listStudyRooms(userId, limit = 50) {
+  const safeLimit = limitValue(limit);
   const [rows] = await createPool().execute(
     `SELECT * FROM study_rooms
      WHERE owner_user_id = ? OR id IN (SELECT study_room_id FROM study_room_members WHERE user_id = ?)
      ORDER BY updated_at DESC
-     LIMIT ?`,
-    [userId, userId, limitValue(limit)]
+     LIMIT ${safeLimit}`,
+    [userId, userId]
   );
   return rows.map(mapStudyRoom);
 }

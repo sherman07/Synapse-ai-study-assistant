@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pricing | Synapse</title>
+  <meta name="description" content="Choose a Synapse plan: Free, Pro monthly, or Pro yearly with secure Stripe Checkout." />
+  <meta name="theme-color" content="#4a7cff" />
+  <meta property="og:title" content="Pricing | Synapse" />
+  <meta property="og:description" content="Upgrade Synapse with secure Stripe Checkout and server-verified billing." />
+  <meta property="og:image" content="/logos/synapse.png" />
+  <link rel="icon" type="image/png" href="/logos/synapse.png">
+  <link rel="apple-touch-icon" href="/logos/synapse.png">
+  <link rel="stylesheet" href="billing-pages.css?v=stripe-billing-v1">
+</head>
+<body>
+  <div class="billing-shell">
+    <nav class="billing-nav" aria-label="Pricing navigation">
+      <div class="billing-nav-inner">
+        <a class="billing-logo" href="landing.html">
+          <img src="/logos/synapse.png" alt="" />
+          <span>Synapse</span>
+        </a>
+        <div class="billing-nav-links">
+          <a href="landing.html">Landing</a>
+          <a href="index.html">Workspace</a>
+          <a href="login.html">Login</a>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <section class="billing-hero">
+        <div class="billing-container">
+          <p class="billing-kicker">Stripe Checkout</p>
+          <h1>Choose the plan that fits your <span>study rhythm.</span></h1>
+          <p>Start free, upgrade to Pro monthly, or save with Pro yearly. Checkout is hosted by Stripe; Synapse updates Pro access only after verified Stripe webhooks.</p>
+        </div>
+      </section>
+
+      <section class="billing-container" aria-label="Synapse pricing plans">
+        <div class="plan-grid">
+          <article class="plan-card">
+            <span class="plan-badge">Free</span>
+            <h2>Free</h2>
+            <p>Core study generation for getting started.</p>
+            <div class="plan-price"><strong>$0</strong><span>forever</span></div>
+            <ul>
+              <li>Basic source upload workflow</li>
+              <li>Starter notes and mind maps</li>
+              <li>Limited practice sessions</li>
+              <li>Community-speed processing</li>
+            </ul>
+            <button class="billing-button" type="button" data-checkout-plan="free">Continue Free</button>
+          </article>
+
+          <article class="plan-card recommended">
+            <span class="plan-badge">Most flexible</span>
+            <h2>Pro Monthly</h2>
+            <p>Upgrade to Pro with monthly billing.</p>
+            <div class="plan-price"><strong>$9</strong><span>per month</span></div>
+            <ul>
+              <li>More uploads and generated study outputs</li>
+              <li>Advanced analytics and weak-topic tracking</li>
+              <li>Priority processing for heavy study days</li>
+              <li>Manage or cancel in Stripe Customer Portal</li>
+            </ul>
+            <button class="billing-button primary" type="button" data-checkout-plan="pro_monthly" data-checkout-mode="subscription">Upgrade to Pro</button>
+          </article>
+
+          <article class="plan-card">
+            <span class="plan-badge">Best value</span>
+            <h2>Pro Yearly</h2>
+            <p>Upgrade to Pro with one-time annual access.</p>
+            <div class="plan-price"><strong>$90</strong><span>per year</span></div>
+            <ul>
+              <li>Everything in Pro Monthly</li>
+              <li>Lower annual cost for long exam seasons</li>
+              <li>Priority processing and advanced exports</li>
+              <li>Billing status verified by Stripe webhooks</li>
+            </ul>
+            <button class="billing-button primary" type="button" data-checkout-plan="pro_yearly" data-checkout-mode="payment">Upgrade to Pro</button>
+          </article>
+        </div>
+        <p class="billing-status" id="billingStatus" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js?v=runtime-config-v1"></script>
+  <script src="auth-client.js?v=stripe-billing-v1"></script>
+  <script src="pricing.js?v=stripe-billing-v1"></script>
+</body>
+</html>
