@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Menu, Moon, Sun, X } from "lucide-react";
 import { CTASection } from "./components/sections/CTASection.jsx";
 import { ComparisonSection } from "./components/sections/ComparisonSection.jsx";
 import { ContactSection } from "./components/sections/ContactSection.jsx";
@@ -11,6 +11,61 @@ import { PricingSection } from "./components/sections/PricingSection.jsx";
 import { ProductDemoSection } from "./components/sections/ProductDemoSection.jsx";
 import { Magnet } from "./components/react-bits/index.js";
 import { navItems } from "./data/landingContent.js";
+
+const footerLinkGroups = [
+  {
+    title: "Product",
+    links: [
+      { label: "Product tour", href: "#product" },
+      { label: "Features", href: "#features" },
+      { label: "How it works", href: "#how-it-works" },
+      { label: "Compare", href: "#about" },
+      { label: "Pricing", href: "#pricing" }
+    ]
+  },
+  {
+    title: "Learning loop",
+    links: [
+      { label: "Structured notes", href: "#features" },
+      { label: "Mind maps", href: "#product" },
+      { label: "Practice questions", href: "#features" },
+      { label: "Teach-back feedback", href: "#about" }
+    ]
+  },
+  {
+    title: "Account",
+    links: [
+      { label: "Login", href: "login.html" },
+      { label: "Create account", href: "signup.html" },
+      { label: "Contact", href: "#contact" },
+      { label: "Privacy", href: "privacy.html" },
+      { label: "Terms", href: "terms.html" }
+    ]
+  }
+];
+
+const footerLoop = ["Upload", "Understand", "Practice", "Revise"];
+
+const footerHighlights = [
+  "Built around active recall, not passive summaries.",
+  "Notes, maps, and questions stay grounded in your material.",
+  "Start free, then upgrade when your study load grows."
+];
+
+const THEME_STORAGE_KEY = "synapse-theme";
+
+function getInitialTheme() {
+  if (typeof window === "undefined") return "light";
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute("content", theme === "dark" ? "#07111f" : "#eaf4ff");
+}
 
 function scrollToId(id) {
   const target = document.getElementById(id);
@@ -50,7 +105,24 @@ function AuthModal({ open, onClose }) {
   );
 }
 
-function Navigation({ onGetStarted }) {
+function ThemeToggle({ onToggleTheme, theme }) {
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
+      aria-pressed={isDark}
+      onClick={onToggleTheme}
+    >
+      {isDark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
+      <span>{isDark ? "Light" : "Dark"}</span>
+    </button>
+  );
+}
+
+function Navigation({ onGetStarted, onToggleTheme, theme }) {
   const [open, setOpen] = useState(false);
 
   function handleAnchorClick(event, href) {
@@ -73,6 +145,7 @@ function Navigation({ onGetStarted }) {
             </a>
           ))}
         </div>
+        <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
         <div className="landing-nav-actions">
           <a className="button button-ghost" href="login.html">Login</a>
           <Magnet strength={0.12}>
@@ -95,23 +168,84 @@ function Navigation({ onGetStarted }) {
   );
 }
 
+function LandingAtmosphere() {
+  return (
+    <div className="landing-atmosphere" aria-hidden="true">
+      <span className="atmosphere-glow glow-primary" />
+      <span className="atmosphere-glow glow-violet" />
+      <span className="atmosphere-glow glow-warm" />
+      <span className="atmosphere-beam beam-one" />
+      <span className="atmosphere-beam beam-two" />
+      <span className="atmosphere-grid" />
+      <span className="atmosphere-particle particle-one" />
+      <span className="atmosphere-particle particle-two" />
+      <span className="atmosphere-particle particle-three" />
+      <span className="atmosphere-particle particle-four" />
+      <span className="atmosphere-particle particle-five" />
+    </div>
+  );
+}
+
 function Footer() {
   return (
     <footer className="landing-footer">
-      <div className="landing-container footer-grid">
-        <div>
-          <a className="footer-logo" href="landing.html">
-            <img src="/logos/synapse.png" alt="" />
-            <span>Synapse</span>
-          </a>
-          <p>Turn passive study notes into active learning.</p>
+      <div className="landing-container footer-shell">
+        <div className="footer-main">
+          <div className="footer-brand">
+            <a className="footer-logo" href="landing.html" aria-label="Synapse home">
+              <img src="/logos/synapse.png" alt="" />
+              <span>Synapse</span>
+            </a>
+            <p className="footer-tagline">
+              Source-aware notes, maps, practice, and feedback for students who need to understand the material, not just summarize it.
+            </p>
+            <div className="footer-loop" aria-label="Synapse study loop">
+              {footerLoop.map((item) => (
+                <span className="footer-loop-item" key={item}>{item}</span>
+              ))}
+            </div>
+          </div>
+
+          <nav className="footer-columns" aria-label="Footer navigation">
+            {footerLinkGroups.map((group) => (
+              <div className="footer-column" key={group.title}>
+                <h3>{group.title}</h3>
+                <div className="footer-link-list">
+                  {group.links.map((link) => (
+                    <a href={link.href} key={`${group.title}-${link.href}-${link.label}`}>
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+
+          <aside className="footer-insight" aria-labelledby="footer-insight-title">
+            <h3 id="footer-insight-title">A cleaner revision loop</h3>
+            <p>Bring messy study material in once, then keep turning it into the next useful learning action.</p>
+            <ul className="footer-insight-list">
+              {footerHighlights.map((item) => (
+                <li key={item}>
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <a className="footer-text-link" href="#how-it-works">
+              See the workflow
+              <ArrowRight size={16} aria-hidden="true" />
+            </a>
+          </aside>
         </div>
-        <div className="footer-links">
-          <a href="#features">Features</a>
-          <a href="#pricing">Pricing</a>
-          <a href="#contact">Contact</a>
-          <a href="privacy.html">Privacy</a>
-          <a href="terms.html">Terms</a>
+
+        <div className="footer-bottom">
+          <span>&copy; {new Date().getFullYear()} Synapse. All rights reserved.</span>
+          <div className="footer-bottom-links">
+            <a href="privacy.html">Privacy</a>
+            <a href="terms.html">Terms</a>
+            <a href="#contact">Support</a>
+          </div>
         </div>
       </div>
     </footer>
@@ -120,6 +254,12 @@ function Footer() {
 
 export function LandingPage() {
   const [authOpen, setAuthOpen] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   function handleGetStarted() {
     setAuthOpen(true);
@@ -131,8 +271,9 @@ export function LandingPage() {
 
   return (
     <>
+      <LandingAtmosphere />
       <a href="#main-content" className="skip-link">Skip to content</a>
-      <Navigation onGetStarted={handleGetStarted} />
+      <Navigation onGetStarted={handleGetStarted} onToggleTheme={() => setTheme((value) => value === "dark" ? "light" : "dark")} theme={theme} />
       <main id="main-content">
         <HeroSection onGetStarted={handleGetStarted} onViewDemo={handleViewDemo} />
         <ProductDemoSection />

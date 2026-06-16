@@ -27,13 +27,13 @@ Keep that terminal open while using the frontend.
 For a quick local frontend server:
 
 ```bash
-python3 -m http.server 5500 --bind 127.0.0.1 --directory frontend
+npm run dev
 ```
 
 Then open:
 
 ```text
-http://127.0.0.1:5500/index.html
+http://127.0.0.1:5175/frontend/index.html
 ```
 
 ## Keep It Running On Your Mac

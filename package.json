@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0 --port 5175 --strictPort",
     "build": "vite build && vite build --config vite.focus-room-static.config.js",
     "build:focus-room-static": "vite build --config vite.focus-room-static.config.js",
-    "preview": "vite preview --host 0.0.0.0",
+    "preview": "vite preview --host 0.0.0.0 --port 5175 --strictPort",
     "test:frontend": "for test_file in frontend/tests/*.mjs; do node \"$test_file\" || exit 1; done",
     "test:focus-room": "node frontend/tests/focus-room-integration-regression.mjs && node frontend/tests/focus-room-data-regression.mjs && node frontend/tests/focus-room-audio-regression.mjs && node frontend/tests/focus-room-controller-actions-regression.mjs && node frontend/tests/focus-room-study-tools-regression.mjs"
   },

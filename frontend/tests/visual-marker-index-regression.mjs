@@ -18,9 +18,10 @@ const makeHelpers = new Function(`
   ${visualHelpersSource}
   return {
     setVisualGalleryData(items) {
-      visualGalleryData = sanitizeLearningFigures(items);
+      visualGalleryData = items;
     },
-    getLearningFigureByMarker
+    getLearningFigureByMarker,
+    sanitizeLearningFigures
   };
 `);
 
@@ -35,5 +36,25 @@ helpers.setVisualGalleryData([{
 
 assert.equal(helpers.getLearningFigureByMarker(0), null);
 assert.equal(helpers.getLearningFigureByMarker(1)?.title, "Result table");
+
+helpers.setVisualGalleryData([{
+  index: 0,
+  title: "Extracted lecture diagram",
+  caption: "Backend selected this source figure, but the cached image URL is missing.",
+  visual_kind: "diagram/model"
+}]);
+
+assert.equal(helpers.getLearningFigureByMarker(0)?.title, "Extracted lecture diagram");
+assert.equal(helpers.sanitizeLearningFigures([helpers.getLearningFigureByMarker(0)]).length, 0);
+
+helpers.setVisualGalleryData([{
+  index: 2,
+  url: "http://127.0.0.1:8001/assets/visuals/backend-selected.png",
+  title: "Backend selected visual",
+  what_shows: "Backend selected this concise source evidence card.",
+  visual_kind: "source figure"
+}]);
+
+assert.equal(helpers.getLearningFigureByMarker(2)?.title, "Backend selected visual");
 
 console.log("visual marker index regression passed");

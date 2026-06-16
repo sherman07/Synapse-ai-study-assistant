@@ -52,35 +52,15 @@ def _v23_source_figure_note_block(card: dict, marker_index: int, preferred_langu
     title = _v23_meaningful_card_text(card.get("title")) or (f"来源图表 {marker_index + 1}" if key in {"simplified_chinese", "mixed_chinese_english"} else f"Source figure {marker_index + 1}")
     what = _v23_meaningful_card_text(card.get("what_shows")) or _v23_meaningful_card_text(card.get("caption"))
     why = _v23_meaningful_card_text(card.get("argument_supported")) or _v23_meaningful_card_text(card.get("cross_source_connection"))
-    how = _v23_meaningful_card_text(card.get("how_to_read")) or _v23_default_how_to_read(card.get("visual_kind"), preferred_language)
-    exam = _v23_meaningful_card_text(card.get("exam_use"))
     if key in {"simplified_chinese", "mixed_chinese_english"}:
-        lines = [f"**源内图表讲解：{title}**", f"[[VISUAL:{marker_index}]]"]
-        if what:
-            lines.append(f"- **图表在说明什么：** {what}")
-        lines.append(f"- **怎么读：** {how}")
-        if why:
-            lines.append(f"- **为什么放在这里：** {why}")
-        if exam:
-            lines.append(f"- **复习/考试用法：** {exam}")
+        summary = why or what or "把这张图当作来源证据，先看可见信息，再回到附近论点。"
+        lines = [f"*图表焦点：{title}。{summary}*", f"[[VISUAL:{marker_index}]]"]
     elif key == "traditional_chinese":
-        lines = [f"**源內圖表講解：{title}**", f"[[VISUAL:{marker_index}]]"]
-        if what:
-            lines.append(f"- **圖表在說明什麼：** {what}")
-        lines.append(f"- **怎麼讀：** {how}")
-        if why:
-            lines.append(f"- **為什麼放在這裡：** {why}")
-        if exam:
-            lines.append(f"- **複習/考試用法：** {exam}")
+        summary = why or what or "把這張圖當作來源證據，先看可見資訊，再回到附近論點。"
+        lines = [f"*圖表焦點：{title}。{summary}*", f"[[VISUAL:{marker_index}]]"]
     else:
-        lines = [f"**Source-figure reading note: {title}**", f"[[VISUAL:{marker_index}]]"]
-        if what:
-            lines.append(f"- **What the figure shows:** {what}")
-        lines.append(f"- **How to read it:** {how}")
-        if why:
-            lines.append(f"- **Why it matters here:** {why}")
-        if exam:
-            lines.append(f"- **Exam / revision use:** {exam}")
+        summary = why or what or "Use this figure as direct source evidence for the nearby point."
+        lines = [f"*Figure focus: {title}. {summary}*", f"[[VISUAL:{marker_index}]]"]
     return "\n\n" + "\n".join(lines) + "\n\n"
 
 
@@ -90,11 +70,15 @@ def ensure_markdown_note_headings(summary: str, preferred_language: str) -> str:
         return summary
     heading_pattern = re.compile(
         r"^\s*(?:"
-        r"Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Core argument|Key ideas?|Concepts? explained|"
+        r"Learning question|Key takeaways?|Core concept map|Main notes by lecture section|Key terms table|Case study\s*/\s*example breakdown|"
+        r"Evidence bank|Exam answer templates|Common mistakes|Revision checklist|Flashcard-ready summary|"
+        r"Source and argument map|Core notes|Key terms(?: and mechanisms)?|Core argument|Key ideas?|Concepts? explained|"
         r"Sources? \(|Sources?:|Source evidence(?:\s*/\s*example matrix)?|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|"
         r"Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|"
-        r"学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
-        r"考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論"
+        r"学习问题|关键结论|核心概念图|分章节主笔记|关键术语表|案例\s*/\s*例子拆解|证据库|考试答题模板|常见错误|复习清单|闪卡速记总结|"
+        r"學習問題|關鍵結論|核心概念圖|分章節主筆記|關鍵術語表|案例\s*/\s*例子拆解|證據庫|考試答題模板|常見錯誤|複習清單|閃卡速記總結|"
+        r"来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
+        r"考试策略|考試策略|复习|復習|结论|結論"
         r")\b.*$",
         flags=re.I,
     )
@@ -124,6 +108,329 @@ def ensure_markdown_note_headings(summary: str, preferred_language: str) -> str:
         else:
             text = heading + "\n\n" + text
     return text
+
+
+SOURCE_STRICT_BADGE_DIRECT = "Direct from source"
+SOURCE_STRICT_BADGE_INFERRED = "Inferred from source"
+SOURCE_STRICT_BADGE_TUTOR = "Tutor explanation"
+SOURCE_STRICT_BADGE_GAP = "Not enough evidence"
+
+
+def _source_strict_section_specs(preferred_language: str) -> List[dict]:
+    key = normalise_language_key(preferred_language)
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        labels = {
+            "learning_question": "学习问题",
+            "key_takeaways": "关键结论",
+            "core_concept_map": "核心概念图",
+            "main_notes": "分章节主笔记",
+            "key_terms": "关键术语表",
+            "case_study": "案例 / 例子拆解",
+            "evidence_bank": "证据库",
+            "exam_templates": "考试答题模板",
+            "common_mistakes": "常见错误",
+            "revision_checklist": "复习清单",
+            "flashcard_summary": "闪卡速记总结",
+        }
+        gap_text = "上传来源没有提供足够清晰的证据来完整支持这一节。"
+        tutor_templates = {
+            "exam_templates": "按这个顺序答题：提出主张 -> 引用来源证据 -> 解释限制 -> 回答题目要求。",
+            "common_mistakes": "不要把来源的有限证据说成普遍结论，也不要把伦理评价写成来源已经证明的事实。",
+            "revision_checklist": "- 能说明中心问题\n- 能引用至少两条来源证据\n- 能指出证据能证明什么、不能证明什么",
+            "flashcard_summary": "- 核心主张\n- 最强证据\n- 关键限制\n- 一句考试用法",
+        }
+    elif key == "traditional_chinese":
+        labels = {
+            "learning_question": "學習問題",
+            "key_takeaways": "關鍵結論",
+            "core_concept_map": "核心概念圖",
+            "main_notes": "分章節主筆記",
+            "key_terms": "關鍵術語表",
+            "case_study": "案例 / 例子拆解",
+            "evidence_bank": "證據庫",
+            "exam_templates": "考試答題模板",
+            "common_mistakes": "常見錯誤",
+            "revision_checklist": "複習清單",
+            "flashcard_summary": "閃卡速記總結",
+        }
+        gap_text = "上傳來源沒有提供足夠清楚的證據來完整支持這一節。"
+        tutor_templates = {
+            "exam_templates": "按這個順序答題：提出主張 -> 引用來源證據 -> 解釋限制 -> 回答題目要求。",
+            "common_mistakes": "不要把來源的有限證據說成普遍結論，也不要把倫理評價寫成來源已經證明的事實。",
+            "revision_checklist": "- 能說明中心問題\n- 能引用至少兩條來源證據\n- 能指出證據能證明什麼、不能證明什麼",
+            "flashcard_summary": "- 核心主張\n- 最強證據\n- 關鍵限制\n- 一句考試用法",
+        }
+    else:
+        labels = {
+            "learning_question": "Learning Question",
+            "key_takeaways": "Key Takeaways",
+            "core_concept_map": "Core Concept Map",
+            "main_notes": "Main Notes by Lecture Section",
+            "key_terms": "Key Terms Table",
+            "case_study": "Case Study / Example Breakdown",
+            "evidence_bank": "Evidence Bank",
+            "exam_templates": "Exam Answer Templates",
+            "common_mistakes": "Common Mistakes",
+            "revision_checklist": "Revision Checklist",
+            "flashcard_summary": "Flashcard-ready Summary",
+        }
+        gap_text = "The uploaded source does not provide enough clearly extractable evidence to complete this section reliably."
+        tutor_templates = {
+            "exam_templates": "Use this order in an exam: make the claim -> cite the source evidence -> explain the limit -> answer the question directly.",
+            "common_mistakes": "Do not treat limited source evidence as a universal conclusion, and do not present tutor advice as if the lecture proved it.",
+            "revision_checklist": "- Explain the central question\n- Cite at least two source-based pieces of evidence\n- State what the evidence can and cannot prove",
+            "flashcard_summary": "- Core claim\n- Strongest evidence\n- Main limit\n- One exam-use sentence",
+        }
+
+    badges = {
+        "learning_question": SOURCE_STRICT_BADGE_INFERRED,
+        "key_takeaways": SOURCE_STRICT_BADGE_DIRECT,
+        "core_concept_map": SOURCE_STRICT_BADGE_INFERRED,
+        "main_notes": SOURCE_STRICT_BADGE_DIRECT,
+        "key_terms": SOURCE_STRICT_BADGE_DIRECT,
+        "case_study": SOURCE_STRICT_BADGE_DIRECT,
+        "evidence_bank": SOURCE_STRICT_BADGE_DIRECT,
+        "exam_templates": SOURCE_STRICT_BADGE_TUTOR,
+        "common_mistakes": SOURCE_STRICT_BADGE_TUTOR,
+        "revision_checklist": SOURCE_STRICT_BADGE_TUTOR,
+        "flashcard_summary": SOURCE_STRICT_BADGE_TUTOR,
+    }
+    keys = [
+        "learning_question",
+        "key_takeaways",
+        "core_concept_map",
+        "main_notes",
+        "key_terms",
+        "case_study",
+        "evidence_bank",
+        "exam_templates",
+        "common_mistakes",
+        "revision_checklist",
+        "flashcard_summary",
+    ]
+    return [
+        {
+            "key": section_key,
+            "title": labels[section_key],
+            "badge": badges[section_key],
+            "gap_text": gap_text,
+            "tutor_template": tutor_templates.get(section_key, ""),
+        }
+        for section_key in keys
+    ]
+
+
+def _source_strict_section_key(title: str) -> str:
+    value = normalise_space(title or "")
+    if re.search(r"Learning question|学习问题|學習問題", value, flags=re.I):
+        return "learning_question"
+    if re.search(r"Key takeaways?|关键结论|關鍵結論", value, flags=re.I):
+        return "key_takeaways"
+    if re.search(r"Core concept map|核心概念图|核心概念圖", value, flags=re.I):
+        return "core_concept_map"
+    if re.search(r"Main notes by lecture section|分章节主笔记|分章節主筆記", value, flags=re.I):
+        return "main_notes"
+    if re.search(r"Key terms table|关键术语表|關鍵術語表|Key terms(?: and mechanisms)?|关键术语与机制|關鍵術語與機制", value, flags=re.I):
+        return "key_terms"
+    if re.search(r"Case study\s*/\s*example breakdown|案例\s*/\s*例子拆解|Worked examples?|例子与证据|例子與證據", value, flags=re.I):
+        return "case_study"
+    if re.search(r"Evidence bank|证据库|證據庫|Source evidence|Evidence matrix|源内证据|源內證據|证据矩阵|證據矩陣", value, flags=re.I):
+        return "evidence_bank"
+    if re.search(r"Exam answer templates|考试答题模板|考試答題模板|Exam strategy|考试策略|考試策略", value, flags=re.I):
+        return "exam_templates"
+    if re.search(r"Common mistakes|常见错误|常見錯誤", value, flags=re.I):
+        return "common_mistakes"
+    if re.search(r"Revision checklist|复习清单|複習清單", value, flags=re.I):
+        return "revision_checklist"
+    if re.search(r"Flashcard-ready summary|闪卡速记总结|閃卡速記總結", value, flags=re.I):
+        return "flashcard_summary"
+    return ""
+
+
+def _source_strict_count_words(text: str) -> int:
+    return len(re.findall(r"[\u4e00-\u9fff]|\b[\w'-]+\b", text or ""))
+
+
+def _source_strict_strip_badge_lines(text: str) -> str:
+    return re.sub(
+        rf"(?im)^\s*\[(?:{re.escape(SOURCE_STRICT_BADGE_DIRECT)}|{re.escape(SOURCE_STRICT_BADGE_INFERRED)}|{re.escape(SOURCE_STRICT_BADGE_TUTOR)}|{re.escape(SOURCE_STRICT_BADGE_GAP)})\]\s*$",
+        "",
+        text or "",
+    ).strip()
+
+
+def _source_strict_remove_leaked_visual_fallbacks(text: str) -> str:
+    cleaned_lines: List[str] = []
+    for raw_line in (text or "").splitlines():
+        if re.search(
+            r"Source figure unavailable|Figure unavailable|browser did not receive a usable image URL|This image could not be extracted from the uploaded source",
+            raw_line,
+            flags=re.I,
+        ):
+            continue
+        cleaned_lines.append(raw_line.rstrip())
+    return re.sub(r"\n{4,}", "\n\n\n", "\n".join(cleaned_lines)).strip()
+
+
+def _source_strict_remove_duplicate_paragraphs(text: str) -> str:
+    blocks = re.split(r"\n{2,}", text or "")
+    seen = set()
+    kept: List[str] = []
+    for block in blocks:
+        block_text = block.strip()
+        if not block_text:
+            continue
+        if block_text.startswith("#") or block_text.startswith("[[VISUAL:"):
+            kept.append(block_text)
+            continue
+        signature = re.sub(r"\s+", " ", re.sub(r"\[\[VISUAL:\d+\]\]", "", block_text)).strip().lower()
+        if len(signature) >= 24 and signature in seen:
+            continue
+        seen.add(signature)
+        kept.append(block_text)
+
+    cleaned_blocks: List[str] = []
+    for block in kept:
+        line_seen = set()
+        cleaned_lines: List[str] = []
+        for raw_line in block.splitlines():
+            stripped = raw_line.strip()
+            signature = re.sub(r"\s+", " ", stripped).strip().lower()
+            if stripped and not stripped.startswith("#") and signature in line_seen:
+                continue
+            if stripped:
+                line_seen.add(signature)
+            cleaned_lines.append(raw_line.rstrip())
+        cleaned_blocks.append("\n".join(cleaned_lines).strip())
+    return "\n\n".join(block for block in cleaned_blocks if block).strip()
+
+
+def _source_strict_limit_key_takeaways(text: str, minimum_items: int = 5, maximum_items: int = 8) -> str:
+    lines = [line.rstrip() for line in (text or "").splitlines()]
+    bullet_lines = [line for line in lines if re.match(r"^\s*(?:[-*•]|\d+[.)])\s+", line)]
+    if len(bullet_lines) >= minimum_items:
+        kept = []
+        count = 0
+        for line in lines:
+            if re.match(r"^\s*(?:[-*•]|\d+[.)])\s+", line):
+                if count >= maximum_items:
+                    continue
+                count += 1
+            kept.append(line)
+        return "\n".join(kept).strip()
+    return text.strip()
+
+
+def _source_strict_truncate_fragment(text: str, max_words: int) -> str:
+    if max_words <= 0:
+        return ""
+    pieces: List[str] = []
+    used = 0
+    for token in re.findall(r"\s+|[^\s]+", text or ""):
+        token_words = _source_strict_count_words(token)
+        if token_words and used + token_words > max_words:
+            break
+        pieces.append(token)
+        used += token_words
+    return "".join(pieces).strip().rstrip(",;:-") + ("..." if used < _source_strict_count_words(text) else "")
+
+
+def _source_strict_trim_block(text: str, max_words: int) -> str:
+    if _source_strict_count_words(text) <= max_words:
+        return text.strip()
+    blocks = re.split(r"\n{2,}", text.strip())
+    kept: List[str] = []
+    used = 0
+    for block in blocks:
+        if not block.strip():
+            continue
+        block_words = _source_strict_count_words(block)
+        if used + block_words <= max_words or not kept:
+            kept.append(block.strip())
+            used += block_words
+            continue
+        remaining = max_words - used
+        if remaining > 0:
+            kept.append(_source_strict_truncate_fragment(block.strip(), remaining))
+        break
+    return "\n\n".join(part for part in kept if part).strip()
+
+
+def _source_strict_section_word_caps(note_length_mode: str) -> Dict[str, int]:
+    _, max_words = note_length_mode_word_bounds(note_length_mode)
+    weights = {
+        "learning_question": 0.08,
+        "key_takeaways": 0.12,
+        "core_concept_map": 0.08,
+        "main_notes": 0.26,
+        "key_terms": 0.10,
+        "case_study": 0.09,
+        "evidence_bank": 0.10,
+        "exam_templates": 0.07,
+        "common_mistakes": 0.04,
+        "revision_checklist": 0.03,
+        "flashcard_summary": 0.03,
+    }
+    return {
+        key: max(26, int(max_words * weight))
+        for key, weight in weights.items()
+    }
+
+
+def _source_strict_placeholder(spec: dict) -> str:
+    if spec.get("badge") == SOURCE_STRICT_BADGE_TUTOR and spec.get("tutor_template"):
+        return spec["tutor_template"]
+    return f"[{SOURCE_STRICT_BADGE_GAP}] {spec.get('gap_text', '')}".strip()
+
+
+def validate_source_strict_summary(
+    summary: str,
+    preferred_language: str,
+    note_length_mode: str = DEFAULT_NOTE_LENGTH_MODE,
+) -> str:
+    language_key = normalise_language_key(preferred_language)
+    title_match = re.search(r"(?m)^\s*#\s+(.+?)\s*$", summary or "")
+    title = normalise_space(title_match.group(1) if title_match else "") or (
+        "来源限定学习笔记" if language_key in {"simplified_chinese", "mixed_chinese_english"} else
+        "來源限定學習筆記" if language_key == "traditional_chinese" else
+        "Source-Strict Study Notes"
+    )
+    cleaned = _source_strict_remove_duplicate_paragraphs(_source_strict_remove_leaked_visual_fallbacks(summary or ""))
+    parsed_sections = parse_sections(cleaned)
+    by_key: Dict[str, str] = {}
+    unmatched_sections: List[str] = []
+    for heading, body in parsed_sections.items():
+        key = _source_strict_section_key(heading)
+        if key and key not in by_key and body.strip():
+            by_key[key] = body.strip()
+        elif body.strip():
+            unmatched_sections.append(body.strip())
+    fallback_pool = "\n\n".join(unmatched_sections).strip()
+    if fallback_pool and "main_notes" not in by_key:
+        by_key["main_notes"] = fallback_pool
+    if fallback_pool and "evidence_bank" not in by_key and re.search(r"\(Slide\s+\d+|\(Page\s+\d+|\(Source\s+\d+", fallback_pool, flags=re.I):
+        by_key["evidence_bank"] = fallback_pool
+
+    caps = _source_strict_section_word_caps(note_length_mode)
+    parts = [f"# {title}"]
+    for spec in _source_strict_section_specs(preferred_language):
+        key = spec["key"]
+        body = _source_strict_strip_badge_lines(by_key.get(key, ""))
+        body = _source_strict_remove_leaked_visual_fallbacks(_source_strict_remove_duplicate_paragraphs(body))
+        if key == "key_takeaways":
+            body = _source_strict_limit_key_takeaways(body)
+        if not body:
+            body = _source_strict_placeholder(spec)
+        body = _source_strict_trim_block(body, caps.get(key, 120))
+        if spec["badge"] != SOURCE_STRICT_BADGE_GAP:
+            body = f"[{spec['badge']}]\n\n{body}"
+        parts.extend(["", f"## {spec['title']}", "", body.strip()])
+
+    rebuilt = "\n".join(parts).strip()
+    rebuilt = remove_auto_bilingual_heading_leakage(rebuilt, preferred_language, rebuilt)
+    rebuilt = polish_note_readability_markdown(rebuilt, preferred_language)
+    rebuilt = ensure_markdown_note_headings(rebuilt, preferred_language)
+    return rebuilt.strip()
 
 
 def _v23_fallback_visual_cards(candidates: List[dict], labels: dict, preferred_language: str = "auto") -> List[dict]:
@@ -372,6 +679,7 @@ def generate_reference_style_multisource_notes(
     preferred_language: str,
     depth_plan: dict,
     prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE,
+    note_length_mode: str = DEFAULT_NOTE_LENGTH_MODE,
     analysis_started_at: Optional[float] = None,
     skipped_optional_stages: Optional[List[str]] = None,
 ) -> str:
@@ -379,11 +687,24 @@ def generate_reference_style_multisource_notes(
     source_context = _v22_source_context(source_units)
     generation_language = resolve_generation_language_key(preferred_language, source_context)
     language_rule = language_instruction_for_generation(preferred_language, source_context)
-    recommended_structure = note_structure_for_language(generation_language, source_context)
     prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
+    note_length_key = normalise_note_length_mode(note_length_mode)
+    is_source_strict = prompt_mode_key == "source_strict_research_mode"
+    is_academic_analysis = prompt_mode_key == "professor_mode"
+    mode_uses_selected_length = is_source_strict or is_academic_analysis
+    recommended_structure = note_structure_for_language(generation_language, source_context, prompt_mode_key)
     prompt_mode_label = note_prompt_mode_label(prompt_mode_key)
     prompt_mode_text = load_note_prompt_mode_text(prompt_mode_key)
-    mode_min_units = note_prompt_mode_min_units(prompt_mode_key, env_int("CONTROLLED_MIN_OUTPUT_UNITS", 2600))
+    note_length_label = note_length_mode_label(note_length_key)
+    note_length_min_words, note_length_max_words = note_length_mode_word_bounds(note_length_key)
+    mode_min_units = (
+        note_length_mode_unit_target(note_length_key, env_int("CONTROLLED_MIN_OUTPUT_UNITS", 980))
+        if mode_uses_selected_length
+        else note_prompt_mode_min_units(prompt_mode_key, env_int("CONTROLLED_MIN_OUTPUT_UNITS", 2600))
+    )
+    allow_note_expansion = note_prompt_mode_allows_expansion(prompt_mode_key) and (
+        note_length_mode_allows_expansion(note_length_key) if mode_uses_selected_length else True
+    )
     allow_visual_model = analysis_stage_has_budget(
         analysis_started_at,
         env_int("VISUAL_CARD_STAGE_MIN_SECONDS", 80),
@@ -396,11 +717,66 @@ def generate_reference_style_multisource_notes(
         generation_language,
         allow_model=allow_visual_model,
     )
+    visual_cards = _v23_renderable_visual_cards(visual_cards, browser_urls=False, limit=CONTROLLED_MAX_VISUALS)
     visual_context = _v22_visual_context_for_prompt(visual_cards)
     source_list = "\n".join(
         f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
         for i, u in enumerate(source_units or [], start=1)
     )
+    mode_specific_rules = ""
+    table_requirement = (
+        "- Include at least two markdown tables when supported by the source:\n"
+        "  1. a concept comparison table;\n"
+        "  2. a source evidence / example table with columns like concept, source evidence, interpretation, limitation, exam use."
+    )
+    length_requirement = "For dense academic/technical sources, prefer richer subsections over compression. It is acceptable for the notes to be long if the extra detail is source-grounded and useful."
+    if is_source_strict:
+        mode_specific_rules = f"""
+
+Source-Strict Research Mode rules:
+- Use only the uploaded source. Do not add outside facts or background knowledge.
+- Use this section order:
+{source_strict_note_structure_for_language(generation_language, source_context)}
+- Every important factual claim must carry a visible source pointer such as (Slide 15), (Page 23), or (Source 1, slide 21).
+- If the extracted source does not support a claim strongly enough, label it with [{SOURCE_STRICT_BADGE_GAP}] and explain the gap.
+- Separate section roles with these exact standalone badges where appropriate:
+  [{SOURCE_STRICT_BADGE_DIRECT}]
+  [{SOURCE_STRICT_BADGE_INFERRED}]
+  [{SOURCE_STRICT_BADGE_TUTOR}]
+  [{SOURCE_STRICT_BADGE_GAP}]
+- Keep figure handling compact: the inline figure card should carry most of the figure detail, so do not repeat long figure explanations before and after [[VISUAL:n]].
+- Selected note-length mode: {note_length_label}. Keep the full note between {note_length_min_words} and {note_length_max_words} words when the source provides enough usable material.
+"""
+        table_requirement = "- Use one or two narrow markdown tables only when they materially improve revision value, such as a key-terms table or an evidence bank."
+        length_requirement = "Respect the selected note-length mode even when the source is dense. Cut repetition before cutting evidence quality."
+    elif is_academic_analysis:
+        mode_specific_rules = f"""
+
+Academic Analysis Mode rules:
+- Use the uploaded source as the foundation for argument, critical analysis, thesis-building, and essay/tutorial preparation.
+- Do not simply summarise the source in more detail. Transform it into academic analysis.
+- Use this exact top-level section order:
+  1. Academic Overview
+  2. Central Argument
+  3. Conceptual Framework
+  4. Key Tensions / Debates
+  5. Critical Analysis
+  6. Strengths and Limits of the Source
+  7. Essay-Ready Thesis Statements
+  8. Model Academic Paragraph
+  9. Professional Vocabulary Bank
+  10. High-Grade Discussion Points
+  11. Essay / Tutorial Use
+- Label direct source-supported material as [Source-based].
+- Label reasoned analysis as [Academic interpretation].
+- Label caveats, unclear boundaries, and evidential weaknesses as [Limitation].
+- Label thesis, paragraph, tutorial, or exam writing guidance as [Essay use].
+- If external context is not explicitly enabled, do not add outside theories, statistics, historical facts, or claims.
+- Selected note-length mode: {note_length_label}. Keep the full Academic Analysis output between {note_length_min_words} and {note_length_max_words} words when the source provides enough usable material.
+- Before finalising, confirm the answer includes at least one central argument, one key tension, one limitation, and one thesis statement.
+"""
+        table_requirement = "- Include one compact Professional Vocabulary Bank markdown table. Use other tables only when they improve analysis rather than length."
+        length_requirement = "Respect the selected note-length mode. Prioritise argument, tensions, limitations, thesis statements, and essay use over exhaustive lecture-note coverage."
     prompt = f"""
 You are Synapse, an advanced study tutor and source-grounded lecturer.
 
@@ -415,11 +791,13 @@ Mode priority rule:
 - The selected prompt mode is the controlling instruction for output length, structure, tone, and evidence discipline.
 - If the default Synapse note style asks for more depth, more tables, or more expansion than the selected prompt mode wants, follow the selected prompt mode.
 - Always keep source identity, language, math rendering, and visual-marker rules intact.
+{mode_specific_rules}
 
 Mission:
 Create the notes requested by the selected prompt mode. The page should feel like Synapse has read the uploaded source, identified the real learning problem, and then used the selected mode to present the right amount of explanation.
 The target is a useful study output: a student should be able to answer the immediate learning need, interpret source figures, explain the reasoning chain, and use source evidence without losing source accuracy.
-High quality means source-specific usefulness with clean editorial structure. Match the selected mode's depth: concise for Quick Answer, guided for Tutor Mode, formal for Assignment / APA Mode, evidence-disciplined for Source-Strict Research Mode, and comprehensive for Professor Mode.
+High quality means source-specific usefulness with clean editorial structure. Match the selected mode's depth: concise for Quick Answer, guided for Tutor Mode, formal for Assignment / APA Mode, evidence-disciplined for Source-Strict Research Mode, and argument-driven for Academic Analysis.
+For Academic Analysis Mode, high quality means essay preparation and critical thinking: central argument, conceptual connections, tensions, evidence limits, thesis statements, and academic paragraphs.
 
 Style:
 - write like real professional class notes: each concept should have a short meaningful heading, a precise explanation in your own words, and source-grounded examples or caveats where useful;
@@ -427,7 +805,7 @@ Style:
 - explain every major idea in detail without exposing the template: define the idea, explain the mechanism or logic, connect source evidence/example, identify an assumption or limitation, then add a mistake or exam use when useful;
 - do not only list facts. Show the reasoning chain, causal structure, and relationships between ideas;
 - do not jump straight to overview tables. Teach the ideas first, then use tables to consolidate them;
-- do not overuse slide/page numbers. Teach the concept directly.
+- teach the concept directly. In Source-Strict Research Mode, visible slide/page references are mandatory for important factual claims; outside that mode, do not overuse them.
 - never let source screenshots replace teaching. The text must explain the idea before and after the image.
 - when the source contains a graph, table, experiment setup, diagram, or data display, explicitly teach how to read it: variables/labels -> pattern/result -> interpretation -> limitation -> exam use.
 - use discipline-aware explanation: for economics, include assumptions, curve shifts, formulas, worked calculations, and common graph-label mistakes; for psychology, use research question -> method -> result -> interpretation -> limitation; for law/policy, use rule -> element/test -> consequence -> application; for mathematics, use definitions -> theorem/condition -> worked method -> verification.
@@ -463,8 +841,8 @@ Output requirements:
 - Keep headings short and specific; avoid long headings that contain the whole note structure.
 - Use the same "notes page" feel as the reference image: clean headings, strong paragraphs, helpful tables, and source screenshots embedded only when useful.
 - This is the Notes tab, not only the Summary section. It should be detailed enough to study from directly.
-- Build the page as deep professional notes, not a short executive summary: include mechanisms, examples, evidence, caveats, exam framing, and memory hooks where supported.
-- For dense academic/technical sources, prefer richer subsections over compression. It is acceptable for the notes to be long if the extra detail is source-grounded and useful.
+- Build the page as the selected mode requires. In Academic Analysis Mode, make it an argument-building and critical-thinking output rather than a long lecture-note pack.
+- {length_requirement}
 - Do not shrink the summary because images are present. Images should add evidence; they must not replace definitions, reasoning, examples, or source interpretation.
 - Insert [[VISUAL:n]] immediately after the concept/example/data point it explains. Use each available source figure at most once.
 - When selected source figures exist, at least one must appear in the body near the relevant explanation; never produce a text-only page while source figures are available.
@@ -472,10 +850,8 @@ Output requirements:
 - After each [[VISUAL:n]], continue the explanation naturally with what the source figure teaches. Do not leave a bare image without explanation.
 - The visual marker must be a standalone markdown line between paragraphs. The sentence before it should prepare the reader; the sentence after it should explain what the figure means.
 - If a later paragraph needs the same visual again, write "as shown in Source figure n" instead of repeating the marker or displaying the image again.
-- Do not use page/slide numbers as the visible teaching device.
-- Include at least two markdown tables when supported by the source:
-  1. a concept comparison table;
-  2. a source evidence / example table with columns like concept, source evidence, interpretation, limitation, exam use.
+- Outside Source-Strict Research Mode, do not use page/slide numbers as the main visible teaching device.
+- {table_requirement}
 - Mention every usable source at least once.
 - Do not include "Visual evidence", "图像证据", "Source Figures", or a standalone image section title.
 - Target richer content than a quick summary: include the core claim, key terms, source evidence, worked examples, limitations/misunderstandings, and exam/application use when the source supports them.
@@ -498,6 +874,7 @@ Quality bar:
 - A student should be able to answer "what is the point?", "what evidence supports it?", "what can be confused?", and "how do I use this in an exam?" after reading the page.
 - If the source contains a table/data/example like animal language, Piaget tasks, correlations, genetics, methods, or case studies, reconstruct it as a markdown table even if no image is used.
 - Prefer source-grounded explanation over broad general textbook filler.
+- In Source-Strict Research Mode, stay inside the uploaded source and keep the note within the selected {note_length_label} range of {note_length_min_words}-{note_length_max_words} words when the source allows it.
 """
     try:
         result = generate_chat(
@@ -517,15 +894,18 @@ Quality bar:
         ))
         table_count = markdown_table_count(result)
         quality_gaps = advanced_notes_quality_flags(result, source_context)
+        required_table_count = 1 if is_source_strict else ADVANCED_NOTES_MIN_TABLES
+        if is_source_strict and table_count >= required_table_count:
+            quality_gaps = [gap for gap in quality_gaps if gap != "missing comparison/evidence tables"]
         missing_visual_markers = bool(visual_cards) and not re.search(r"\[\[VISUAL:\d+\]\]", result or "")
         if missing_visual_markers:
             quality_gaps.append("selected in-text source figures were not used in the notes")
         should_expand = (
             os.getenv("ENABLE_CONDITIONAL_NOTE_EXPANSION", "true").lower() not in {"0", "false", "no"}
-            and note_prompt_mode_allows_expansion(prompt_mode_key)
+            and allow_note_expansion
             and (
                 bool(quality_gaps)
-                or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES)
+                or (source_has_table_or_data and table_count < required_table_count)
             )
         )
         if should_expand and not analysis_stage_has_budget(
@@ -541,7 +921,7 @@ Quality bar:
                 visual_context,
                 generation_language,
                 RICH_INLINE_MIN_OUTPUT_UNITS,
-                force=bool(quality_gaps) or missing_visual_markers or (source_has_table_or_data and table_count < ADVANCED_NOTES_MIN_TABLES),
+                force=bool(quality_gaps) or missing_visual_markers or (source_has_table_or_data and table_count < required_table_count),
                 quality_gaps=quality_gaps,
                 prompt_mode=prompt_mode_key,
             )
@@ -597,6 +977,7 @@ def attach_visual_argument_section(summary: str, source_units: List[dict], prefe
         cards.extend(unit.get("visual_argument_cards") or [])
     if not cards:
         cards = generate_visual_argument_cards(source_units, summary[:env_int("VISUAL_ARGUMENT_CONTEXT_CHARS", 35000)], preferred_language)
+    cards = _v23_renderable_visual_cards(cards, browser_urls=False, limit=CONTROLLED_MAX_VISUALS)
     return enforce_thetawave_inline_note_format(summary or "", cards, preferred_language)
 
 
@@ -608,9 +989,12 @@ def finalize_generated_summary(
     source_units: Optional[List[dict]] = None,
     attach_visuals: bool = True,
     protect_heading: bool = False,
+    prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE,
+    note_length_mode: str = DEFAULT_NOTE_LENGTH_MODE,
 ) -> str:
     """Single post-processing path for notes returned from generation or cache."""
     text = summary or ""
+    prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
     text = remove_auto_bilingual_heading_leakage(text, requested_language, source_context)
     if protect_heading:
         text = protect_synapse_brand_and_first_heading(text, generation_language)
@@ -619,6 +1003,9 @@ def finalize_generated_summary(
     if attach_visuals and source_units is not None:
         text = attach_visual_argument_section(text, source_units, generation_language)
     text = dedupe_visual_markers(text)
+    if prompt_mode_key == "source_strict_research_mode":
+        text = validate_source_strict_summary(text, generation_language, note_length_mode)
+        text = dedupe_visual_markers(text)
     text = remove_auto_bilingual_heading_leakage(text, requested_language, source_context)
     text = polish_note_readability_markdown(text, generation_language)
     return text
@@ -688,10 +1075,30 @@ def _v23_selected_card_can_render(card: dict) -> bool:
     return signals["teaching"] > 0 and signals["decorative"] <= signals["teaching"] + 1
 
 
-def build_visual_gallery(source_units: List[dict]) -> List[dict]:
-    """v23 final override: return only in-text source figures, never a raw gallery."""
+def _v23_renderable_visual_cards(cards: List[dict], browser_urls: bool = False, limit: Optional[int] = None) -> List[dict]:
+    """Filter visual cards to browser-renderable items and compact marker indexes."""
     from core.visual_assets import visual_asset_url_for_browser
 
+    max_items = None if limit is None else max(0, int(limit))
+    cleaned: List[dict] = []
+    for card in cards or []:
+        if not _v23_selected_card_can_render(card):
+            continue
+        browser_url = visual_asset_url_for_browser(card.get("url", ""))
+        if not browser_url:
+            continue
+        item = dict(card)
+        item["index"] = len(cleaned)
+        if browser_urls:
+            item["url"] = browser_url
+        cleaned.append(item)
+        if max_items is not None and len(cleaned) >= max_items:
+            break
+    return cleaned
+
+
+def build_visual_gallery(source_units: List[dict]) -> List[dict]:
+    """v23 final override: return only in-text source figures, never a raw gallery."""
     cards: List[dict] = []
     for unit in source_units or []:
         cards.extend(unit.get("visual_argument_cards") or [])
@@ -700,16 +1107,11 @@ def build_visual_gallery(source_units: List[dict]) -> List[dict]:
 
     cleaned: List[dict] = []
     max_items = max(0, min(CONTROLLED_MAX_VISUALS, MULTISOURCE_VISUAL_GALLERY_LIMIT, MAX_MULTI_SOURCE_VISUAL_IMAGES))
-    for marker_index, card in enumerate(cards or []):
-        if not _v23_selected_card_can_render(card):
-            continue
+    for marker_index, card in enumerate(_v23_renderable_visual_cards(cards, browser_urls=True, limit=max_items)):
         card_language = "simplified_chinese" if re.search(r"[\u4e00-\u9fff]", _v23_card_text(card)) else "english"
         item = _v23_enrich_visual_card_details(dict(card), source_figure_labels(card_language), card_language)
         item["index"] = marker_index
         item["title"] = normalise_space(item.get("title") or f"Source figure {marker_index + 1}")
-        item["url"] = visual_asset_url_for_browser(item.get("url", ""))
-        if not item["url"]:
-            continue
         item["caption"] = clean_source_figure_caption(item.get("caption") or item.get("what_shows") or "")
         item["what_shows"] = clean_source_figure_caption(item.get("what_shows") or item.get("caption") or "")
         for detail_key in ("why_relevant", "argument_supported", "cross_source_connection", "how_to_read", "exam_use"):
@@ -729,7 +1131,7 @@ def rebuild_cached_visual_argument_cards(source_units: List[dict], preferred_lan
         labels = source_figure_labels(preferred_language)
         return [
             _v23_enrich_visual_card_details(card, labels, preferred_language)
-            for card in cards
+            for card in _v23_renderable_visual_cards(cards, browser_urls=False)
             if isinstance(card, dict)
         ]
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,150 +18,32 @@
   <link rel="icon" type="image/png" href="/logos/synapse.png">
   <link rel="apple-touch-icon" href="/logos/synapse.png">
   <link rel="manifest" href="site.webmanifest">
+  <script>
+    (() => {
+      try {
+        const theme = window.localStorage.getItem("synapse-theme") === "dark" ? "dark" : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      } catch (error) {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="synapse-selects.css?v=synapse-selects-v2">
-  <link rel="stylesheet" href="landing-static.css?v=synapse-static-v1">
 </head>
 <body>
-  <div id="landing-root" class="static-landing" data-static-fallback>
-    <a href="#main-content" class="skip-link">Skip to content</a>
-    <nav id="mainNav" class="static-nav" aria-label="Synapse landing navigation">
-      <a class="static-brand" href="landing.html">
-        <img src="/logos/synapse.png" alt="" />
-        <span>Synapse</span>
-      </a>
-      <div id="navMenu" class="static-nav-menu">
-        <a href="#product">Product</a>
-        <a href="#features">Features</a>
-        <a href="#how-it-works">How It Works</a>
-        <a href="#about">Compare</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#contact">Contact</a>
-        <a href="login.html">Login</a>
-      </div>
-      <div class="static-nav-actions">
-        <button type="button" class="static-button static-button-ghost" id="mobileToggle" aria-controls="navMenu" aria-expanded="false">Menu</button>
-        <button type="button" class="static-button static-button-primary" data-action="get-started">Get Started</button>
-      </div>
-    </nav>
-    <main id="main-content">
-      <section id="product" class="static-hero">
-        <div class="static-aurora" aria-hidden="true"></div>
-        <div class="static-hero-copy">
-          <p class="static-kicker">AI study assistant</p>
+  <div id="landing-root">
+    <noscript>
+      <main id="main-content">
+        <section>
           <h1>Turn passive study notes into active learning.</h1>
-          <p>Upload Material, Generate Notes, Mind Map, and Teach-Back Feedback all work together in Synapse.</p>
-          <div class="static-hero-actions">
-            <button type="button" class="static-button static-button-primary" data-action="get-started">Get Started for Free</button>
-            <a class="static-button static-button-secondary" href="#product-demo">View Demo</a>
-          </div>
-        </div>
-        <div class="static-hero-visual" aria-label="Synapse product workflow preview">
-          <div class="static-core"></div>
-          <article class="static-float-card static-float-card-one">
-            <strong>PDF upload</strong>
-            <span>Lecture slides, notes, images, and sources</span>
-          </article>
-          <article class="static-float-card static-float-card-two">
-            <strong>Mind Map</strong>
-            <span>Connected concepts and weak areas</span>
-          </article>
-          <article class="static-float-card static-float-card-three">
-            <strong>Feedback score</strong>
-            <span>89% mastery after teach-back</span>
-          </article>
-        </div>
-      </section>
-
-      <section id="product-demo" class="static-section static-demo">
-        <div>
-          <p class="static-kicker">Product demo</p>
-          <h2>From source material to active recall in one flow.</h2>
-          <p>Product demo: PDF upload, AI extraction, generated notes, mind map, practice questions, and feedback score.</p>
-        </div>
-        <div class="static-demo-grid">
-          <article><span>01</span><strong>Upload</strong><p>Add any study source.</p></article>
-          <article><span>02</span><strong>Extract</strong><p>Synapse structures the key ideas.</p></article>
-          <article><span>03</span><strong>Practice</strong><p>Answer targeted questions.</p></article>
-          <article><span>04</span><strong>Master</strong><p>Revise gaps with feedback.</p></article>
-        </div>
-      </section>
-
-      <section id="features" class="static-section">
-        <p class="static-kicker">Features</p>
-        <h2>Everything needed for source-aware revision.</h2>
-        <div class="static-feature-grid">
-          <article><h3>Upload Any Study Material</h3><p>Use PDFs, lecture slides, videos, images, and notes.</p></article>
-          <article><h3>Generate Structured Notes</h3><p>Turn dense sources into clear study summaries.</p></article>
-          <article><h3>Build Visual Mind Maps</h3><p>See how definitions, examples, and arguments connect.</p></article>
-          <article><h3>Practice Questions</h3><p>Create active recall prompts from your own material.</p></article>
-          <article><h3>Teach-Back Feedback</h3><p>Explain concepts and get targeted improvement notes.</p></article>
-          <article><h3>Source-Aware Learning</h3><p>Keep revision grounded in the material you uploaded.</p></article>
-        </div>
-      </section>
-
-      <section id="how-it-works" class="static-section static-journey">
-        <p class="static-kicker">How it works</p>
-        <h2>A repeatable revision workflow.</h2>
-        <div class="static-step-list">
-          <article data-cycle-step="1"><span>01</span><strong>Upload Material</strong><p>Add your study source.</p></article>
-          <article data-cycle-step="2"><span>02</span><strong>Generate Notes</strong><p>Create structured notes.</p></article>
-          <article data-cycle-step="3"><span>03</span><strong>Organise Ideas</strong><p>Map the key relationships.</p></article>
-          <article data-cycle-step="4"><span>04</span><strong>Teach and Practice</strong><p>Test recall out loud.</p></article>
-          <article data-cycle-step="5"><span>05</span><strong>Get Feedback</strong><p>Find weak topics fast.</p></article>
-          <article data-cycle-step="6"><span>06</span><strong>Revise and Master</strong><p>Repeat with sharper prompts.</p></article>
-        </div>
-      </section>
-
-      <section id="about" class="static-section static-compare">
-        <p class="static-kicker">Compare</p>
-        <h2>Synapse checks understanding, not just note volume.</h2>
-        <div class="static-compare-grid">
-          <article><h3>Passive notes</h3><p>Long summaries can hide knowledge gaps until test day.</p></article>
-          <article><h3>Synapse active learning</h3><p>Teach-back feedback, practice questions, and mind maps build a repeatable revision workflow.</p></article>
-        </div>
-      </section>
-
-      <section id="pricing" class="static-section">
-        <p class="static-kicker">Pricing</p>
-        <h2>Start free, upgrade when you need Pro.</h2>
-        <div class="static-pricing-grid">
-          <article><span>Free</span><h3>$0</h3><p>Core study generation for getting started.</p><a href="signup.html">Get Started for Free</a></article>
-          <article class="recommended"><span>Pro Monthly</span><h3>$9/mo</h3><p>More uploads, analytics, and priority processing.</p><a href="pricing.html">Upgrade to Pro</a></article>
-          <article><span>Pro Yearly</span><h3>$90/yr</h3><p>All Pro features with one-time annual access.</p><a href="pricing.html">Upgrade to Pro</a></article>
-        </div>
-      </section>
-
-      <section id="contact" class="static-section static-contact">
-        <div>
-          <p class="static-kicker">Contact</p>
-          <h2>Questions about Synapse?</h2>
-          <p>Tell us what you are studying and we will help you choose the right workflow.</p>
-        </div>
-        <form id="contactForm" data-contact-form>
-          <label>Name <input id="contactName" name="name" type="text" autocomplete="name"></label>
-          <label>Email <input id="contactEmail" name="email" type="email" autocomplete="email"></label>
-          <label>Message <textarea id="contactMessage" name="message"></textarea></label>
-          <button type="submit" class="static-button static-button-primary">Send Enquiry</button>
-        </form>
-      </section>
-    </main>
-    <div id="authModal" class="static-auth-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="authModalTitle">
-      <div class="static-auth-card">
-        <button type="button" class="static-modal-close" data-action="close-auth" aria-label="Close sign up options">Close</button>
-        <p class="static-kicker">Start studying</p>
-        <h2 id="authModalTitle">Create your Synapse account</h2>
-        <p>Use the workspace with a free account, then upgrade to Pro when you need more capacity.</p>
-        <a class="static-button static-button-primary" href="signup.html">Create New Account</a>
-        <a class="static-button static-button-secondary" href="login.html">Login to Existing Account</a>
-      </div>
-    </div>
+          <p>Enable JavaScript and run the Synapse frontend with Vite to view the React landing page.</p>
+        </section>
+      </main>
+    </noscript>
   </div>
+  <script src="config.js?v=runtime-config-v1"></script>
   <script src="synapse-selects.js?v=synapse-selects-v2"></script>
-  <script src="landing-static.js?v=synapse-static-v1"></script>
-  <script type="module">
-    if (import.meta.env?.DEV || import.meta.env?.PROD) {
-      import("./src/landing/main.jsx");
-    }
-  </script>
+  <script type="module" src="./src/landing/main.jsx"></script>
 </body>
 </html>

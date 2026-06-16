@@ -196,6 +196,31 @@
     }
   }
 
+  function showSocialAuthStatus(button, type, message) {
+    if (!button) {
+      alert(message);
+      return;
+    }
+    let status = button.parentElement?.querySelector?.('.auth-social-status');
+    if (!status) {
+      status = document.createElement('div');
+      status.className = 'auth-form-status auth-social-status';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      button.insertAdjacentElement('afterend', status);
+    }
+    status.textContent = message;
+    status.className = `auth-form-status auth-social-status show ${type}`;
+  }
+
+  function clearSocialAuthStatus(button) {
+    const status = button?.parentElement?.querySelector?.('.auth-social-status');
+    if (status) {
+      status.textContent = '';
+      status.className = 'auth-form-status auth-social-status';
+    }
+  }
+
   function createAccount({ firstName, lastName, email, role, authProvider = 'email' }) {
     const normalizedEmail = normalizeEmail(email);
     const accounts = getAccounts();
@@ -218,34 +243,32 @@
     return sanitizeLocalAccount(account);
   }
 
-  function continueWithGoogle() {
-    if (realAuthEnabled()) {
-      window.SynapseAuth.signInWithGoogle({
-        redirectTo: new URL(appEntryUrl(), window.location.href).toString()
-      }).catch(error => {
-        alert(error.message || 'Google sign-in could not start.');
-      });
+  function continueWithGoogle(button) {
+    clearSocialAuthStatus(button);
+    if (!realAuthEnabled()) {
+      showSocialAuthStatus(
+        button,
+        'error',
+        'Google sign-in is not configured yet. Add your public Supabase URL and anon key, then enable the Google provider in Supabase Auth.'
+      );
       return;
     }
-    const email = normalizeEmail(window.prompt('Enter the Google email you want to use with Synapse:') || '');
-    if (!email) return;
-    if (!validateEmail(email)) {
-      alert('Please enter a valid Google email address.');
-      return;
+
+    const wasDisabled = Boolean(button?.disabled);
+    if (button) {
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
     }
-    let account = findAccountByEmail(email);
-    if (!account) {
-      const name = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
-      account = createAccount({
-        firstName: name ? name.replace(/\b\w/g, char => char.toUpperCase()) : 'Google',
-        lastName: '',
-        email,
-        role: 'student',
-        authProvider: 'google'
-      });
-    }
-    setSession(account);
-    redirectToApp();
+
+    window.SynapseAuth.signInWithGoogle({
+      redirectTo: new URL(appEntryUrl(), window.location.href).toString()
+    }).catch(error => {
+      showSocialAuthStatus(button, 'error', error.message || 'Google sign-in could not start.');
+      if (button) {
+        button.disabled = wasDisabled;
+        button.removeAttribute('aria-busy');
+      }
+    });
   }
 
   // ==========================================
@@ -439,7 +462,7 @@
     const googleLoginBtn = document.getElementById('googleLoginBtn');
     if (googleLoginBtn) {
       googleLoginBtn.addEventListener('click', function() {
-        continueWithGoogle();
+        continueWithGoogle(googleLoginBtn);
       });
     }
   }
@@ -586,7 +609,7 @@
     const googleSignupBtn = document.getElementById('googleSignupBtn');
     if (googleSignupBtn) {
       googleSignupBtn.addEventListener('click', function() {
-        continueWithGoogle();
+        continueWithGoogle(googleSignupBtn);
       });
     }
   }

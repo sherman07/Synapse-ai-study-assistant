@@ -7,7 +7,6 @@ export function ProductDemoSection() {
     <section className="section product-demo-section" id="product-demo">
       <div className="landing-container">
         <div className="section-heading">
-          <span className="section-kicker">Product Demo</span>
           <h2>Watch source material become an active study system.</h2>
           <p>One flow shows the core Synapse loop: upload, extract, organise, practice, teach back, and improve.</p>
         </div>

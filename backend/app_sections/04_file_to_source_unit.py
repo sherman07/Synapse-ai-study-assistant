@@ -202,12 +202,19 @@ def expand_embedded_youtube_sources(text: str, parent_meta: dict, seen_youtube_s
     return embedded_parts, embedded_units, embedded_titles
 
 
-def build_analysis_fingerprint(preferred_language: str, units: List[dict], depth: str = "auto", prompt_mode: str = "professor_mode") -> str:
+def build_analysis_fingerprint(
+    preferred_language: str,
+    units: List[dict],
+    depth: str = "auto",
+    prompt_mode: str = "professor_mode",
+    note_length_mode: str = "standard_notes",
+) -> str:
     identity_bits = [
         f"cache:{globals().get('CACHE_VERSION', 'v0')}",
         f"lang:{preferred_language or 'auto'}",
         f"depth:{depth or 'auto'}",
         f"prompt_mode:{normalise_note_prompt_mode(prompt_mode)}",
+        f"note_length:{normalise_note_length_mode(note_length_mode)}",
     ]
     for unit in units:
         source_identity = unit.get("source_identity") or ""
@@ -411,7 +418,57 @@ def language_instruction_for_generation(preferred_language: str, source_text: st
     )
 
 
-def note_structure_for_language(preferred_language: str, source_text: str = "") -> str:
+def source_strict_note_structure_for_language(preferred_language: str, source_text: str = "") -> str:
+    key = resolve_generation_language_key(preferred_language, source_text)
+    if key in {"simplified_chinese", "mixed_chinese_english"}:
+        return "\n".join([
+            "# [具体主题标题]",
+            "## 学习问题",
+            "## 关键结论",
+            "## 核心概念图",
+            "## 分章节主笔记",
+            "## 关键术语表",
+            "## 案例 / 例子拆解",
+            "## 证据库",
+            "## 考试答题模板",
+            "## 常见错误",
+            "## 复习清单",
+            "## 闪卡速记总结",
+        ])
+    if key == "traditional_chinese":
+        return "\n".join([
+            "# [具體主題標題]",
+            "## 學習問題",
+            "## 關鍵結論",
+            "## 核心概念圖",
+            "## 分章節主筆記",
+            "## 關鍵術語表",
+            "## 案例 / 例子拆解",
+            "## 證據庫",
+            "## 考試答題模板",
+            "## 常見錯誤",
+            "## 複習清單",
+            "## 閃卡速記總結",
+        ])
+    return "\n".join([
+        "# [specific topic title]",
+        "## Learning Question",
+        "## Key Takeaways",
+        "## Core Concept Map",
+        "## Main Notes by Lecture Section",
+        "## Key Terms Table",
+        "## Case Study / Example Breakdown",
+        "## Evidence Bank",
+        "## Exam Answer Templates",
+        "## Common Mistakes",
+        "## Revision Checklist",
+        "## Flashcard-ready Summary",
+    ])
+
+
+def note_structure_for_language(preferred_language: str, source_text: str = "", prompt_mode: str = "professor_mode") -> str:
+    if normalise_note_prompt_mode(prompt_mode) == "source_strict_research_mode":
+        return source_strict_note_structure_for_language(preferred_language, source_text)
     key = resolve_generation_language_key(preferred_language, source_text)
     if key in {"simplified_chinese", "mixed_chinese_english"}:
         return "\n".join([
@@ -494,6 +551,13 @@ def polish_note_readability_markdown(summary: str, preferred_language: str = "au
 
     canonical_headings = [
         (r"Learning question|学习问题|學習問題", "Learning Question", "学习问题", "學習問題"),
+        (r"Key takeaways?|关键结论|關鍵結論", "Key Takeaways", "关键结论", "關鍵結論"),
+        (r"Core concept map|核心概念图|核心概念圖", "Core Concept Map", "核心概念图", "核心概念圖"),
+        (r"Main notes by lecture section|分章节主笔记|分章節主筆記", "Main Notes by Lecture Section", "分章节主笔记", "分章節主筆記"),
+        (r"Key terms table|关键术语表|關鍵術語表", "Key Terms Table", "关键术语表", "關鍵術語表"),
+        (r"Case study\s*/\s*example breakdown|案例\s*/\s*例子拆解", "Case Study / Example Breakdown", "案例 / 例子拆解", "案例 / 例子拆解"),
+        (r"Evidence bank|证据库|證據庫", "Evidence Bank", "证据库", "證據庫"),
+        (r"Exam answer templates|考试答题模板|考試答題模板", "Exam Answer Templates", "考试答题模板", "考試答題模板"),
         (r"Source and argument map|来源与论点地图|來源與論點地圖", "Source and Argument Map", "来源与论点地图", "來源與論點地圖"),
         (r"Core notes?|核心笔记|核心筆記", "Core Notes", "核心笔记", "核心筆記"),
         (r"Key terms(?: and mechanisms)?|关键术语与机制|關鍵術語與機制", "Key Terms and Mechanisms", "关键术语与机制", "關鍵術語與機制"),
@@ -502,7 +566,9 @@ def polish_note_readability_markdown(summary: str, preferred_language: str = "au
         (r"Worked examples?(?: and evidence matrix)?|Source evidence\s*/\s*example matrix|例子与证据表|例子與證據表", "Worked Examples and Evidence", "例子与证据", "例子與證據"),
         (r"Exam strategy(?: and common student mistakes)?|考试策略与常见错误|考試策略與常見錯誤", "Exam Strategy and Common Mistakes", "考试策略与常见错误", "考試策略與常見錯誤"),
         (r"How to use major pieces of source evidence|Using source evidence|使用源内证据|使用源內證據", "Using Source Evidence", "使用源内证据", "使用源內證據"),
+        (r"Common mistakes|常见错误|常見錯誤", "Common Mistakes", "常见错误", "常見錯誤"),
         (r"Revision checklist|复习清单|複習清單", "Revision Checklist", "复习清单", "複習清單"),
+        (r"Flashcard-ready summary|闪卡速记总结|閃卡速記總結", "Flashcard-ready Summary", "闪卡速记总结", "閃卡速記總結"),
     ]
 
     def canonical_heading_text(title: str) -> str:
@@ -546,10 +612,14 @@ def polish_note_readability_markdown(summary: str, preferred_language: str = "au
 
     template_heading_pattern = re.compile(
         r"^\s*(?P<hashes>#{1,4}\s*)?(?P<title>"
-        r"Learning question|Source and argument map|Core notes?|Key terms(?: and mechanisms)?|Concepts? explained(?: with source evidence)?|"
+        r"Learning question|Key takeaways?|Core concept map|Main notes by lecture section|Key terms table|"
+        r"Case study\s*/\s*example breakdown|Evidence bank|Exam answer templates|Common mistakes|Flashcard-ready summary|"
+        r"Source and argument map|Core notes?|Key terms(?: and mechanisms)?|Concepts? explained(?: with source evidence)?|"
         r"Reading the source evidence|Worked examples?(?: and evidence matrix)?|Source evidence\s*/\s*example matrix|Exam strategy(?: and common student mistakes)?|"
         r"How to use major pieces of source evidence|Revision checklist|"
-        r"学习问题|來源與論點地圖|来源与论点地图|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|复习清单|複習清單"
+        r"学习问题|关键结论|核心概念图|分章节主笔记|关键术语表|案例\s*/\s*例子拆解|证据库|考试答题模板|常见错误|复习清单|闪卡速记总结|"
+        r"學習問題|關鍵結論|核心概念圖|分章節主筆記|關鍵術語表|案例\s*/\s*例子拆解|證據庫|考試答題模板|常見錯誤|複習清單|閃卡速記總結|"
+        r"來源與論點地圖|来源与论点地图|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制"
         r")\b.*$",
         flags=re.I,
     )

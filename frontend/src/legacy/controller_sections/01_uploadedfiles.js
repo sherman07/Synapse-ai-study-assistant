@@ -89,9 +89,24 @@ const SOURCE_STORE_CONFIG = {
   storeName: SOURCE_DB_STORE,
   errorLabel: "source cache"
 };
+const NOTE_LENGTH_DESCRIPTIONS = {
+  quick_review: "300-500 words for a concise analysis or fast revision pass.",
+  standard_notes: "900-1400 words with balanced explanation and evidence.",
+  deep_study: "1800-2500 words for fuller exam preparation."
+};
+const PROMPT_MODE_DESCRIPTIONS = {
+  quick_answer: "Creates a concise answer focused on the fastest useful study points.",
+  detailed_explanation: "Teaches the material in a fuller step-by-step explanation.",
+  professor_mode: "Builds academic argument, critical analysis, thesis statements, and essay-ready explanations from the source.",
+  tutor_mode: "Explains the source simply with guided learning support.",
+  source_strict_research_mode: "Uses only the uploaded source with clear evidence discipline.",
+  assignment_apa_mode: "Shapes source material into assignment-aware structure and APA-ready guidance."
+};
 let currentSourceFingerprint = "";
 let currentHistoryId = "";
 let currentPrimarySourceIdentity = "";
+let currentPromptMode = "professor_mode";
+let currentPromptModeLabel = "Academic Analysis";
 let currentMindMap = null;
 let storedTitle = "Study Notes";
 let activeTool = "mindmap";
@@ -155,6 +170,35 @@ function toggleSummaryNav(force = null) {
 
 summaryNavCollapsed = readSummaryNavPreference();
 applySummaryNavCollapsed();
+
+function updateNoteLengthDescription() {
+  const noteLengthSelect = document.getElementById("noteLength");
+  const noteLengthDescription = document.getElementById("noteLengthDescription");
+  if (noteLengthDescription && noteLengthSelect) {
+    noteLengthDescription.textContent = NOTE_LENGTH_DESCRIPTIONS[noteLengthSelect.value] || NOTE_LENGTH_DESCRIPTIONS.standard_notes;
+  }
+}
+
+function updatePromptModeDescription() {
+  const promptModeSelect = document.getElementById("promptMode");
+  const promptModeDescription = document.getElementById("promptModeDescription");
+  if (promptModeDescription && promptModeSelect) {
+    promptModeDescription.textContent = PROMPT_MODE_DESCRIPTIONS[promptModeSelect.value] || PROMPT_MODE_DESCRIPTIONS.professor_mode;
+  }
+}
+
+document.addEventListener("change", event => {
+  if (event?.target?.id === "noteLength") {
+    updateNoteLengthDescription();
+  }
+  if (event?.target?.id === "promptMode") {
+    updatePromptModeDescription();
+  }
+});
+updateNoteLengthDescription();
+updatePromptModeDescription();
+requestAnimationFrame(updateNoteLengthDescription);
+requestAnimationFrame(updatePromptModeDescription);
 
 const TIMELINE_STORAGE_KEY = "synapse.timeline.path.v1";
 const TIMELINE_TYPE_OPTIONS = [
@@ -327,18 +371,25 @@ function isRelevantLearningFigure(item) {
 }
 
 function sanitizeLearningFigures(items) {
+  return normalizeLearningFigures(items)
+    .filter(isRelevantLearningFigure);
+}
+
+function normalizeLearningFigures(items) {
   return (Array.isArray(items) ? items : [])
     .map((item, index) => item && typeof item === "object" ? { ...item, index: Number.isFinite(Number(item.index)) ? Number(item.index) : index } : item)
-    .filter(isRelevantLearningFigure);
+    .filter(item => item && typeof item === "object");
 }
 
 function getLearningFigureByMarker(index) {
   const markerIndex = Number(index);
   if (!Number.isFinite(markerIndex)) return null;
-  const figures = sanitizeLearningFigures(visualGalleryData);
+  const figures = normalizeLearningFigures(visualGalleryData);
   const byStoredIndex = figures.find(item => Number(item?.index) === markerIndex);
-  if (isRelevantLearningFigure(byStoredIndex)) return byStoredIndex;
-  return null;
+  if (!byStoredIndex) return null;
+  // Backend visual cards are already selected to match generated [[VISUAL:n]]
+  // markers. Preserve the card so missing-image fallbacks can show its context.
+  return byStoredIndex;
 }
 
 function cleanSourceFigureDisplayText(value) {
@@ -450,8 +501,11 @@ function getVisualExplanationSections(item, options = {}) {
 
 function renderVisualExplanationSections(item, options = {}) {
   const compact = Boolean(options.compact);
+  const compactKeys = new Set(["what", "why", "exam"]);
   const limit = compact ? 3 : 5;
-  const sections = getVisualExplanationSections(item).slice(0, limit);
+  const sections = getVisualExplanationSections(item)
+    .filter(section => !compact || compactKeys.has(section.key))
+    .slice(0, limit);
   if (!sections.length) return "";
   return `
     <div class="${compact ? "inline-visual-details" : "visual-detail-grid"}">
@@ -652,6 +706,7 @@ async function analyzeMaterials() {
   const rawSource = sourceInput ? sourceInput.value.trim() : "";
   const parsedSources = parseMixedSources(rawSource);
   const sourceLinks = uniqueSourceLinks([...uploadedLinks, ...parsedSources.links]);
+  const noteLengthSelect = document.getElementById("noteLength");
 
   if (uploadedFiles.length === 0 && !rawSource && !sourceLinks.length) {
     alert("Upload at least one file, link, video link, or text first.");
@@ -671,6 +726,7 @@ async function analyzeMaterials() {
   formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
   formData.append("detail_level", detailLevel ? detailLevel.value : "auto");
   formData.append("prompt_mode", promptMode ? promptMode.value : "professor_mode");
+  formData.append("note_length", noteLengthSelect ? noteLengthSelect.value : "standard_notes");
   formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
@@ -706,8 +762,10 @@ async function analyzeMaterials() {
     fullSummary = ensureRenderableSummary(fullSummary, sections);
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
-    visualGalleryData = sanitizeLearningFigures(data.visual_gallery || data.visuals || []);
+    visualGalleryData = normalizeLearningFigures(data.visual_gallery || data.visuals || []);
     currentPrimarySourceIdentity = data.primary_source_identity || "";
+    currentPromptMode = data.prompt_mode || (promptMode ? promptMode.value : "professor_mode");
+    currentPromptModeLabel = data.prompt_mode_label || "";
     currentHistoryId = "";
     resetTimelineState();
     resetVisualGuideState();
@@ -726,6 +784,7 @@ async function analyzeMaterials() {
       label: data.depth_label,
       reason: data.depth_reason,
       promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
+      noteLength: data.note_length || (noteLengthSelect ? noteLengthSelect.value : "standard_notes"),
       cached: Boolean(data.cached)
     });
 
@@ -777,6 +836,8 @@ async function analyzeMaterials() {
       depthReason: data.depth_reason || "",
       promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
       promptModeLabel: data.prompt_mode_label || "",
+      noteLength: data.note_length || (noteLengthSelect ? noteLengthSelect.value : "standard_notes"),
+      noteLengthLabel: data.note_length_label || "",
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
       primarySourceIdentity: data.primary_source_identity || "",
@@ -794,7 +855,7 @@ async function analyzeMaterials() {
       if (!visualGalleryData.length) {
         const restoredVisuals = await loadVisualGalleryAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint);
         if (restoredVisuals.length) {
-          visualGalleryData = sanitizeLearningFigures(restoredVisuals);
+          visualGalleryData = normalizeLearningFigures(restoredVisuals);
           renderVisualGallery();
         }
       }

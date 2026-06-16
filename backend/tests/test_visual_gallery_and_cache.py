@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import re
 import tempfile
 import time
 import unittest
@@ -25,6 +26,7 @@ from backend.app import link_to_source_unit
 from backend.app import rebuild_cached_visual_argument_cards
 from backend.app import render_pptx_source_preview_svg_images
 from backend.app import source_preview_image_url
+from backend.app import validate_source_strict_summary
 from backend.core.analysis_cache import AnalysisCacheStore
 from backend.core.visual_assets import visual_asset_url_for_browser
 
@@ -62,10 +64,10 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("runtime_assets_dir", payload)
         self.assertNotIn("OPENAI_API_KEY", payload)
 
-    def test_default_frontend_base_url_matches_documented_live_server(self):
+    def test_default_frontend_base_url_matches_documented_vite_server(self):
         self.assertEqual(
             backend_app_module.SYNAPSE_FRONTEND_BASE_URL,
-            "http://127.0.0.1:5500/frontend",
+            "http://127.0.0.1:5175/frontend",
         )
 
     def test_explicit_detail_level_overrides_auto_depth(self):
@@ -116,6 +118,76 @@ class ApiShapeTests(unittest.TestCase):
         self.assertEqual(payload["language"], "english")
         self.assertEqual(payload["output_language"], "english")
         self.assertTrue(payload["mind_map"].get("branches"))
+
+    def test_analyze_route_returns_http_error_for_empty_request(self):
+        with patch("backend.app.require_openai"):
+            response = TestClient(app).post("/analyze", data={})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"error": "No readable files, links, or text were provided."})
+
+    def test_analyze_route_returns_service_error_when_openai_missing(self):
+        with patch("backend.app.require_openai", side_effect=RuntimeError("OPENAI_API_KEY is missing.")):
+            response = TestClient(app).post("/analyze", data={"free_text": "short source"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"error": "OPENAI_API_KEY is missing."})
+
+    def test_cached_result_visual_rebuild_never_calls_model(self):
+        visual_parts = [
+            {
+                "type": "text",
+                "text": (
+                    "IN-TEXT SOURCE FIGURE FROM cached lecture — PDF page 2. "
+                    "Page text preview: table graph data results comparison. "
+                    "Image-count=1; drawing-count=12; visual-score=28."
+                ),
+            },
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+        ]
+        source_meta = {
+            "display_name": "cached lecture",
+            "source_identity": "url:https://example.com/cached-lecture",
+            "title_candidate": "Cached lecture",
+            "content_hash": "cached-lecture",
+            "text_excerpt": "The source includes a result table used as evidence.",
+            "visual_parts": visual_parts,
+            "url": "https://example.com/cached-lecture",
+        }
+        cached_result = {
+            "title": "Cached lecture notes",
+            "summary": "# Overview\n\nCached notes discuss the source result table.",
+            "sections": {"Overview": "Cached notes discuss the source result table."},
+            "connections": [],
+            "mind_map": {"center": "Cached lecture notes", "branches": []},
+            "visual_gallery": [],
+            "primary_source_identity": source_meta["source_identity"],
+        }
+
+        with (
+            patch("backend.app.require_openai"),
+            patch("backend.app.cache_get", return_value=cached_result),
+            patch("backend.app.rebuild_cached_visual_argument_cards", return_value=[]),
+            patch("backend.app.link_to_source_unit", return_value=(
+                [{"type": "text", "text": "Cached lecture with a result table."}],
+                source_meta,
+            )),
+            patch("backend.app.generate_chat", side_effect=AssertionError("cache hit should not call the model")),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links=json.dumps(["https://example.com/cached-lecture"]),
+                free_text="",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertTrue(payload["cached"])
+        self.assertIn("[[VISUAL:0]]", payload["summary"])
+        self.assertEqual(len(payload["visual_gallery"]), 1)
 
     def test_deadline_skips_visual_filter_and_note_expansion_model_stages(self):
         long_summary = "# Overview\n\n" + ("This source explains table data, comparison, evidence, and exam use. " * 700)
@@ -202,9 +274,12 @@ class ApiShapeTests(unittest.TestCase):
         self.assertEqual(captured["result"]["visuals"], gallery)
 
     def test_cached_result_uses_cached_visual_gallery_when_live_rebuild_is_empty(self):
+        asset_path = backend_app_module.RUNTIME_ASSETS_DIR / "visuals" / "test-cached-table.png"
+        asset_path.parent.mkdir(parents=True, exist_ok=True)
+        asset_path.write_bytes(b"cached visual")
         cached_gallery = [{
             "index": 0,
-            "url": "http://127.0.0.1:8001/assets/visuals/cached-table.png",
+            "url": "http://127.0.0.1:8001/assets/visuals/test-cached-table.png",
             "title": "Cached result table",
             "caption": "Cached table metadata.",
             "visual_kind": "data/table",
@@ -219,6 +294,47 @@ class ApiShapeTests(unittest.TestCase):
             "primary_source_identity": "text:cached",
         }
 
+        try:
+            with (
+                patch("backend.app.require_openai"),
+                patch("backend.app.cache_get", return_value=cached_result),
+                patch("backend.app.rebuild_cached_visual_argument_cards", return_value=[]),
+                patch("backend.app.build_visual_gallery", return_value=[]),
+                patch("backend.app.generate_chat", side_effect=AssertionError("cache hit should not need a model call")),
+            ):
+                payload = asyncio.run(analyze_materials(
+                    files=[],
+                    links="[]",
+                    free_text="Tiny note about a result table.",
+                    preferred_language="english",
+                    detail_level="auto",
+                    prompt_mode="professor_mode",
+                    client_fingerprint="",
+                ))
+        finally:
+            asset_path.unlink(missing_ok=True)
+
+        self.assertTrue(payload["cached"])
+        self.assertEqual(payload["visual_gallery"], cached_gallery)
+        self.assertEqual(payload["visuals"], cached_gallery)
+
+    def test_cached_result_does_not_return_missing_runtime_visual_asset(self):
+        cached_result = {
+            "title": "Cached notes",
+            "summary": "# Overview\n\nCached notes still reference [[VISUAL:0]].",
+            "sections": {"Overview": "Cached notes still reference [[VISUAL:0]]."},
+            "connections": [],
+            "mind_map": {"center": "Cached notes", "branches": []},
+            "visual_gallery": [{
+                "index": 0,
+                "url": "http://127.0.0.1:8001/assets/visuals/definitely-missing-cached-asset.png",
+                "title": "Missing cached table",
+                "caption": "The cache entry points to a runtime asset that no longer exists.",
+                "visual_kind": "data/table",
+            }],
+            "primary_source_identity": "text:cached",
+        }
+
         with (
             patch("backend.app.require_openai"),
             patch("backend.app.cache_get", return_value=cached_result),
@@ -229,7 +345,7 @@ class ApiShapeTests(unittest.TestCase):
             payload = asyncio.run(analyze_materials(
                 files=[],
                 links="[]",
-                free_text="Tiny note about a result table.",
+                free_text="Tiny note about a missing cached result table.",
                 preferred_language="english",
                 detail_level="auto",
                 prompt_mode="professor_mode",
@@ -237,8 +353,9 @@ class ApiShapeTests(unittest.TestCase):
             ))
 
         self.assertTrue(payload["cached"])
-        self.assertEqual(payload["visual_gallery"], cached_gallery)
-        self.assertEqual(payload["visuals"], cached_gallery)
+        self.assertEqual(payload["visual_gallery"], [])
+        self.assertEqual(payload["visuals"], [])
+        self.assertIn("[[VISUAL:0]]", payload["summary"])
 
     def test_language_enforcement_skips_rewrite_when_english_already_satisfied(self):
         summary = "# Overview\n\nThis study note explains the source evidence, comparison table, and revision use."
@@ -273,6 +390,64 @@ class ApiShapeTests(unittest.TestCase):
 
         self.assertEqual(result, rewritten)
         self.assertEqual(generate_chat_mock.call_count, 1)
+
+
+class SourceStrictNotesTests(unittest.TestCase):
+    def test_source_strict_validation_rebuilds_required_sections_and_dedupes_repeat(self):
+        summary = """
+# Vaccination ethics
+
+## Key Takeaways
+
+- Mandates must be necessary and proportionate (Slide 15).
+- Mandates must be necessary and proportionate (Slide 15).
+
+## Evidence Bank
+
+The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportionality (Slide 21).
+The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportionality (Slide 21).
+""".strip()
+
+        validated = validate_source_strict_summary(summary, "english", "standard_notes")
+
+        self.assertIn("## Learning Question", validated)
+        self.assertIn("## Key Terms Table", validated)
+        self.assertIn("## Flashcard-ready Summary", validated)
+        self.assertIn("[Direct from source]", validated)
+        self.assertIn("[Tutor explanation]", validated)
+        self.assertEqual(validated.count("Mandates must be necessary and proportionate (Slide 15)."), 1)
+        self.assertEqual(
+            validated.count("Jacobson v. Massachusetts to illustrate necessity and proportionality (Slide 21)."),
+            1,
+        )
+
+    def test_source_strict_finalize_respects_quick_review_word_limit(self):
+        repeated_sentence = "Necessity, proportionality, and liberty must be balanced with cited lecture evidence (Slide 15)."
+        summary = "# Vaccination policy\n\n## Main Notes by Lecture Section\n\n" + "\n\n".join(repeated_sentence for _ in range(80))
+
+        final = finalize_generated_summary(
+            summary,
+            requested_language="english",
+            generation_language="english",
+            prompt_mode="source_strict_research_mode",
+            note_length_mode="quick_review",
+            attach_visuals=False,
+        )
+
+        word_count = len(re.findall(r"[\u4e00-\u9fff]|\b[\w'-]+\b", final))
+        self.assertLessEqual(word_count, 560)
+        self.assertIn("## Key Takeaways", final)
+
+    def test_analysis_fingerprint_changes_with_note_length_mode(self):
+        units = [{
+            "source_identity": "text:abc",
+            "content_hash": "hash-1",
+        }]
+
+        quick = build_analysis_fingerprint("english", units, "auto", "source_strict_research_mode", "quick_review")
+        deep = build_analysis_fingerprint("english", units, "auto", "source_strict_research_mode", "deep_study")
+
+        self.assertNotEqual(quick, deep)
 
 
 class VisualGalleryTests(unittest.TestCase):
@@ -372,6 +547,72 @@ class VisualGalleryTests(unittest.TestCase):
 
         self.assertEqual(visual_asset_url_for_browser(invalid_url), "")
         self.assertEqual(visual_asset_url_for_browser(svg_url), "")
+
+    def test_visual_asset_url_rejects_local_filesystem_paths(self):
+        self.assertEqual(visual_asset_url_for_browser("file:///Users/student/source/page.png"), "")
+        self.assertEqual(visual_asset_url_for_browser("/Users/student/source/page.png"), "")
+        self.assertEqual(visual_asset_url_for_browser("C:\\Users\\student\\source\\page.png"), "")
+
+    def test_visual_gallery_rejects_local_filesystem_card_urls(self):
+        source_units = [{
+            "visual_argument_cards": [{
+                "index": 0,
+                "url": "/Users/student/source/page.png",
+                "title": "Local-only table",
+                "caption": "Table with data, results, comparison groups, and statistical evidence.",
+                "what_shows": "The table compares results and shows a data pattern.",
+                "argument_supported": "The table supports the analysis by showing the comparison directly.",
+                "how_to_read": "Read rows, columns, values, and group differences.",
+                "visual_kind": "data/table",
+            }]
+        }]
+
+        gallery = build_visual_gallery(source_units)
+
+        self.assertEqual(gallery, [])
+
+    def test_visual_markers_are_reindexed_after_unrenderable_cards_are_removed(self):
+        source_units = [{
+            "visual_argument_cards": [
+                {
+                    "index": 0,
+                    "url": "",
+                    "title": "Missing visual",
+                    "caption": "Table with data, results, comparison groups, and statistical evidence.",
+                    "what_shows": "The unavailable table compares results.",
+                    "argument_supported": "This card should not get a marker because it has no image URL.",
+                    "how_to_read": "Read rows, columns, values, and group differences.",
+                    "visual_kind": "data/table",
+                },
+                {
+                    "index": 1,
+                    "url": "data:image/png;base64,AA==",
+                    "title": "Renderable result table",
+                    "caption": "Table with data, results, comparison groups, and statistical evidence.",
+                    "what_shows": "The table compares results and shows a data pattern.",
+                    "argument_supported": "The table supports the analysis by showing the comparison directly.",
+                    "how_to_read": "Read rows, columns, values, and group differences.",
+                    "visual_kind": "data/table",
+                },
+            ]
+        }]
+
+        summary = finalize_generated_summary(
+            "## Notes\n\nThe table compares source results and supports the key claim.",
+            requested_language="english",
+            generation_language="english",
+            source_context="",
+            source_units=source_units,
+            attach_visuals=True,
+        )
+        gallery = build_visual_gallery(source_units)
+
+        self.assertIn("[[VISUAL:0]]", summary)
+        self.assertNotIn("[[VISUAL:1]]", summary)
+        self.assertEqual(len(gallery), 1)
+        self.assertEqual(gallery[0]["index"], 0)
+        self.assertEqual(gallery[0]["title"], "Renderable result table")
+        assert_served_visual_asset(self, gallery[0]["url"], "image/png")
 
     def test_pptx_svg_fallback_is_rasterized_for_runtime_assets(self):
         if Presentation is None:

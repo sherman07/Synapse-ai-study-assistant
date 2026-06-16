@@ -94,9 +94,17 @@ from core.database import synapse_database
 from core.request_limits import read_upload_bytes
 from core.section_loader import AppSectionLoader
 from core.note_prompt_modes import (
+    DEFAULT_NOTE_LENGTH_MODE,
     DEFAULT_NOTE_PROMPT_MODE,
     load_note_prompt_mode_text,
+    normalise_note_length_mode,
     normalise_note_prompt_mode,
+    note_length_mode_allows_expansion,
+    note_length_mode_label,
+    note_length_mode_options,
+    note_length_mode_target_words,
+    note_length_mode_unit_target,
+    note_length_mode_word_bounds,
     note_prompt_mode_allows_expansion,
     note_prompt_mode_label,
     note_prompt_mode_min_units,
@@ -228,7 +236,7 @@ SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK = (
 SYNAPSE_FRONTEND_BASE_URL = (
     os.getenv("SYNAPSE_FRONTEND_BASE_URL")
     or os.getenv("SYNAPSE_PUBLIC_FRONTEND_URL")
-    or "http://127.0.0.1:5500/frontend"
+    or "http://127.0.0.1:5175/frontend"
 ).rstrip("/")
 STRIPE_PRICE_IDS = {
     "starter": (os.getenv("STRIPE_PRICE_STARTER") or os.getenv("SYNAPSE_STRIPE_PRICE_STARTER") or "").strip(),

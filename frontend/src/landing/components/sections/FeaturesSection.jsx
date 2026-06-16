@@ -6,7 +6,6 @@ export function FeaturesSection() {
     <section className="section features-section" id="features">
       <div className="landing-container">
         <div className="section-heading">
-          <span className="section-kicker">Features</span>
           <h2>Everything your notes need to become active learning.</h2>
           <p>Each feature is part of one study loop, not a disconnected AI trick.</p>
         </div>

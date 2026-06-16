@@ -1017,14 +1017,14 @@ Run:
 /Users/zhenghui/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 run_frontend.py
 ```
 
-Expected: frontend server prints a local URL on port `5173` or another available port. Keep the server session running until browser verification is complete.
+Expected: frontend server prints a local URL on port `5175`. Keep the server session running until browser verification is complete.
 
 - [ ] **Step 3: Verify desktop Focus Room in Browser**
 
 Open:
 
 ```text
-http://127.0.0.1:5173/frontend/focus-room.html#/focus-room/history-1
+http://127.0.0.1:5175/frontend/focus-room.html#/focus-room/history-1
 ```
 
 Use the Browser plugin to verify:
@@ -1036,7 +1036,7 @@ Setup page shows full-screen scene background, Step 01/02/03 sections, image sce
 If no material is available for `history-1`, use a material ID shown by the current workspace bridge or verify the no-material glass empty state at:
 
 ```text
-http://127.0.0.1:5173/frontend/focus-room.html#/focus-room
+http://127.0.0.1:5175/frontend/focus-room.html#/focus-room
 ```
 
 - [ ] **Step 4: Verify active room and AI drawer**

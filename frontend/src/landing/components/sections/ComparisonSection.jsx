@@ -7,7 +7,6 @@ export function ComparisonSection() {
     <section className="section comparison-section" id="about">
       <div className="landing-container">
         <div className="section-heading">
-          <span className="section-kicker">Active Learning</span>
           <h2>Synapse is built for understanding, not passive summaries.</h2>
           <p>Summaries compress information. Synapse turns it into a feedback loop students can repeat before exams.</p>
         </div>

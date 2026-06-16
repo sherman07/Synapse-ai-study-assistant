@@ -49,6 +49,36 @@
   --focus-danger: rgba(255, 116, 116, 0.22);
 }
 
+body.focus-room-standalone {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--text-primary);
+  background: #08111c;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body.focus-room-standalone #focusRoomRoot {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#focusRoomFallbackTitle {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.16), transparent 32%),
+    linear-gradient(135deg, #08111c, #111d30 52%, #08111c);
+  font-size: clamp(2rem, 6vw, 4.5rem);
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
 .focus-room-surface {
   position: fixed;
   inset: 0;
@@ -477,6 +507,7 @@
 }
 
 .focus-empty-stage {
+  min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
@@ -488,6 +519,19 @@
   display: grid;
   gap: 16px;
   padding: 28px;
+}
+
+.focus-empty-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.focus-error-detail {
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.58);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
 }
 
 .top-nav {

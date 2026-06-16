@@ -9,9 +9,6 @@ if (!root) {
   throw new Error("Synapse landing root was not found.");
 }
 
-root.classList.remove("static-landing");
-root.removeAttribute("data-static-fallback");
-
 createRoot(root).render(
   <React.StrictMode>
     <LandingPage />

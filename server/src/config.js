@@ -35,7 +35,7 @@ const config = {
   port: envInt("SYNAPSE_DATA_API_PORT", 3001),
   corsOrigins: envList(
     "SYNAPSE_DATA_CORS_ORIGINS",
-    "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5500,http://localhost:5500"
+    "http://127.0.0.1:5175,http://localhost:5175"
   ),
   allowLocalDemoAuth: envBool("ALLOW_LOCAL_DEMO_AUTH", true),
   internalApiToken: envString("SYNAPSE_INTERNAL_API_TOKEN"),

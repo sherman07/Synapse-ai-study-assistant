@@ -74,8 +74,8 @@ test("billing return URLs stay on allowed origins", () => {
   assert.equal(allowedReturnUrl("", fallbackOrigin, "/frontend/index.html"), fallback);
   assert.equal(allowedReturnUrl("https://evil.example/checkout", fallbackOrigin, "/frontend/index.html"), fallback);
   assert.equal(
-    allowedReturnUrl("http://127.0.0.1:5173/frontend/billing-success.html?session_id={CHECKOUT_SESSION_ID}", fallbackOrigin),
-    "http://127.0.0.1:5173/frontend/billing-success.html?session_id={CHECKOUT_SESSION_ID}"
+    allowedReturnUrl("http://127.0.0.1:5175/frontend/billing-success.html?session_id={CHECKOUT_SESSION_ID}", fallbackOrigin),
+    "http://127.0.0.1:5175/frontend/billing-success.html?session_id={CHECKOUT_SESSION_ID}"
   );
 });
 

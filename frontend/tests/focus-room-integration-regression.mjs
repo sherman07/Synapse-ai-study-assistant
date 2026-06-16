@@ -78,7 +78,12 @@ assert.ok(focusRoomHtml.includes("static-compatible-loader.js"), "Focus Room sho
 assert.ok(focusRoomHtml.includes("styles/09-focus-room.css"), "Standalone Focus Room page should load Focus Room styles directly");
 assert.ok(!focusRoomHtml.includes("react@18"), "Standalone Focus Room should rely on Vite/npm React, not CDN React");
 assert.ok(focusRoomStaticLoader.includes("focus-room-static.js"), "Focus Room static loader should import the prebuilt static bundle");
-assert.ok(focusRoomStaticLoader.includes("./standalone.js"), "Focus Room static loader should keep the Vite source entry for Vite ports");
+assert.ok(focusRoomStaticLoader.includes("./standalone.js"), "Focus Room static loader should keep the Vite source entry for dev");
+assert.ok(focusRoomStaticLoader.includes("import.meta.env?.DEV"), "Focus Room loader should detect Vite through import.meta.env instead of port guessing");
+assert.ok(!focusRoomStaticLoader.includes("VITE_PORTS"), "Focus Room loader should not mistake static servers for Vite based on port numbers");
+assert.ok(focusRoomStaticLoader.includes("addEventListener(\"error\""), "Focus Room loader should surface runtime boot errors");
+assert.ok(focusRoomStaticLoader.includes("addEventListener(\"unhandledrejection\""), "Focus Room loader should surface async boot errors");
+assert.ok(focusRoomStaticLoader.includes("focusRoomHasMounted"), "Focus Room loader should verify that React mounted visible UI");
 assert.ok(exists("frontend/assets/focus-room-app/focus-room-static.js"), "prebuilt static Focus Room bundle should exist for static servers");
 assert.ok(focusRoomStandalone.includes("initFocusRoom({ root })"), "Standalone Focus Room boot should initialize the React controller");
 assert.ok(focusRoomStandaloneBridge.includes("HISTORY_STORAGE_KEY"), "Standalone Focus Room bridge should read generated history");
@@ -193,6 +198,8 @@ for (const token of [
   "--glass-blur",
   "--glass-radius",
   "--text-primary",
+  "body.focus-room-standalone",
+  "#focusRoomFallbackTitle",
   ".liquid-glass",
   "backdrop-filter: blur(var(--glass-blur)) saturate(190%) contrast(105%)",
   ".focus-background",

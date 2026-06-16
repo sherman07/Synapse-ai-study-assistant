@@ -48,7 +48,6 @@ export function PricingSection({ onGetStarted }) {
     <section className="section pricing-section" id="pricing">
       <div className="landing-container">
         <div className="section-heading">
-          <span className="section-kicker">Pricing</span>
           <h2>Free to start, Pro when you need more.</h2>
           <p>Choose Free, Pro Monthly, or Pro Yearly. Payments use Stripe Checkout and access updates only from verified Stripe webhooks.</p>
         </div>

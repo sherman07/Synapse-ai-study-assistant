@@ -1,9 +1,20 @@
-import { PROMPT_MODE_OPTIONS } from "../constants.js";
+import { NOTE_LENGTH_OPTIONS, PROMPT_MODE_OPTIONS } from "../constants.js";
 import { h, icon, legacyAction } from "../runtime.js";
 import { LanguageSelect } from "./LanguageOptions.js?v=react-shell-v2";
 
 function promptModeOptions() {
   return PROMPT_MODE_OPTIONS.map(([value, label]) =>
+    h("option", { key: value, value }, label)
+  );
+}
+
+function promptModeDescription(value) {
+  const option = PROMPT_MODE_OPTIONS.find(([mode]) => mode === value) || PROMPT_MODE_OPTIONS[0];
+  return option?.[2] || "";
+}
+
+function noteLengthOptions() {
+  return NOTE_LENGTH_OPTIONS.map(([value, label]) =>
     h("option", { key: value, value }, label)
   );
 }
@@ -121,7 +132,11 @@ export function UploadStage() {
         "div",
         { className: "language-box" },
         h("label", { htmlFor: "preferredLanguage", className: "form-label" }, "Preferred output language"),
-        h("p", { className: "language-note" }, "Brand names such as Synapse stay unchanged in every language."),
+        h(
+          "p",
+          { className: "language-note" },
+          "Choose the language for notes, explanations, flashcards, and quizzes. Brand names such as Synapse stay unchanged."
+        ),
         h(LanguageSelect, {
           id: "preferredLanguage",
           className: "language-select",
@@ -133,7 +148,11 @@ export function UploadStage() {
         "div",
         { className: "language-box prompt-mode-box" },
         h("label", { htmlFor: "promptMode", className: "form-label" }, "Prompt mode"),
-        h("p", { className: "language-note" }, "Choose how Synapse should shape the generated notes."),
+        h(
+          "p",
+          { className: "language-note" },
+          "Choose the response style Synapse should use for the generated notes."
+        ),
         h(
           "select",
           {
@@ -143,21 +162,36 @@ export function UploadStage() {
             defaultValue: "professor_mode",
           },
           promptModeOptions()
+        ),
+        h(
+          "p",
+          { id: "promptModeDescription", className: "language-note compact-note" },
+          promptModeDescription("professor_mode")
         )
       ),
       h(
         "div",
-        { className: "language-box auto-depth-box", "aria-live": "polite" },
-        h("div", { className: "auto-depth-icon" }, icon("bi-lightning-charge-fill")),
+        { id: "noteLengthField", className: "language-box prompt-mode-box note-length-box" },
+        h("label", { htmlFor: "noteLength", className: "form-label" }, "Note length"),
         h(
-          "div",
-          null,
-          h("label", { className: "form-label mb-1" }, "Adaptive learning depth"),
-          h(
-            "p",
-            { className: "language-note mb-0" },
-            "Synapse automatically chooses the clearest level of detail. Simple sources stay focused; dense legal, mathematical, academic, or multi-section sources stay detailed."
-          )
+          "p",
+          { className: "language-note" },
+          "Choose the target word range for modes that enforce a final output limit."
+        ),
+        h(
+          "select",
+          {
+            id: "noteLength",
+            className: "language-select prompt-mode-select",
+            "aria-label": "Note length",
+            defaultValue: "standard_notes",
+          },
+          noteLengthOptions()
+        ),
+        h(
+          "p",
+          { id: "noteLengthDescription", className: "language-note compact-note" },
+          "Standard Notes is the default balance for revision."
         )
       ),
       h(

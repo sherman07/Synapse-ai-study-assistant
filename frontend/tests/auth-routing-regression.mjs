@@ -13,6 +13,8 @@ assert.ok(authScript.includes("function appEntryUrl()"));
 assert.ok(authScript.includes(accountsKey));
 assert.ok(authScript.includes(sessionKey));
 assert.ok(!authScript.includes("window.location.href = '/index.html'"));
+assert.ok(!authScript.includes("window.prompt"), "Google auth must not use a fake prompt-based login fallback");
+assert.ok(authScript.includes("signInWithGoogle"), "Google auth should delegate to the real auth provider");
 assert.ok(fs.existsSync(path.join(repoRoot, "index.html")));
 
 const rootIndex = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");

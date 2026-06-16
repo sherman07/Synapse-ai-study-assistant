@@ -33,13 +33,13 @@ function openVisualModal(index) {
 function renderMissingInlineVisualCard(index, item = null) {
   const visualIndex = Number(index);
   const label = Number.isFinite(visualIndex) ? `Source figure ${visualIndex + 1}` : "Source figure";
-  const title = cleanSourceFigureDisplayText(item?.title || "") || `${label} unavailable`;
+  const title = cleanSourceFigureDisplayText(item?.title || "") || "Figure unavailable";
   return `
     <figure id="inline-visual-${Number.isFinite(visualIndex) ? visualIndex : 0}" class="inline-visual-card missing" aria-label="${escapeAttr(label)} unavailable">
       <figcaption>
         <div class="inline-visual-kicker">In-text source</div>
         <h4>${escapeHTML(title)}</h4>
-        <p>The notes referenced ${escapeHTML(label)}, but the browser did not receive a usable image URL for it. Regenerate from the original source files if you need to inspect this figure.</p>
+        <p>Figure unavailable. This image could not be extracted from the uploaded source. Regenerate notes or view the original PDF.</p>
       </figcaption>
     </figure>
   `;
@@ -135,7 +135,14 @@ function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are av
     return;
   }
   try {
-    typeInto(summaryContent, markdownToHTML(source), renderMath);
+    const renderedHtml = markdownToHTML(source);
+    const surfaceHtml = typeof renderStudyNotesSurface === "function"
+      ? renderStudyNotesSurface(renderedHtml, {
+        collapseSecondary: typeof shouldCollapseSecondarySections === "function" && !selectedSection ? shouldCollapseSecondarySections() : false,
+        promptMode: currentPromptMode || "professor_mode"
+      })
+      : renderedHtml;
+    typeInto(summaryContent, surfaceHtml, renderMath);
   } catch (error) {
     console.error("Could not render notes markdown:", error);
     summaryContent.innerHTML = `<pre class="notes-render-fallback">${escapeHTML(source)}</pre>`;
@@ -358,6 +365,8 @@ async function translateCurrentNotes(targetLanguage) {
       language,
       detailLevel: "translated",
       depthLabel: "Translated",
+      promptMode: currentPromptMode || "professor_mode",
+      promptModeLabel: currentPromptModeLabel || "",
       sourceFingerprint: currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
       primarySourceIdentity: currentPrimarySourceIdentity,

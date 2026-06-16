@@ -1,6 +1,19 @@
-const VITE_PORTS = new Set(["5173", "5174", "5175", "5176", "5177", "5178", "4173"]);
+const isViteDevServer = Boolean(import.meta.env?.DEV);
+
+function escapeHTML(value) {
+  return String(value || "").replace(/[<>&]/g, char => ({
+    "<": "&lt;",
+    ">": "&gt;",
+    "&": "&amp;"
+  }[char]));
+}
+
+function focusRoomHasMounted() {
+  return Boolean(document.getElementById("focusRoomSurface"));
+}
 
 function renderFocusRoomLoadError(error) {
+  if (focusRoomHasMounted()) return;
   console.error("Synapse Focus Room failed to load:", error);
   const root = document.getElementById("focusRoomRoot");
   if (!root) return;
@@ -9,16 +22,38 @@ function renderFocusRoomLoadError(error) {
     '<section class="focus-empty-stage">',
     '<article class="liquid-glass focus-empty-card">',
     "<h1>Synapse Focus Room</h1>",
-    "<p>Focus Room could not load. Refresh the page, or start the Vite dev server with npm run dev.</p>",
-    `<p>${message.replace(/[<>&]/g, char => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[char]))}</p>`,
+    "<p>Focus Room could not load. Refresh the page, or start the project from a local server instead of opening the HTML file directly.</p>",
+    `<p class="focus-error-detail">${escapeHTML(message)}</p>`,
     "</article>",
     "</section>"
   ].join("");
 }
 
-if (VITE_PORTS.has(window.location.port)) {
-  import("./standalone.js?v=focus-room-react-vite-v2").catch(renderFocusRoomLoadError);
+function verifyFocusRoomMounted() {
+  const nextFrame = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+  nextFrame(() => {
+    nextFrame(() => {
+      if (!focusRoomHasMounted()) {
+        renderFocusRoomLoadError(new Error("Focus Room started, but no interface mounted. Refresh the page to reload the app bundle."));
+      }
+    });
+  });
+}
+
+window.addEventListener("error", event => {
+  window.setTimeout(() => renderFocusRoomLoadError(event.error || event.message), 0);
+});
+
+window.addEventListener("unhandledrejection", event => {
+  window.setTimeout(() => renderFocusRoomLoadError(event.reason), 0);
+});
+
+if (isViteDevServer) {
+  import("./standalone.js?v=focus-room-react-vite-v3")
+    .then(verifyFocusRoomMounted)
+    .catch(renderFocusRoomLoadError);
 } else {
-  import(/* @vite-ignore */ "../../assets/focus-room-app/focus-room-static.js?v=focus-room-static-v1")
+  import(/* @vite-ignore */ "../../assets/focus-room-app/focus-room-static.js?v=focus-room-static-v2")
+    .then(verifyFocusRoomMounted)
     .catch(renderFocusRoomLoadError);
 }

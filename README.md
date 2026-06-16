@@ -46,7 +46,7 @@ Create `backend/.env` for local backend secrets:
 ```env
 OPENAI_API_KEY=your_key_here
 SYNAPSE_PUBLIC_BACKEND_URL=http://127.0.0.1:8001
-SYNAPSE_CORS_ALLOW_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+SYNAPSE_CORS_ALLOW_ORIGINS=http://127.0.0.1:5175,http://localhost:5175
 ENABLE_LOCAL_PPTX_APP_RENDER=false
 ENABLE_SOURCE_PPTX_PREVIEW_RENDER=true
 ```
@@ -76,6 +76,8 @@ SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK=false
 The landing page reads `window.SYNAPSE_CONTACT_ENDPOINT` when you want to post contact enquiries to a specific deployed endpoint. If it is not set, localhost submissions try `http://127.0.0.1:8001/contact`; otherwise they are saved locally for launch testing.
 
 The auth pages use Supabase Auth when `window.SYNAPSE_SUPABASE_URL` and `window.SYNAPSE_SUPABASE_ANON_KEY` are configured. Without those public frontend values, the older browser-local demo auth remains available for development only.
+
+Google sign-in uses Supabase OAuth. In Supabase Auth, enable the Google provider, add your Google OAuth client credentials, and allow the local redirect URL `http://127.0.0.1:5175/frontend/index.html` plus your deployed frontend callback URL.
 
 The MySQL data API is configured separately in `server/.env`. Keep `MYSQL_PASSWORD` and `SYNAPSE_INTERNAL_API_TOKEN` out of frontend files and Git. See `server/README.md` for local MySQL setup.
 
@@ -107,19 +109,19 @@ npm run dev
 Open the public site:
 
 ```text
-http://127.0.0.1:5173/frontend/landing.html
+http://127.0.0.1:5175/frontend/landing.html
 ```
 
 Open the study workspace:
 
 ```text
-http://127.0.0.1:5173/frontend/index.html
+http://127.0.0.1:5175/frontend/index.html
 ```
 
 Open the standalone Focus Room:
 
 ```text
-http://127.0.0.1:5173/frontend/focus-room.html#/focus-room/:materialId
+http://127.0.0.1:5175/frontend/focus-room.html#/focus-room/:materialId
 ```
 
 The project-root `index.html` redirects to the public landing page. `app.html` redirects to the study workspace.

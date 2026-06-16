@@ -83,7 +83,6 @@ export function ContactSection() {
     <section className="section contact-section" id="contact">
       <div className="landing-container contact-grid">
         <div className="section-heading">
-          <span className="section-kicker">Contact</span>
           <h2>Questions about launch, classrooms, or study workflows?</h2>
           <p>Send a concise note and the Synapse team can follow up about student access, deployments, or product feedback.</p>
           <div className="contact-promises">

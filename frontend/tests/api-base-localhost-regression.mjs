@@ -9,7 +9,7 @@ const repoRoot = path.resolve(__dirname, "../..");
 const apiConfigPath = path.join(repoRoot, "frontend/src/legacy/apiConfig.js");
 const dataApiConfigPath = path.join(repoRoot, "frontend/src/legacy/dataApiConfig.js");
 
-async function loadApiBase({ protocol = "http:", hostname = "127.0.0.1", port = "5500", configured = "", backendPort = "" }) {
+async function loadApiBase({ protocol = "http:", hostname = "127.0.0.1", port = "5175", configured = "", backendPort = "" }) {
   const host = hostname.startsWith("[") ? `${hostname}:${port}` : `${hostname}:${port}`;
   globalThis.window = {
     SYNAPSE_API_BASE: configured,
@@ -35,19 +35,19 @@ assert.equal(
 );
 
 assert.equal(
-  await loadApiBase({ hostname: "[::1]", port: "5500" }),
+  await loadApiBase({ hostname: "[::1]", port: "5175" }),
   "http://127.0.0.1:8001",
   "bracketed IPv6 localhost should use the backend port"
 );
 
 assert.equal(
-  await loadApiBase({ hostname: "::1", port: "5500" }),
+  await loadApiBase({ hostname: "::1", port: "5175" }),
   "http://127.0.0.1:8001",
   "plain IPv6 localhost should use the backend port"
 );
 
 assert.equal(
-  await loadApiBase({ hostname: "127.0.0.1", port: "5500", backendPort: "9000" }),
+  await loadApiBase({ hostname: "127.0.0.1", port: "5175", backendPort: "9000" }),
   "http://127.0.0.1:9000",
   "custom backend ports should still be respected"
 );

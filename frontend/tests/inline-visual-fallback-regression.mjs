@@ -53,11 +53,12 @@ const missingUrlHtml = renderInlineVisualCard(2);
 assert.ok(missingUrlHtml.includes("inline-visual-card missing"));
 assert.ok(missingUrlHtml.includes('id="inline-visual-2"'));
 assert.ok(missingUrlHtml.includes("Filtered results table"));
-assert.ok(missingUrlHtml.includes("Source figure 3"));
+assert.ok(missingUrlHtml.includes("Figure unavailable"));
 assert.ok(!missingUrlHtml.includes("<img"));
+assert.ok(missingUrlHtml.includes("This image could not be extracted from the uploaded source"));
 
 const missingItemHtml = renderInlineVisualCard(4);
-assert.ok(missingItemHtml.includes("Source figure 5 unavailable"));
-assert.ok(missingItemHtml.includes("Regenerate from the original source files"));
+assert.ok(missingItemHtml.includes("Figure unavailable"));
+assert.ok(missingItemHtml.includes("Regenerate notes or view the original PDF"));
 
 console.log("inline visual fallback regression passed");

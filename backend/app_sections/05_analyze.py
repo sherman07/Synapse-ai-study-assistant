@@ -3,6 +3,8 @@ def prompt_modes():
     return {
         "default": DEFAULT_NOTE_PROMPT_MODE,
         "options": note_prompt_mode_options(),
+        "note_length_default": DEFAULT_NOTE_LENGTH_MODE,
+        "note_length_options": note_length_mode_options(),
     }
 
 
@@ -18,6 +20,25 @@ def should_run_optional_analysis_stage(started_at: float, min_remaining_seconds:
     return analysis_remaining_seconds_since(started_at) >= max(0, int(min_remaining_seconds))
 
 
+def analysis_error_response(message: str, status_code: int = 400) -> Response:
+    return Response(
+        json.dumps({"error": message}),
+        status_code=status_code,
+        media_type="application/json",
+    )
+
+
+def analysis_exception_status(error: Exception) -> int:
+    message = str(error)
+    if "OPENAI_API_KEY" in message or "not configured" in message:
+        return 503
+    if "too large" in message and "limit" in message:
+        return 413
+    if isinstance(error, ValueError):
+        return 400
+    return 500
+
+
 @app.post("/analyze")
 async def analyze_materials(
     files: List[UploadFile] = File(default=[]),
@@ -26,6 +47,7 @@ async def analyze_materials(
     preferred_language: str = Form(default="auto"),
     detail_level: str = Form(default="auto"),
     prompt_mode: str = Form(default=DEFAULT_NOTE_PROMPT_MODE),
+    note_length: str = Form(default=DEFAULT_NOTE_LENGTH_MODE),
     client_fingerprint: str = Form(default=""),
     request: Request = None,
 ):
@@ -125,7 +147,7 @@ async def analyze_materials(
             title_candidates.append(inferred_title)
 
         if not content_parts:
-            return {"error": "No readable files, links, or text were provided."}
+            return analysis_error_response("No readable files, links, or text were provided.", 400)
 
         combined_source_text = "\n\n".join(
             part.get("text", "") for part in content_parts
@@ -133,6 +155,8 @@ async def analyze_materials(
         )
         selected_prompt_mode = normalise_note_prompt_mode(prompt_mode)
         selected_prompt_label = note_prompt_mode_label(selected_prompt_mode)
+        selected_note_length = normalise_note_length_mode(note_length)
+        selected_note_length_label = note_length_mode_label(selected_note_length)
         resolved_language_key = resolve_generation_language_key(preferred_language, combined_source_text)
         postprocess_language = resolved_language_key if normalise_language_key(preferred_language) == "auto" else preferred_language
         depth_plan = choose_learning_depth(combined_source_text, source_units, detail_level)
@@ -143,9 +167,15 @@ async def analyze_materials(
             depth_config = DEPTH_CONFIG["comprehensive"]
             depth_plan["depth"] = depth
             depth_plan["config"] = depth_config
-            depth_plan["reason"] = (depth_plan.get("reason", "") + ", professor-level multi-source synthesis").strip(", ")
+            depth_plan["reason"] = (depth_plan.get("reason", "") + ", academic multi-source synthesis").strip(", ")
 
-        source_fingerprint = build_analysis_fingerprint(preferred_language, source_units, depth, selected_prompt_mode)
+        source_fingerprint = build_analysis_fingerprint(
+            preferred_language,
+            source_units,
+            depth,
+            selected_prompt_mode,
+            selected_note_length,
+        )
         cached_result = cache_get(source_fingerprint)
         if cached_result:
             # Rebuild live visual cards from the freshly uploaded files. The cache
@@ -162,9 +192,14 @@ async def analyze_materials(
                 source_units=source_units,
                 attach_visuals=True,
                 protect_heading=False,
+                prompt_mode=selected_prompt_mode,
+                note_length_mode=selected_note_length,
             )
             live_visual_gallery = build_visual_gallery(source_units)
-            cached_visual_gallery = cached_result.get("visual_gallery") or cached_result.get("visuals") or []
+            from core.visual_assets import filter_browser_visual_gallery
+            cached_visual_gallery = filter_browser_visual_gallery(
+                cached_result.get("visual_gallery") or cached_result.get("visuals") or []
+            )
             visual_gallery = live_visual_gallery or cached_visual_gallery
             cached_result = {
                 **cached_result,
@@ -187,6 +222,8 @@ async def analyze_materials(
                 "output_language": postprocess_language,
                 "prompt_mode": selected_prompt_mode,
                 "prompt_mode_label": selected_prompt_label,
+                "note_length": cached_result.get("note_length") or selected_note_length,
+                "note_length_label": cached_result.get("note_length_label") or selected_note_length_label,
                 "analysis_max_seconds": ANALYSIS_MAX_SECONDS,
                 "analysis_elapsed_seconds": round(analysis_elapsed_seconds(), 2),
                 "optional_stages_skipped": [],
@@ -246,7 +283,7 @@ Most likely source title/topic from explicit evidence: {title_hint}
 Stable source identity list:
 {chr(10).join(source_identity_lines)}
 
-Professor source-card preanalysis for multi-source synthesis:
+Academic source-card preanalysis for multi-source synthesis:
 {source_digest_block if source_digest_block else "Not required for single-source mode."}
 
 {build_multisource_instruction(source_units, postprocess_language)}
@@ -262,6 +299,7 @@ Consistency requirement:
             preferred_language,
             depth_plan,
             selected_prompt_mode,
+            selected_note_length,
             analysis_started_at=analysis_started_at,
             skipped_optional_stages=skipped_optional_stages,
         )
@@ -275,6 +313,8 @@ Consistency requirement:
             source_units=source_units,
             attach_visuals=True,
             protect_heading=True,
+            prompt_mode=selected_prompt_mode,
+            note_length_mode=selected_note_length,
         )
         stored_sections = parse_sections(stored_summary)
         if allow_optional_stage("title", env_int("TITLE_STAGE_MIN_SECONDS", 18)):
@@ -289,7 +329,13 @@ Consistency requirement:
         stored_title = localise_title_if_needed(stored_title, postprocess_language)
         stored_connections = generate_connections_from_sections(stored_sections)
         if allow_optional_stage("mind_map", env_int("MINDMAP_STAGE_MIN_SECONDS", 35)):
-            stored_mind_map = generate_ai_mind_map(stored_title, stored_sections, postprocess_language, depth)
+            stored_mind_map = generate_ai_mind_map(
+                stored_title,
+                stored_sections,
+                postprocess_language,
+                depth,
+                selected_prompt_mode,
+            )
         else:
             stored_mind_map = generate_mind_map(stored_title, stored_sections, depth)
         stored_source_identity = source_units[0].get("source_identity", "") if source_units else ""
@@ -327,6 +373,8 @@ Consistency requirement:
             "output_language": postprocess_language,
             "prompt_mode": selected_prompt_mode,
             "prompt_mode_label": selected_prompt_label,
+            "note_length": selected_note_length,
+            "note_length_label": selected_note_length_label,
             "analysis_max_seconds": ANALYSIS_MAX_SECONDS,
             "analysis_elapsed_seconds": round(analysis_elapsed_seconds(), 2),
             "optional_stages_skipped": skipped_optional_stages,
@@ -343,7 +391,7 @@ Consistency requirement:
         return result
 
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))
 
 
 # -------------------------

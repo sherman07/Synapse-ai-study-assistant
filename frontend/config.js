@@ -2,9 +2,13 @@
   Public runtime config for Synapse.
   Replace these values during deployment. Do not put secret keys in this file.
 */
-window.SYNAPSE_API_BASE = window.SYNAPSE_API_BASE || "";
-window.SYNAPSE_DATA_API_BASE = window.SYNAPSE_DATA_API_BASE || "";
-window.SYNAPSE_CONTACT_ENDPOINT = window.SYNAPSE_CONTACT_ENDPOINT || "";
+const SYNAPSE_IS_LOCAL_HOST = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(window.location.hostname);
+const SYNAPSE_LOCAL_API_BASE = "http://127.0.0.1:8001";
+const SYNAPSE_LOCAL_DATA_API_BASE = "http://127.0.0.1:3001";
+
+window.SYNAPSE_API_BASE = window.SYNAPSE_API_BASE || (SYNAPSE_IS_LOCAL_HOST ? SYNAPSE_LOCAL_API_BASE : "");
+window.SYNAPSE_DATA_API_BASE = window.SYNAPSE_DATA_API_BASE || (SYNAPSE_IS_LOCAL_HOST ? SYNAPSE_LOCAL_DATA_API_BASE : "");
+window.SYNAPSE_CONTACT_ENDPOINT = window.SYNAPSE_CONTACT_ENDPOINT || (SYNAPSE_IS_LOCAL_HOST ? `${SYNAPSE_LOCAL_API_BASE}/contact` : "");
 
 window.SYNAPSE_SUPABASE_URL = window.SYNAPSE_SUPABASE_URL || "";
 window.SYNAPSE_SUPABASE_ANON_KEY = window.SYNAPSE_SUPABASE_ANON_KEY || "";

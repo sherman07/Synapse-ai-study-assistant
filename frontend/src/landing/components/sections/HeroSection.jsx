@@ -23,7 +23,7 @@ export function HeroSection({ onGetStarted, onViewDemo }) {
           </h1>
           <p className="hero-subtitle">
             <BlurText>
-              Upload PDFs, lectures, slides, images, or notes. Synapse analyses the source, builds notes and mind maps, generates practice, and updates feedback as your mastery improves.
+              Upload lectures, PDFs, slides, images, or notes. Synapse builds source-aware notes, maps, practice, and feedback as mastery grows.
             </BlurText>
           </p>
           <div className="hero-actions">

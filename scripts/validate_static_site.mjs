@@ -10,6 +10,16 @@ function read(filePath) {
   return fs.readFileSync(filePath, "utf8");
 }
 
+function readTreeText(dir) {
+  if (!fs.existsSync(dir)) return "";
+  return fs.readdirSync(dir, { withFileTypes: true }).map(entry => {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) return readTreeText(entryPath);
+    if (!/\.(js|jsx|css)$/.test(entry.name)) return "";
+    return read(entryPath);
+  }).join("\n");
+}
+
 function htmlFiles() {
   return fs.readdirSync(frontendRoot)
     .filter(file => file.endsWith(".html"))
@@ -37,6 +47,12 @@ function hasAnchor(html, hash) {
   return html.includes(`id="${decoded}"`) || html.includes(`name="${decoded}"`);
 }
 
+function anchorSourceFor(filePath) {
+  const html = read(filePath);
+  if (path.resolve(filePath) !== path.join(frontendRoot, "landing.html")) return html;
+  return `${html}\n${readTreeText(path.join(frontendRoot, "src", "landing"))}`;
+}
+
 for (const filePath of htmlFiles()) {
   const html = read(filePath);
   const name = path.relative(repoRoot, filePath);
@@ -61,14 +77,18 @@ for (const filePath of htmlFiles()) {
     const { file, hash } = resolveInternalTarget(filePath, href);
     assert.ok(fs.existsSync(file), `${name} links to missing file: ${href}`);
     if (hash) {
-      assert.ok(hasAnchor(read(file), hash), `${name} links to missing anchor: ${href}`);
+      assert.ok(hasAnchor(anchorSourceFor(file), hash), `${name} links to missing anchor: ${href}`);
     }
   }
 }
 
 const landing = read(path.join(frontendRoot, "landing.html"));
+const landingSource = readTreeText(path.join(frontendRoot, "src", "landing"));
 for (const requiredId of ["product", "features", "how-it-works", "about", "pricing", "contact", "contactForm", "authModal"]) {
-  assert.ok(landing.includes(`id="${requiredId}"`), `landing.html is missing #${requiredId}`);
+  assert.ok(
+    landing.includes(`id="${requiredId}"`) || landingSource.includes(`id="${requiredId}"`),
+    `landing page is missing #${requiredId}`
+  );
 }
 
 assert.ok(fs.existsSync(path.join(frontendRoot, "logos", "synapse.png")), "frontend publish directory needs synapse.png");

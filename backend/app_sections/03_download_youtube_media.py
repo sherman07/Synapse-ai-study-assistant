@@ -94,11 +94,18 @@ def parse_sections(summary: str) -> Dict[str, str]:
 
     promoted_heading_pattern = re.compile(
         r"^\s*(?:"
-        r"Learning question|Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources? \(|Sources?:|Core argument|Key ideas?|Concepts? explained|"
+        r"Learning question|Key takeaways?|Core concept map|Main notes by lecture section|Key terms table|Case study\s*/\s*example breakdown|"
+        r"Evidence bank|Exam answer templates|Common mistakes|Revision checklist|Flashcard-ready summary|"
+        r"Academic overview|Central argument|Conceptual framework|Key tensions\s*/\s*debates|Critical analysis|"
+        r"Strengths and limits of the source|Essay-ready thesis statements|Model academic paragraph|"
+        r"Professional vocabulary bank|High-grade discussion points|Essay\s*/\s*tutorial use|How to use this in an essay or tutorial|"
+        r"Source and argument map|Core notes|Key terms(?: and mechanisms)?|Sources? \(|Sources?:|Core argument|Key ideas?|Concepts? explained|"
         r"Source evidence(?:\s*/\s*example matrix)?|Reading the source evidence|Worked examples?|Evidence matrix|Comparison table|"
         r"Exam strategy|Common mistakes|Revision(?: checklist)?|Conclusion|"
-        r"学习问题|来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
-        r"考试策略|考試策略|常见错误|常見錯誤|复习|復習|结论|結論"
+        r"学习问题|关键结论|核心概念图|分章节主笔记|关键术语表|案例\s*/\s*例子拆解|证据库|考试答题模板|常见错误|复习清单|闪卡速记总结|"
+        r"學習問題|關鍵結論|核心概念圖|分章節主筆記|關鍵術語表|案例\s*/\s*例子拆解|證據庫|考試答題模板|常見錯誤|複習清單|閃卡速記總結|"
+        r"来源与论点地图|來源與論點地圖|核心笔记|核心筆記|关键术语与机制|關鍵術語與機制|核心论点|关键概念|源内证据|源內證據|证据矩阵|例子与证据|概念比较表|"
+        r"考试策略|考試策略|复习|復習|结论|結論"
         r")\b.*$",
         flags=re.I,
     )
@@ -736,7 +743,13 @@ def normalise_ai_mind_map(raw_map: dict, fallback_map: dict, depth: str = "detai
     return {"center": center, "branches": branches}
 
 
-def generate_ai_mind_map(title: str, sections: Dict[str, str], preferred_language: str = "auto", depth: str = "detailed") -> dict:
+def generate_ai_mind_map(
+    title: str,
+    sections: Dict[str, str],
+    preferred_language: str = "auto",
+    depth: str = "detailed",
+    prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE,
+) -> dict:
     """
     Ask the model to design a visual mind map specifically.
     Falls back to a deterministic rule-based map if the model output is invalid.
@@ -758,6 +771,14 @@ def generate_ai_mind_map(title: str, sections: Dict[str, str], preferred_languag
         compact_sections.append(f"SECTION: {name}\n{truncate_text(content, 3200)}")
 
     language_instruction = language_instruction_for(preferred_language)
+    is_source_strict = normalise_note_prompt_mode(prompt_mode) == "source_strict_research_mode"
+    source_strict_mindmap_rules = ""
+    if is_source_strict:
+        source_strict_mindmap_rules = """
+- Build the map around the lecture's logic rather than listing many flat labels.
+- In each point detail, include the matching note section and the most specific visible source pointer available from the notes, such as Slide 15 or Page 23.
+- Prefer branches such as public-health authority, ethical reasoning, legal example, evidence limits, and exam framing when those ideas appear in the notes.
+"""
 
     prompt = f"""
 Create a visual mind map JSON for a study app.
@@ -783,6 +804,8 @@ Important design rules:
 - Never translate the brand name Synapse. If you need a summary branch, use the selected-language equivalent of Overview/Summary, not a translation of Synapse.
 - The map should be simple first, then expandable by clicking points.
 - Keep enough detail in the leaves that clicking a branch teaches something, not just navigation.
+- When the notes include visible source pointers, carry them into branch summaries or point details instead of dropping them.
+{source_strict_mindmap_rules}
 - Return JSON only. No markdown.
 
 JSON schema:

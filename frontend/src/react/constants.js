@@ -20,10 +20,16 @@ export const LANGUAGE_OPTIONS = [
 ];
 
 export const PROMPT_MODE_OPTIONS = [
-  ["quick_answer", "Quick Answer"],
-  ["detailed_explanation", "Detailed Explanation"],
-  ["professor_mode", "Professor Mode"],
-  ["tutor_mode", "Tutor Mode"],
-  ["source_strict_research_mode", "Source-Strict Research Mode"],
-  ["assignment_apa_mode", "Assignment / APA Mode"],
+  ["quick_answer", "Quick Answer", "Creates a concise answer focused on the fastest useful study points."],
+  ["detailed_explanation", "Detailed Explanation", "Teaches the material in a fuller step-by-step explanation."],
+  ["professor_mode", "Academic Analysis", "Builds academic argument, critical analysis, thesis statements, and essay-ready explanations from the source."],
+  ["tutor_mode", "Tutor Mode", "Explains the source simply with guided learning support."],
+  ["source_strict_research_mode", "Source-Strict Research Mode", "Uses only the uploaded source with clear evidence discipline."],
+  ["assignment_apa_mode", "Assignment / APA Mode", "Shapes source material into assignment-aware structure and APA-ready guidance."],
+];
+
+export const NOTE_LENGTH_OPTIONS = [
+  ["quick_review", "Quick Review", "300-500 words for a concise analysis or fast revision pass."],
+  ["standard_notes", "Standard Notes", "900-1400 words with balanced explanation and evidence."],
+  ["deep_study", "Deep Study", "1800-2500 words for fuller exam preparation."],
 ];

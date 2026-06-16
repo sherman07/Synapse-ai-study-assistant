@@ -6,7 +6,6 @@ export function LearningIntelligenceSection() {
     <section className="section intelligence-section" id="learning-intelligence">
       <div className="landing-container intelligence-grid">
         <div className="section-heading">
-          <span className="section-kicker">Learning Intelligence</span>
           <h2>Know what to revise next.</h2>
           <p>Synapse turns study activity into a clear signal: what is strong, what is weak, and what deserves the next session.</p>
         </div>

@@ -643,9 +643,11 @@ async function loadHistoryEntry(id, options = {}) {
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
   currentHistoryId = item.id;
   currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || "";
+  currentPromptMode = item.promptMode || item.prompt_mode || "professor_mode";
+  currentPromptModeLabel = item.promptModeLabel || item.prompt_mode_label || "";
   const localVisuals = Array.isArray(item.visualGallery) ? item.visualGallery : [];
   const restoredVisuals = await loadVisualGalleryAssets(id, currentSourceFingerprint);
-  visualGalleryData = sanitizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);
+  visualGalleryData = normalizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);
   const restoredSources = await loadSourceAssets(id, currentSourceFingerprint);
   restoreSourceViewerItems(restoredSources.length ? restoredSources : (item.sourceItems || item.sources || []));
 

@@ -36,6 +36,10 @@ import {
 } from "./indexedDbStore.js";
 import { ensureRenderableSummary } from "./notesContent.js";
 import {
+  renderStudyNotesSurface,
+  shouldCollapseSecondarySections
+} from "./notesSurface.js";
+import {
   cleanMindText,
   configureMarkdownRenderer,
   escapeAttr,
@@ -48,7 +52,7 @@ import {
 } from "./markdownRenderer.js?v=probability-table-v1";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "local-api-v1";
+const CONTROLLER_VERSION = "local-api-v2";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -95,12 +99,14 @@ const controllerLoader = new LegacyControllerLoader({
     removeAutoBilingualHeadings,
     removeDetectedUrlsClient,
     renderMath,
+    renderStudyNotesSurface,
     safeGetLocalStorage,
     safeReadJSONStorage,
     safeRemoveLocalStorage,
     safeSetLocalStorage,
     safeWriteJSONStorage,
     shorten,
+    shouldCollapseSecondarySections,
     sourceIcon,
     sourceItemLooksLikeYouTube,
     sourceKindFromFile,

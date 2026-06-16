@@ -976,8 +976,8 @@ function transactVisualStore(mode, callback) {
 }
 
 function compactVisualGalleryForStorage(items) {
-  return sanitizeLearningFigures(items)
-    .filter(item => item && item.url)
+  return normalizeLearningFigures(items)
+    .filter(item => item && (isCompactVisualUrl(item.url) || item.title || item.caption || item.what_shows))
     .map(item => ({
       index: item.index,
       source_index: item.source_index,
@@ -985,7 +985,7 @@ function compactVisualGalleryForStorage(items) {
       location: item.location || "",
       visual_kind: item.visual_kind || "",
       caption: item.caption || "",
-      url: item.url,
+      url: isCompactVisualUrl(item.url) ? item.url : "",
       title: item.title || "",
       what_shows: item.what_shows || "",
       argument_supported: item.argument_supported || "",
@@ -993,6 +993,11 @@ function compactVisualGalleryForStorage(items) {
       how_to_read: item.how_to_read || "",
       exam_use: item.exam_use || ""
     }));
+}
+
+function isCompactVisualUrl(value) {
+  const url = String(value || "").trim();
+  return Boolean(url && !url.toLowerCase().startsWith("data:image/"));
 }
 
 async function pruneVisualGalleryAssets(limit = VISUAL_HISTORY_LIMIT) {

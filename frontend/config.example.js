@@ -8,6 +8,7 @@ window.SYNAPSE_CONTACT_ENDPOINT = "https://api.your-domain.com/contact";
 
 window.SYNAPSE_SUPABASE_URL = "https://your-project.supabase.co";
 window.SYNAPSE_SUPABASE_ANON_KEY = "your-public-anon-key";
+// Enable Google in Supabase Auth and allow http://127.0.0.1:5175/frontend/index.html for local OAuth redirects.
 
 // Stripe secret keys and price IDs live on the Express data API server only.
 // The frontend sends only these public plan IDs.

@@ -26,8 +26,6 @@ function readTreeText(dir) {
 }
 
 const landingHtml = read("frontend/landing.html");
-const landingStaticCss = read("frontend/landing-static.css");
-const landingStaticJs = read("frontend/landing-static.js");
 const landingSource = readTreeText(landingRoot);
 const packageJson = JSON.parse(read("package.json"));
 const viteConfig = read("vite.config.js");
@@ -71,12 +69,11 @@ const threeComponentNames = [
 ];
 
 assert.match(landingHtml, /id="landing-root"/, "landing.html should mount the React landing app");
-assert.doesNotMatch(landingHtml, /<script[^>]+src="\.\/src\/landing\/main\.jsx"/, "landing.html must not ask static servers to load raw JSX");
-assert.match(landingHtml, /import\("\.\/src\/landing\/main\.jsx"\)/, "landing.html should dynamically load the React landing entry through Vite");
-assert.match(landingHtml, /import\.meta\.env\?\.DEV \|\| import\.meta\.env\?\.PROD/, "landing.html should gate the React entry to Vite-built contexts");
-assert.match(landingHtml, /landing-static\.css/, "landing.html should include a styled static fallback CSS file");
-assert.match(landingHtml, /landing-static\.js/, "landing.html should include static fallback behavior");
-assert.ok(landingSource.includes('removeAttribute("data-static-fallback")'), "React entry should remove static fallback diagnostics after mounting");
+assert.match(landingHtml, /<script type="module" src="\.\/src\/landing\/main\.jsx"><\/script>/, "landing.html should load only the Vite React landing entry");
+assert.doesNotMatch(landingHtml, /landing-static\.(css|js)/, "landing.html should not include the old static fallback design");
+assert.doesNotMatch(landingHtml, /data-static-fallback|static-landing|static-hero/, "landing.html should not keep static fallback markers");
+assert.ok(!exists("frontend/landing-static.css"), "static fallback CSS should be removed");
+assert.ok(!exists("frontend/landing-static.js"), "static fallback JS should be removed");
 assert.match(landingHtml, /<meta name="theme-color" content="#4a7cff" \/>/, "landing page must keep the original Synapse theme color");
 assert.match(viteConfig, /landing:\s*resolve\(__dirname,\s*"frontend\/landing\.html"\)/, "Vite should build the public landing page");
 
@@ -84,7 +81,6 @@ for (const requiredId of ["product", "features", "how-it-works", "about", "prici
   assert.ok(landingHtml.includes(`id="${requiredId}"`) || landingSource.includes(`id="${requiredId}"`), `landing page is missing #${requiredId}`);
 }
 
-assert.equal((landingHtml.match(/data-cycle-step="/g) || []).length, 6, "static fallback should keep six journey steps");
 assert.ok(landingSource.includes("data-cycle-step={index + 1}"), "React journey should expose mapped cycle-step attributes");
 for (const stepTitle of ["Upload Material", "Generate Notes", "Organise Ideas", "Teach and Practice", "Get Feedback", "Revise and Master"]) {
   assert.ok(landingSource.includes(stepTitle), `React journey should include ${stepTitle}`);
@@ -133,12 +129,8 @@ const landingCss = read("frontend/src/landing/landing.css");
 assert.ok(landingCss.includes("--primary: #4a7cff"), "landing CSS must keep #4a7cff as the primary token");
 assert.ok(landingCss.includes("--accent: #667eea"), "landing CSS should keep the original blue/purple accent family");
 assert.ok(landingCss.includes("--accent-deep: #764ba2"), "landing CSS should keep the original deep purple accent");
-assert.ok(landingStaticCss.includes("--static-primary: #4a7cff"), "static fallback CSS must keep #4a7cff as the primary token");
-assert.ok(landingStaticCss.includes("--static-accent: #667eea"), "static fallback CSS should keep the original blue accent");
-assert.ok(landingStaticCss.includes("--static-accent-deep: #764ba2"), "static fallback CSS should keep the original purple accent");
 for (const forbiddenToken of ["--cyan", "--mint", "--sky", "#06b6d4", "#10b981"]) {
   assert.ok(!landingCss.includes(forbiddenToken), `landing CSS should not reintroduce ${forbiddenToken}`);
-  assert.ok(!landingStaticCss.includes(forbiddenToken), `static fallback CSS should not reintroduce ${forbiddenToken}`);
 }
 
 for (const requiredCss of [
@@ -152,28 +144,6 @@ for (const requiredCss of [
   ".pricing-card.recommended"
 ]) {
   assert.ok(landingCss.includes(requiredCss), `landing CSS should include ${requiredCss}`);
-}
-
-for (const requiredCss of [
-  "@media (max-width: 1024px)",
-  "@media (max-width: 768px)",
-  "@media (max-width: 480px)",
-  "@media (prefers-reduced-motion: reduce)",
-  ".static-hero",
-  ".static-hero-visual",
-  ".static-feature-grid",
-  ".static-pricing-grid"
-]) {
-  assert.ok(landingStaticCss.includes(requiredCss), `static fallback CSS should include ${requiredCss}`);
-}
-
-for (const requiredBehavior of [
-  "mobileToggle",
-  "openAuthModal",
-  "contactForm",
-  "static-modal-open"
-]) {
-  assert.ok(landingStaticJs.includes(requiredBehavior), `static fallback JS should include ${requiredBehavior}`);
 }
 
 console.log("landing React upgrade regression passed");

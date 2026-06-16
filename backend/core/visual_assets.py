@@ -1,7 +1,9 @@
 import base64
 import hashlib
 import re
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 
 try:
     from core.config import PUBLIC_BACKEND_BASE_URL, RUNTIME_ASSETS_DIR
@@ -18,6 +20,10 @@ CONTENT_TYPE_EXTENSIONS = {
     "image/gif": "gif",
 }
 RASTER_IMAGE_TYPES = set(CONTENT_TYPE_EXTENSIONS)
+LOCAL_FILESYSTEM_URL_RE = re.compile(
+    r"^(?:file:|[A-Za-z]:[\\/]|\\\\|/(?:Users|home|var|tmp|private|Volumes|Applications|opt|usr)/)",
+    re.I,
+)
 
 
 def parse_image_data_url(url: str) -> Optional[Tuple[str, bytes]]:
@@ -39,7 +45,15 @@ def visual_asset_url_for_browser(url: str) -> str:
     value = str(url or "").strip()
     parsed = parse_image_data_url(value)
     if not parsed:
-        return "" if value.lower().startswith("data:image/") else value
+        lower_value = value.lower()
+        if lower_value.startswith("data:image/"):
+            return ""
+        if LOCAL_FILESYSTEM_URL_RE.match(value):
+            return ""
+        parsed_url = urlparse(value)
+        if parsed_url.scheme and parsed_url.scheme not in {"http", "https"}:
+            return ""
+        return value
 
     content_type, data = parsed
     if content_type not in RASTER_IMAGE_TYPES:
@@ -55,3 +69,52 @@ def visual_asset_url_for_browser(url: str) -> str:
         return f"{PUBLIC_BACKEND_BASE_URL}/assets/visuals/{asset_path.name}"
     except Exception:
         return url
+
+
+def runtime_visual_asset_path_for_browser_url(url: str) -> Optional[Path]:
+    value = str(url or "").strip()
+    if not value:
+        return None
+
+    parsed = urlparse(value)
+    backend_base = urlparse(PUBLIC_BACKEND_BASE_URL)
+    path = parsed.path
+    if parsed.scheme or parsed.netloc:
+        if parsed.scheme != backend_base.scheme or parsed.netloc != backend_base.netloc:
+            return None
+
+    prefix = "/assets/visuals/"
+    if not path.startswith(prefix):
+        return None
+    asset_name = path[len(prefix):]
+    if not asset_name or "/" in asset_name or "\\" in asset_name:
+        return None
+    return RUNTIME_ASSETS_DIR / "visuals" / asset_name
+
+
+def visual_asset_url_is_available(url: str) -> bool:
+    browser_url = visual_asset_url_for_browser(url)
+    if not browser_url:
+        return False
+    asset_path = runtime_visual_asset_path_for_browser_url(browser_url)
+    if asset_path is None:
+        return True
+    try:
+        return asset_path.is_file()
+    except Exception:
+        return False
+
+
+def filter_browser_visual_gallery(items: List[dict]) -> List[dict]:
+    """Keep cached visual metadata only when the browser URL can still render."""
+    cleaned: List[dict] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        browser_url = visual_asset_url_for_browser(item.get("url", ""))
+        if not browser_url or not visual_asset_url_is_available(browser_url):
+            continue
+        cleaned_item = dict(item)
+        cleaned_item["url"] = browser_url
+        cleaned.append(cleaned_item)
+    return cleaned

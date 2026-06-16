@@ -710,6 +710,18 @@ body.mobile-assistant-open::before {
   line-height: 1.45;
 }
 
+.language-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.compact-note {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
 .generate-btn { margin-top: 20px; border-radius: var(--radius-md); padding: 16px; }
 
 .analysis-stage { width: 100%; }
