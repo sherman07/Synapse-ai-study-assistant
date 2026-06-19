@@ -215,6 +215,7 @@ def build_analysis_fingerprint(
         f"depth:{depth or 'auto'}",
         f"prompt_mode:{normalise_note_prompt_mode(prompt_mode)}",
         f"note_length:{normalise_note_length_mode(note_length_mode)}",
+        f"prompt_hash:{prompt_mode_prompt_hash(prompt_mode)}",
     ]
     for unit in units:
         source_identity = unit.get("source_identity") or ""
@@ -419,56 +420,74 @@ def language_instruction_for_generation(preferred_language: str, source_text: st
 
 
 def source_strict_note_structure_for_language(preferred_language: str, source_text: str = "") -> str:
-    key = resolve_generation_language_key(preferred_language, source_text)
-    if key in {"simplified_chinese", "mixed_chinese_english"}:
-        return "\n".join([
-            "# [具体主题标题]",
-            "## 学习问题",
-            "## 关键结论",
-            "## 核心概念图",
-            "## 分章节主笔记",
-            "## 关键术语表",
-            "## 案例 / 例子拆解",
-            "## 证据库",
-            "## 考试答题模板",
-            "## 常见错误",
-            "## 复习清单",
-            "## 闪卡速记总结",
-        ])
-    if key == "traditional_chinese":
-        return "\n".join([
-            "# [具體主題標題]",
-            "## 學習問題",
-            "## 關鍵結論",
-            "## 核心概念圖",
-            "## 分章節主筆記",
-            "## 關鍵術語表",
-            "## 案例 / 例子拆解",
-            "## 證據庫",
-            "## 考試答題模板",
-            "## 常見錯誤",
-            "## 複習清單",
-            "## 閃卡速記總結",
-        ])
     return "\n".join([
         "# [specific topic title]",
-        "## Learning Question",
-        "## Key Takeaways",
-        "## Core Concept Map",
-        "## Main Notes by Lecture Section",
-        "## Key Terms Table",
-        "## Case Study / Example Breakdown",
-        "## Evidence Bank",
-        "## Exam Answer Templates",
-        "## Common Mistakes",
-        "## Revision Checklist",
-        "## Flashcard-ready Summary",
+        "## Source Question",
+        "## Direct Source Claims",
+        "## Source Evidence",
+        "## Inferences Allowed By The Source",
+        "## Gaps / Limits",
+        "## Exam / Research Use",
+        "## Compact Revision Summary",
     ])
 
 
 def note_structure_for_language(preferred_language: str, source_text: str = "", prompt_mode: str = "professor_mode") -> str:
-    if normalise_note_prompt_mode(prompt_mode) == "source_strict_research_mode":
+    prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
+    if prompt_mode_key == "source_strict_research_mode":
         return source_strict_note_structure_for_language(preferred_language, source_text)
+    if prompt_mode_key == "quick_answer":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Direct Answer",
+            "## Why",
+            "## What To Do / Remember",
+        ])
+    if prompt_mode_key == "detailed_explanation":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Main Idea",
+            "## Key Concepts",
+            "## Step-by-Step Explanation",
+            "## Examples / Diagrams / Formulas",
+            "## Common Confusions",
+            "## Practice / Revision Checklist",
+        ])
+    if prompt_mode_key == "professor_mode":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Big Picture",
+            "## What You Actually Need To Understand",
+            "## Concept Connections",
+            "## Deep Explanation",
+            "## Background Knowledge Layer",
+            "## Application To New Situations",
+            "## High-Quality Student Thinking",
+            "## Common Mistakes",
+            "## How To Use This In Assessment",
+            "## Model High-Quality Output",
+            "## Memory and Practice",
+        ])
+    if prompt_mode_key == "tutor_mode":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Start From The Basic Idea",
+            "## Build The Concept Step By Step",
+            "## Where Students Usually Get Confused",
+            "## Worked Example / Guided Explanation",
+            "## Try This",
+            "## Check Your Understanding",
+        ])
+    if prompt_mode_key == "assignment_apa_mode":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Working Thesis / Answer",
+            "## APA-Style Outline",
+            "## Evidence Paragraphs",
+            "## Application / Analysis",
+            "## Counterpoint or Limitation",
+            "## References From Uploaded Sources",
+        ])
     key = resolve_generation_language_key(preferred_language, source_text)
     if key in {"simplified_chinese", "mixed_chinese_english"}:
         return "\n".join([

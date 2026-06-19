@@ -10,6 +10,7 @@ const EXAMPLE_PROMPTS = [
 
 export function AIStudyChat() {
   const [draft, setDraft] = useState("");
+  const assistantContext = useFocusRoomStore(state => state.assistantContext);
   const chatMessages = useFocusRoomStore(state => state.chatMessages);
   const chatPending = useFocusRoomStore(state => state.chatPending);
   const chatError = useFocusRoomStore(state => state.chatError);
@@ -22,6 +23,13 @@ export function AIStudyChat() {
 
   return (
     <article className="chat-panel">
+      {assistantContext.sectionTitle || assistantContext.excerpt ? (
+        <div className="chat-context-card liquid-glass-lite">
+          <span className="focus-kicker">Current focus</span>
+          <strong>{assistantContext.sectionTitle || "Selected excerpt"}</strong>
+          {assistantContext.excerpt ? <p>{assistantContext.excerpt.slice(0, 240)}</p> : null}
+        </div>
+      ) : null}
       <div className="chat-list">
         {chatMessages.length ? chatMessages.map((message, index) => (
           <div className={`chat-message ${message.role}`} key={`${message.createdAt}-${index}`}>

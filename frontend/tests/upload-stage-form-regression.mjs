@@ -24,8 +24,8 @@ assert.ok(
   "Prompt mode should explain what the selected mode changes"
 );
 assert.ok(
-  constantsSource.includes("Builds academic argument, critical analysis, thesis statements, and essay-ready explanations from the source."),
-  "Academic Analysis should define the requested short UI description"
+  constantsSource.includes("Goes beyond the source to explain deeper meaning, useful background knowledge, concept connections, application, mistakes, and high-quality student thinking."),
+  "Professional Mode should define the requested short UI description"
 );
 assert.ok(
   uploadStageSource.includes('id: "promptModeDescription"'),

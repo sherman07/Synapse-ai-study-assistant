@@ -45,6 +45,8 @@ const material = {
   aiSummary: "# Forces\n\nNewton's second law connects net force and acceleration.",
   summaryText: "Newton's second law connects net force and acceleration.",
   studyHeadings: ["Forces", "Worked examples"],
+  promptMode: "source_strict_research_mode",
+  isSourceRestricted: true,
   flashcards: [
     { front: "Net force", back: "Mass times acceleration." },
     { front: "Free-body diagram", back: "A diagram of all external forces." }
@@ -89,6 +91,11 @@ store.getState().setPanelTab("plan");
 store.getState().updatePlanTask(0, 12, "Review vector force examples");
 assert.ok(store.getState().studyPlan[0].task.includes("Review vector force examples"));
 store.getState().toggleTask(0);
+store.getState().setWorkspaceNotes("Remember the direction of net force.");
+store.getState().setAssistantContext({
+  sectionTitle: "Forces",
+  excerpt: "Newton's second law connects net force and acceleration."
+});
 
 store.getState().setPanelTab("chat");
 await store.getState().askAssistant("Explain this simply.");
@@ -96,6 +103,9 @@ assert.equal(askRequest.path, "/ask");
 assert.equal(askRequest.payload.question, "Explain this simply.");
 assert.ok(askRequest.payload.summary.includes("Newton's second law"));
 assert.deepEqual(askRequest.payload.chat_history, []);
+assert.equal(askRequest.payload.selected_section, "Forces");
+assert.equal(askRequest.payload.selected_excerpt.includes("net force"), true);
+assert.equal(askRequest.payload.source_strict, true);
 assert.ok(store.getState().chatMessages.some(message => message.text.includes("Backend tutor says")));
 
 store.getState().endSession();

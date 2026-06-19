@@ -70,6 +70,29 @@ class ApiShapeTests(unittest.TestCase):
             "http://127.0.0.1:5175/frontend",
         )
 
+    def test_default_cors_allows_documented_static_frontend_server(self):
+        self.assertTrue(
+            {
+                "http://127.0.0.1:5500",
+                "http://localhost:5500",
+            }.issubset(set(backend_app_module.CORS_ALLOW_ORIGINS))
+        )
+
+    def test_default_cors_allows_private_lan_vite_frontend(self):
+        response = TestClient(app).options(
+            "/health",
+            headers={
+                "Origin": "http://192.168.1.141:5175",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("access-control-allow-origin"),
+            "http://192.168.1.141:5175",
+        )
+
     def test_explicit_detail_level_overrides_auto_depth(self):
         payload = choose_learning_depth("Tiny note about slope.", [], "detailed")
 
@@ -355,7 +378,7 @@ class ApiShapeTests(unittest.TestCase):
         self.assertTrue(payload["cached"])
         self.assertEqual(payload["visual_gallery"], [])
         self.assertEqual(payload["visuals"], [])
-        self.assertIn("[[VISUAL:0]]", payload["summary"])
+        self.assertNotIn("[[VISUAL:0]]", payload["summary"])
 
     def test_language_enforcement_skips_rewrite_when_english_already_satisfied(self):
         summary = "# Overview\n\nThis study note explains the source evidence, comparison table, and revision use."
@@ -397,12 +420,12 @@ class SourceStrictNotesTests(unittest.TestCase):
         summary = """
 # Vaccination ethics
 
-## Key Takeaways
+## Direct Source Claims
 
 - Mandates must be necessary and proportionate (Slide 15).
 - Mandates must be necessary and proportionate (Slide 15).
 
-## Evidence Bank
+## Source Evidence
 
 The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportionality (Slide 21).
 The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportionality (Slide 21).
@@ -410,11 +433,16 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
         validated = validate_source_strict_summary(summary, "english", "standard_notes")
 
-        self.assertIn("## Learning Question", validated)
-        self.assertIn("## Key Terms Table", validated)
-        self.assertIn("## Flashcard-ready Summary", validated)
-        self.assertIn("[Direct from source]", validated)
-        self.assertIn("[Tutor explanation]", validated)
+        self.assertIn("## Source Question", validated)
+        self.assertIn("## Direct Source Claims", validated)
+        self.assertIn("## Source Evidence", validated)
+        self.assertIn("## Inferences Allowed By The Source", validated)
+        self.assertIn("## Gaps / Limits", validated)
+        self.assertIn("## Exam / Research Use", validated)
+        self.assertIn("## Compact Revision Summary", validated)
+        self.assertIn("Not enough evidence from the uploaded source.", validated)
+        self.assertNotIn("[Direct from source]", validated)
+        self.assertNotIn("[Tutor explanation]", validated)
         self.assertEqual(validated.count("Mandates must be necessary and proportionate (Slide 15)."), 1)
         self.assertEqual(
             validated.count("Jacobson v. Massachusetts to illustrate necessity and proportionality (Slide 21)."),
@@ -423,7 +451,7 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
     def test_source_strict_finalize_respects_quick_review_word_limit(self):
         repeated_sentence = "Necessity, proportionality, and liberty must be balanced with cited lecture evidence (Slide 15)."
-        summary = "# Vaccination policy\n\n## Main Notes by Lecture Section\n\n" + "\n\n".join(repeated_sentence for _ in range(80))
+        summary = "# Vaccination policy\n\n## Direct Source Claims\n\n" + "\n\n".join(repeated_sentence for _ in range(80))
 
         final = finalize_generated_summary(
             summary,
@@ -436,7 +464,7 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
         word_count = len(re.findall(r"[\u4e00-\u9fff]|\b[\w'-]+\b", final))
         self.assertLessEqual(word_count, 560)
-        self.assertIn("## Key Takeaways", final)
+        self.assertIn("## Direct Source Claims", final)
 
     def test_analysis_fingerprint_changes_with_note_length_mode(self):
         units = [{

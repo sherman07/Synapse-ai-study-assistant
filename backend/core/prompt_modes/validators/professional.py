@@ -1,0 +1,53 @@
+from .common import SOURCE_STRICT_ARTIFACT_HEADINGS, validate_mode_shape
+
+
+def validate_professional(summary: str, context: dict) -> str:
+    return validate_mode_shape(
+        summary,
+        context,
+        mode_label="Professional Mode",
+        expected_headings=(
+            "Big Picture",
+            "What You Actually Need To Understand",
+            "Concept Connections",
+            "Deep Explanation",
+            "Background Knowledge Layer",
+            "Application To New Situations",
+            "High-Quality Student Thinking",
+            "Common Mistakes",
+            "How To Use This In Assessment",
+            "Model High-Quality Output",
+            "Memory and Practice",
+        ),
+        forbidden_headings=(
+            *SOURCE_STRICT_ARTIFACT_HEADINGS,
+            "Direct Answer",
+            "Source Evidence",
+            "Do / Avoid",
+            "Need-to-Know Formula / Example",
+            "Learning Question",
+            "Core Explanation",
+            "How the Reasoning Works",
+            "Worked Examples and Evidence",
+            "Concept Comparison",
+            "Revision Checklist",
+            "What You Need To Understand First",
+            "Step-by-Step Explanation",
+            "Why This Works",
+            "Mini Worked Example",
+            "Memory Hooks / Checks",
+            "Practice Prompt",
+            "Working Thesis / Answer",
+            "APA-Style Outline",
+            "Evidence Paragraphs",
+            "References From Uploaded Sources",
+        ),
+        forbidden_phrases=(
+            "Source-Strict Research Mode",
+            "Source-Restricted Mode",
+            "Assignment / APA Mode",
+            "Tutor Mode",
+            "Quick Answer",
+            "Detailed Explanation",
+        ),
+    )

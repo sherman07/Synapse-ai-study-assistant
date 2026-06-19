@@ -44,15 +44,25 @@ function createApp() {
       res.json({
         ok: true,
         status: "ok",
-        database: "mysql",
-        mysql: { connected: true }
+        database: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey) ? "mysql+supabase" : "mysql",
+        mysql: { connected: true },
+        supabase: {
+          auth_configured: Boolean(config.supabaseUrl && config.supabaseAnonKey),
+          storage_configured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
+          schema: config.supabaseDbSchema || "public"
+        }
       });
     } catch (error) {
       res.status(503).json({
         ok: false,
         status: "degraded",
-        database: "mysql",
+        database: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey) ? "mysql+supabase" : "mysql",
         mysql: { connected: false },
+        supabase: {
+          auth_configured: Boolean(config.supabaseUrl && config.supabaseAnonKey),
+          storage_configured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
+          schema: config.supabaseDbSchema || "public"
+        },
         error: "Database connection unavailable."
       });
     }

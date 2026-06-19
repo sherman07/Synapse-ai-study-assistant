@@ -1,5 +1,3 @@
-const isViteDevServer = Boolean(import.meta.env?.DEV);
-
 function escapeHTML(value) {
   return String(value || "").replace(/[<>&]/g, char => ({
     "<": "&lt;",
@@ -48,12 +46,6 @@ window.addEventListener("unhandledrejection", event => {
   window.setTimeout(() => renderFocusRoomLoadError(event.reason), 0);
 });
 
-if (isViteDevServer) {
-  import("./standalone.js?v=focus-room-react-vite-v3")
-    .then(verifyFocusRoomMounted)
-    .catch(renderFocusRoomLoadError);
-} else {
-  import(/* @vite-ignore */ "../../assets/focus-room-app/focus-room-static.js?v=focus-room-static-v2")
-    .then(verifyFocusRoomMounted)
-    .catch(renderFocusRoomLoadError);
-}
+import(/* @vite-ignore */ "../../assets/focus-room-app/focus-room-static.js?v=focus-room-static-v7")
+  .then(verifyFocusRoomMounted)
+  .catch(renderFocusRoomLoadError);

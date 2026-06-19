@@ -2,9 +2,41 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
+const reactModuleAliases = {
+  "react": resolve(__dirname, "node_modules/react"),
+  "react-dom": resolve(__dirname, "node_modules/react-dom"),
+  "react-dom/client": resolve(__dirname, "node_modules/react-dom/client.js"),
+  "react/jsx-runtime": resolve(__dirname, "node_modules/react/jsx-runtime.js"),
+  "react/jsx-dev-runtime": resolve(__dirname, "node_modules/react/jsx-dev-runtime.js")
+};
+
 export default defineConfig({
   plugins: [react()],
   root: ".",
+  resolve: {
+    alias: reactModuleAliases,
+    dedupe: ["react", "react-dom"]
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "zustand",
+      "zustand/react",
+      "zustand/react/shallow",
+      "motion/react",
+      "howler",
+      "lucide-react",
+      "gsap",
+      "@react-three/fiber",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-slider"
+    ]
+  },
   build: {
     rollupOptions: {
       input: {

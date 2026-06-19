@@ -70,6 +70,7 @@ def ensure_markdown_note_headings(summary: str, preferred_language: str) -> str:
         return summary
     heading_pattern = re.compile(
         r"^\s*(?:"
+        r"Source question|Direct source claims|Source evidence|Inferences allowed by the source|Gaps\s*/\s*limits|Exam\s*/\s*research use|Compact revision summary|"
         r"Learning question|Key takeaways?|Core concept map|Main notes by lecture section|Key terms table|Case study\s*/\s*example breakdown|"
         r"Evidence bank|Exam answer templates|Common mistakes|Revision checklist|Flashcard-ready summary|"
         r"Source and argument map|Core notes|Key terms(?: and mechanisms)?|Core argument|Key ideas?|Concepts? explained|"
@@ -110,323 +111,17 @@ def ensure_markdown_note_headings(summary: str, preferred_language: str) -> str:
     return text
 
 
-SOURCE_STRICT_BADGE_DIRECT = "Direct from source"
-SOURCE_STRICT_BADGE_INFERRED = "Inferred from source"
-SOURCE_STRICT_BADGE_TUTOR = "Tutor explanation"
-SOURCE_STRICT_BADGE_GAP = "Not enough evidence"
-
-
-def _source_strict_section_specs(preferred_language: str) -> List[dict]:
-    key = normalise_language_key(preferred_language)
-    if key in {"simplified_chinese", "mixed_chinese_english"}:
-        labels = {
-            "learning_question": "学习问题",
-            "key_takeaways": "关键结论",
-            "core_concept_map": "核心概念图",
-            "main_notes": "分章节主笔记",
-            "key_terms": "关键术语表",
-            "case_study": "案例 / 例子拆解",
-            "evidence_bank": "证据库",
-            "exam_templates": "考试答题模板",
-            "common_mistakes": "常见错误",
-            "revision_checklist": "复习清单",
-            "flashcard_summary": "闪卡速记总结",
-        }
-        gap_text = "上传来源没有提供足够清晰的证据来完整支持这一节。"
-        tutor_templates = {
-            "exam_templates": "按这个顺序答题：提出主张 -> 引用来源证据 -> 解释限制 -> 回答题目要求。",
-            "common_mistakes": "不要把来源的有限证据说成普遍结论，也不要把伦理评价写成来源已经证明的事实。",
-            "revision_checklist": "- 能说明中心问题\n- 能引用至少两条来源证据\n- 能指出证据能证明什么、不能证明什么",
-            "flashcard_summary": "- 核心主张\n- 最强证据\n- 关键限制\n- 一句考试用法",
-        }
-    elif key == "traditional_chinese":
-        labels = {
-            "learning_question": "學習問題",
-            "key_takeaways": "關鍵結論",
-            "core_concept_map": "核心概念圖",
-            "main_notes": "分章節主筆記",
-            "key_terms": "關鍵術語表",
-            "case_study": "案例 / 例子拆解",
-            "evidence_bank": "證據庫",
-            "exam_templates": "考試答題模板",
-            "common_mistakes": "常見錯誤",
-            "revision_checklist": "複習清單",
-            "flashcard_summary": "閃卡速記總結",
-        }
-        gap_text = "上傳來源沒有提供足夠清楚的證據來完整支持這一節。"
-        tutor_templates = {
-            "exam_templates": "按這個順序答題：提出主張 -> 引用來源證據 -> 解釋限制 -> 回答題目要求。",
-            "common_mistakes": "不要把來源的有限證據說成普遍結論，也不要把倫理評價寫成來源已經證明的事實。",
-            "revision_checklist": "- 能說明中心問題\n- 能引用至少兩條來源證據\n- 能指出證據能證明什麼、不能證明什麼",
-            "flashcard_summary": "- 核心主張\n- 最強證據\n- 關鍵限制\n- 一句考試用法",
-        }
-    else:
-        labels = {
-            "learning_question": "Learning Question",
-            "key_takeaways": "Key Takeaways",
-            "core_concept_map": "Core Concept Map",
-            "main_notes": "Main Notes by Lecture Section",
-            "key_terms": "Key Terms Table",
-            "case_study": "Case Study / Example Breakdown",
-            "evidence_bank": "Evidence Bank",
-            "exam_templates": "Exam Answer Templates",
-            "common_mistakes": "Common Mistakes",
-            "revision_checklist": "Revision Checklist",
-            "flashcard_summary": "Flashcard-ready Summary",
-        }
-        gap_text = "The uploaded source does not provide enough clearly extractable evidence to complete this section reliably."
-        tutor_templates = {
-            "exam_templates": "Use this order in an exam: make the claim -> cite the source evidence -> explain the limit -> answer the question directly.",
-            "common_mistakes": "Do not treat limited source evidence as a universal conclusion, and do not present tutor advice as if the lecture proved it.",
-            "revision_checklist": "- Explain the central question\n- Cite at least two source-based pieces of evidence\n- State what the evidence can and cannot prove",
-            "flashcard_summary": "- Core claim\n- Strongest evidence\n- Main limit\n- One exam-use sentence",
-        }
-
-    badges = {
-        "learning_question": SOURCE_STRICT_BADGE_INFERRED,
-        "key_takeaways": SOURCE_STRICT_BADGE_DIRECT,
-        "core_concept_map": SOURCE_STRICT_BADGE_INFERRED,
-        "main_notes": SOURCE_STRICT_BADGE_DIRECT,
-        "key_terms": SOURCE_STRICT_BADGE_DIRECT,
-        "case_study": SOURCE_STRICT_BADGE_DIRECT,
-        "evidence_bank": SOURCE_STRICT_BADGE_DIRECT,
-        "exam_templates": SOURCE_STRICT_BADGE_TUTOR,
-        "common_mistakes": SOURCE_STRICT_BADGE_TUTOR,
-        "revision_checklist": SOURCE_STRICT_BADGE_TUTOR,
-        "flashcard_summary": SOURCE_STRICT_BADGE_TUTOR,
-    }
-    keys = [
-        "learning_question",
-        "key_takeaways",
-        "core_concept_map",
-        "main_notes",
-        "key_terms",
-        "case_study",
-        "evidence_bank",
-        "exam_templates",
-        "common_mistakes",
-        "revision_checklist",
-        "flashcard_summary",
-    ]
-    return [
-        {
-            "key": section_key,
-            "title": labels[section_key],
-            "badge": badges[section_key],
-            "gap_text": gap_text,
-            "tutor_template": tutor_templates.get(section_key, ""),
-        }
-        for section_key in keys
-    ]
-
-
-def _source_strict_section_key(title: str) -> str:
-    value = normalise_space(title or "")
-    if re.search(r"Learning question|学习问题|學習問題", value, flags=re.I):
-        return "learning_question"
-    if re.search(r"Key takeaways?|关键结论|關鍵結論", value, flags=re.I):
-        return "key_takeaways"
-    if re.search(r"Core concept map|核心概念图|核心概念圖", value, flags=re.I):
-        return "core_concept_map"
-    if re.search(r"Main notes by lecture section|分章节主笔记|分章節主筆記", value, flags=re.I):
-        return "main_notes"
-    if re.search(r"Key terms table|关键术语表|關鍵術語表|Key terms(?: and mechanisms)?|关键术语与机制|關鍵術語與機制", value, flags=re.I):
-        return "key_terms"
-    if re.search(r"Case study\s*/\s*example breakdown|案例\s*/\s*例子拆解|Worked examples?|例子与证据|例子與證據", value, flags=re.I):
-        return "case_study"
-    if re.search(r"Evidence bank|证据库|證據庫|Source evidence|Evidence matrix|源内证据|源內證據|证据矩阵|證據矩陣", value, flags=re.I):
-        return "evidence_bank"
-    if re.search(r"Exam answer templates|考试答题模板|考試答題模板|Exam strategy|考试策略|考試策略", value, flags=re.I):
-        return "exam_templates"
-    if re.search(r"Common mistakes|常见错误|常見錯誤", value, flags=re.I):
-        return "common_mistakes"
-    if re.search(r"Revision checklist|复习清单|複習清單", value, flags=re.I):
-        return "revision_checklist"
-    if re.search(r"Flashcard-ready summary|闪卡速记总结|閃卡速記總結", value, flags=re.I):
-        return "flashcard_summary"
-    return ""
-
-
-def _source_strict_count_words(text: str) -> int:
-    return len(re.findall(r"[\u4e00-\u9fff]|\b[\w'-]+\b", text or ""))
-
-
-def _source_strict_strip_badge_lines(text: str) -> str:
-    return re.sub(
-        rf"(?im)^\s*\[(?:{re.escape(SOURCE_STRICT_BADGE_DIRECT)}|{re.escape(SOURCE_STRICT_BADGE_INFERRED)}|{re.escape(SOURCE_STRICT_BADGE_TUTOR)}|{re.escape(SOURCE_STRICT_BADGE_GAP)})\]\s*$",
-        "",
-        text or "",
-    ).strip()
-
-
-def _source_strict_remove_leaked_visual_fallbacks(text: str) -> str:
-    cleaned_lines: List[str] = []
-    for raw_line in (text or "").splitlines():
-        if re.search(
-            r"Source figure unavailable|Figure unavailable|browser did not receive a usable image URL|This image could not be extracted from the uploaded source",
-            raw_line,
-            flags=re.I,
-        ):
-            continue
-        cleaned_lines.append(raw_line.rstrip())
-    return re.sub(r"\n{4,}", "\n\n\n", "\n".join(cleaned_lines)).strip()
-
-
-def _source_strict_remove_duplicate_paragraphs(text: str) -> str:
-    blocks = re.split(r"\n{2,}", text or "")
-    seen = set()
-    kept: List[str] = []
-    for block in blocks:
-        block_text = block.strip()
-        if not block_text:
-            continue
-        if block_text.startswith("#") or block_text.startswith("[[VISUAL:"):
-            kept.append(block_text)
-            continue
-        signature = re.sub(r"\s+", " ", re.sub(r"\[\[VISUAL:\d+\]\]", "", block_text)).strip().lower()
-        if len(signature) >= 24 and signature in seen:
-            continue
-        seen.add(signature)
-        kept.append(block_text)
-
-    cleaned_blocks: List[str] = []
-    for block in kept:
-        line_seen = set()
-        cleaned_lines: List[str] = []
-        for raw_line in block.splitlines():
-            stripped = raw_line.strip()
-            signature = re.sub(r"\s+", " ", stripped).strip().lower()
-            if stripped and not stripped.startswith("#") and signature in line_seen:
-                continue
-            if stripped:
-                line_seen.add(signature)
-            cleaned_lines.append(raw_line.rstrip())
-        cleaned_blocks.append("\n".join(cleaned_lines).strip())
-    return "\n\n".join(block for block in cleaned_blocks if block).strip()
-
-
-def _source_strict_limit_key_takeaways(text: str, minimum_items: int = 5, maximum_items: int = 8) -> str:
-    lines = [line.rstrip() for line in (text or "").splitlines()]
-    bullet_lines = [line for line in lines if re.match(r"^\s*(?:[-*•]|\d+[.)])\s+", line)]
-    if len(bullet_lines) >= minimum_items:
-        kept = []
-        count = 0
-        for line in lines:
-            if re.match(r"^\s*(?:[-*•]|\d+[.)])\s+", line):
-                if count >= maximum_items:
-                    continue
-                count += 1
-            kept.append(line)
-        return "\n".join(kept).strip()
-    return text.strip()
-
-
-def _source_strict_truncate_fragment(text: str, max_words: int) -> str:
-    if max_words <= 0:
-        return ""
-    pieces: List[str] = []
-    used = 0
-    for token in re.findall(r"\s+|[^\s]+", text or ""):
-        token_words = _source_strict_count_words(token)
-        if token_words and used + token_words > max_words:
-            break
-        pieces.append(token)
-        used += token_words
-    return "".join(pieces).strip().rstrip(",;:-") + ("..." if used < _source_strict_count_words(text) else "")
-
-
-def _source_strict_trim_block(text: str, max_words: int) -> str:
-    if _source_strict_count_words(text) <= max_words:
-        return text.strip()
-    blocks = re.split(r"\n{2,}", text.strip())
-    kept: List[str] = []
-    used = 0
-    for block in blocks:
-        if not block.strip():
-            continue
-        block_words = _source_strict_count_words(block)
-        if used + block_words <= max_words or not kept:
-            kept.append(block.strip())
-            used += block_words
-            continue
-        remaining = max_words - used
-        if remaining > 0:
-            kept.append(_source_strict_truncate_fragment(block.strip(), remaining))
-        break
-    return "\n\n".join(part for part in kept if part).strip()
-
-
-def _source_strict_section_word_caps(note_length_mode: str) -> Dict[str, int]:
-    _, max_words = note_length_mode_word_bounds(note_length_mode)
-    weights = {
-        "learning_question": 0.08,
-        "key_takeaways": 0.12,
-        "core_concept_map": 0.08,
-        "main_notes": 0.26,
-        "key_terms": 0.10,
-        "case_study": 0.09,
-        "evidence_bank": 0.10,
-        "exam_templates": 0.07,
-        "common_mistakes": 0.04,
-        "revision_checklist": 0.03,
-        "flashcard_summary": 0.03,
-    }
-    return {
-        key: max(26, int(max_words * weight))
-        for key, weight in weights.items()
-    }
-
-
-def _source_strict_placeholder(spec: dict) -> str:
-    if spec.get("badge") == SOURCE_STRICT_BADGE_TUTOR and spec.get("tutor_template"):
-        return spec["tutor_template"]
-    return f"[{SOURCE_STRICT_BADGE_GAP}] {spec.get('gap_text', '')}".strip()
-
-
 def validate_source_strict_summary(
     summary: str,
     preferred_language: str,
     note_length_mode: str = DEFAULT_NOTE_LENGTH_MODE,
 ) -> str:
-    language_key = normalise_language_key(preferred_language)
-    title_match = re.search(r"(?m)^\s*#\s+(.+?)\s*$", summary or "")
-    title = normalise_space(title_match.group(1) if title_match else "") or (
-        "来源限定学习笔记" if language_key in {"simplified_chinese", "mixed_chinese_english"} else
-        "來源限定學習筆記" if language_key == "traditional_chinese" else
-        "Source-Strict Study Notes"
-    )
-    cleaned = _source_strict_remove_duplicate_paragraphs(_source_strict_remove_leaked_visual_fallbacks(summary or ""))
-    parsed_sections = parse_sections(cleaned)
-    by_key: Dict[str, str] = {}
-    unmatched_sections: List[str] = []
-    for heading, body in parsed_sections.items():
-        key = _source_strict_section_key(heading)
-        if key and key not in by_key and body.strip():
-            by_key[key] = body.strip()
-        elif body.strip():
-            unmatched_sections.append(body.strip())
-    fallback_pool = "\n\n".join(unmatched_sections).strip()
-    if fallback_pool and "main_notes" not in by_key:
-        by_key["main_notes"] = fallback_pool
-    if fallback_pool and "evidence_bank" not in by_key and re.search(r"\(Slide\s+\d+|\(Page\s+\d+|\(Source\s+\d+", fallback_pool, flags=re.I):
-        by_key["evidence_bank"] = fallback_pool
-
-    caps = _source_strict_section_word_caps(note_length_mode)
-    parts = [f"# {title}"]
-    for spec in _source_strict_section_specs(preferred_language):
-        key = spec["key"]
-        body = _source_strict_strip_badge_lines(by_key.get(key, ""))
-        body = _source_strict_remove_leaked_visual_fallbacks(_source_strict_remove_duplicate_paragraphs(body))
-        if key == "key_takeaways":
-            body = _source_strict_limit_key_takeaways(body)
-        if not body:
-            body = _source_strict_placeholder(spec)
-        body = _source_strict_trim_block(body, caps.get(key, 120))
-        if spec["badge"] != SOURCE_STRICT_BADGE_GAP:
-            body = f"[{spec['badge']}]\n\n{body}"
-        parts.extend(["", f"## {spec['title']}", "", body.strip()])
-
-    rebuilt = "\n".join(parts).strip()
+    rebuilt = validate_note_output("source_strict_research_mode", summary or "", {
+        "requested_language": preferred_language,
+        "generation_language": preferred_language,
+        "preferred_language": preferred_language,
+        "note_length_mode": note_length_mode,
+    })
     rebuilt = remove_auto_bilingual_heading_leakage(rebuilt, preferred_language, rebuilt)
     rebuilt = polish_note_readability_markdown(rebuilt, preferred_language)
     rebuilt = ensure_markdown_note_headings(rebuilt, preferred_language)
@@ -580,61 +275,17 @@ def expand_sparse_inline_summary(
     language_rule = language_instruction_for(preferred_language)
     prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
     prompt_mode_label = note_prompt_mode_label(prompt_mode_key)
-    prompt_mode_text = load_note_prompt_mode_text(prompt_mode_key)
-    prompt = f"""
-You are Synapse, improving a source-grounded study-note page.
-
-Language requirement: {language_rule}
-Never translate the product name Synapse.
-
-Selected prompt mode: {prompt_mode_label} ({prompt_mode_key})
-Mode-specific prompt file:
-{prompt_mode_text}
-
-Mode priority rule:
-- Preserve the selected prompt mode's intended length, tone, section shape, and evidence discipline.
-- If a generic expansion rule conflicts with the selected prompt mode, follow the selected prompt mode.
-
-Problem:
-The current notes may be too thin, too image-dependent, too generic, or missing professional source-grounded explanation.
-Detected quality gaps: {", ".join(quality_gaps or []) if quality_gaps else "not enough advanced tutor detail"}
-
-Your task:
-- Expand the notes into a professional, detailed tutor-style study guide while keeping the same clean notes-page feel.
-- Preserve every existing [[VISUAL:n]] marker exactly. Do not delete, rename, renumber, or move markers far away from the concept they explain.
-- If the available visual card context lists Source figure n and the current notes forgot it, insert [[VISUAL:n]] exactly once after the concept, example, table, or evidence paragraph it supports. Do not invent markers beyond the listed figures.
-- Put each [[VISUAL:n]] marker on its own line between paragraphs. Never write "After [[VISUAL:n]]:" or put the marker inside a sentence.
-- Do not repeat the same visual marker. If the same source figure matters again later, refer to it in prose, for example "as shown in Source figure 2", instead of inserting the image marker again.
-- Do not create a separate visual gallery or "Visual evidence" section.
-- Do not merely restate the visual card caption. Add real teaching text: definitions, reasoning, worked examples, comparisons, source evidence, exam use, and common mistakes.
-- Keep images as supporting evidence. The prose must still be understandable if the image card is temporarily unavailable.
-- High quality means more source-specific teaching, not more clutter: keep headings readable, but restore depth, examples, mechanism, evidence, and revision value.
-- Add enough detail for a student to revise from the page: concept -> source evidence -> interpretation -> why it matters -> exam/application.
-- Make the writing feel like expert lecture notes: precise terminology, clear mechanism, source-specific examples, assumptions, caveats, and practical use.
-- Use markdown tables where a comparison or evidence summary would make the explanation clearer.
-- Keep mathematical notation renderable: write inline formulas with \\( ... \\), display equations with \\[ ... \\], and matrices with bmatrix/pmatrix environments rather than raw nested arrays.
-- Upgrade short bullet lists into proper teaching notes: explain mechanisms, causal logic, assumptions, limitations, and what students usually confuse.
-- For each major concept, include a source-grounded example or data point when the source provides one.
-- Add at least one comparison/evidence table and one revision/exam-use table when the source supports it.
-- Add professional connective tissue between sections: explain how each concept leads to the next and how evidence changes the interpretation.
-- Include worked examples, calculations, method/result explanations, or case analysis whenever the source provides material for them.
-- For figures and tables, include a specific reading method: what to look at first, what pattern or relationship matters, what conclusion is justified, and what cannot be concluded.
-- Avoid shallow one-line entries such as "Definition / Why / Exam use" without explanation.
-- Do not print the note-production template itself. Use readable concept headings and natural teaching paragraphs instead of repeated checklist blocks.
-- If the current notes contain a heading like "Core Notes (concept title -> short definition -> ...)", replace it with "Core Notes" and rewrite the section into polished study notes.
-- Use numbered lists only for ordered steps, not as a default way to introduce concepts. Use headings for major concepts and paragraphs for label-style explanations.
-
-Source context:
-{truncate_text(source_context, 45000)}
-
-Available visual card context:
-{visual_context if visual_context else 'No visual card metadata.'}
-
-Current notes to expand:
-{summary}
-
-Return the expanded final markdown only.
-"""
+    prompt = build_note_prompt({
+        "prompt_mode": prompt_mode_key,
+        "prompt_mode_label": prompt_mode_label,
+        "language_rule": language_rule,
+        "source_context": truncate_text(source_context, 45000),
+        "visual_context": visual_context if visual_context else "No visual card metadata.",
+        "recommended_structure": note_structure_for_language(preferred_language, source_context, prompt_mode_key),
+        "is_expansion": True,
+        "current_summary": summary,
+        "quality_gaps": quality_gaps or [],
+    })
     try:
         expanded = generate_chat(
             [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
@@ -690,11 +341,10 @@ def generate_reference_style_multisource_notes(
     prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
     note_length_key = normalise_note_length_mode(note_length_mode)
     is_source_strict = prompt_mode_key == "source_strict_research_mode"
-    is_academic_analysis = prompt_mode_key == "professor_mode"
-    mode_uses_selected_length = is_source_strict or is_academic_analysis
+    is_professional_mode = prompt_mode_key == "professor_mode"
+    mode_uses_selected_length = is_source_strict or is_professional_mode
     recommended_structure = note_structure_for_language(generation_language, source_context, prompt_mode_key)
     prompt_mode_label = note_prompt_mode_label(prompt_mode_key)
-    prompt_mode_text = load_note_prompt_mode_text(prompt_mode_key)
     note_length_label = note_length_mode_label(note_length_key)
     note_length_min_words, note_length_max_words = note_length_mode_word_bounds(note_length_key)
     mode_min_units = (
@@ -723,159 +373,18 @@ def generate_reference_style_multisource_notes(
         f"Source {i}: {u.get('title_candidate') or u.get('display_name')}"
         for i, u in enumerate(source_units or [], start=1)
     )
-    mode_specific_rules = ""
-    table_requirement = (
-        "- Include at least two markdown tables when supported by the source:\n"
-        "  1. a concept comparison table;\n"
-        "  2. a source evidence / example table with columns like concept, source evidence, interpretation, limitation, exam use."
-    )
-    length_requirement = "For dense academic/technical sources, prefer richer subsections over compression. It is acceptable for the notes to be long if the extra detail is source-grounded and useful."
-    if is_source_strict:
-        mode_specific_rules = f"""
-
-Source-Strict Research Mode rules:
-- Use only the uploaded source. Do not add outside facts or background knowledge.
-- Use this section order:
-{source_strict_note_structure_for_language(generation_language, source_context)}
-- Every important factual claim must carry a visible source pointer such as (Slide 15), (Page 23), or (Source 1, slide 21).
-- If the extracted source does not support a claim strongly enough, label it with [{SOURCE_STRICT_BADGE_GAP}] and explain the gap.
-- Separate section roles with these exact standalone badges where appropriate:
-  [{SOURCE_STRICT_BADGE_DIRECT}]
-  [{SOURCE_STRICT_BADGE_INFERRED}]
-  [{SOURCE_STRICT_BADGE_TUTOR}]
-  [{SOURCE_STRICT_BADGE_GAP}]
-- Keep figure handling compact: the inline figure card should carry most of the figure detail, so do not repeat long figure explanations before and after [[VISUAL:n]].
-- Selected note-length mode: {note_length_label}. Keep the full note between {note_length_min_words} and {note_length_max_words} words when the source provides enough usable material.
-"""
-        table_requirement = "- Use one or two narrow markdown tables only when they materially improve revision value, such as a key-terms table or an evidence bank."
-        length_requirement = "Respect the selected note-length mode even when the source is dense. Cut repetition before cutting evidence quality."
-    elif is_academic_analysis:
-        mode_specific_rules = f"""
-
-Academic Analysis Mode rules:
-- Use the uploaded source as the foundation for argument, critical analysis, thesis-building, and essay/tutorial preparation.
-- Do not simply summarise the source in more detail. Transform it into academic analysis.
-- Use this exact top-level section order:
-  1. Academic Overview
-  2. Central Argument
-  3. Conceptual Framework
-  4. Key Tensions / Debates
-  5. Critical Analysis
-  6. Strengths and Limits of the Source
-  7. Essay-Ready Thesis Statements
-  8. Model Academic Paragraph
-  9. Professional Vocabulary Bank
-  10. High-Grade Discussion Points
-  11. Essay / Tutorial Use
-- Label direct source-supported material as [Source-based].
-- Label reasoned analysis as [Academic interpretation].
-- Label caveats, unclear boundaries, and evidential weaknesses as [Limitation].
-- Label thesis, paragraph, tutorial, or exam writing guidance as [Essay use].
-- If external context is not explicitly enabled, do not add outside theories, statistics, historical facts, or claims.
-- Selected note-length mode: {note_length_label}. Keep the full Academic Analysis output between {note_length_min_words} and {note_length_max_words} words when the source provides enough usable material.
-- Before finalising, confirm the answer includes at least one central argument, one key tension, one limitation, and one thesis statement.
-"""
-        table_requirement = "- Include one compact Professional Vocabulary Bank markdown table. Use other tables only when they improve analysis rather than length."
-        length_requirement = "Respect the selected note-length mode. Prioritise argument, tensions, limitations, thesis statements, and essay use over exhaustive lecture-note coverage."
-    prompt = f"""
-You are Synapse, an advanced study tutor and source-grounded lecturer.
-
-Language requirement: {language_rule}
-Never translate the product name Synapse.
-
-Selected prompt mode: {prompt_mode_label} ({prompt_mode_key})
-Mode-specific prompt file:
-{prompt_mode_text}
-
-Mode priority rule:
-- The selected prompt mode is the controlling instruction for output length, structure, tone, and evidence discipline.
-- If the default Synapse note style asks for more depth, more tables, or more expansion than the selected prompt mode wants, follow the selected prompt mode.
-- Always keep source identity, language, math rendering, and visual-marker rules intact.
-{mode_specific_rules}
-
-Mission:
-Create the notes requested by the selected prompt mode. The page should feel like Synapse has read the uploaded source, identified the real learning problem, and then used the selected mode to present the right amount of explanation.
-The target is a useful study output: a student should be able to answer the immediate learning need, interpret source figures, explain the reasoning chain, and use source evidence without losing source accuracy.
-High quality means source-specific usefulness with clean editorial structure. Match the selected mode's depth: concise for Quick Answer, guided for Tutor Mode, formal for Assignment / APA Mode, evidence-disciplined for Source-Strict Research Mode, and argument-driven for Academic Analysis.
-For Academic Analysis Mode, high quality means essay preparation and critical thinking: central argument, conceptual connections, tensions, evidence limits, thesis statements, and academic paragraphs.
-
-Style:
-- write like real professional class notes: each concept should have a short meaningful heading, a precise explanation in your own words, and source-grounded examples or caveats where useful;
-- clear lecture-note page, with short headings, compact paragraphs, bullets only where they help, and tables for comparison/evidence;
-- explain every major idea in detail without exposing the template: define the idea, explain the mechanism or logic, connect source evidence/example, identify an assumption or limitation, then add a mistake or exam use when useful;
-- do not only list facts. Show the reasoning chain, causal structure, and relationships between ideas;
-- do not jump straight to overview tables. Teach the ideas first, then use tables to consolidate them;
-- teach the concept directly. In Source-Strict Research Mode, visible slide/page references are mandatory for important factual claims; outside that mode, do not overuse them.
-- never let source screenshots replace teaching. The text must explain the idea before and after the image.
-- when the source contains a graph, table, experiment setup, diagram, or data display, explicitly teach how to read it: variables/labels -> pattern/result -> interpretation -> limitation -> exam use.
-- use discipline-aware explanation: for economics, include assumptions, curve shifts, formulas, worked calculations, and common graph-label mistakes; for psychology, use research question -> method -> result -> interpretation -> limitation; for law/policy, use rule -> element/test -> consequence -> application; for mathematics, use definitions -> theorem/condition -> worked method -> verification.
-
-Source-image rules:
-- Use images for diagrams, data tables, charts, scatter plots, correlation figures, genotype/environment graphs, experiment setups, game-theory examples, method/result figures, or formulas.
-- Reject decorative cover photos, portraits, logos, stock photos, lecturer/contact slides, and random pictures.
-- If selected source figures exist, use them as source-reading moments inside the notes. Insert [[VISUAL:n]] where the figure materially helps the explanation, even if the source figure is a full slide/page screenshot.
-- Use every selected source figure exactly once unless the figure is genuinely impossible to connect. These selected figures have already passed the source-evidence filter.
-- Around every [[VISUAL:n]], write an inline source-figure explanation: what question the figure answers, how to read the figure/table/graph, what evidence it gives, and what a student should remember.
-- Put each visual marker on its own line, exactly like [[VISUAL:0]]. Never write "Visual 2", "After [[VISUAL:2]]", "Before [[VISUAL:2]]", or put a visual marker inside a sentence.
-- Never insert the same [[VISUAL:n]] marker more than once. Later references should name the figure in prose, such as "see Source figure 2 above".
-- The page/slide number is internal provenance only. Do not put it in headings.
-
-Sources:
-{source_list}
-
-Balanced extracted source context:
-{source_context}
-
-Relevant in-text source figures selected from the uploaded files:
-{visual_context if visual_context else 'No relevant source figures were selected. Do not invent image markers.'}
-
-Output requirements:
-- Return final markdown only.
-- Write in the selected language.
-- Keep all mathematical notation MathJax-compatible: inline formulas as \\( ... \\), display equations as \\[ ... \\], and matrices as \\begin{{bmatrix}} ... & ... \\\\ ... \\end{{bmatrix}}; do not output raw matrix arrays like [[1,2],[3,4]].
-- Never print internal structure instructions such as "concept title -> short definition -> explanation -> source example -> implication -> limitation/misunderstanding -> exam use".
-- Do not restart every concept as "1.". Use markdown headings like "### Gradient" for major concepts, then readable paragraphs or a few bullets.
-- Do not repeat the same Definition / Explanation / Source example / Implication / Limitation / Exam use checklist for every concept. Use natural prose, and reserve bold labels for genuinely helpful callouts.
-- Use numbered lists only for true ordered steps. Use normal paragraphs or short bullets for concept explanations; do not start every concept with "1.".
-- Do not write label bullets like "- Definition:" or "- Why it matters:" repeatedly. Prefer "**Definition:** ..." as a paragraph when the label is genuinely useful.
-- Keep headings short and specific; avoid long headings that contain the whole note structure.
-- Use the same "notes page" feel as the reference image: clean headings, strong paragraphs, helpful tables, and source screenshots embedded only when useful.
-- This is the Notes tab, not only the Summary section. It should be detailed enough to study from directly.
-- Build the page as the selected mode requires. In Academic Analysis Mode, make it an argument-building and critical-thinking output rather than a long lecture-note pack.
-- {length_requirement}
-- Do not shrink the summary because images are present. Images should add evidence; they must not replace definitions, reasoning, examples, or source interpretation.
-- Insert [[VISUAL:n]] immediately after the concept/example/data point it explains. Use each available source figure at most once.
-- When selected source figures exist, at least one must appear in the body near the relevant explanation; never produce a text-only page while source figures are available.
-- Before each [[VISUAL:n]], write enough concept text for the student to know what problem/question the image answers.
-- After each [[VISUAL:n]], continue the explanation naturally with what the source figure teaches. Do not leave a bare image without explanation.
-- The visual marker must be a standalone markdown line between paragraphs. The sentence before it should prepare the reader; the sentence after it should explain what the figure means.
-- If a later paragraph needs the same visual again, write "as shown in Source figure n" instead of repeating the marker or displaying the image again.
-- Outside Source-Strict Research Mode, do not use page/slide numbers as the main visible teaching device.
-- {table_requirement}
-- Mention every usable source at least once.
-- Do not include "Visual evidence", "图像证据", "Source Figures", or a standalone image section title.
-- Target richer content than a quick summary: include the core claim, key terms, source evidence, worked examples, limitations/misunderstandings, and exam/application use when the source supports them.
-- Avoid generic filler such as "this is important". Every point must say what the student should understand or do.
-- For every major idea, teach it in depth: define the concept, explain the mechanism or reasoning chain, show the source example/data, state what the evidence can and cannot prove, then give exam/revision use.
-- For every major graph/table/diagram, teach the reading protocol and the interpretation: labels/variables -> relationship/pattern -> conclusion -> limitation -> exam sentence.
-- Use every selected Source figure exactly once as an in-text learning moment. If a selected figure is a lecture slide screenshot, place it where the slide's concept is being taught.
-- Do not compress a complex lecture into a list of one-line bullets. Use short paragraphs under bullets when needed.
-- If the source contains named studies, theorists, experiments, cases, graphs, or tables, explain what each one contributes to the argument rather than merely naming it.
-- Build table(s) from source material when it helps: theory comparison, evidence matrix, key term table, case/example table, or exam-use table.
-- Include "common student mistake" notes for concepts that are easy to confuse.
-- End with a practical revision checklist that tells the student what they should be able to explain, compare, calculate, or critique.
-- Add a "how to use this source evidence" moment for major experiments, figures, tables, or named studies so students learn how to write about them, not just recognise them.
-- If the uploaded material has multiple related ideas, preserve the teaching progression instead of flattening everything into one table.
-
-Recommended structure:
-{recommended_structure}
-
-Quality bar:
-- A student should be able to answer "what is the point?", "what evidence supports it?", "what can be confused?", and "how do I use this in an exam?" after reading the page.
-- If the source contains a table/data/example like animal language, Piaget tasks, correlations, genetics, methods, or case studies, reconstruct it as a markdown table even if no image is used.
-- Prefer source-grounded explanation over broad general textbook filler.
-- In Source-Strict Research Mode, stay inside the uploaded source and keep the note within the selected {note_length_label} range of {note_length_min_words}-{note_length_max_words} words when the source allows it.
-"""
+    prompt = build_note_prompt({
+        "prompt_mode": prompt_mode_key,
+        "prompt_mode_label": prompt_mode_label,
+        "language_rule": language_rule,
+        "note_length_label": note_length_label,
+        "note_length_min_words": note_length_min_words,
+        "note_length_max_words": note_length_max_words,
+        "source_list": source_list,
+        "source_context": source_context,
+        "visual_context": visual_context if visual_context else "No relevant source figures were selected. Do not invent image markers.",
+        "recommended_structure": recommended_structure,
+    })
     try:
         result = generate_chat(
             [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
@@ -933,7 +442,67 @@ Quality bar:
             excerpt = truncate_text(normalise_space(unit.get("text_excerpt") or ""), 850)
             fallback_excerpt = "可读文本有限；请结合已提取的源内图表、表格或实验截图阅读。" if is_chinese_fallback else "Readable text was limited; use the extracted source figures, tables, or experiment screenshots as evidence."
             rows.append(f"| Source {i} | {title} | {excerpt or fallback_excerpt} |")
-        if is_chinese_fallback:
+        if is_professional_mode:
+            evidence_lines = "\n".join(
+                f"- Source {i}: {unit.get('title_candidate') or unit.get('display_name') or f'Source {i}'} — "
+                f"{truncate_text(normalise_space(unit.get('text_excerpt') or ''), 420) or 'Readable text was limited.'}"
+                for i, unit in enumerate(source_units or [], start=1)
+            )
+            if is_chinese_fallback:
+                result = (
+                    "# Professional Mode 学习指南\n\n"
+                    "## Big Picture\n\n"
+                    "这份材料的学习价值不只是复述来源，而是帮助学生看清核心概念背后的判断逻辑、关键张力、适用条件和可迁移的思考方式。\n\n"
+                    "## What You Actually Need To Understand\n\n"
+                    "先抓住材料中的中心问题，再区分：哪些是必须掌握的概念，哪些是来源提供的例子，哪些是需要进一步推理的专业理解。\n\n"
+                    "## Concept Connections\n\n"
+                    "把概念连接成一条学习链：核心主张 -> 关键机制或原则 -> 例子 / 证据 -> 限制 -> 新情境中的应用。\n\n"
+                    "## Deep Explanation\n\n"
+                    "围绕以下来源线索进行深度理解，而不是做页码式摘录：\n\n"
+                    f"{evidence_lines}\n\n"
+                    "## Background Knowledge Layer\n\n"
+                    "补足来源默认学生已经知道的背景：术语、原则、方法、伦理或学科逻辑。背景知识必须服务于理解材料，不要替代材料。\n\n"
+                    "## Application To New Situations\n\n"
+                    "用这份材料回答新问题时，先说明核心概念，再解释机制或权衡，最后指出限制和应用边界。\n\n"
+                    "## High-Quality Student Thinking\n\n"
+                    "高质量答案不仅说明“材料说了什么”，还要说明“为什么这样理解、证据能支持到哪里、换一个情境时如何判断”。\n\n"
+                    "## Common Mistakes\n\n"
+                    "- 只复述来源，没有解释概念背后的机制。\n- 把有限证据说成普遍结论。\n- 忽略条件、限制或价值冲突。\n\n"
+                    "## How To Use This In Assessment\n\n"
+                    "答题时使用：概念定义 -> 专业解释 -> 来源例子 -> 限制 -> 新情境应用。\n\n"
+                    "## Model High-Quality Output\n\n"
+                    "一个强答案会先提出清晰判断，再解释关键概念如何运作，并说明材料能支持什么、不能支持什么。\n\n"
+                    "## Memory and Practice\n\n"
+                    "- 记住核心概念。\n- 练习解释概念之间的关系。\n- 练习把材料应用到新案例。\n"
+                )
+            else:
+                result = (
+                    "# Professional Mode Study Guide\n\n"
+                    "## Big Picture\n\n"
+                    "The value of this material is not just what the source says. The key task is to understand the central ideas, the reasoning behind them, the assumptions they rely on, and how a strong student would use them in a new situation.\n\n"
+                    "## What You Actually Need To Understand\n\n"
+                    "Focus on the mental model behind the content: the main concept, the problem it helps solve, the mechanism or trade-off that makes it work, and the mistake a student would make if they only memorised the wording.\n\n"
+                    "## Concept Connections\n\n"
+                    "Connect the material as a learning chain: core idea -> mechanism or principle -> source example -> limitation -> transfer to a new question.\n\n"
+                    "## Deep Explanation\n\n"
+                    "Use these source anchors for deeper understanding rather than page-by-page summary:\n\n"
+                    f"{evidence_lines}\n\n"
+                    "## Background Knowledge Layer\n\n"
+                    "Add only the background knowledge that makes the source easier to understand: definitions, discipline logic, assumptions, methods, ethical principles, formulas, or vocabulary that the source appears to expect.\n\n"
+                    "## Application To New Situations\n\n"
+                    "To transfer the idea, identify the concept, explain the mechanism or judgement behind it, then test whether the same conditions and limits apply in the new situation.\n\n"
+                    "## High-Quality Student Thinking\n\n"
+                    "A strong answer does more than repeat the source. It explains why the idea matters, what evidence can and cannot show, how concepts connect, and how the reasoning changes in a new context.\n\n"
+                    "## Common Mistakes\n\n"
+                    "- Repeating the source without explaining the underlying idea.\n- Treating limited source evidence as a universal rule.\n- Missing the assumption, condition, value conflict, or transfer limit.\n\n"
+                    "## How To Use This In Assessment\n\n"
+                    "Use this sequence: define the concept, explain the professional reasoning, connect one source example, state a limitation, then apply it to the question.\n\n"
+                    "## Model High-Quality Output\n\n"
+                    "A high-quality response states the key judgement clearly, explains the concept behind it, uses the source as an anchor, and shows what follows when the idea is applied beyond the original material.\n\n"
+                    "## Memory and Practice\n\n"
+                    "- Memorise the core concepts.\n- Practise explaining relationships between concepts.\n- Practise applying the idea to a new case, problem, or argument.\n"
+                )
+        elif is_chinese_fallback:
             result = (
                 "# 综合学习笔记\n\n"
                 "## 核心框架\n\nSynapse 已提取可读来源内容，并会把真正有教学价值的源内图表、表格、实验流程或数据截图放进相关概念旁边。阅读时先理解概念，再用来源证据检验这个概念。\n\n"
@@ -1003,9 +572,15 @@ def finalize_generated_summary(
     if attach_visuals and source_units is not None:
         text = attach_visual_argument_section(text, source_units, generation_language)
     text = dedupe_visual_markers(text)
-    if prompt_mode_key == "source_strict_research_mode":
-        text = validate_source_strict_summary(text, generation_language, note_length_mode)
-        text = dedupe_visual_markers(text)
+    text = validate_note_output(prompt_mode_key, text, {
+        "requested_language": requested_language,
+        "generation_language": generation_language,
+        "preferred_language": generation_language,
+        "source_context": source_context,
+        "source_units": source_units or [],
+        "note_length_mode": note_length_mode,
+    })
+    text = dedupe_visual_markers(text)
     text = remove_auto_bilingual_heading_leakage(text, requested_language, source_context)
     text = polish_note_readability_markdown(text, generation_language)
     return text

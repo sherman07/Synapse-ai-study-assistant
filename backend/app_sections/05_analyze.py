@@ -196,11 +196,12 @@ async def analyze_materials(
                 note_length_mode=selected_note_length,
             )
             live_visual_gallery = build_visual_gallery(source_units)
-            from core.visual_assets import filter_browser_visual_gallery
+            from core.visual_assets import filter_browser_visual_gallery, prune_unavailable_visual_markers
             cached_visual_gallery = filter_browser_visual_gallery(
                 cached_result.get("visual_gallery") or cached_result.get("visuals") or []
             )
             visual_gallery = live_visual_gallery or cached_visual_gallery
+            cached_summary = prune_unavailable_visual_markers(cached_summary, visual_gallery)
             cached_result = {
                 **cached_result,
                 "summary": cached_summary,

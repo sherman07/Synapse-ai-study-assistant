@@ -96,6 +96,7 @@ from core.section_loader import AppSectionLoader
 from core.note_prompt_modes import (
     DEFAULT_NOTE_LENGTH_MODE,
     DEFAULT_NOTE_PROMPT_MODE,
+    build_note_prompt,
     load_note_prompt_mode_text,
     normalise_note_length_mode,
     normalise_note_prompt_mode,
@@ -109,6 +110,8 @@ from core.note_prompt_modes import (
     note_prompt_mode_label,
     note_prompt_mode_min_units,
     note_prompt_mode_options,
+    prompt_mode_prompt_hash,
+    validate_note_output,
 )
 from core.source_extractors import (
     extract_docx,
@@ -165,6 +168,13 @@ except Exception:
 
 try:
     import fitz  # PyMuPDF: used to render PDF pages as visual evidence
+    try:
+        # Keep recoverable MuPDF structure-tree warnings from flooding dev logs.
+        # Python exceptions are still raised and handled by the PDF pipeline.
+        fitz.TOOLS.mupdf_display_warnings(False)
+        fitz.TOOLS.mupdf_display_errors(False)
+    except Exception:
+        pass
 except Exception:
     fitz = None
 

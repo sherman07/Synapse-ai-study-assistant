@@ -113,3 +113,19 @@ test("stripe billing routes verify webhooks and keep secrets server-side", () =>
   assert.ok(routeSource.includes("invoice.payment_failed"), "webhook route should handle failed invoice payments");
   assert.ok(generatedContentRoute.includes("requireProWhenRequested"), "Pro-marked generated content writes should be gated server-side");
 });
+
+test("Supabase storage wiring is present for users and generated note history", () => {
+  const configSource = fs.readFileSync(path.join(serverRoot, "src/config.js"), "utf8");
+  const usersRepositorySource = fs.readFileSync(path.join(repositoryDir, "usersRepository.js"), "utf8");
+  const generatedRepositorySource = fs.readFileSync(path.join(repositoryDir, "generatedContentRepository.js"), "utf8");
+  const supabaseSchemaSource = fs.readFileSync(path.join(serverRoot, "src/db/supabase-schema.sql"), "utf8");
+  const readmeSource = fs.readFileSync(path.join(serverRoot, "README.md"), "utf8");
+
+  assert.ok(configSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "server config should read the Supabase service-role key");
+  assert.ok(configSource.includes("SUPABASE_DB_SCHEMA"), "server config should allow a Supabase schema override");
+  assert.ok(usersRepositorySource.includes("supabaseStorageEnabled"), "users repository should support Supabase-backed storage");
+  assert.ok(generatedRepositorySource.includes("supabaseStorageEnabled"), "generated-content repository should support Supabase-backed storage");
+  assert.ok(supabaseSchemaSource.includes("create table if not exists public.users"), "Supabase schema should create users");
+  assert.ok(supabaseSchemaSource.includes("create table if not exists public.generated_contents"), "Supabase schema should create generated_contents");
+  assert.ok(readmeSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "server README should document Supabase server setup");
+});

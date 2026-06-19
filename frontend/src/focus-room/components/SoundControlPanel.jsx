@@ -1,4 +1,4 @@
-import { Slider } from "radix-ui";
+import * as Slider from "@radix-ui/react-slider";
 import { Volume2, Waves } from "lucide-react";
 import {
   FOCUS_ROOM_AMBIENT_SOUNDS,
@@ -11,7 +11,10 @@ import { GlassButton } from "./GlassButton.jsx";
 function VolumeSlider({ label, icon, value, onChange }) {
   return (
     <label className="sound-slider">
-      <span>{icon}{label} <strong>{value}%</strong></span>
+      <span className="sound-slider-head">
+        <span className="sound-slider-label">{icon}<span>{label}</span></span>
+        <strong>{value}%</strong>
+      </span>
       <Slider.Root
         className="radix-slider-root"
         value={[value]}

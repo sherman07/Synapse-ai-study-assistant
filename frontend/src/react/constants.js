@@ -22,7 +22,7 @@ export const LANGUAGE_OPTIONS = [
 export const PROMPT_MODE_OPTIONS = [
   ["quick_answer", "Quick Answer", "Creates a concise answer focused on the fastest useful study points."],
   ["detailed_explanation", "Detailed Explanation", "Teaches the material in a fuller step-by-step explanation."],
-  ["professor_mode", "Academic Analysis", "Builds academic argument, critical analysis, thesis statements, and essay-ready explanations from the source."],
+  ["professor_mode", "Professional Mode", "Goes beyond the source to explain deeper meaning, useful background knowledge, concept connections, application, mistakes, and high-quality student thinking."],
   ["tutor_mode", "Tutor Mode", "Explains the source simply with guided learning support."],
   ["source_strict_research_mode", "Source-Strict Research Mode", "Uses only the uploaded source with clear evidence discipline."],
   ["assignment_apa_mode", "Assignment / APA Mode", "Shapes source material into assignment-aware structure and APA-ready guidance."],

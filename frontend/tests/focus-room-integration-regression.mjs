@@ -8,6 +8,46 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const read = file => fs.readFileSync(path.join(repoRoot, file), "utf8");
 const exists = file => fs.existsSync(path.join(repoRoot, file));
 
+function assertReactResolverConfig(source, label) {
+  assert.ok(
+    source.includes('dedupe: ["react", "react-dom"]'),
+    `${label} should dedupe React so optimized dependencies share one hook dispatcher`
+  );
+  assert.ok(
+    source.includes('"react": resolve(__dirname, "node_modules/react")'),
+    `${label} should alias react to the project install`
+  );
+  assert.ok(
+    source.includes('"react-dom": resolve(__dirname, "node_modules/react-dom")'),
+    `${label} should alias react-dom to the project install`
+  );
+  assert.ok(
+    source.includes('"react/jsx-runtime": resolve(__dirname, "node_modules/react/jsx-runtime.js")'),
+    `${label} should alias the React JSX runtime to the project install`
+  );
+}
+
+function assertFocusRoomOptimizerConfig(source) {
+  assert.ok(source.includes("optimizeDeps"), "Vite dev config should eagerly optimize Focus Room dependencies");
+  for (const dep of [
+    "react",
+    "react-dom",
+    "react-dom/client",
+    "react/jsx-runtime",
+    "react/jsx-dev-runtime",
+    "zustand/react/shallow",
+    "motion/react",
+    "@radix-ui/react-dialog",
+    "@radix-ui/react-tabs",
+    "@radix-ui/react-slider"
+  ]) {
+    assert.ok(
+      source.includes(`"${dep}"`),
+      `Vite dev config should pre-optimize ${dep} with the initial React dependency graph`
+    );
+  }
+}
+
 const packageJson = JSON.parse(read("package.json"));
 const viteConfig = read("vite.config.js");
 const staticFocusRoomConfig = read("vite.focus-room-static.config.js");
@@ -27,10 +67,17 @@ const focusRoomStaticLoader = read("frontend/src/focus-room/static-compatible-lo
 const focusRoomStandalone = read("frontend/src/focus-room/standalone.js");
 const focusRoomStandaloneBridge = read("frontend/src/focus-room/standalone-bridge.js");
 const focusRoomData = read("frontend/src/focus-room/data.js");
+const focusUtils = read("frontend/src/focus-room/utils.js");
 const focusRoomController = read("frontend/src/focus-room/controller.js");
+const focusRoomQueryClient = read("frontend/src/focus-room/queryClient.js");
 const focusRoomStore = read("frontend/src/focus-room/hooks/useFocusRoomStore.js");
 const focusRoomPage = read("frontend/src/focus-room/components/FocusRoomPage.jsx");
+const topFocusNav = read("frontend/src/focus-room/components/TopFocusNav.jsx");
 const focusTimerCard = read("frontend/src/focus-room/components/TimerCard.jsx");
+const focusToolPanel = read("frontend/src/focus-room/components/FocusRoomToolPanel.jsx");
+const focusMaterialContent = read("frontend/src/focus-room/components/FocusMaterialContent.jsx");
+const sessionSummaryModal = read("frontend/src/focus-room/components/SessionSummaryModal.jsx");
+const soundControlPanel = read("frontend/src/focus-room/components/SoundControlPanel.jsx");
 const style = read("frontend/style.css");
 const focusStyle = read("frontend/styles/09-focus-room.css");
 
@@ -58,6 +105,9 @@ assert.ok(viteConfig.includes("@vitejs/plugin-react"), "Vite config should use t
 assert.ok(packageJson.scripts.build.includes("vite.focus-room-static.config.js"), "build should regenerate the static Focus Room bundle");
 assert.ok(staticFocusRoomConfig.includes("frontend/assets/focus-room-app"), "static Focus Room bundle should build into frontend assets");
 assert.ok(staticFocusRoomConfig.includes("process.env.NODE_ENV"), "static Focus Room bundle should define process.env.NODE_ENV for browser-only serving");
+assertReactResolverConfig(viteConfig, "Vite dev config");
+assertReactResolverConfig(staticFocusRoomConfig, "Focus Room static build config");
+assertFocusRoomOptimizerConfig(viteConfig);
 
 assert.ok(indexHtml.includes("react@18/umd/react.production.min.js"), "Workspace should keep CDN React for static-server compatibility");
 assert.ok(indexHtml.includes("react-dom@18/umd/react-dom.production.min.js"), "Workspace should keep CDN ReactDOM for static-server compatibility");
@@ -75,11 +125,26 @@ assert.ok(uploadSection.includes("renderFocusRoomWorkspaceActions"), "analysis v
 assert.ok(historySection.includes("history-focus-room-btn"), "history rows should include a Focus Room action");
 assert.ok(style.includes("09-focus-room.css"), "global stylesheet should import Focus Room styles");
 assert.ok(focusRoomHtml.includes("static-compatible-loader.js"), "Focus Room should use the static-compatible loader");
+assert.ok(
+  focusRoomHtml.includes("styles/09-focus-room.css?v=focus-room-glass-v8"),
+  "Focus Room HTML should cache-bust the CSS after portal stacking fixes"
+);
+assert.ok(
+  focusRoomHtml.includes("static-compatible-loader.js?v=focus-room-loader-v7"),
+  "Focus Room HTML should cache-bust the standalone loader after boot fixes"
+);
 assert.ok(focusRoomHtml.includes("styles/09-focus-room.css"), "Standalone Focus Room page should load Focus Room styles directly");
 assert.ok(!focusRoomHtml.includes("react@18"), "Standalone Focus Room should rely on Vite/npm React, not CDN React");
 assert.ok(focusRoomStaticLoader.includes("focus-room-static.js"), "Focus Room static loader should import the prebuilt static bundle");
-assert.ok(focusRoomStaticLoader.includes("./standalone.js"), "Focus Room static loader should keep the Vite source entry for dev");
-assert.ok(focusRoomStaticLoader.includes("import.meta.env?.DEV"), "Focus Room loader should detect Vite through import.meta.env instead of port guessing");
+assert.ok(
+  focusRoomStaticLoader.includes("focus-room-static.js?v=focus-room-static-v7"),
+  "Focus Room loader should cache-bust the static bundle after portal stacking fixes"
+);
+assert.ok(
+  !focusRoomStaticLoader.includes("./standalone.js"),
+  "Focus Room loader should use the prebuilt bundle in Vite dev to avoid optimized-deps React splits"
+);
+assert.ok(!focusRoomStaticLoader.includes("import.meta.env?.DEV"), "Focus Room loader should not branch into the Vite source graph");
 assert.ok(!focusRoomStaticLoader.includes("VITE_PORTS"), "Focus Room loader should not mistake static servers for Vite based on port numbers");
 assert.ok(focusRoomStaticLoader.includes("addEventListener(\"error\""), "Focus Room loader should surface runtime boot errors");
 assert.ok(focusRoomStaticLoader.includes("addEventListener(\"unhandledrejection\""), "Focus Room loader should surface async boot errors");
@@ -106,6 +171,10 @@ assert.ok(
   focusBridge.includes("focus-room.html#/focus-room"),
   "Workspace Focus Room opener should navigate to the separate Focus Room HTML entry"
 );
+assert.ok(
+  focusRoomPage.includes("useShallow(activeSessionSnapshot)"),
+  "Focus Room active session persistence selector should use a stable shallow snapshot"
+);
 
 for (const file of [
   "frontend/src/focus-room/components/FocusRoomPage.jsx",
@@ -121,20 +190,22 @@ for (const file of [
   "frontend/src/focus-room/components/TimerCard.jsx",
   "frontend/src/focus-room/components/BottomControlDock.jsx",
   "frontend/src/focus-room/components/AILearningPanel.jsx",
-  "frontend/src/focus-room/components/StudyPlanDrawer.jsx",
-  "frontend/src/focus-room/components/MaterialPanel.jsx",
+  "frontend/src/focus-room/components/FocusRoomToolPanel.jsx",
+  "frontend/src/focus-room/components/FocusMaterialContent.jsx",
+  "frontend/src/focus-room/components/FocusWorkspaceNotes.jsx",
+  "frontend/src/focus-room/components/SessionOverviewCard.jsx",
   "frontend/src/focus-room/components/FlashcardStudyMode.jsx",
   "frontend/src/focus-room/components/QuizStudyMode.jsx",
   "frontend/src/focus-room/components/MindMapViewer.jsx",
   "frontend/src/focus-room/components/AIStudyChat.jsx",
   "frontend/src/focus-room/components/SessionSummaryModal.jsx",
   "frontend/src/focus-room/components/StudyHistoryPanel.jsx",
-  "frontend/src/focus-room/components/WorkspacePanel.jsx",
   "frontend/src/focus-room/hooks/useIdleMode.js",
   "frontend/src/focus-room/hooks/usePomodoroTimer.js",
   "frontend/src/focus-room/hooks/useFocusSession.js",
   "frontend/src/focus-room/hooks/useSceneBackground.js",
   "frontend/src/focus-room/hooks/useStudyMaterial.js",
+  "frontend/src/focus-room/hooks/useFocusRoomMaterials.js",
   "frontend/src/focus-room/hooks/useAudioSettings.js",
   "frontend/src/focus-room/hooks/useSessionHistory.js",
   "frontend/src/focus-room/hooks/useFocusRoomStore.js",
@@ -145,13 +216,23 @@ for (const file of [
 
 for (const token of [
   "createRoot",
-  "QueryClientProvider",
-  "HashRouter",
   "exposeFocusRoomGlobals",
   "__synapseFocusRoomApi"
 ]) {
   assert.ok(focusRoomController.includes(token), `React Focus Room controller should include ${token}`);
 }
+assert.ok(!focusRoomController.includes("HashRouter"), "Standalone Focus Room should not wrap its self-managed hash route in React Router");
+assert.ok(!focusRoomController.includes("QueryClientProvider"), "Standalone Focus Room should avoid a React Query provider in its boot path");
+assert.ok(
+  focusRoomController.includes("FocusRoomPage.jsx?v=focus-room-react-vite-v5"),
+  "Standalone Focus Room controller should cache-bust the page module that owns React hooks"
+);
+assert.ok(!focusRoomQueryClient.includes("@tanstack/react-query"), "Focus Room query helper should avoid React Query in standalone boot");
+assert.ok(focusRoomQueryClient.includes("invalidateQueries"), "Focus Room query helper should still expose invalidation for material refresh events");
+assert.ok(
+  focusRoomQueryClient.includes("function QueryClientProvider"),
+  "Focus Room query helper should keep a no-op QueryClientProvider export for stale cached standalone modules"
+);
 
 for (const token of [
   "selectedScene",
@@ -165,15 +246,27 @@ for (const token of [
   "studyGoal",
   "studyPlan",
   "aiPanelOpen",
-  "planDrawerOpen",
-  "workspaceOpen",
-  "historyOpen",
   "isIdle",
   "currentSession",
-  "sessionHistory"
+  "sessionHistory",
+  "materialsStatus",
+  "workspaceNotes",
+  "assistantContext",
+  "activeSourceHighlight",
+  "selectSourceHighlight"
 ]) {
   assert.ok(focusRoomStore.includes(token), `Zustand Focus Room store should include ${token}`);
 }
+
+assert.ok(focusRoomData.includes("sourceHighlights"), "Focus Room materials should normalize source highlights for generated evidence navigation");
+assert.ok(topFocusNav.includes('openStudyPanel("notes"'), "Top navigation Notes command should open generated notes");
+assert.ok(topFocusNav.includes('openStudyPanel("sources"'), "Top navigation should expose source highlights directly");
+assert.ok(focusUtils.includes('"notes"'), "Focus Room panel tabs should include generated notes");
+assert.ok(focusUtils.includes('"sources"'), "Focus Room panel tabs should include source highlights");
+assert.ok(focusToolPanel.includes('tab === "notes"'), "Study suite should route the generated notes tab");
+assert.ok(focusToolPanel.includes('tab === "sources"'), "Study suite should route the source highlights tab");
+assert.ok(focusMaterialContent.includes("source-highlight"), "Generated notes reader should render source highlight controls");
+assert.ok(focusMaterialContent.includes("openSourceInWorkspace"), "Generated notes source controls should navigate back to workspace sources");
 
 for (const token of [
   "useIdleMode(3000)",
@@ -183,12 +276,26 @@ for (const token of [
   "TopFocusNav",
   "BottomControlDock",
   "AILearningPanel",
-  "StudyPlanDrawer"
+  "SessionOverviewCard",
+  "focus-session-grid"
 ]) {
   assert.ok(focusRoomPage.includes(token), `Focus Room page should include ${token}`);
 }
 assert.ok(focusTimerCard.includes("isIdle"), "Timer card Motion animation should respond to idle mode");
 assert.ok(focusTimerCard.includes("timerScale"), "Timer card should scale down through Motion during idle mode");
+assert.ok(focusToolPanel.includes("FocusMaterialContent"), "Study suite should render the full materials surface");
+assert.ok(focusToolPanel.includes("FocusWorkspaceNotes"), "Study suite should include in-room notes");
+assert.ok(focusToolPanel.includes("Study History"), "Study suite should include history content");
+assert.ok(
+  !focusToolPanel.includes('from "radix-ui"')
+    && !sessionSummaryModal.includes('from "radix-ui"')
+    && !soundControlPanel.includes('from "radix-ui"'),
+  "Focus Room should import Radix primitives from scoped packages instead of the umbrella module"
+);
+assert.ok(focusToolPanel.includes('@radix-ui/react-dialog'), "Study suite should import Dialog from the scoped Radix package");
+assert.ok(focusToolPanel.includes('@radix-ui/react-tabs'), "Study suite should import Tabs from the scoped Radix package");
+assert.ok(sessionSummaryModal.includes('@radix-ui/react-dialog'), "Session summary should import Dialog from the scoped Radix package");
+assert.ok(soundControlPanel.includes('@radix-ui/react-slider'), "Sound controls should import Slider from the scoped Radix package");
 
 for (const token of [
   "--glass-bg",
@@ -206,9 +313,15 @@ for (const token of [
   ".focus-overlay",
   ".focus-setup-stage",
   "overflow-y: auto",
+  ".focus-session-grid",
+  ".session-overview",
   ".timer-card",
   ".bottom-dock",
   ".ai-learning-panel",
+  ".focus-tool-panel",
+  "z-index: 1308",
+  ".focus-material-surface",
+  ".focus-action-grid",
   ".is-idle .top-nav",
   ".is-idle .extra-panel",
   ".is-idle .timer-card",

@@ -18,6 +18,7 @@ backend/synapse_analysis_cache.json
 .env
 .env.*
 !server/.env.example
+!backend/.env.example
 *.env
 credentials.json
 *.pem

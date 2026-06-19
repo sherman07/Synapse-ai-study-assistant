@@ -97,7 +97,7 @@ const NOTE_LENGTH_DESCRIPTIONS = {
 const PROMPT_MODE_DESCRIPTIONS = {
   quick_answer: "Creates a concise answer focused on the fastest useful study points.",
   detailed_explanation: "Teaches the material in a fuller step-by-step explanation.",
-  professor_mode: "Builds academic argument, critical analysis, thesis statements, and essay-ready explanations from the source.",
+  professor_mode: "Goes beyond the source to explain deeper meaning, useful background knowledge, concept connections, application, mistakes, and high-quality student thinking.",
   tutor_mode: "Explains the source simply with guided learning support.",
   source_strict_research_mode: "Uses only the uploaded source with clear evidence discipline.",
   assignment_apa_mode: "Shapes source material into assignment-aware structure and APA-ready guidance."
@@ -106,7 +106,7 @@ let currentSourceFingerprint = "";
 let currentHistoryId = "";
 let currentPrimarySourceIdentity = "";
 let currentPromptMode = "professor_mode";
-let currentPromptModeLabel = "Academic Analysis";
+let currentPromptModeLabel = "Professional Mode";
 let currentMindMap = null;
 let storedTitle = "Study Notes";
 let activeTool = "mindmap";

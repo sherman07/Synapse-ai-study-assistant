@@ -127,7 +127,7 @@ class SynapseApiClient {
       throw new ApiConnectionError(
         [
           `Cannot reach the Synapse backend at ${this.baseUrl}.`,
-          "Start it with `.venv/bin/python run_backend.py`, then try again."
+          "Start the local stack with `bash scripts/start_local_stack.sh`, or run `.venv/bin/python run_backend.py` manually, then try again."
         ].join(" "),
         { cause: error }
       );

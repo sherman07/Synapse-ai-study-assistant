@@ -5,6 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5175 --strictPort",
+    "dev:frontend": "vite --host 0.0.0.0 --port 5175 --strictPort",
+    "dev:backend": ".venv/bin/python run_backend.py",
+    "dev:local:start": "bash scripts/start_local_stack.sh",
+    "dev:local:stop": "bash scripts/stop_local_stack.sh",
+    "dev:local:status": "bash scripts/status_local_stack.sh",
+    "backend:key": "bash scripts/set_backend_openai_key.sh",
     "build": "vite build && vite build --config vite.focus-room-static.config.js",
     "build:focus-room-static": "vite build --config vite.focus-room-static.config.js",
     "preview": "vite preview --host 0.0.0.0 --port 5175 --strictPort",

@@ -1,8 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { HashRouter } from "react-router-dom";
-import { FocusRoomPage } from "./components/FocusRoomPage.jsx";
-import { QueryClientProvider, focusRoomQueryClient } from "./queryClient.js";
+import { FocusRoomPage } from "./components/FocusRoomPage.jsx?v=focus-room-react-vite-v5";
 
 let focusRoomRoot = null;
 
@@ -60,15 +58,7 @@ function initFocusRoom(options = {}) {
     React.createElement(
       React.StrictMode,
       null,
-      React.createElement(
-        QueryClientProvider,
-        { client: focusRoomQueryClient },
-        React.createElement(
-          HashRouter,
-          null,
-          React.createElement(FocusRoomPage)
-        )
-      )
+      React.createElement(FocusRoomPage)
     )
   );
 }

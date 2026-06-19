@@ -340,7 +340,7 @@ def estimate_learning_depth(source_text: str, source_units: Optional[List[dict]]
     if legal_markers >= 8:
         reason_bits.append("legal concepts")
     if academic_markers >= 8:
-        reason_bits.append("academic analysis")
+        reason_bits.append("advanced study analysis")
     if table_like >= 2:
         reason_bits.append("table or figure content")
     if visual_count >= 1:

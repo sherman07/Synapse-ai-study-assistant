@@ -34,6 +34,8 @@ async def ask_question(data: dict):
         require_openai()
         question = data.get("question", "")
         selected_section = data.get("selected_section", "")
+        selected_excerpt = str(data.get("selected_excerpt") or "").strip()
+        source_strict = bool(data.get("source_strict"))
         chat_history = data.get("chat_history", [])
         preferred_language = data.get("preferred_language", "auto")
         request_sections = data.get("sections") if isinstance(data.get("sections"), dict) else {}
@@ -54,29 +56,34 @@ async def ask_question(data: dict):
         section_context = context_sections.get(selected_section, "")
         answer_language = detect_question_language(question, preferred_language)
 
-        research_context, research_results = gather_tutor_web_research(
-            question=question,
-            selected_section=selected_section,
-            source_identity=context_source_identity,
-            title=context_title,
-        )
+        research_context = ""
+        research_results = []
+        if not source_strict:
+            research_context, research_results = gather_tutor_web_research(
+                question=question,
+                selected_section=selected_section,
+                source_identity=context_source_identity,
+                title=context_title,
+            )
 
         context = f"""
 Current study context:
 Title: {context_title}
 Primary source identity: {context_source_identity}
 Selected section: {selected_section if selected_section else 'Full document'}
+Selected excerpt: {selected_excerpt[:2500] if selected_excerpt else 'No excerpt selected.'}
 Section content: {section_context[:4500]}
 Full summary: {context_summary[:11000]}
 
 External research context, use only when the notes/source context do not contain enough information:
-{research_context[:MAX_TUTOR_RESEARCH_CHARS] if research_context else 'No external research results were available.'}
+{research_context[:MAX_TUTOR_RESEARCH_CHARS] if research_context else ('External research disabled because this material is source-restricted.' if source_strict else 'No external research results were available.')}
 
 Tutor rules:
 - Answer in {answer_language}. If the user wrote in Chinese, answer in Chinese. If they wrote in English, answer in English. Match the user question language, not just the notes language.
 - Stay consistent with the already generated notes when the notes provide enough evidence.
-- Do not claim that information is unavailable until you have checked both the note context and the external research context above.
-- If the answer uses external research because the uploaded source does not contain the point, clearly say it is "external research" / "外部资料" and explain how it connects back to the study topic.
+- Treat the selected excerpt as the highest-priority focus when it is present.
+- {"Do not use any external research. Stay strictly inside the uploaded material and say clearly when the source does not contain enough information." if source_strict else "Do not claim that information is unavailable until you have checked both the note context and the external research context above."}
+- {"If the source is missing a point, say that the uploaded material does not contain enough information and do not invent missing evidence." if source_strict else 'If the answer uses external research because the uploaded source does not contain the point, clearly say it is "external research" / "外部资料" and explain how it connects back to the study topic.'}
 - Do not switch to a different source identity. If external research discusses a broader act/topic, connect it carefully to the current source identity.
 - Be an advanced academic tutor: answer the question directly, then explain the idea, the evidence, the reasoning chain, and the likely misunderstanding.
 - Use a compact markdown table when the user asks for a comparison, a list of studies/evidence, steps, or differences.
@@ -86,9 +93,9 @@ Tutor rules:
 """
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT + "\n\nTutor chat must answer in the language used by the user's latest question. Use external research context when the notes do not contain enough information."},
+            {"role": "system", "content": SYSTEM_PROMPT + ("\n\nTutor chat must answer in the language used by the user's latest question. Stay strictly inside the uploaded material for source-restricted requests." if source_strict else "\n\nTutor chat must answer in the language used by the user's latest question. Use external research context when the notes do not contain enough information.")},
             {"role": "user", "content": context},
-            {"role": "assistant", "content": "I will answer as a source-faithful tutor and use external research only when needed."},
+            {"role": "assistant", "content": "I will answer as a source-faithful tutor." + (" I will stay inside the uploaded material." if source_strict else " I will use external research only when needed.")},
         ]
 
         for message in chat_history[-8:]:
@@ -101,7 +108,7 @@ Tutor rules:
         answer = generate_chat(messages, model=CHAT_MODEL, temperature=0.2, max_tokens=3200)
 
         # Guard against the exact bad behavior shown in the screenshot: refusing because the notes alone are incomplete.
-        if is_refusal_or_useless_response(answer) and research_context:
+        if is_refusal_or_useless_response(answer) and research_context and not source_strict:
             repair_messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"""
@@ -127,7 +134,7 @@ Requirements:
 
         return {
             "answer": answer,
-            "used_external_research": bool(research_context),
+            "used_external_research": bool(research_context) and not source_strict,
             "research_sources": [
                 {"title": item.get("title"), "url": item.get("url")} for item in research_results[:MAX_TUTOR_SEARCH_RESULTS]
             ],

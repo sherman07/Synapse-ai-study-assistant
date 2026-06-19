@@ -134,19 +134,23 @@ except Exception:
     CACHE_PATH = DEFAULT_CACHE_PATH
 CACHE_VERSION = "source_identity_mindmap_v64_prompt_modes"
 
+DEFAULT_CORS_ALLOW_ORIGINS = [
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
+    "http://127.0.0.1:5175",
+    "http://localhost:5175",
+]
 CORS_ALLOW_ORIGINS = env_list(
     "SYNAPSE_CORS_ALLOW_ORIGINS",
-    ",".join(
-        [
-            "http://127.0.0.1:5175",
-            "http://localhost:5175",
-        ]
-    ),
+    ",".join(DEFAULT_CORS_ALLOW_ORIGINS),
 )
+for origin in DEFAULT_CORS_ALLOW_ORIGINS:
+    if origin not in CORS_ALLOW_ORIGINS:
+        CORS_ALLOW_ORIGINS.append(origin)
 CORS_ALLOW_ORIGIN_REGEX = (
     os.getenv(
         "SYNAPSE_CORS_ALLOW_ORIGIN_REGEX",
-        "",
+        r"^http://(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}):(?:5175|5500)$",
     ).strip()
     or None
 )

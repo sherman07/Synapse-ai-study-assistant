@@ -14,9 +14,20 @@
     return re.test(email);
   }
 
+  function isPrivateIpv4Host(hostname) {
+    const value = String(hostname || "").toLowerCase();
+    const parts = value.split(".");
+    if (parts.length !== 4 || parts.some(part => !/^\d+$/.test(part))) return false;
+    const nums = parts.map(Number);
+    if (nums.some(num => num < 0 || num > 255)) return false;
+    return nums[0] === 10
+      || (nums[0] === 172 && nums[1] >= 16 && nums[1] <= 31)
+      || (nums[0] === 192 && nums[1] === 168);
+  }
+
   function isLocalDevHost(hostname) {
     const value = String(hostname || "").toLowerCase();
-    return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]";
+    return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]" || isPrivateIpv4Host(value);
   }
 
   function showError(elementId, message) {

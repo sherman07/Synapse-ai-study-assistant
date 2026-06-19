@@ -1,10 +1,12 @@
-import { API_BASE } from "./apiConfig.js?v=local-api-v1";
+import { API_BASE } from "./apiConfig.js?v=lan-api-fix-v2";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
   dataApiClient,
+  deleteGeneratedContentFromDataApi,
+  fetchGeneratedContentFromDataApi,
   persistGeneratedContentToDataApi
-} from "./dataApiClient.js";
+} from "./dataApiClient.js?v=lan-api-fix-v2";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -95,6 +97,8 @@ const controllerLoader = new LegacyControllerLoader({
     markdownToHTML,
     pruneCacheRecords,
     dataApiClient,
+    deleteGeneratedContentFromDataApi,
+    fetchGeneratedContentFromDataApi,
     persistGeneratedContentToDataApi,
     removeAutoBilingualHeadings,
     removeDetectedUrlsClient,
