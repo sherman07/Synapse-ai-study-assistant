@@ -13,17 +13,19 @@ const SOURCE_BADGE_BY_SECTION = [
 ];
 
 const PROFESSIONAL_BADGE_BY_SECTION = [
-  [/^Big Picture$/i, ["Professional explanation"]],
-  [/^What You Actually Need To Understand$/i, ["Professional explanation"]],
-  [/^Concept Connections$/i, ["Professional explanation"]],
-  [/^Deep Explanation$/i, ["Professional explanation", "Limitation"]],
-  [/^Background Knowledge Layer$/i, ["Background knowledge"]],
-  [/^Application To New Situations$/i, ["Application"]],
-  [/^High-Quality Student Thinking$/i, ["Professional explanation"]],
-  [/^Common Mistakes$/i, ["Application", "Limitation"]],
-  [/^How To Use This In Assessment$/i, ["Application"]],
-  [/^Model High-Quality Output$/i, ["Application"]],
-  [/^Memory and Practice$/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Big Picture\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?The Exam Will Probably Test These Ideas\b/i, ["Exam use"]],
+  [/^(?:\d+\.\s*)?What You Actually Need To Understand\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?Deep Explanation\b/i, ["Professional explanation", "Limitation"]],
+  [/^(?:\d+\.\s*)?Concept Connections\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?Background Knowledge(?: Layer| Needed To Understand This Properly)?\b/i, ["Background knowledge"]],
+  [/^(?:\d+\.\s*)?(?:Application To New Situations|How To Apply This To New Questions)\b/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Common Mistakes(?: That Lose Marks)?\b/i, ["Application", "Limitation"]],
+  [/^(?:\d+\.\s*)?High-Quality Student Thinking\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?How To Use This In Assessment\b/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Model High-Quality (?:Output|Answers)\b/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Exam Question Bank\b/i, ["Exam use"]],
+  [/^(?:\d+\.\s*)?Memory and Practice\b/i, ["Application"]],
 ];
 
 const BADGE_CLASS_BY_LABEL = new Map([
@@ -32,6 +34,7 @@ const BADGE_CLASS_BY_LABEL = new Map([
   ["Tutor explanation", "tutor"],
   ["Not enough evidence", "needs-evidence"],
   ["Not enough evidence from source", "needs-evidence"],
+  ["Source anchor", "source-based"],
   ["Source-based", "source-based"],
   ["Professional explanation", "professional-explanation"],
   ["Background knowledge", "background-knowledge"],
@@ -123,6 +126,24 @@ function decorateStandaloneBadges(html) {
   return output;
 }
 
+function stripDuplicateSectionBodyBadges(html, sectionChips) {
+  const duplicateLabels = (sectionChips || [])
+    .filter(label => BADGE_CLASS_BY_LABEL.has(label))
+    .map(label => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!duplicateLabels.length) return html;
+  const duplicatePattern = duplicateLabels.join("|");
+  let output = String(html || "");
+  output = output.replace(
+    new RegExp(`(<p>\\s*)\\[(${duplicatePattern})\\]\\s*`, "gi"),
+    "$1"
+  );
+  output = output.replace(
+    new RegExp(`(<li>\\s*)\\[(${duplicatePattern})\\]\\s*`, "gi"),
+    "$1"
+  );
+  return output;
+}
+
 function splitHtmlSections(html) {
   const source = String(html || "");
   const headingPattern = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
@@ -191,23 +212,26 @@ function isProfessionalMode(value) {
 
 function professionalSectionKind(title) {
   const clean = cleanSectionTitleText(title);
-  if (/^Big Picture$/i.test(clean)) return "big-picture";
-  if (/^What You Actually Need To Understand$/i.test(clean)) return "core-understanding";
-  if (/^Concept Connections$/i.test(clean)) return "concept-connections";
-  if (/^Deep Explanation$/i.test(clean)) return "deep-explanation";
-  if (/^Background Knowledge Layer$/i.test(clean)) return "background";
-  if (/^Application To New Situations$/i.test(clean)) return "application";
-  if (/^High-Quality Student Thinking$/i.test(clean)) return "high-quality-thinking";
-  if (/^Common Mistakes$/i.test(clean)) return "common-mistakes";
-  if (/^How To Use This In Assessment$/i.test(clean)) return "assessment-use";
-  if (/^Model High-Quality Output$/i.test(clean)) return "model-output";
-  if (/^Memory and Practice$/i.test(clean)) return "memory-practice";
+  if (/^(?:\d+\.\s*)?Big Picture\b/i.test(clean)) return "big-picture";
+  if (/^(?:\d+\.\s*)?The Exam Will Probably Test These Ideas\b/i.test(clean)) return "exam-focus";
+  if (/^(?:\d+\.\s*)?What You Actually Need To Understand\b/i.test(clean)) return "core-understanding";
+  if (/^(?:\d+\.\s*)?Deep Explanation\b/i.test(clean)) return "deep-explanation";
+  if (/^(?:\d+\.\s*)?Concept Connections\b/i.test(clean)) return "concept-connections";
+  if (/^(?:\d+\.\s*)?Background Knowledge(?: Layer| Needed To Understand This Properly)?\b/i.test(clean)) return "background";
+  if (/^(?:\d+\.\s*)?(?:Application To New Situations|How To Apply This To New Questions)\b/i.test(clean)) return "application";
+  if (/^(?:\d+\.\s*)?Common Mistakes(?: That Lose Marks)?\b/i.test(clean)) return "common-mistakes";
+  if (/^(?:\d+\.\s*)?High-Quality Student Thinking\b/i.test(clean)) return "high-quality-thinking";
+  if (/^(?:\d+\.\s*)?How To Use This In Assessment\b/i.test(clean)) return "assessment-use";
+  if (/^(?:\d+\.\s*)?Model High-Quality (?:Output|Answers)\b/i.test(clean)) return "model-output";
+  if (/^(?:\d+\.\s*)?Exam Question Bank\b/i.test(clean)) return "question-bank";
+  if (/^(?:\d+\.\s*)?Memory and Practice\b/i.test(clean)) return "memory-practice";
   return "standard";
 }
 
 function professionalSectionClass(kind) {
   const classes = ["professional-mode-section"];
   if (kind === "big-picture") classes.push("professional-big-picture-card");
+  if (kind === "exam-focus") classes.push("professional-exam-focus-card");
   if (kind === "core-understanding") classes.push("professional-core-understanding-card");
   if (kind === "concept-connections") classes.push("professional-concept-connections-card");
   if (kind === "deep-explanation") classes.push("professional-deep-explanation-section");
@@ -217,6 +241,7 @@ function professionalSectionClass(kind) {
   if (kind === "common-mistakes") classes.push("professional-common-mistakes-card");
   if (kind === "assessment-use") classes.push("professional-assessment-use-card");
   if (kind === "model-output") classes.push("professional-model-output-card");
+  if (kind === "question-bank") classes.push("professional-question-bank-card");
   if (kind === "memory-practice") classes.push("professional-memory-practice-card");
   return classes.join(" ");
 }
@@ -245,7 +270,7 @@ function renderProfessionalSection(section, index, collapseSecondary) {
   const titleText = cleanSectionTitleText(section.headingInnerHtml);
   const chips = inferProfessionalSectionChips(titleText);
   const kind = professionalSectionKind(titleText);
-  const bodyHtml = decorateStandaloneBadges(section.bodyHtml || "");
+  const bodyHtml = decorateStandaloneBadges(stripDuplicateSectionBodyBadges(section.bodyHtml || "", chips));
   const open = !collapseSecondary || index <= 1 || kind === "deep-explanation" ? " open" : "";
   const headerHtml = renderProfessionalHeader(section, chips);
   const bodyClass = professionalBodyClass(kind);
@@ -294,13 +319,14 @@ function renderProfessionalModeSurface(source, collapseSecondary) {
 }
 
 function renderStudyNotesSurface(html, options = {}) {
-  const source = decorateStandaloneBadges(String(html || "").trim());
-  if (!source) return "";
+  const rawSource = String(html || "").trim();
+  if (!rawSource) return "";
 
   if (isProfessionalMode(options.promptMode)) {
-    return renderProfessionalModeSurface(source, Boolean(options.collapseSecondary));
+    return renderProfessionalModeSurface(rawSource, Boolean(options.collapseSecondary));
   }
 
+  const source = decorateStandaloneBadges(rawSource);
   const { preludeHtml, sections } = splitHtmlSections(source);
   if (!sections.length) return source;
 

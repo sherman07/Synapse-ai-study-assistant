@@ -110,6 +110,24 @@ If `backend/.env` does not exist yet, the start script creates it from `backend/
 bash scripts/set_backend_openai_key.sh
 ```
 
+To use Gemini for text generation instead of OpenAI, keep OpenAI settings in
+`backend/.env` and put Gemini/Vertex settings in the separate
+`backend/.env.gemini` file:
+
+```env
+AI_TEXT_PROVIDER=gemini
+GEMINI_AUTH_MODE=adc
+GEMINI_PROJECT_ID=your-google-cloud-project-id
+GEMINI_LOCATION=us-central1
+```
+
+Gemini uses the same Synapse prompt-mode builder, source context, and validators
+as the GPT path. OpenAI-only features such as realtime voice, transcription, and
+hosted image generation still require `OPENAI_API_KEY`.
+
+The upload form includes a Generate AI switch. Leave it on backend default to
+use `AI_TEXT_PROVIDER`, or choose GPT/Gemini for that generation request only.
+
 Start the backend:
 
 ```bash
@@ -143,7 +161,7 @@ Open the study workspace:
 http://127.0.0.1:5175/frontend/index.html
 ```
 
-Open the standalone Focus Room:
+The standalone Focus Room is currently disabled from the workspace UI and direct URL access, but the implementation is preserved for a future update:
 
 ```text
 http://127.0.0.1:5175/frontend/focus-room.html#/focus-room/:materialId

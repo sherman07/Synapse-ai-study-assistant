@@ -29,11 +29,13 @@ if str(BACKEND_PACKAGE_DIR) not in sys.path:
 
 from core.analysis_cache import cache_get, cache_set
 from core.config import (
+    AI_TEXT_PROVIDER,
     ANALYSIS_MAX_SECONDS,
     ANALYSIS_MODEL,
     CACHE_PATH,
     CACHE_VERSION,
     CHAT_MODEL,
+    CONFIG_ENV_PATHS,
     CORS_ALLOW_CREDENTIALS,
     CORS_ALLOW_ORIGIN_REGEX,
     CORS_ALLOW_ORIGINS,
@@ -44,6 +46,14 @@ from core.config import (
     ENABLE_SOURCE_PPTX_PREVIEW_RENDER,
     ENABLE_TUTOR_WEB_RESEARCH,
     FALLBACK_MODEL,
+    GEMINI_API_KEY,
+    GEMINI_AUTH_MODE,
+    GEMINI_CHAT_MODEL,
+    GEMINI_ENV_PATHS,
+    GEMINI_FALLBACK_MODEL,
+    GEMINI_OPENAI_BASE_URL,
+    GEMINI_LOCATION,
+    GEMINI_PROJECT_ID,
     MAX_AUDIO_BYTES,
     MAX_MULTI_SOURCE_VISUAL_IMAGES,
     MAX_SOURCE_CHARS,
@@ -79,6 +89,7 @@ from core.config import (
     VISUAL_IMAGE_GUIDE_MODEL,
     VISUAL_IMAGE_GUIDE_QUALITY,
     VISUAL_IMAGE_GUIDE_SIZE,
+    VISUAL_PIPELINE_VERSION,
     VISUAL_RENDER_DPI,
     VOICE_TUTOR_CONTEXT_CHARS,
     VOICE_TUTOR_HISTORY_LIMIT,
@@ -86,9 +97,20 @@ from core.config import (
     VOICE_TUTOR_TOKENS,
     client,
     env_int,
+    gemini_adc_client,
+    gemini_client,
+    gemini_vertex_openai_base_url,
     has_openai,
+    has_text_ai,
     model_for_depth,
+    active_text_provider,
+    normalise_text_provider,
     require_openai,
+    require_openai_api,
+    require_text_ai,
+    reset_request_text_provider,
+    set_request_text_provider,
+    text_generation_client,
 )
 from core.database import synapse_database
 from core.request_limits import read_upload_bytes
@@ -190,6 +212,7 @@ except Exception:
 
 import logging
 logging.getLogger("pypdf").setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
 
 # Defensive literals for LaTeX environments inside f-string prompts. If a
 # prompt accidentally contains "\begin{bmatrix}" instead of escaped braces,
@@ -441,7 +464,7 @@ def persist_generated_analysis_result(
         identity = database_identity_from_request(request, client_fingerprint)
         return synapse_database.upsert_generated_content(identity, result, client_fingerprint)
     except Exception as error:
-        print(f"[database] generated content persistence skipped: {error}", flush=True)
+        logger.warning("Generated content persistence skipped: %s", error)
         return {}
 
 

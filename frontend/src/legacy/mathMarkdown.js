@@ -170,6 +170,15 @@ function repairMergedMathProse(text) {
     .replace(/\bcausingdivisionbyzero\b/gi, "causing division by zero")
     .replace(/\bcorrectantiderivative\b/gi, "correct antiderivative")
     .replace(/\btotaldeposits\b/gi, "total deposits")
+    .replace(/\bwasnotequalto(?=[A-Z]|\b)/gi, "was not equal to ")
+    .replace(/\bnotequalto(?=[A-Z]|\b)/gi, "not equal to ")
+    .replace(/\b(equal)to(?=[A-Z]|\b)/gi, "$1 to ")
+    .replace(/\bismatchedby\b/gi, "is matched by")
+    .replace(/\bmatchedby\b/gi, "matched by")
+    .replace(/(\([^()\n]{1,60}\))(?=(?:is|are|was|were|because|when|while)\b)/gi, "$1 ")
+    .replace(/\b([A-Z][A-Za-z]{2,})(?=\(\d[\d,.\s%]*\))/g, "$1 ")
+    .replace(/\b(National|Domestic|Private|Public)(Saving|Investment)\b/g, "$1 $2")
+    .replace(/\b(Net)(Capital)(Outflow)\b/g, "$1 $2 $3")
     .replace(/\bpotential(\d+(?:\.\d+)?\s*[KMBT])\b/gi, "potential $$$1");
 }
 
@@ -510,6 +519,13 @@ function splitFormulaTrailingText(value) {
   if (derivativeOperatorOnly && /^(?:\s*\)|\s+(?:vs|versus)\b|[,.;:])/.test(derivativeOperatorOnly[2])) {
     formula = derivativeOperatorOnly[1];
     trailing = derivativeOperatorOnly[2] + trailing;
+    return { formula, trailing };
+  }
+  const parentheticalRelationThenProse = formula.match(/^(\([^()\n]{1,160}(?:=|≈|≃|≠|≤|≥|<|>)[^()\n]{1,160}\))(\s*(?:is|are|was|were|be|being|the|a|an|this|that|which|where|when|because|since|so|then|and|but)\b[\s\S]*)$/i);
+  if (parentheticalRelationThenProse) {
+    formula = parentheticalRelationThenProse[1];
+    const prose = parentheticalRelationThenProse[2].replace(/^\s*/, " ");
+    trailing = prose + trailing;
     return { formula, trailing };
   }
   const arrowToProse = formula.match(/\s*(?:→|⇒|->)\s+(?=(?:derivative|antiderivative|area|proof|power|rule|calculated|using|from|by|with)\b)/i);

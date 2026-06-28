@@ -21,7 +21,7 @@ COMMON_PROMPT_FILES: Tuple[Tuple[str, str], ...] = (
 MODE_FORBIDDEN_PHRASES = {
     "quick_answer": ("Detailed Explanation", "Professional Mode", "Tutor Mode", "Source-Strict", "Assignment / APA"),
     "detailed_explanation": ("Quick Answer", "Professional Mode", "Tutor Mode", "Source-Strict", "Assignment / APA"),
-    "professor_mode": ("Quick Answer", "Detailed Explanation", "Tutor Mode", "Source-Strict", "Source-Restricted", "Assignment / APA"),
+    "professor_mode": ("Quick Answer", "Detailed Explanation", "Tutor Mode", "Source-Restricted", "Assignment / APA"),
     "tutor_mode": ("Quick Answer", "Detailed Explanation", "Professional Mode", "Source-Strict", "Assignment / APA"),
     "source_strict_research_mode": (
         "Quick Answer",
@@ -29,6 +29,9 @@ MODE_FORBIDDEN_PHRASES = {
         "Professional Mode",
         "Background Knowledge Layer",
         "Application To New Situations",
+        "The Exam Will Probably Test These Ideas",
+        "Model High-Quality Answers",
+        "Exam Question Bank",
         "high-quality student thinking",
         "Tutor Mode",
         "Assignment / APA",
@@ -68,7 +71,7 @@ def build_note_prompt(context: Dict) -> str:
     mode_text = load_note_prompt_mode_text(mode_key)
     common_text = "\n\n".join(_common_prompt_blocks())
     source_context = context.get("source_context") or "No readable source context was provided."
-    visual_context = context.get("visual_context") or "No relevant source figures were selected. Do not invent image markers."
+    visual_context = context.get("visual_context") or "No relevant source figures were selected. Do not invent visual-card content."
     source_list = context.get("source_list") or "Source list unavailable."
     language_rule = context.get("language_rule") or "Use the selected output language."
     recommended_structure = context.get("recommended_structure") or ""
@@ -87,8 +90,10 @@ def build_note_prompt(context: Dict) -> str:
     length_line = ""
     if note_length_min_words and note_length_max_words:
         length_line = (
-            f"- Selected note-length mode: {note_length_label}. "
-            f"Use {note_length_min_words}-{note_length_max_words} words when the source provides enough usable material."
+            f"- Selected AI study depth: {note_length_label}. "
+            "Treat this as content depth guidance: choose how much source-specific reasoning, explanation, "
+            "application, examples, and revision support to include. Do not pad to hit a word count; add depth "
+            "only when it improves student understanding."
         )
 
     expansion_block = ""
@@ -98,7 +103,8 @@ def build_note_prompt(context: Dict) -> str:
 Expansion task:
 - Improve only the parts that are too thin, unclear, generic, or missing selected-mode requirements.
 - Keep the selected mode's structure, tone, length target, and evidence discipline.
-- Preserve every existing [[VISUAL:n]] marker exactly. Do not delete, rename, renumber, or duplicate markers.
+- Preserve existing `[[VISUAL:n]]` markers. If a selected source figure is listed and directly supports the expanded explanation, place that marker near the paragraph it supports.
+- Do not add generic visual-card captions to the main markdown notes; the rendered card already contains the figure explanation.
 - Detected quality gaps: {gaps}
 
 Current notes to expand:
@@ -138,6 +144,8 @@ Output requirements:
 - Do not import instructions, section names, badges, tone, or validation rules from unselected modes.
 - Start with a specific topic title.
 - Mention every usable source at least once when the source provides enough readable context.
+- When selected source figures are listed, place `[[VISUAL:n]]` markers near the paragraph, worked example, comparison, formula, table discussion, or source evidence they support. For example, use `[[VISUAL:0]]` near the paragraph explaining Source figure 0.
+- Use only marker IDs present in the selected source-figure context. Do not invent, renumber, or cluster markers at the end.
 - Avoid generic filler. Every point must help the student understand, apply, verify, or revise the uploaded material.
 
 {expansion_block}

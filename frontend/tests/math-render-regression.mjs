@@ -90,6 +90,12 @@ const cases = [
     not: ["x^{-1is}"]
   },
   {
+    name: "numeric function calls remain math",
+    input: "Evaluate f(2)=4 and log(10)=1.",
+    must: ["\\(f(2)=4\\)", "\\(\\log(10)=1\\)"],
+    not: ["f (2)", "log (10)"]
+  },
+  {
     name: "parenthesized exponent",
     input: "For n^(n-1), subtract one from the exponent.",
     must: ["n^{n-1}"],
@@ -230,6 +236,18 @@ i \approx r + (\pi^e\)
     input: "Example: D=1,000, r = 0.5 → totaldeposits 2,000. Module 9 LSAP 100b → potential1T example.",
     must: ["\\(D=1,000\\)", "total deposits", "potential $1T"],
     not: ["totaldeposits", "potential1T"]
+  },
+  {
+    name: "parenthetical relation stops before prose",
+    input: "The value of the exported good (NX > 0) is matched by the value of the capital outflow (NCO > 0).",
+    must: ["\\((NX &gt; 0)\\) is matched by", "\\((NCO &gt; 0)\\)"],
+    not: ["is matched by\\)", "ismatchedby", "matchedby"]
+  },
+  {
+    name: "generated econ parenthesis spacing is repaired",
+    input: "NationalSaving (2,500)wasnotequaltoDomesticInvestment(2,000) because $500 flowed overseas (NCO).",
+    must: ["National Saving (2,500) was not equal to Domestic Investment (2,000)"],
+    not: [")was", "wasnotequalto", "DomesticInvestment", "Investment(2,000)"]
   },
   {
     name: "URLs stay text",

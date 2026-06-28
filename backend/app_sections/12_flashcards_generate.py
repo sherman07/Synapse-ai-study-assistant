@@ -1,7 +1,7 @@
 @app.post("/flashcards/generate")
 async def generate_flashcards(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         data = data or {}
         title = clean_quiz_string(data.get("title"), stored_title or "Study Flashcards")
         preferred_language = normalise_quiz_language(data.get("preferred_language", "english"))

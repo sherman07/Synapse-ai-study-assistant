@@ -14,6 +14,57 @@ function extractRealtimeResponseTranscript(response) {
   return fragments.join(" ").replace(/\s+/g, " ").trim();
 }
 
+function normaliseVoiceTutorErrorMessage(value, fallback = "Realtime voice session failed.") {
+  if (value == null || value === "") return fallback;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "[object Object]") return fallback;
+    if (/^[{[]/.test(trimmed)) {
+      try {
+        return normaliseVoiceTutorErrorMessage(JSON.parse(trimmed), fallback);
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  if (typeof value !== "object") {
+    return String(value || "").trim() || fallback;
+  }
+
+  const nested = [
+    value.error?.message,
+    value.status_details?.error?.message,
+    value.response?.status_details?.error?.message,
+    value.detail?.message,
+    value.message,
+    value.error,
+    value.detail,
+    value.cause,
+  ];
+  for (const candidate of nested) {
+    const message = normaliseVoiceTutorErrorMessage(candidate, "");
+    if (message) {
+      const code = value.error?.code || value.code || value.status_details?.error?.code || "";
+      const type = value.error?.type || value.type || value.status_details?.error?.type || "";
+      const suffix = [code, type].filter(Boolean).join(" / ");
+      return suffix && !message.includes(suffix) ? `${message} (${suffix})` : message;
+    }
+  }
+
+  return fallback;
+}
+
+function voiceTutorRealtimeResponseErrorMessage(body, response) {
+  const base = normaliseVoiceTutorErrorMessage(body, "Realtime voice session failed.");
+  const status = Number(response?.status || 0);
+  const statusText = String(response?.statusText || "").trim();
+  const statusLabel = status ? `HTTP ${status}${statusText ? ` ${statusText}` : ""}` : "";
+  return statusLabel && !base.includes(statusLabel) ? `${base} (${statusLabel})` : base;
+}
+
 function sendRealtimeTextMessage(text) {
   const value = String(text || "").trim();
   if (!value) return false;
@@ -49,7 +100,7 @@ function handleRealtimeTutorEvent(rawEvent) {
     return;
   }
   if (event.type === "error") {
-    const message = event.error?.message || "Realtime voice session error.";
+    const message = normaliseVoiceTutorErrorMessage(event.error, "Realtime voice session error.");
     console.error(event);
     voiceRealtimeResponseActive = false;
     setVoiceTutorBusy(false);
@@ -58,7 +109,9 @@ function handleRealtimeTutorEvent(rawEvent) {
   }
   if (event.type === "response.created") {
     voiceRealtimeResponseActive = true;
+    voiceRealtimeAssistantDraft = "";
     voiceRealtimeTranscriptCommitted = false;
+    resetVoiceTutorStreamingAssistantMessage();
     clearVoiceNoTranscriptTimer();
     return;
   }
@@ -100,7 +153,7 @@ function handleRealtimeTutorEvent(rawEvent) {
     return;
   }
   if (event.type === "conversation.item.input_audio_transcription.failed") {
-    const message = event.error?.message || "I could not transcribe that clearly. Please try again or type the answer below.";
+    const message = normaliseVoiceTutorErrorMessage(event.error, "I could not transcribe that clearly. Please try again or type the answer below.");
     addVoiceTutorMessage("assistant", message, {
       state: "listening",
       mastery: voiceTutorLastState?.mastery || 0
@@ -109,6 +162,11 @@ function handleRealtimeTutorEvent(rawEvent) {
   }
   if ((event.type === "response.audio_transcript.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.text.delta") && event.delta) {
     voiceRealtimeAssistantDraft += event.delta;
+    updateVoiceTutorStreamingAssistantMessage(voiceRealtimeAssistantDraft, {
+      state: "live",
+      mastery: voiceTutorLastState?.mastery || 0,
+      diagnosis: "Realtime tutor is speaking now."
+    });
     return;
   }
   if (event.type === "response.audio_transcript.done" || event.type === "response.output_audio_transcript.done") {
@@ -116,7 +174,7 @@ function handleRealtimeTutorEvent(rawEvent) {
     voiceRealtimeAssistantDraft = "";
     if (transcript && transcript.trim()) {
       voiceRealtimeTranscriptCommitted = true;
-      addVoiceTutorMessage("assistant", transcript.trim(), {
+      commitVoiceTutorStreamingAssistantMessage(transcript.trim(), {
         state: "live",
         mastery: voiceTutorLastState?.mastery || 0,
         diagnosis: "Realtime tutor responded from the current note context."
@@ -126,7 +184,7 @@ function handleRealtimeTutorEvent(rawEvent) {
   }
   if (event.type === "response.done") {
     const failedMessage = event.response?.status === "failed"
-      ? (event.response?.status_details?.error?.message || "Realtime voice response failed.")
+      ? normaliseVoiceTutorErrorMessage(event.response?.status_details?.error || event.response, "Realtime voice response failed.")
       : "";
     const transcript = voiceRealtimeTranscriptCommitted
       ? ""
@@ -143,7 +201,7 @@ function handleRealtimeTutorEvent(rawEvent) {
     }
     if (transcript) {
       voiceRealtimeTranscriptCommitted = true;
-      addVoiceTutorMessage("assistant", transcript, {
+      commitVoiceTutorStreamingAssistantMessage(transcript, {
         state: "live",
         mastery: voiceTutorLastState?.mastery || 0,
         diagnosis: "Realtime tutor responded from the current note context."
@@ -156,7 +214,7 @@ function handleRealtimeTutorEvent(rawEvent) {
     voiceRealtimeResponseActive = false;
     setVoiceTutorBusy(false);
     if (event.type === "response.failed") {
-      addVoiceTutorMessage("assistant", `Error: ${event.error?.message || "Realtime voice response failed."}`, {
+      addVoiceTutorMessage("assistant", `Error: ${normaliseVoiceTutorErrorMessage(event.error, "Realtime voice response failed.")}`, {
         state: "error",
         mastery: voiceTutorLastState?.mastery || 0,
         diagnosis: "The live tutor response failed before it could finish."
@@ -166,6 +224,11 @@ function handleRealtimeTutorEvent(rawEvent) {
   }
   if (event.type === "response.output_text.delta" && event.delta) {
     voiceRealtimeAssistantDraft += event.delta;
+    updateVoiceTutorStreamingAssistantMessage(voiceRealtimeAssistantDraft, {
+      state: "live",
+      mastery: voiceTutorLastState?.mastery || 0,
+      diagnosis: "Realtime tutor is speaking now."
+    });
   }
 }
 
@@ -195,7 +258,7 @@ async function waitForIceGathering(peer) {
 
 function getVoiceTutorConnectionErrorMessage(error) {
   const name = error?.name || "";
-  const message = error?.message || "Realtime voice session failed.";
+  const message = normaliseVoiceTutorErrorMessage(error, "Realtime voice session failed.");
   if (name === "NotAllowedError" || name === "SecurityError") {
     return "Microphone permission is off. Please allow microphone access in Chrome/system settings, then start the live tutor again.";
   }
@@ -296,13 +359,15 @@ async function startRealtimeVoiceTutor() {
       body: buildVoiceTutorSessionFormData(voiceRealtimePeer.localDescription.sdp)
     });
     const answerSdp = await response.text();
+    const answerContentType = response.headers?.get?.("content-type") || "";
     if (!response.ok) {
-      let message = answerSdp || "Realtime voice session failed.";
-      try {
-        const parsed = JSON.parse(answerSdp);
-        message = parsed.error || message;
-      } catch {}
-      throw new Error(message);
+      throw new Error(voiceTutorRealtimeResponseErrorMessage(answerSdp, response));
+    }
+    if (/application\/json/i.test(answerContentType) || /^[{[]/.test(answerSdp.trim())) {
+      throw new Error(voiceTutorRealtimeResponseErrorMessage(answerSdp, response));
+    }
+    if (!/^v=0/m.test(answerSdp.trim())) {
+      throw new Error("Realtime voice service returned an invalid SDP answer. Check the OpenAI Realtime model and API key, then restart the backend.");
     }
     await voiceRealtimePeer.setRemoteDescription({
       type: "answer",
@@ -387,6 +452,7 @@ function stopRealtimeVoiceTutor({ silent = false } = {}) {
   voiceRealtimeConnecting = false;
   voiceRealtimeMuted = false;
   voiceRealtimeAssistantDraft = "";
+  resetVoiceTutorStreamingAssistantMessage();
   voiceRealtimeResponseActive = false;
   voiceRealtimeTranscriptCommitted = false;
   voiceRealtimeLastTranscriptText = "";

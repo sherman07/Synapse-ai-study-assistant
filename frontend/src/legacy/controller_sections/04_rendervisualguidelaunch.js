@@ -654,6 +654,13 @@ function renderVisualGuide(guide) {
 function renderVisualImageGuide(guide) {
   const imageUrl = guide?.imageDataUrl || "";
   if (!imageUrl) return renderVisualGuideLaunch();
+  const meta = [
+    guide.imageProcessing?.layout,
+    guide.requestedModel ? `requested ${guide.requestedModel}` : guide.model,
+    guide.size,
+    guide.styleVersion
+  ].map(item => cleanVisualGuideGeneratedText(item)).filter(Boolean).join(" • ");
+  const renderingNote = cleanVisualGuideGeneratedText(guide.renderingNote || "");
   return `
     <div class="visual-image-guide-shell">
       <div class="visual-guide-toolbar">
@@ -668,6 +675,8 @@ function renderVisualImageGuide(guide) {
         <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(guide.title || "Visual image guide")}" loading="lazy" decoding="async">
         <figcaption>
           <strong>${escapeHTML(guide.title || "Visual Image Guide")}</strong>
+          ${meta ? `<span>${escapeHTML(meta)}</span>` : ""}
+          ${renderingNote ? `<span>${escapeHTML(renderingNote)}</span>` : ""}
         </figcaption>
       </figure>
     </div>

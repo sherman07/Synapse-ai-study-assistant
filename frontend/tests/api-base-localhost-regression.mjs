@@ -66,8 +66,8 @@ assert.equal(
 
 assert.equal(
   await loadApiBase({ hostname: "192.168.1.141", port: "5175" }),
-  "http://127.0.0.1:8001",
-  "private LAN frontend URLs should still call the local FastAPI backend, not the Vite server"
+  "http://192.168.1.141:8001",
+  "private LAN frontend URLs should call the same server's FastAPI backend, not the Vite server"
 );
 
 assert.equal(
@@ -76,14 +76,14 @@ assert.equal(
     port: "5175",
     configured: "http://192.168.1.141:5175"
   }),
-  "http://127.0.0.1:8001",
-  "same-origin Vite API overrides on private LAN dev URLs should be ignored"
+  "http://192.168.1.141:8001",
+  "same-origin Vite API overrides on private LAN dev URLs should be redirected to the backend port"
 );
 
 assert.equal(
   await loadDataApiBase({ hostname: "192.168.1.141", port: "5175" }),
-  "http://127.0.0.1:3001",
-  "private LAN frontend URLs should still call the local data API, not the Vite server"
+  "http://192.168.1.141:3001",
+  "private LAN frontend URLs should call the same server's data API, not the Vite server"
 );
 
 assert.equal(
@@ -92,8 +92,8 @@ assert.equal(
     port: "5175",
     configured: "http://192.168.1.141:5175"
   }),
-  "http://127.0.0.1:3001",
-  "same-origin Vite data API overrides on private LAN dev URLs should be ignored"
+  "http://192.168.1.141:3001",
+  "same-origin Vite data API overrides on private LAN dev URLs should be redirected to the data API port"
 );
 
 assert.equal(

@@ -20,6 +20,28 @@ SOURCE_STRICT_ARTIFACT_HEADINGS = (
     "Flashcard-ready Summary",
 )
 
+PROFESSIONAL_ARTIFACT_HEADINGS = (
+    "Big Picture",
+    "The Exam Will Probably Test These Ideas",
+    "What You Actually Need To Understand",
+    "Deep Explanation",
+    "Deep Explanation of the Core Concepts",
+    "Concept Connections",
+    "Concept Connections: How The Ideas Work Together",
+    "Background Knowledge Layer",
+    "Background Knowledge Needed To Understand This Properly",
+    "Application To New Situations",
+    "How To Apply This To New Questions",
+    "High-Quality Student Thinking",
+    "Common Mistakes",
+    "Common Mistakes That Lose Marks",
+    "How To Use This In Assessment",
+    "Model High-Quality Output",
+    "Model High-Quality Answers",
+    "Exam Question Bank",
+    "Memory and Practice",
+)
+
 
 def _collapse_blank_lines(text: str) -> str:
     return re.sub(r"\n{4,}", "\n\n\n", (text or "").strip())

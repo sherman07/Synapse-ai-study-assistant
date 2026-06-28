@@ -876,13 +876,4 @@
   // Voucher redemption should be connected when production checkout is added.
   // ==========================================
   
-  // ==========================================
-  // Console Welcome Message
-  // ==========================================
-  
-  if (window.SYNAPSE_DEBUG === true) {
-    console.log('%cWelcome to Synapse!', 'color: #4a7cff; font-size: 24px; font-weight: bold;');
-    console.log('%cTurn passive study notes into active learning', 'color: #64748b; font-size: 14px;');
-  }
-
 })();

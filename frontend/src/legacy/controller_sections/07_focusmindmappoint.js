@@ -326,16 +326,85 @@ function renderVoiceTutorMessage(role, text, options = {}) {
   voiceMessages.querySelector(".assistant-empty")?.remove();
   const div = document.createElement("div");
   div.className = `voice-message ${role}`;
-  const meta = role === "assistant" && options.state
-    ? `<div class="voice-message-meta">${escapeHTML(formatVoiceProgressState(options.state))}</div>`
-    : "";
-  div.innerHTML = `
-    <strong>${role === "user" ? "You" : "Synapse Voice Tutor"}</strong>
-    ${meta}
-    <div>${markdownToHTML(text)}</div>`;
+  div.innerHTML = buildVoiceTutorMessageHTML(role, text, options);
   voiceMessages.appendChild(div);
   renderMath();
   voiceMessages.scrollTop = voiceMessages.scrollHeight;
+  return div;
+}
+
+function buildVoiceTutorMessageHTML(role, text, options = {}) {
+  const meta = role === "assistant" && options.state
+    ? `<div class="voice-message-meta">${escapeHTML(formatVoiceProgressState(options.state))}</div>`
+    : "";
+  return `
+    <strong>${role === "user" ? "You" : "Synapse Voice Tutor"}</strong>
+    ${meta}
+    <div class="voice-message-body">${markdownToHTML(text)}</div>`;
+}
+
+function updateRenderedVoiceTutorMessage(element, role, text, options = {}) {
+  if (!element) return;
+  element.innerHTML = buildVoiceTutorMessageHTML(role, text, options);
+  renderMath();
+  voiceMessages.scrollTop = voiceMessages.scrollHeight;
+}
+
+function normaliseStreamingVoiceTutorText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function resetVoiceTutorStreamingAssistantMessage() {
+  voiceRealtimeStreamingAssistantItem = null;
+  voiceRealtimeStreamingAssistantElement = null;
+}
+
+function updateVoiceTutorStreamingAssistantMessage(text, extras = {}) {
+  const cleanText = normaliseStreamingVoiceTutorText(text);
+  if (!cleanText) return false;
+  const progress = estimateVoiceTutorProgress("assistant", cleanText);
+  const providedMastery = Number(extras.mastery);
+  const hasProvidedMastery = Number.isFinite(providedMastery) && (providedMastery > 0 || extras.state === "error" || extras.forceMastery);
+  const item = voiceRealtimeStreamingAssistantItem || {
+    role: "assistant",
+    text: "",
+    state: extras.state || "live",
+    mastery: hasProvidedMastery ? providedMastery : (voiceTutorLastState?.mastery || progress.mastery || 0),
+    diagnosis: extras.diagnosis || "Realtime tutor is speaking now.",
+    createdAt: new Date().toISOString()
+  };
+
+  item.text = cleanText;
+  item.state = extras.state || item.state || "live";
+  item.mastery = hasProvidedMastery ? providedMastery : (item.mastery || voiceTutorLastState?.mastery || progress.mastery || 0);
+  item.diagnosis = extras.diagnosis || item.diagnosis || progress.diagnosis || "";
+
+  if (!voiceRealtimeStreamingAssistantItem) {
+    voiceTutorHistory.push(item);
+    voiceRealtimeStreamingAssistantItem = item;
+    voiceRealtimeStreamingAssistantElement = renderVoiceTutorMessage("assistant", item.text, {
+      state: item.state,
+      mastery: item.mastery,
+    });
+  } else {
+    updateRenderedVoiceTutorMessage(voiceRealtimeStreamingAssistantElement, "assistant", item.text, {
+      state: item.state,
+      mastery: item.mastery,
+    });
+  }
+
+  voiceTutorLastState = item;
+  updateVoiceTutorStatus(voiceTutorLastState);
+  updateVoiceTutorControls();
+  return true;
+}
+
+function commitVoiceTutorStreamingAssistantMessage(text, extras = {}) {
+  if (!updateVoiceTutorStreamingAssistantMessage(text, extras)) return false;
+  voiceTutorHistory = normaliseVoiceTutorHistory(voiceTutorHistory);
+  persistVoiceTutorHistory();
+  resetVoiceTutorStreamingAssistantMessage();
+  return true;
 }
 
 function formatVoiceProgressState(state) {

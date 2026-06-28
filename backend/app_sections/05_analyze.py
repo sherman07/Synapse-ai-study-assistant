@@ -30,13 +30,35 @@ def analysis_error_response(message: str, status_code: int = 400) -> Response:
 
 def analysis_exception_status(error: Exception) -> int:
     message = str(error)
-    if "OPENAI_API_KEY" in message or "not configured" in message:
+    if "OPENAI_API_KEY" in message or "GEMINI_API_KEY" in message or "not configured" in message:
         return 503
     if "too large" in message and "limit" in message:
         return 413
     if isinstance(error, ValueError):
         return 400
     return 500
+
+
+def voice_realtime_provider_error_message(response: requests.Response) -> str:
+    fallback = f"OpenAI Realtime returned HTTP {response.status_code}."
+    try:
+        payload = response.json()
+    except Exception:
+        text = normalise_space(response.text or "")
+        return text or fallback
+
+    error_payload = payload.get("error") if isinstance(payload, dict) else payload
+    if isinstance(error_payload, dict):
+        message = normalise_space(error_payload.get("message") or "")
+        code = normalise_space(error_payload.get("code") or "")
+        error_type = normalise_space(error_payload.get("type") or "")
+        suffix = " / ".join(part for part in [code, error_type] if part)
+        if message and suffix:
+            return f"{message} ({suffix})"
+        return message or suffix or fallback
+    if isinstance(error_payload, str):
+        return normalise_space(error_payload) or fallback
+    return fallback
 
 
 @app.post("/analyze")
@@ -48,15 +70,24 @@ async def analyze_materials(
     detail_level: str = Form(default="auto"),
     prompt_mode: str = Form(default=DEFAULT_NOTE_PROMPT_MODE),
     note_length: str = Form(default=DEFAULT_NOTE_LENGTH_MODE),
+    ai_provider: str = Form(default=""),
     client_fingerprint: str = Form(default=""),
     request: Request = None,
 ):
     global stored_summary, stored_sections, stored_connections, stored_mind_map, stored_title, stored_source_identity
 
+    provider_token = set_request_text_provider(ai_provider)
+    trace_token = begin_ai_call_trace() if "begin_ai_call_trace" in globals() else None
     try:
-        require_openai()
+        selected_ai_provider = active_text_provider()
+        require_text_ai()
         analysis_started_at = time.monotonic()
         skipped_optional_stages: List[str] = []
+
+        def ai_diagnostic_payload(source: str = "model") -> dict:
+            if "ai_call_trace_payload" not in globals() or "current_ai_call_trace" not in globals():
+                return {}
+            return ai_call_trace_payload(current_ai_call_trace(), selected_ai_provider, source)
 
         def analysis_elapsed_seconds() -> float:
             return analysis_elapsed_seconds_since(analysis_started_at)
@@ -175,6 +206,7 @@ async def analyze_materials(
             depth,
             selected_prompt_mode,
             selected_note_length,
+            selected_ai_provider,
         )
         cached_result = cache_get(source_fingerprint)
         if cached_result:
@@ -184,13 +216,20 @@ async def analyze_materials(
             # deterministic selector here so cache hits do not make fresh model calls.
             if "rebuild_cached_visual_argument_cards" in globals():
                 rebuild_cached_visual_argument_cards(source_units, postprocess_language)
+            cached_raw_summary = (
+                cached_result.get("raw_summary")
+                or cached_result.get("display_summary")
+                or cached_result.get("summary", "")
+            )
+            if "strip_visual_card_pollution" in globals():
+                cached_raw_summary = strip_visual_card_pollution(cached_raw_summary)
             cached_summary = finalize_generated_summary(
-                cached_result.get("summary", ""),
+                cached_result.get("display_summary") or cached_result.get("summary", "") or cached_raw_summary,
                 requested_language=preferred_language,
                 generation_language=postprocess_language,
                 source_context=combined_source_text,
                 source_units=source_units,
-                attach_visuals=True,
+                attach_visuals=False,
                 protect_heading=False,
                 prompt_mode=selected_prompt_mode,
                 note_length_mode=selected_note_length,
@@ -198,15 +237,23 @@ async def analyze_materials(
             live_visual_gallery = build_visual_gallery(source_units)
             from core.visual_assets import filter_browser_visual_gallery, prune_unavailable_visual_markers
             cached_visual_gallery = filter_browser_visual_gallery(
-                cached_result.get("visual_gallery") or cached_result.get("visuals") or []
+                cached_result.get("visual_gallery")
+                or cached_result.get("source_evidence_cards")
+                or cached_result.get("figure_cards")
+                or cached_result.get("visuals")
+                or []
             )
             visual_gallery = live_visual_gallery or cached_visual_gallery
             cached_summary = prune_unavailable_visual_markers(cached_summary, visual_gallery)
             cached_result = {
                 **cached_result,
+                "raw_summary": cached_raw_summary,
+                "display_summary": cached_summary,
                 "summary": cached_summary,
                 "visual_gallery": visual_gallery,
                 "visuals": visual_gallery,
+                "source_evidence_cards": visual_gallery,
+                "figure_cards": visual_gallery,
             }
             stored_summary = cached_summary
             stored_sections = parse_sections(stored_summary)
@@ -223,79 +270,25 @@ async def analyze_materials(
                 "output_language": postprocess_language,
                 "prompt_mode": selected_prompt_mode,
                 "prompt_mode_label": selected_prompt_label,
+                "ai_provider": selected_ai_provider,
                 "note_length": cached_result.get("note_length") or selected_note_length,
                 "note_length_label": cached_result.get("note_length_label") or selected_note_length_label,
                 "analysis_max_seconds": ANALYSIS_MAX_SECONDS,
                 "analysis_elapsed_seconds": round(analysis_elapsed_seconds(), 2),
                 "optional_stages_skipped": [],
             }
+            response_payload.update(ai_diagnostic_payload("cache"))
             database_record = persist_generated_analysis_result(request, response_payload, client_fingerprint)
             if database_record:
                 response_payload["database_record"] = database_record
             return response_payload
-
-        language_rule = language_instruction_for_generation(preferred_language, combined_source_text)
-
-        source_identity_lines = []
-        for index, unit in enumerate(source_units, start=1):
-            source_identity_lines.append(
-                f"Source {index}: display_name={unit.get('display_name')} | stable_identity={unit.get('source_identity')} | title_candidate={unit.get('title_candidate')}"
-            )
 
         title_hint = choose_best_source_title(title_candidates)
         # v42: use the controlled advanced tutor generator for both single and
         # multi-source uploads. This avoids an expensive source-digest prepass
         # and prevents the old single-source path from producing thin notes that
         # need visual cards patched on afterward.
-        source_digest_block = ""
-        analysis_task = f"""
-{ANALYSIS_PROMPT}
-
-MANDATORY output language for the entire notes: {language_rule}
-Do not answer in another language. The full Generated Content must obey this language choice: all headings, explanations, examples, real-world examples, common mistakes, tutor explanations, and critical-thinking questions.
-
-Reference-style target to imitate:
-{REFERENCE_STYLE_PROFILE}
-
-For multi-source uploads, use this architecture:
-{MULTISOURCE_REFERENCE_STRUCTURE}
-
-Adaptive learning-depth decision:
-- Selected depth: {depth_config.get('label', depth)} ({depth}).
-- Reasoning data: characters={depth_plan.get('char_count')}, score={depth_plan.get('score')}, sections={depth_plan.get('section_markers')}, formulas={depth_plan.get('formula_markers')}, legal_terms={depth_plan.get('legal_markers')}.
-- Depth philosophy: choose the amount of detail that makes the content easiest to understand. Do NOT be brief just to save tokens. If the material is dense, preserve depth. If the material is simple, stay focused and avoid padding.
-- Depth instruction: {depth_config.get('instruction')}
-- Required section plan for this depth: {', '.join(depth_config.get('sections', []))}.
-
-MANDATORY depth requirement:
-- Match the explanation length to the actual complexity of the source, not to an arbitrary fixed word count.
-- If the source is a law or formal document, cover definitions, key sections, exceptions, duties, liabilities, procedures, and consequences.
-- If the source is a math/video lesson, reconstruct the full teaching sequence, formulas, calculations, verification steps, and common errors.
-- If an uploaded PDF, PPT, DOC, or text source contains an embedded YouTube URL, Synapse expands it into a SOURCE YOUTUBE VIDEO transcript source. Treat that video as part of the original source context, analyze what it teaches, and connect it back to the slide/page/concept where the link appeared.
-- Use the source structure wherever visible: parts, sections, headings, tables, transcript sequence, examples, or diagrams.
-- If examples exist inside the source, include them. If no example exists, add a clearly labelled external real-world example and explain how it applies.
-- Avoid generic filler such as “this is important for understanding”. Every paragraph should teach a specific point.
-- For psychology lecture packs, include named theories, named researchers, named experiments, research question/method/result/meaning, diagrams/tables, and exam application.
-- If a source contains lecture objectives, outline, or review questions, turn them into revision priorities and exam guidance.
-- When there are multiple files, the final output must be much closer to detailed lecture notes than a summary.
-
-Most likely source title/topic from explicit evidence: {title_hint}
-
-Stable source identity list:
-{chr(10).join(source_identity_lines)}
-
-Academic source-card preanalysis for multi-source synthesis:
-{source_digest_block if source_digest_block else "Not required for single-source mode."}
-
-{build_multisource_instruction(source_units, postprocess_language)}
-
-Consistency requirement:
-- The same source must not become two different documents.
-- If the source is a legislation page, preserve the exact act identity.
-- If the source title says Partnership Law Act 2019, do NOT change it to Arms Legislation Act 2019 or any other act.
-"""
-
-        stored_summary = generate_reference_style_multisource_notes(
+        generated_summary = generate_reference_style_multisource_notes(
             source_units,
             preferred_language,
             depth_plan,
@@ -305,14 +298,19 @@ Consistency requirement:
             skipped_optional_stages=skipped_optional_stages,
         )
 
-        stored_summary = enforce_requested_language(stored_summary, preferred_language)
+        generated_summary = enforce_requested_language(generated_summary, preferred_language)
+        raw_summary = (
+            strip_visual_card_pollution(generated_summary)
+            if "strip_visual_card_pollution" in globals()
+            else generated_summary
+        )
         stored_summary = finalize_generated_summary(
-            stored_summary,
+            raw_summary,
             requested_language=preferred_language,
             generation_language=postprocess_language,
             source_context=combined_source_text,
             source_units=source_units,
-            attach_visuals=True,
+            attach_visuals=False,
             protect_heading=True,
             prompt_mode=selected_prompt_mode,
             note_length_mode=selected_note_length,
@@ -344,12 +342,16 @@ Consistency requirement:
         visual_gallery = build_visual_gallery(source_units)
         result = {
             "title": stored_title,
+            "raw_summary": raw_summary,
+            "display_summary": stored_summary,
             "summary": stored_summary,
             "sections": stored_sections,
             "connections": stored_connections,
             "mind_map": stored_mind_map,
             "visual_gallery": visual_gallery,
             "visuals": visual_gallery,
+            "source_evidence_cards": visual_gallery,
+            "figure_cards": visual_gallery,
             "primary_source_identity": stored_source_identity,
             "source_count": len(source_units),
             "sources": [
@@ -374,6 +376,7 @@ Consistency requirement:
             "output_language": postprocess_language,
             "prompt_mode": selected_prompt_mode,
             "prompt_mode_label": selected_prompt_label,
+            "ai_provider": selected_ai_provider,
             "note_length": selected_note_length,
             "note_length_label": selected_note_length_label,
             "analysis_max_seconds": ANALYSIS_MAX_SECONDS,
@@ -381,10 +384,17 @@ Consistency requirement:
             "optional_stages_skipped": skipped_optional_stages,
             "cached": False,
         }
+        result.update(ai_diagnostic_payload("model"))
         # Persist compact browser-safe visual metadata. build_visual_gallery()
         # converts model-facing data URLs into /assets URLs, so cached notes can
         # keep inline figure metadata without storing large base64 payloads.
-        cache_result = {**result, "visual_gallery": visual_gallery, "visuals": visual_gallery}
+        cache_result = {
+            **result,
+            "visual_gallery": visual_gallery,
+            "visuals": visual_gallery,
+            "source_evidence_cards": visual_gallery,
+            "figure_cards": visual_gallery,
+        }
         cache_set(source_fingerprint, cache_result)
         database_record = persist_generated_analysis_result(request, result, client_fingerprint)
         if database_record:
@@ -393,6 +403,10 @@ Consistency requirement:
 
     except Exception as error:
         return analysis_error_response(str(error), analysis_exception_status(error))
+    finally:
+        if "reset_ai_call_trace" in globals():
+            reset_ai_call_trace(trace_token)
+        reset_request_text_provider(provider_token)
 
 
 # -------------------------
@@ -751,7 +765,7 @@ async def voice_tutor_realtime_call(
     source_identity: str = Form(default=""),
 ):
     try:
-        require_openai()
+        require_openai_api()
         parsed_history = normalise_voice_tutor_history(parse_json_list(history))
         sections_dict = parse_json_dict(sections)
         note_summary = str(summary or "").strip()
@@ -820,8 +834,11 @@ async def voice_tutor_realtime_call(
         )
         if response.status_code >= 400:
             return Response(
-                content=response.text,
-                media_type=response.headers.get("content-type", "text/plain"),
+                content=json.dumps({
+                    "error": voice_realtime_provider_error_message(response),
+                    "status": response.status_code,
+                }),
+                media_type="application/json",
                 status_code=response.status_code,
             )
         return Response(
@@ -833,7 +850,7 @@ async def voice_tutor_realtime_call(
         return Response(
             content=json.dumps({"error": str(error)}),
             media_type="application/json",
-            status_code=500,
+            status_code=analysis_exception_status(error),
         )
 
 
@@ -850,7 +867,7 @@ async def voice_tutor_respond(
     source_identity: str = Form(default=""),
 ):
     try:
-        require_openai()
+        require_text_ai()
         parsed_history = normalise_voice_tutor_history(parse_json_list(history))
         sections_dict = parse_json_dict(sections)
         note_summary = str(summary or "").strip()

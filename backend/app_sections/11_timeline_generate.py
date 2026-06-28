@@ -1,7 +1,7 @@
 @app.post("/timeline/generate")
 async def generate_timeline(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         payload = data or {}
         title = clean_quiz_string(payload.get("title") if isinstance(payload, dict) else "", stored_title or "Study Path")
         context = quiz_summary_context(payload)
@@ -238,7 +238,7 @@ Student's wrong answer:
 @app.post("/timeline/check-answer")
 async def check_timeline_answer(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         payload = data or {}
         raw_event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
         raw_question = payload.get("question") if isinstance(payload.get("question"), dict) else {}
@@ -650,7 +650,7 @@ def normalise_quiz_questions(parsed: dict, desired_types: List[str], title: str,
 @app.post("/quiz/generate")
 async def generate_quiz(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         plan = parse_quiz_type_plan(data or {})
         desired_types = expand_quiz_type_plan(plan)
         title = clean_quiz_string(data.get("title") if isinstance(data, dict) else "", stored_title or "Study Quiz")

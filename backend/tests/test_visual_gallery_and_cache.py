@@ -5,6 +5,7 @@ import re
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from urllib.parse import urlparse
 from unittest.mock import patch
@@ -13,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import app
 from backend import app as backend_app_module
+from backend.core import config as core_config
 from backend.app import analyze_materials
 from backend.app import build_analysis_fingerprint
 from backend.app import build_visual_gallery
@@ -75,6 +77,8 @@ class ApiShapeTests(unittest.TestCase):
             {
                 "http://127.0.0.1:5500",
                 "http://localhost:5500",
+                "http://127.0.0.1:5176",
+                "http://localhost:5176",
             }.issubset(set(backend_app_module.CORS_ALLOW_ORIGINS))
         )
 
@@ -82,7 +86,7 @@ class ApiShapeTests(unittest.TestCase):
         response = TestClient(app).options(
             "/health",
             headers={
-                "Origin": "http://192.168.1.141:5175",
+                "Origin": "http://192.168.1.141:5176",
                 "Access-Control-Request-Method": "GET",
             },
         )
@@ -90,8 +94,158 @@ class ApiShapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("access-control-allow-origin"),
-            "http://192.168.1.141:5175",
+            "http://192.168.1.141:5176",
         )
+
+    def test_backend_loads_gemini_settings_from_separate_env_file(self):
+        self.assertIn(
+            backend_app_module.BACKEND_PACKAGE_DIR / ".env.gemini",
+            core_config.GEMINI_ENV_PATHS,
+        )
+        self.assertIn(
+            backend_app_module.BACKEND_PACKAGE_DIR / ".env.gemini",
+            core_config.CONFIG_ENV_PATHS,
+        )
+
+    def test_backend_loads_gpt_settings_from_separate_env_file(self):
+        self.assertIn(
+            backend_app_module.BACKEND_PACKAGE_DIR / ".env.gpt",
+            core_config.GPT_ENV_PATHS,
+        )
+        self.assertIn(
+            backend_app_module.BACKEND_PACKAGE_DIR / "core" / ".env.gpt",
+            core_config.GPT_ENV_PATHS,
+        )
+        self.assertIn(
+            backend_app_module.BACKEND_PACKAGE_DIR / "core" / ".env.gpt",
+            core_config.CONFIG_ENV_PATHS,
+        )
+
+    def test_gpt_env_values_replace_placeholder_openai_settings(self):
+        environ = {
+            "OPENAI_API_KEY": "__ADD_YOUR_OPENAI_API_KEY__",
+            "OPENAI_REALTIME_MODEL": "__ADD_YOUR_REALTIME_MODEL__",
+            "UNRELATED_VALUE": "keep-me",
+        }
+
+        core_config.apply_env_values(
+            {
+                "OPENAI_API_KEY": "sk-proj-real-test-key",
+                "OPENAI_REALTIME_MODEL": "gpt-realtime-2",
+                "UNRELATED_VALUE": "replace-me",
+            },
+            environ=environ,
+            override_placeholders=True,
+        )
+
+        self.assertEqual(environ["OPENAI_API_KEY"], "sk-proj-real-test-key")
+        self.assertEqual(environ["OPENAI_REALTIME_MODEL"], "gpt-realtime-2")
+        self.assertEqual(environ["UNRELATED_VALUE"], "keep-me")
+
+    def test_model_for_depth_uses_gemini_models_when_text_provider_is_gemini(self):
+        with (
+            patch.object(core_config, "AI_TEXT_PROVIDER", "gemini"),
+            patch.object(core_config, "GEMINI_AUTH_MODE", "api_key", create=True),
+            patch.object(core_config, "GEMINI_FOCUSED_MODEL", "gemini-focused"),
+            patch.object(core_config, "GEMINI_STANDARD_MODEL", "gemini-standard"),
+            patch.object(core_config, "GEMINI_DETAILED_MODEL", "gemini-detailed"),
+            patch.object(core_config, "GEMINI_COMPREHENSIVE_MODEL", "gemini-comprehensive"),
+        ):
+            self.assertEqual(core_config.model_for_depth("focused"), "gemini-focused")
+            self.assertEqual(core_config.model_for_depth("standard"), "gemini-standard")
+            self.assertEqual(core_config.model_for_depth("detailed"), "gemini-detailed")
+            self.assertEqual(core_config.model_for_depth("comprehensive"), "gemini-comprehensive")
+
+    def test_generate_chat_uses_gemini_client_when_provider_is_gemini(self):
+        class FakeCompletions:
+            def __init__(self, content):
+                self.content = content
+                self.calls = []
+
+            def create(self, **kwargs):
+                self.calls.append(kwargs)
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            message=SimpleNamespace(content=self.content),
+                        ),
+                    ],
+                    usage=SimpleNamespace(prompt_tokens=1, completion_tokens=2, total_tokens=3),
+                )
+
+        class FakeClient:
+            def __init__(self, content):
+                self.completions = FakeCompletions(content)
+                self.chat = SimpleNamespace(completions=self.completions)
+
+        openai_client = FakeClient("openai output")
+        gemini_client = FakeClient("gemini output")
+
+        trace_token = backend_app_module.begin_ai_call_trace()
+        with (
+            patch.object(backend_app_module, "AI_TEXT_PROVIDER", "gemini", create=True),
+            patch.object(backend_app_module, "client", openai_client),
+            patch.object(backend_app_module, "text_generation_client", return_value=gemini_client, create=True),
+        ):
+            result = backend_app_module.generate_chat(
+                [{"role": "user", "content": "Use the selected Synapse prompt."}],
+                model="gemini-2.5-flash",
+                temperature=0,
+                max_tokens=20,
+            )
+        trace = backend_app_module.current_ai_call_trace()
+        backend_app_module.reset_ai_call_trace(trace_token)
+
+        self.assertEqual(result, "gemini output")
+        self.assertEqual(len(gemini_client.completions.calls), 1)
+        self.assertEqual(len(openai_client.completions.calls), 0)
+        self.assertEqual(gemini_client.completions.calls[0]["model"], "gemini-2.5-flash")
+        self.assertEqual(len(trace), 1)
+        self.assertEqual(trace[0]["status"], "success")
+        self.assertTrue(trace[0]["api_request_attempted"])
+        self.assertEqual(trace[0]["model"], "gemini-2.5-flash")
+        self.assertEqual(trace[0]["total_tokens"], 3)
+
+    def test_gemini_adc_client_uses_vertex_openai_endpoint_and_token(self):
+        class FakeCredentials:
+            token = "adc-token"
+
+            def __init__(self):
+                self.refreshed = False
+
+            def refresh(self, request):
+                self.refreshed = request == "adc-request"
+
+        credentials = FakeCredentials()
+
+        with (
+            patch.object(core_config, "AI_TEXT_PROVIDER", "gemini"),
+            patch.object(core_config, "GEMINI_AUTH_MODE", "adc", create=True),
+            patch.object(core_config, "GEMINI_PROJECT_ID", "synapse-project", create=True),
+            patch.object(core_config, "GEMINI_LOCATION", "us-central1", create=True),
+            patch.object(core_config, "google_auth_default", return_value=(credentials, None), create=True),
+            patch.object(core_config, "google_auth_request", return_value="adc-request", create=True),
+            patch.object(core_config, "OpenAI") as openai_mock,
+        ):
+            client = core_config.text_generation_client()
+
+        self.assertIs(client, openai_mock.return_value)
+        self.assertTrue(credentials.refreshed)
+        openai_mock.assert_called_once_with(
+            api_key="adc-token",
+            base_url="https://us-central1-aiplatform.googleapis.com/v1/projects/synapse-project/locations/us-central1/endpoints/openapi",
+            timeout=core_config.OPENAI_TIMEOUT_SECONDS,
+        )
+
+    def test_gemini_adc_global_location_uses_global_vertex_endpoint(self):
+        with (
+            patch.object(core_config, "GEMINI_PROJECT_ID", "synapse-project", create=True),
+            patch.object(core_config, "GEMINI_LOCATION", "global", create=True),
+        ):
+            self.assertEqual(
+                core_config.gemini_vertex_openai_base_url(),
+                "https://aiplatform.googleapis.com/v1beta1/projects/synapse-project/locations/global/endpoints/openapi",
+            )
 
     def test_explicit_detail_level_overrides_auto_depth(self):
         payload = choose_learning_depth("Tiny note about slope.", [], "detailed")
@@ -113,7 +267,7 @@ class ApiShapeTests(unittest.TestCase):
             patch("backend.app.ANALYSIS_MAX_SECONDS", 60),
             patch("backend.app.analysis_elapsed_seconds_since", return_value=60.0),
             patch("backend.app.should_run_optional_analysis_stage", return_value=False),
-            patch("backend.app.require_openai"),
+            patch("backend.app.require_text_ai"),
             patch("backend.app.cache_get", return_value=None),
             patch("backend.app.cache_set"),
             patch(
@@ -143,18 +297,18 @@ class ApiShapeTests(unittest.TestCase):
         self.assertTrue(payload["mind_map"].get("branches"))
 
     def test_analyze_route_returns_http_error_for_empty_request(self):
-        with patch("backend.app.require_openai"):
+        with patch("backend.app.require_text_ai"):
             response = TestClient(app).post("/analyze", data={})
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {"error": "No readable files, links, or text were provided."})
 
-    def test_analyze_route_returns_service_error_when_openai_missing(self):
-        with patch("backend.app.require_openai", side_effect=RuntimeError("OPENAI_API_KEY is missing.")):
+    def test_analyze_route_returns_service_error_when_text_provider_missing(self):
+        with patch("backend.app.require_text_ai", side_effect=RuntimeError("GEMINI_API_KEY is missing.")):
             response = TestClient(app).post("/analyze", data={"free_text": "short source"})
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), {"error": "OPENAI_API_KEY is missing."})
+        self.assertEqual(response.json(), {"error": "GEMINI_API_KEY is missing."})
 
     def test_cached_result_visual_rebuild_never_calls_model(self):
         visual_parts = [
@@ -188,7 +342,7 @@ class ApiShapeTests(unittest.TestCase):
         }
 
         with (
-            patch("backend.app.require_openai"),
+            patch("backend.app.require_text_ai"),
             patch("backend.app.cache_get", return_value=cached_result),
             patch("backend.app.rebuild_cached_visual_argument_cards", return_value=[]),
             patch("backend.app.link_to_source_unit", return_value=(
@@ -209,8 +363,43 @@ class ApiShapeTests(unittest.TestCase):
 
         self.assertNotIn("error", payload)
         self.assertTrue(payload["cached"])
-        self.assertIn("[[VISUAL:0]]", payload["summary"])
+        self.assertEqual(payload["ai_generation_source"], "cache")
+        self.assertEqual(payload["ai_model_call_count"], 0)
+        self.assertFalse(payload["ai_fallback_used"])
+        self.assertNotIn("[[VISUAL:", payload["summary"])
+        self.assertNotIn("This source figure belongs in the notes", payload["summary"])
+        self.assertNotIn("Figure focus:", payload["summary"])
         self.assertEqual(len(payload["visual_gallery"]), 1)
+        self.assertEqual(payload["source_evidence_cards"], payload["visual_gallery"])
+        self.assertEqual(payload["figure_cards"], payload["visual_gallery"])
+
+    def test_analyze_reports_fallback_when_main_note_model_fails(self):
+        with (
+            patch("backend.app.require_text_ai"),
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.cache_set"),
+            patch("backend.app.should_run_optional_analysis_stage", return_value=False),
+            patch("backend.app.build_visual_gallery", return_value=[]),
+            patch("backend.app.persist_generated_analysis_result", return_value=None),
+            patch("backend.app.generate_chat", side_effect=RuntimeError("forced model failure")),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Human nature lecture about aggression, cooperation, evidence, and exam interpretation.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertFalse(payload["cached"])
+        self.assertEqual(payload["ai_generation_source"], "fallback")
+        self.assertTrue(payload["ai_fallback_used"])
+        self.assertIn("main_notes", payload["ai_generation"]["fallback_stages"])
+        self.assertIn("forced model failure", payload["ai_generation"]["last_error"])
+        self.assertIn("Professional Study Guide", payload["summary"])
 
     def test_deadline_skips_visual_filter_and_note_expansion_model_stages(self):
         long_summary = "# Overview\n\n" + ("This source explains table data, comparison, evidence, and exam use. " * 700)
@@ -254,6 +443,8 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("visual_card_filter", skipped)
         self.assertIn("note_expansion", skipped)
         self.assertIn("[[VISUAL:0]]", summary)
+        self.assertNotIn("This source figure belongs in the notes", summary)
+        self.assertNotIn("Figure focus:", summary)
 
     def test_analyze_cache_preserves_browser_visual_metadata(self):
         captured = {}
@@ -270,7 +461,7 @@ class ApiShapeTests(unittest.TestCase):
             captured["result"] = result
 
         with (
-            patch("backend.app.require_openai"),
+            patch("backend.app.require_text_ai"),
             patch("backend.app.cache_get", return_value=None),
             patch("backend.app.cache_set", side_effect=capture_cache_set),
             patch("backend.app.should_run_optional_analysis_stage", return_value=False),
@@ -291,10 +482,16 @@ class ApiShapeTests(unittest.TestCase):
             ))
 
         self.assertNotIn("error", payload)
+        self.assertIn("[[VISUAL:0]]", payload["summary"])
         self.assertEqual(payload["visual_gallery"], gallery)
         self.assertEqual(payload["visuals"], gallery)
+        self.assertEqual(payload["source_evidence_cards"], gallery)
+        self.assertEqual(payload["figure_cards"], gallery)
+        self.assertIn("[[VISUAL:0]]", captured["result"]["summary"])
         self.assertEqual(captured["result"]["visual_gallery"], gallery)
         self.assertEqual(captured["result"]["visuals"], gallery)
+        self.assertEqual(captured["result"]["source_evidence_cards"], gallery)
+        self.assertEqual(captured["result"]["figure_cards"], gallery)
 
     def test_cached_result_uses_cached_visual_gallery_when_live_rebuild_is_empty(self):
         asset_path = backend_app_module.RUNTIME_ASSETS_DIR / "visuals" / "test-cached-table.png"
@@ -319,7 +516,7 @@ class ApiShapeTests(unittest.TestCase):
 
         try:
             with (
-                patch("backend.app.require_openai"),
+                patch("backend.app.require_text_ai"),
                 patch("backend.app.cache_get", return_value=cached_result),
                 patch("backend.app.rebuild_cached_visual_argument_cards", return_value=[]),
                 patch("backend.app.build_visual_gallery", return_value=[]),
@@ -338,8 +535,11 @@ class ApiShapeTests(unittest.TestCase):
             asset_path.unlink(missing_ok=True)
 
         self.assertTrue(payload["cached"])
+        self.assertIn("[[VISUAL:0]]", payload["summary"])
         self.assertEqual(payload["visual_gallery"], cached_gallery)
         self.assertEqual(payload["visuals"], cached_gallery)
+        self.assertEqual(payload["source_evidence_cards"], cached_gallery)
+        self.assertEqual(payload["figure_cards"], cached_gallery)
 
     def test_cached_result_does_not_return_missing_runtime_visual_asset(self):
         cached_result = {
@@ -359,7 +559,7 @@ class ApiShapeTests(unittest.TestCase):
         }
 
         with (
-            patch("backend.app.require_openai"),
+            patch("backend.app.require_text_ai"),
             patch("backend.app.cache_get", return_value=cached_result),
             patch("backend.app.rebuild_cached_visual_argument_cards", return_value=[]),
             patch("backend.app.build_visual_gallery", return_value=[]),
@@ -477,6 +677,112 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
         self.assertNotEqual(quick, deep)
 
+    def test_analysis_fingerprint_changes_with_ai_provider(self):
+        units = [{
+            "source_identity": "text:abc",
+            "content_hash": "hash-1",
+        }]
+
+        openai = build_analysis_fingerprint(
+            "english",
+            units,
+            "auto",
+            "professor_mode",
+            "standard_notes",
+            ai_provider="openai",
+        )
+        gemini = build_analysis_fingerprint(
+            "english",
+            units,
+            "auto",
+            "professor_mode",
+            "standard_notes",
+            ai_provider="gemini",
+        )
+
+        self.assertNotEqual(openai, gemini)
+
+    def test_analysis_fingerprint_changes_with_visual_pipeline_version(self):
+        units = [{
+            "source_identity": "text:abc",
+            "content_hash": "hash-1",
+        }]
+
+        with patch.object(backend_app_module, "VISUAL_PIPELINE_VERSION", "no-inline-visuals-v2", create=True):
+            first = build_analysis_fingerprint("english", units, "auto", "professor_mode", "standard_notes")
+        with patch.object(backend_app_module, "VISUAL_PIPELINE_VERSION", "no-inline-visuals-v3", create=True):
+            second = build_analysis_fingerprint("english", units, "auto", "professor_mode", "standard_notes")
+
+        self.assertNotEqual(first, second)
+
+    def test_analyze_stores_raw_and_display_summaries_separately(self):
+        captured = {}
+        gallery = [{
+            "index": 0,
+            "url": "http://127.0.0.1:8001/assets/visuals/result-table.png",
+            "title": "Result table",
+            "caption": "Table with data and results.",
+            "visual_kind": "data/table",
+        }]
+
+        def capture_cache_set(fingerprint, result):
+            captured["result"] = result
+
+        with (
+            patch("backend.app.require_text_ai"),
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.cache_set", side_effect=capture_cache_set),
+            patch("backend.app.should_run_optional_analysis_stage", return_value=False),
+            patch("backend.app.build_visual_gallery", return_value=gallery),
+            patch(
+                "backend.app.generate_reference_style_multisource_notes",
+                return_value=(
+                    "# Overview\n\n"
+                    "The lecture explains the result table as source evidence near [[VISUAL:0]].\n\n"
+                    "## Source Examples and Evidence\n\n"
+                    "This source figure belongs in the notes because it shows the table.\n\n"
+                    "## Core Argument\n\n"
+                    "The result table matters because it limits the claim."
+                ),
+            ),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Tiny note about a result table.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertEqual(payload["summary"], payload["display_summary"])
+        self.assertEqual(captured["result"]["summary"], captured["result"]["display_summary"])
+        self.assertIn("raw_summary", payload)
+        self.assertIn("display_summary", payload)
+        for key in ("summary", "display_summary", "raw_summary"):
+            self.assertIn("[[VISUAL:0]]", payload[key])
+            self.assertNotIn("Source Examples and Evidence", payload[key])
+            self.assertNotIn("This source figure belongs in the notes", payload[key])
+        self.assertEqual(payload["source_evidence_cards"], gallery)
+
+    def test_text_provider_override_is_request_scoped(self):
+        with (
+            patch.object(core_config, "AI_TEXT_PROVIDER", "openai"),
+            patch.object(core_config, "GEMINI_FOCUSED_MODEL", "gemini-focused"),
+            patch.dict("os.environ", {"OPENAI_FOCUSED_MODEL": "openai-focused"}),
+        ):
+            self.assertEqual(core_config.active_text_provider(), "openai")
+            self.assertEqual(core_config.model_for_depth("focused"), "openai-focused")
+            token = core_config.set_request_text_provider("gemini")
+            try:
+                self.assertEqual(core_config.active_text_provider(), "gemini")
+                self.assertEqual(core_config.model_for_depth("focused"), "gemini-focused")
+            finally:
+                core_config.reset_request_text_provider(token)
+            self.assertEqual(core_config.active_text_provider(), "openai")
+
 
 class VisualGalleryTests(unittest.TestCase):
     def test_selected_visual_card_uses_marker_index(self):
@@ -530,8 +836,70 @@ class VisualGalleryTests(unittest.TestCase):
 
         self.assertEqual(len(cards), 1)
         self.assertIn("[[VISUAL:0]]", summary)
+        self.assertNotIn("This source figure belongs in the notes", summary)
+        self.assertNotIn("Figure focus:", summary)
         self.assertEqual(len(gallery), 1)
         assert_served_visual_asset(self, gallery[0]["url"], "image/png")
+
+    def test_finalize_keeps_visual_cards_out_of_main_summary_and_is_idempotent(self):
+        source_units = [{
+            "visual_argument_cards": [{
+                "index": 0,
+                "url": "data:image/png;base64,AA==",
+                "title": "Result table",
+                "caption": "Table with data and results.",
+                "what_shows": "The table compares results and shows a data pattern.",
+                "argument_supported": "The table supports the analysis by showing the comparison directly.",
+                "how_to_read": "Read rows, columns, values, and group differences.",
+                "visual_kind": "data/table",
+            }]
+        }]
+        polluted = (
+            "# Generated Study Notes\n\n"
+            "## Overview\n\n"
+            "This lecture teaches how to interpret the result table as evidence.\n\n"
+            "## Source Examples and Evidence\n\n"
+            "### Result table\n\n"
+            "This source figure belongs in the notes because it shows: Result table. "
+            "It supports the surrounding explanation by making the method, pattern, mechanism, or contrast visible "
+            "rather than asking the student to memorise an abstract claim.\n\n"
+            "*Figure focus: Result table. It supports the surrounding explanation by making the method, pattern, mechanism, or contrast visible.*\n\n"
+            "[[VISUAL:0]]\n\n"
+            "## Core Argument\n\n"
+            "The real study task is to explain what the evidence can and cannot prove."
+        )
+
+        once = finalize_generated_summary(
+            polluted,
+            requested_language="english",
+            generation_language="english",
+            source_context="",
+            source_units=source_units,
+            attach_visuals=True,
+        )
+        twice = finalize_generated_summary(
+            once,
+            requested_language="english",
+            generation_language="english",
+            source_context="",
+            source_units=source_units,
+            attach_visuals=True,
+        )
+        gallery = build_visual_gallery(source_units)
+
+        self.assertEqual(once, twice)
+        for bad_phrase in (
+            "Source Examples and Evidence",
+            "This source figure belongs in the notes",
+            "method, pattern, mechanism, or contrast visible",
+            "Figure focus:",
+        ):
+            self.assertNotIn(bad_phrase, twice)
+        self.assertEqual(twice.count("[[VISUAL:0]]"), 1)
+        self.assertIn("## Overview", twice)
+        self.assertIn("## Core Argument", twice)
+        self.assertIn("The real study task is to explain", twice)
+        self.assertEqual(len(gallery), 1)
 
     def test_visual_gallery_serves_runtime_asset_url(self):
         source_units = [{

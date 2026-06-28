@@ -1,5 +1,5 @@
 import { App } from "./react/App.js?v=react-shell-v3";
-import { loadLegacyController } from "./legacy/loadLegacyController.js?v=lan-api-fix-v2";
+import { loadLegacyController } from "./legacy/loadLegacyController.js?v=voice-tutor-v3";
 
 const root = document.getElementById("root");
 

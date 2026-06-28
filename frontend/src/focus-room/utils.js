@@ -159,10 +159,6 @@ export function panelTabLabel(tab) {
   return String(tab || "").replace(/^\w/, letter => letter.toUpperCase());
 }
 
-export function plainObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
 export function focusFlashcards(material) {
   const flashcardSource = material?.flashcards || [];
   return Array.isArray(flashcardSource) ? flashcardSource.slice(0, 24) : [];

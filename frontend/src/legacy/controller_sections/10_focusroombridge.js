@@ -4,6 +4,10 @@ function getFocusRoomSummaryText() {
 
 const FOCUS_ROOM_RETURN_TARGET_KEY = "synapse.focusRoom.return-target.v1";
 
+function isSynapseFocusRoomEnabled() {
+  return window.SYNAPSE_FOCUS_ROOM_ENABLED === true || window.SYNAPSE_FOCUS_ROOM_ENABLED === "true";
+}
+
 function normalizeFocusRoomWorkspaceTarget(target = {}) {
   const objectTarget = target && typeof target === "object" && !Array.isArray(target) ? target : {};
   return {
@@ -242,6 +246,13 @@ function getSynapseFocusRoomMaterial(materialId) {
 function renderFocusRoomWorkspaceActions() {
   const button = document.getElementById("focusRoomCta");
   if (!button) return;
+  if (!isSynapseFocusRoomEnabled()) {
+    button.classList.toggle("d-none", true);
+    button.disabled = true;
+    button.removeAttribute("data-material-id");
+    button.setAttribute("aria-label", "Focus Room is currently unavailable");
+    return;
+  }
   const material = getSynapseFocusRoomCurrentMaterial();
   button.classList.toggle("d-none", !material);
   button.disabled = !material;
@@ -264,9 +275,14 @@ function notifyFocusRoomMaterialsChanged() {
 }
 
 function openSynapseFocusRoom(materialId = "") {
+  if (!isSynapseFocusRoomEnabled()) {
+    renderFocusRoomWorkspaceActions();
+    return false;
+  }
   const requestedId = materialId || getSynapseFocusRoomCurrentMaterial()?.materialId || "";
   const suffix = requestedId ? `/${encodeURIComponent(requestedId)}` : "";
   window.location.href = `focus-room.html#/focus-room${suffix}`;
+  return true;
 }
 
 async function returnFromFocusRoomToWorkspace(materialId = "", target = {}) {

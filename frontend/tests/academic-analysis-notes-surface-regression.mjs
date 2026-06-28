@@ -61,4 +61,26 @@ assert.ok(rendered.includes("notes-section-chip limitation"));
 assert.ok(!rendered.includes("notes-section-chip source-based"));
 assert.ok(rendered.includes("<details class=\"professional-mode-section professional-deep-explanation-section\" open"));
 
+const numberedProfessionalHtml = [
+  "<h1>Developmental psychology</h1>",
+  "<h2>2. The Exam Will Probably Test These Ideas</h2>",
+  "<p>[Exam use] Explain why lifespan development is not just childhood psychology.</p>",
+  "<h2>6. Background Knowledge Needed To Understand This Properly</h2>",
+  "<p>[Background knowledge] Developmental psychology studies systematic change across age.</p>",
+  "<h2>7. How To Apply This To New Questions</h2>",
+  "<p>[Application] Identify the developmental mechanism, then apply it to the new age group.</p>",
+].join("");
+
+const numberedRendered = renderStudyNotesSurface(numberedProfessionalHtml, {
+  collapseSecondary: true,
+  promptMode: "professor_mode",
+});
+
+assert.ok(numberedRendered.includes("professional-exam-focus-card"));
+assert.ok(numberedRendered.includes("professional-background-card"));
+assert.ok(numberedRendered.includes("professional-application-card"));
+assert.equal((numberedRendered.match(/notes-section-chip background-knowledge/g) || []).length, 1);
+assert.equal((numberedRendered.match(/notes-section-chip exam-use/g) || []).length, 1);
+assert.equal((numberedRendered.match(/notes-section-chip application/g) || []).length, 1);
+
 console.log("professional mode notes surface regression passed");

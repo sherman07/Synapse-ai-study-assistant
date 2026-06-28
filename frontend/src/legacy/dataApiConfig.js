@@ -9,9 +9,18 @@ function isPrivateIpv4Host(hostname) {
     || (nums[0] === 192 && nums[1] === 168);
 }
 
-function isLocalDevHost(hostname) {
+function isLoopbackHost(hostname) {
   const value = String(hostname || "").toLowerCase();
-  return value === "127.0.0.1" || value === "localhost" || value === "::1" || value === "[::1]" || isPrivateIpv4Host(value);
+  return value === "127.0.0.1" || value === "localhost" || value === "::1" || value === "[::1]";
+}
+
+function isLocalDevHost(hostname) {
+  return isLoopbackHost(hostname) || isPrivateIpv4Host(hostname);
+}
+
+function localServiceHost(hostname) {
+  if (!hostname || isLoopbackHost(hostname)) return "127.0.0.1";
+  return hostname;
 }
 
 const DATA_API_BASE = (() => {
@@ -19,8 +28,8 @@ const DATA_API_BASE = (() => {
   const doc = globalThis.document || {};
   const location = win.location || {};
   const dataPort = String(win.SYNAPSE_DATA_API_PORT || doc.body?.dataset?.dataApiPort || "3001").trim();
-  const localDataApi = `http://127.0.0.1:${dataPort || "3001"}`;
   const { protocol = "file:", hostname = "127.0.0.1", port = "" } = location;
+  const localDataApi = `http://${localServiceHost(hostname)}:${dataPort || "3001"}`;
   const configured = String(win.SYNAPSE_DATA_API_BASE || doc.body?.dataset?.dataApiBase || "").replace(/\/+$/, "");
   const currentOrigin = `${protocol}//${location.host || (port ? `${hostname}:${port}` : hostname)}`.replace(/\/+$/, "");
   if (configured && !(isLocalDevHost(hostname) && port !== dataPort && configured === currentOrigin)) {

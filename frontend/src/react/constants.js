@@ -29,7 +29,13 @@ export const PROMPT_MODE_OPTIONS = [
 ];
 
 export const NOTE_LENGTH_OPTIONS = [
-  ["quick_review", "Quick Review", "300-500 words for a concise analysis or fast revision pass."],
-  ["standard_notes", "Standard Notes", "900-1400 words with balanced explanation and evidence."],
-  ["deep_study", "Deep Study", "1800-2500 words for fuller exam preparation."],
+  ["quick_review", "Quick Review", "Low content depth: core answer, key source anchors, and fastest revision value."],
+  ["standard_notes", "Standard Notes", "Balanced content depth: source concepts, reasoning, examples, and revision use."],
+  ["deep_study", "Deep Study", "High content depth: deeper reasoning, concept links, source examples, applications, limits, and mistakes."],
+];
+
+export const AI_PROVIDER_OPTIONS = [
+  ["", "Backend default", "Use the text AI provider selected by the backend environment."],
+  ["openai", "GPT", "Use the OpenAI/GPT text model configured on the backend."],
+  ["gemini", "Gemini", "Use the Gemini text model configured on the backend."],
 ];

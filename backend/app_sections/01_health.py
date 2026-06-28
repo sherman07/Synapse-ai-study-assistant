@@ -10,8 +10,8 @@ def health():
 
 
 @app.get("/health/openai")
-def health_openai():
-    return health_reporter.openai_status()
+def health_openai(probe: bool = False):
+    return health_reporter.openai_status(probe=probe)
 
 stored_summary = ""
 stored_sections: Dict[str, str] = {}

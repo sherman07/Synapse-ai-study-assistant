@@ -10,6 +10,7 @@ from backend.core.note_prompt_modes import (
     PROMPT_MODE_DIR,
     load_note_prompt_mode_text,
     normalise_note_prompt_mode,
+    note_length_mode_options,
     note_prompt_mode_label,
     note_prompt_mode_options,
     prompt_mode_prompt_hash,
@@ -21,6 +22,7 @@ from backend.core.prompt_modes.build_prompt import (
 )
 from backend.core.prompt_modes.registry import validate_note_output
 from backend.app import (
+    advanced_notes_quality_flags,
     build_analysis_fingerprint,
     expand_sparse_inline_summary,
     finalize_generated_summary,
@@ -71,6 +73,24 @@ class ProfessionalModeTests(unittest.TestCase):
         self.assertNotIn("# Source-Strict Research Mode", prompt)
         self.assertNotIn("# Assignment / APA Mode", prompt)
 
+    def test_builder_places_selected_visual_markers_inline(self):
+        prompt = build_note_prompt({
+            "prompt_mode": "professor_mode",
+            "prompt_mode_label": "Professional Mode",
+            "language_rule": "Write in English.",
+            "note_length_label": "Standard Notes",
+            "note_length_min_words": 900,
+            "note_length_max_words": 1400,
+            "source_list": "Source 1: results.pdf",
+            "source_context": "The source explains a result table and the data pattern it supports.",
+            "visual_context": "Source figure 0: Source 1 PDF page 2 | Title: Result table | Shows: data and comparison groups",
+            "recommended_structure": "# [specific topic title]\n## Big Picture",
+        })
+
+        self.assertIn("[[VISUAL:0]]", prompt)
+        self.assertIn("near the paragraph", prompt)
+        self.assertNotIn("Do not emit `[[VISUAL:n]]` markers", prompt)
+
     def test_builder_has_no_unselected_mode_names_for_every_mode(self):
         for mode_key, config in NOTE_PROMPT_MODES.items():
             with self.subTest(prompt_mode=mode_key):
@@ -115,6 +135,34 @@ class ProfessionalModeTests(unittest.TestCase):
                     self.assertIsNone(
                         re.search(rf"(?<![a-z0-9]){re.escape(term.lower())}(?![a-z0-9])", text.lower())
                     )
+
+    def test_study_depth_prompt_does_not_request_word_ranges(self):
+        prompt = build_note_prompt({
+            "prompt_mode": "professor_mode",
+            "prompt_mode_label": "Professional Mode",
+            "language_rule": "Write in English.",
+            "note_length_label": "Deep Study",
+            "note_length_min_words": 1800,
+            "note_length_max_words": 2500,
+            "source_list": "Source 1: aggression.pdf",
+            "source_context": "The source explains aggression, cooperation, and fairness examples.",
+            "visual_context": "No relevant source figures were selected.",
+            "recommended_structure": "# [specific topic title]\n## Big Picture",
+        })
+
+        self.assertIn("Selected AI study depth: Deep Study", prompt)
+        self.assertIn("content depth", prompt)
+        self.assertIn("do not pad", prompt.lower())
+        self.assertNotIn("Selected note-length mode", prompt)
+        self.assertNotRegex(prompt, r"\b\d{3,4}-\d{3,4}\s+words\b")
+
+    def test_study_depth_options_describe_depth_not_word_count(self):
+        options = note_length_mode_options()
+        descriptions = " ".join(option["description"] for option in options)
+
+        self.assertIn("content depth", descriptions)
+        self.assertIn("reasoning", descriptions)
+        self.assertNotRegex(descriptions, r"\b\d{3,4}-\d{3,4}\s+words\b")
 
     def test_prompt_mode_leak_check_can_fail_strictly(self):
         leaked = prompt_mode_isolation_warnings("Use Tutor Mode sections here.", "professor_mode")
@@ -202,9 +250,13 @@ class ProfessionalModeTests(unittest.TestCase):
 
         self.assertIn("# Synapse Mode: Professional Mode", professional)
         self.assertIn("You are generating only Professional Mode.", professional)
-        self.assertIn("This should feel smarter than the source, not just longer.", professional)
-        self.assertIn("Do not use strict source badges.", professional)
-        self.assertIn("Model High-Quality Output", professional)
+        self.assertIn("Professional Mode is not a source summary mode.", professional)
+        self.assertIn("Do not use Source-Strict badges.", professional)
+        self.assertIn("The Exam Will Probably Test These Ideas", professional)
+        self.assertIn("Model High-Quality Answers", professional)
+        self.assertIn("Exam Question Bank", professional)
+        self.assertIn("Do not write generic study advice.", professional)
+        self.assertIn("Every major section must include concrete concepts", professional)
 
         self.assertIn("# Synapse Mode: Source-Strict Research Mode", source_strict)
         self.assertIn("You are generating only Source-Strict Research Mode.", source_strict)
@@ -266,25 +318,27 @@ class ProfessionalModeTests(unittest.TestCase):
 
         self.assertIn("# Synapse Mode: Professional Mode", prompt)
         self.assertIn("You are generating only Professional Mode.", prompt)
-        self.assertIn("Do not force the output into business, economics, essays, or any single subject.", prompt)
+        self.assertIn("deep understanding, exam-preparation, and high-performance learning mode", prompt)
         self.assertIn("Big Picture", prompt)
+        self.assertIn("The Exam Will Probably Test These Ideas", prompt)
         self.assertIn("What You Actually Need To Understand", prompt)
         self.assertIn("Concept Connections", prompt)
-        self.assertIn("Deep Explanation", prompt)
-        self.assertIn("Background Knowledge Layer", prompt)
-        self.assertIn("Application To New Situations", prompt)
+        self.assertIn("Deep Explanation of the Core Concepts", prompt)
+        self.assertIn("Background Knowledge Needed To Understand This Properly", prompt)
+        self.assertIn("How To Apply This To New Questions", prompt)
         self.assertIn("High-Quality Student Thinking", prompt)
-        self.assertIn("Common Mistakes", prompt)
-        self.assertIn("How To Use This In Assessment", prompt)
-        self.assertIn("Model High-Quality Output", prompt)
+        self.assertIn("Common Mistakes That Lose Marks", prompt)
+        self.assertIn("Model High-Quality Answers", prompt)
+        self.assertIn("Exam Question Bank", prompt)
         self.assertIn("Memory and Practice", prompt)
         self.assertIn("Professional explanation", prompt)
         self.assertIn("Background knowledge", prompt)
-        self.assertIn("[Source-based] = directly from the uploaded material", prompt)
-        self.assertIn("[Application] = how to use the idea", prompt)
+        self.assertIn("[Source anchor] = the specific uploaded concept", prompt)
+        self.assertIn("[Exam intelligence] = what the exam", prompt)
+        self.assertIn("[Application] = how to use the idea in a new question", prompt)
         self.assertIn("[Limitation] = what the source does not fully explain", prompt)
-        self.assertIn("stronger mental model", prompt)
-        self.assertIn("Do not produce a page-by-page summary.", prompt)
+        self.assertIn("strong student needs before an exam", prompt)
+        self.assertIn("Do not rewrite the PDF page by page.", prompt)
         self.assertNotIn("Source Evidence Table", prompt)
         self.assertNotIn("Source-Restricted Mode", prompt)
         self.assertNotIn("Source-Strict Research Mode", prompt)
@@ -361,7 +415,8 @@ class ProfessionalModeTests(unittest.TestCase):
         prompt = captured_prompts[0]
         self.assertIn("Mode-specific prompt file:", prompt)
         self.assertIn("You are generating only Professional Mode.", prompt)
-        self.assertIn("[Source-based] = directly from the uploaded material", prompt)
+        self.assertIn("[Source anchor] = the specific uploaded concept", prompt)
+        self.assertIn("The Exam Will Probably Test These Ideas", prompt)
         self.assertIn("Do not create a long evidence bank by default.", prompt)
         self.assertNotIn("Concepts Explained With Source Evidence", prompt)
         self.assertNotIn("Reading the Source Evidence", prompt)
@@ -372,6 +427,29 @@ class ProfessionalModeTests(unittest.TestCase):
         self.assertNotIn("Tutor Mode", prompt)
         self.assertNotIn("Assignment / APA Mode", prompt)
         self.assertNotIn("Do not use [Source-based] labels in Professional Mode", prompt)
+
+    def test_professional_quality_flags_reject_template_like_generic_output(self):
+        source_context = "\n".join([
+            "Source 1: Human nature material discusses aggression, hydraulic model of aggression, selfishness, cooperation, and whether human nature is violent.",
+            "Source 2: Six Tongan Castaways describes shipwrecked classmates on Ata Island cooperating after June 1965.",
+            "Source 3: Two Monkeys Were Paid Unequally describes Frans de Waal's fairness study with capuchin monkeys.",
+        ])
+        generic_summary = "\n\n".join([
+            "# Professional Mode Study Guide",
+            "## Background Knowledge Layer",
+            "Add only the background knowledge that makes the source easier to understand: definitions, discipline logic, assumptions, methods, ethical principles, formulas, or vocabulary that the source appears to expect.",
+            "## Application To New Situations",
+            "To transfer the idea, identify the concept, explain the mechanism or judgement behind it, then test whether the same conditions and limits apply in the new situation.",
+            "## High-Quality Student Thinking",
+            "A strong answer does more than repeat the source. It explains why the idea matters, what evidence can and cannot show, how concepts connect, and how the reasoning changes in a new context.",
+            "## Model High-Quality Output",
+            "A high-quality response states the key judgement clearly, explains the concept behind it, uses the source as an anchor, and shows what follows when the idea is applied beyond the original material.",
+        ])
+
+        flags = advanced_notes_quality_flags(generic_summary, source_context)
+
+        self.assertIn("professional output is template-like", flags)
+        self.assertIn("too few source-specific concepts", flags)
 
     def test_professional_mode_expansion_prompt_stays_professional(self):
         captured_prompts = []
@@ -417,7 +495,7 @@ class ProfessionalModeTests(unittest.TestCase):
 
         prompt = captured_prompts[0]
         self.assertIn("You are expanding Professional Mode", prompt)
-        self.assertIn("[Source-based] = directly from the uploaded material", prompt)
+        self.assertIn("[Source anchor] = the specific uploaded concept", prompt)
         self.assertNotIn("comparison/evidence table", prompt.lower())
         self.assertNotIn("concept -> source evidence", prompt.lower())
         self.assertNotIn("Source-Strict Research Mode", prompt)
@@ -485,11 +563,97 @@ class ProfessionalModeTests(unittest.TestCase):
                 "professor_mode",
             )
 
-        self.assertIn("## Big Picture", summary)
-        self.assertIn("## What You Actually Need To Understand", summary)
-        self.assertIn("## Deep Explanation", summary)
+        self.assertIn("## 1. Big Picture: What This Material Is Really About", summary)
+        self.assertIn("## 3. What You Actually Need To Understand", summary)
+        self.assertIn("## 4. Deep Explanation of the Core Concepts", summary)
         self.assertNotIn("## Source Evidence Table", summary)
         self.assertNotIn("| Source | Topic | Useful evidence |", summary)
+
+    def test_professional_mode_fallback_uses_specific_source_learning_targets(self):
+        source_units = [
+            {
+                "display_name": "human-nature.pdf",
+                "title_candidate": "Human Nature and Aggression",
+                "text_excerpt": "Are humans selfish or cooperative? The source contrasts violent human nature claims with aggression, one thing one cause, and the hydraulic model of aggression.",
+                "visual_parts": [],
+            },
+            {
+                "display_name": "ata-castaways",
+                "title_candidate": "Six Tongan Castaways in Ata Island",
+                "text_excerpt": "Six classmates from St Andrews College in Tonga were shipwrecked on Ata in June 1965 and survived through cooperation.",
+                "visual_parts": [],
+            },
+            {
+                "display_name": "two-monkeys",
+                "title_candidate": "Two Monkeys Were Paid Unequally",
+                "text_excerpt": "Frans de Waal's fairness study with capuchin monkeys shows reactions when monkeys are paid unequally.",
+                "visual_parts": [],
+            },
+        ]
+
+        with patch("backend.app.generate_chat", side_effect=RuntimeError("forced model failure")):
+            summary = generate_reference_style_multisource_notes(
+                source_units,
+                "english",
+                {"depth": "detailed", "config": {}},
+                "professor_mode",
+            )
+
+        self.assertIn("Human Nature and Aggression", summary)
+        self.assertIn("hydraulic model of aggression", summary)
+        self.assertIn("Six Tongan Castaways", summary)
+        self.assertIn("Two Monkeys Were Paid Unequally", summary)
+        self.assertIn("Frans de Waal", summary)
+        self.assertNotIn("Add only the background knowledge that makes the source easier to understand", summary)
+        self.assertNotIn("A high-quality response states the key judgement clearly", summary)
+
+    def test_non_professional_fallbacks_keep_selected_mode_shape(self):
+        source_units = [{
+            "display_name": "psych109-development.pdf",
+            "title_candidate": "Developmental Psychology",
+            "text_excerpt": (
+                "The lecture introduces lifespan development, Piaget's movement from reflexes to reason, "
+                "attention and distraction, causal reasoning, and genome-wide complex trait analysis."
+            ),
+            "visual_parts": [],
+        }]
+        visual_cards = [{
+            "title": "Lewontin's argument - different causes of within vs between group differences",
+            "caption": "A diagram showing that within-group and between-group differences can have different causes.",
+            "what_shows": "Lewontin's plant diagram separates genetic variation from environmental causes.",
+            "argument_supported": "Students must not assume a correlation inside one group explains a difference between groups.",
+            "url": "/assets/visuals/lewontin.png",
+            "visual_kind": "diagram/model",
+            "is_likely_decorative": False,
+            "score": 0.95,
+        }]
+        expected_headings = {
+            "quick_answer": "## Direct Answer",
+            "detailed_explanation": "## Main Idea",
+            "tutor_mode": "## Start From The Basic Idea",
+        }
+
+        with (
+            patch("backend.app.generate_chat", side_effect=RuntimeError("forced model failure")),
+            patch("backend.app.generate_visual_argument_cards", return_value=visual_cards),
+            patch("backend.app._v23_renderable_visual_cards", side_effect=lambda cards, **kwargs: cards),
+        ):
+            for mode_key, expected_heading in expected_headings.items():
+                with self.subTest(prompt_mode=mode_key):
+                    summary = generate_reference_style_multisource_notes(
+                        source_units,
+                        "english",
+                        {"depth": "detailed", "config": {}},
+                        mode_key,
+                    )
+
+                    self.assertIn(expected_heading, summary)
+                    self.assertIn("Lewontin", summary)
+                    self.assertRegex(summary, r"within(?:-group)?\s+(?:vs|and)\s+between")
+                    self.assertNotIn("## Source Evidence Table", summary)
+                    self.assertNotIn("## Source Examples and Evidence", summary)
+                    self.assertNotIn("This source figure belongs in the notes", summary)
+                    self.assertLessEqual(summary.count("Figure focus:"), 1)
 
     def test_recommended_structure_uses_professional_sections(self):
         structure_source = (
@@ -500,17 +664,18 @@ class ProfessionalModeTests(unittest.TestCase):
 
         self.assertIn('prompt_mode_key == "professor_mode"', structure_source)
         for heading in [
-            "## Big Picture",
-            "## What You Actually Need To Understand",
-            "## Concept Connections",
-            "## Deep Explanation",
-            "## Background Knowledge Layer",
-            "## Application To New Situations",
-            "## High-Quality Student Thinking",
-            "## Common Mistakes",
-            "## How To Use This In Assessment",
-            "## Model High-Quality Output",
-            "## Memory and Practice",
+            "## 1. Big Picture: What This Material Is Really About",
+            "## 2. The Exam Will Probably Test These Ideas",
+            "## 3. What You Actually Need To Understand",
+            "## 4. Deep Explanation of the Core Concepts",
+            "## 5. Concept Connections: How The Ideas Work Together",
+            "## 6. Background Knowledge Needed To Understand This Properly",
+            "## 7. How To Apply This To New Questions",
+            "## 8. Common Mistakes That Lose Marks",
+            "## 9. High-Quality Student Thinking",
+            "## 10. Model High-Quality Answers",
+            "## 11. Exam Question Bank",
+            "## 12. Memory and Practice",
         ]:
             self.assertIn(heading, structure_source)
 

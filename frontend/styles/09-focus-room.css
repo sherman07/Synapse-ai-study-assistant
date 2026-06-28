@@ -15,26 +15,6 @@
   box-shadow: 0 14px 32px rgba(74, 124, 255, 0.22);
 }
 
-.history-focus-room-btn {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(74, 124, 255, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--primary);
-  display: inline-grid;
-  place-items: center;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.history-focus-room-btn:hover,
-.history-focus-room-btn:focus-visible {
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(74, 124, 255, 0.18);
-  transform: translateY(-1px);
-}
-
 :root {
   --glass-bg: rgba(20, 21, 26, 0.6);
   --glass-bg-strong: rgba(28, 29, 34, 0.74);

@@ -18,6 +18,12 @@
     <h1 id="focusRoomFallbackTitle">Synapse Focus Room</h1>
   </main>
   <script src="config.js?v=runtime-config-v2"></script>
-  <script type="module" src="src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7"></script>
+  <script type="module">
+    if (window.SYNAPSE_FOCUS_ROOM_ENABLED === true) {
+      await import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7");
+    } else {
+      window.location.replace("index.html");
+    }
+  </script>
 </body>
 </html>

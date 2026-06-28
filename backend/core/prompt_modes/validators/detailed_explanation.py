@@ -1,4 +1,4 @@
-from .common import SOURCE_STRICT_ARTIFACT_HEADINGS, validate_mode_shape
+from .common import PROFESSIONAL_ARTIFACT_HEADINGS, SOURCE_STRICT_ARTIFACT_HEADINGS, validate_mode_shape
 
 
 def validate_detailed_explanation(summary: str, context: dict) -> str:
@@ -19,16 +19,7 @@ def validate_detailed_explanation(summary: str, context: dict) -> str:
             "Direct Answer",
             "Do / Avoid",
             "Need-to-Know Formula / Example",
-            "Big Picture",
-            "What You Actually Need To Understand",
-            "Concept Connections",
-            "Deep Explanation",
-            "Background Knowledge Layer",
-            "Application To New Situations",
-            "High-Quality Student Thinking",
-            "How To Use This In Assessment",
-            "Model High-Quality Output",
-            "Memory and Practice",
+            *PROFESSIONAL_ARTIFACT_HEADINGS,
             "What You Need To Understand First",
             "Why This Works",
             "Mini Worked Example",

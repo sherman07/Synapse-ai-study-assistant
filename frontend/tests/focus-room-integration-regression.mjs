@@ -49,6 +49,7 @@ function assertFocusRoomOptimizerConfig(source) {
 }
 
 const packageJson = JSON.parse(read("package.json"));
+const runtimeConfig = read("frontend/config.js");
 const viteConfig = read("vite.config.js");
 const staticFocusRoomConfig = read("vite.focus-room-static.config.js");
 const main = read("frontend/src/main.js");
@@ -99,6 +100,7 @@ for (const dep of [
 }
 assert.ok(packageJson.scripts.build.includes("vite build"), "package.json should expose a Vite build");
 assert.ok(packageJson.scripts["test:focus-room"].includes("focus-room-integration-regression.mjs"), "package.json should expose focused Focus Room tests");
+assert.ok(runtimeConfig.includes("SYNAPSE_FOCUS_ROOM_ENABLED"), "runtime config should expose the Focus Room feature flag");
 assert.ok(viteConfig.includes("frontend/index.html"), "Vite config should include the workspace HTML entry");
 assert.ok(viteConfig.includes("frontend/focus-room.html"), "Vite config should include the Focus Room HTML entry");
 assert.ok(viteConfig.includes("@vitejs/plugin-react"), "Vite config should use the React plugin");
@@ -117,14 +119,30 @@ assert.ok(runtime.includes("globalThis.React"), "React runtime helper should use
 assert.ok(app.includes("h(AppShell)"), "React app should render the shell as React elements");
 assert.ok(!app.includes("dangerouslySetInnerHTML"), "React app should not inject the workspace shell as an HTML string");
 assert.ok(!appShell.includes("FocusRoom()"), "AppShell should not render the separate Focus Room shell");
-assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should include the current-material Focus Room CTA");
+assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should keep the dormant Focus Room CTA for future re-enabling");
 assert.ok(controller.includes("\"10_focusroombridge.js\""), "legacy controller should load the Focus Room bridge");
 assert.ok(boot.includes("getSynapseFocusRoomMaterials"), "boot should expose Focus Room material bridge helpers");
-assert.ok(boot.includes("openSynapseFocusRoom"), "boot should expose the Focus Room opener");
+assert.ok(boot.includes("openSynapseFocusRoom"), "boot should expose the disabled-safe Focus Room opener");
 assert.ok(uploadSection.includes("renderFocusRoomWorkspaceActions"), "analysis view should refresh Focus Room CTAs");
-assert.ok(historySection.includes("history-focus-room-btn"), "history rows should include a Focus Room action");
+assert.ok(!historySection.includes("history-focus-room-btn"), "history rows should not include left-nav Focus Room actions");
 assert.ok(style.includes("09-focus-room.css"), "global stylesheet should import Focus Room styles");
 assert.ok(focusRoomHtml.includes("static-compatible-loader.js"), "Focus Room should use the static-compatible loader");
+assert.ok(
+  focusRoomHtml.includes("SYNAPSE_FOCUS_ROOM_ENABLED"),
+  "Standalone Focus Room page should check the Focus Room flag before booting"
+);
+assert.ok(
+  focusRoomHtml.includes('window.location.replace("index.html")'),
+  "Standalone Focus Room page should redirect direct visitors to the workspace while disabled"
+);
+assert.ok(
+  focusRoomHtml.includes('await import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7")'),
+  "Standalone Focus Room page should only import the loader after the feature flag allows it"
+);
+assert.ok(
+  !focusRoomHtml.includes('type="module" src="src/focus-room/static-compatible-loader.js'),
+  "Standalone Focus Room page should not boot the loader unconditionally while disabled"
+);
 assert.ok(
   focusRoomHtml.includes("styles/09-focus-room.css?v=focus-room-glass-v8"),
   "Focus Room HTML should cache-bust the CSS after portal stacking fixes"
@@ -168,8 +186,8 @@ assert.ok(
   "boot should guard Focus Room material change notifications"
 );
 assert.ok(
-  focusBridge.includes("focus-room.html#/focus-room"),
-  "Workspace Focus Room opener should navigate to the separate Focus Room HTML entry"
+  focusBridge.includes("function isSynapseFocusRoomEnabled()"),
+  "Workspace Focus Room bridge should gate entry points behind the runtime flag"
 );
 assert.ok(
   focusRoomPage.includes("useShallow(activeSessionSnapshot)"),
@@ -356,6 +374,58 @@ function createFocusBridgeContext(overrides = {}) {
   vm.runInContext(focusBridge, context);
   return context;
 }
+
+function createHiddenButton() {
+  const classes = new Set();
+  const attributes = new Map();
+  return {
+    disabled: false,
+    classList: {
+      toggle(name, force) {
+        if (force) classes.add(name);
+        else classes.delete(name);
+      },
+      contains(name) {
+        return classes.has(name);
+      }
+    },
+    setAttribute(name, value) {
+      attributes.set(name, String(value));
+    },
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
+    getAttribute(name) {
+      return attributes.get(name);
+    }
+  };
+}
+
+const disabledFocusRoomButton = createHiddenButton();
+const disabledFocusRoomContext = createFocusBridgeContext({
+  document: {
+    getElementById: id => id === "focusRoomCta" ? disabledFocusRoomButton : null
+  },
+  window: {
+    SYNAPSE_FOCUS_ROOM_ENABLED: false,
+    location: { href: "index.html" },
+    dispatchEvent() {}
+  }
+});
+disabledFocusRoomContext.renderFocusRoomWorkspaceActions();
+assert.equal(disabledFocusRoomButton.disabled, true, "Disabled Focus Room flag should disable the workspace CTA");
+assert.equal(disabledFocusRoomButton.classList.contains("d-none"), true, "Disabled Focus Room flag should keep the workspace CTA hidden");
+assert.equal(
+  disabledFocusRoomButton.getAttribute("aria-label"),
+  "Focus Room is currently unavailable",
+  "Disabled Focus Room flag should communicate that the CTA is unavailable"
+);
+disabledFocusRoomContext.openSynapseFocusRoom("history-1");
+assert.equal(
+  disabledFocusRoomContext.window.location.href,
+  "index.html",
+  "Disabled Focus Room opener should not navigate to the Focus Room page"
+);
 
 const fallbackCard = { front: "Fallback card", back: "Fallback answer" };
 let bridgeContext = createFocusBridgeContext({ currentFlashcards: [fallbackCard] });

@@ -70,7 +70,7 @@ NOTE_PROMPT_MODES: Dict[str, dict] = {
 NOTE_LENGTH_MODES: Dict[str, dict] = {
     "quick_review": {
         "label": "Quick Review",
-        "description": "300-500 words focused on the fastest revision points.",
+        "description": "Low content depth: extract the core answer and the few most useful source anchors.",
         "min_words": 300,
         "max_words": 500,
         "target_words": 420,
@@ -79,7 +79,7 @@ NOTE_LENGTH_MODES: Dict[str, dict] = {
     },
     "standard_notes": {
         "label": "Standard Notes",
-        "description": "900-1400 words with balanced explanation and evidence.",
+        "description": "Balanced content depth: explain source concepts, reasoning, examples, and revision use.",
         "min_words": 900,
         "max_words": 1400,
         "target_words": 1150,
@@ -88,7 +88,7 @@ NOTE_LENGTH_MODES: Dict[str, dict] = {
     },
     "deep_study": {
         "label": "Deep Study",
-        "description": "1800-2500 words for fuller exam preparation.",
+        "description": "High content depth: expand reasoning, concept connections, source examples, applications, limitations, and mistakes.",
         "min_words": 1800,
         "max_words": 2500,
         "target_words": 2150,

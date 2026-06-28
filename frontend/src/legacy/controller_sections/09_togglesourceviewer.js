@@ -749,12 +749,6 @@ function renderHistoryItemsHTML(items) {
         <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
         <div class="history-item-meta">${formatHistoryDate(item.createdAt)}</div>
       </button>
-      <button class="history-focus-room-btn" type="button"
-              title="Study in Focus Room"
-              aria-label="Study ${escapeAttr(makeHistoryTitle(item))} in Focus Room"
-              onclick="event.preventDefault(); event.stopPropagation(); openSynapseFocusRoom('${escapeAttr(item.id)}')">
-        <i class="bi bi-door-open"></i>
-      </button>
       <button class="history-delete-btn" type="button"
               title="Delete this history item"
               aria-label="Delete ${escapeAttr(makeHistoryTitle(item))}"
@@ -823,6 +817,7 @@ async function loadHistoryEntry(id, options = {}) {
   currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || "";
   currentPromptMode = item.promptMode || item.prompt_mode || "professor_mode";
   currentPromptModeLabel = item.promptModeLabel || item.prompt_mode_label || "";
+  currentAiGeneration = normaliseAiGenerationDiagnostics(item.aiGeneration || item.ai_generation || null);
   const localVisuals = Array.isArray(item.visualGallery) ? item.visualGallery : [];
   const restoredVisuals = await loadVisualGalleryAssets(id, currentSourceFingerprint);
   visualGalleryData = normalizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);

@@ -1,4 +1,4 @@
-import { NOTE_LENGTH_OPTIONS, PROMPT_MODE_OPTIONS } from "../constants.js";
+import { AI_PROVIDER_OPTIONS, NOTE_LENGTH_OPTIONS, PROMPT_MODE_OPTIONS } from "../constants.js";
 import { h, icon, legacyAction } from "../runtime.js";
 import { LanguageSelect } from "./LanguageOptions.js?v=react-shell-v2";
 
@@ -16,6 +16,24 @@ function promptModeDescription(value) {
 function noteLengthOptions() {
   return NOTE_LENGTH_OPTIONS.map(([value, label]) =>
     h("option", { key: value, value }, label)
+  );
+}
+
+function aiProviderButtons() {
+  return AI_PROVIDER_OPTIONS.map(([value, label, description], index) =>
+    h(
+      "button",
+      {
+        key: value,
+        type: "button",
+        className: `btn ${index === 0 ? "btn-primary active" : "btn-outline-primary"} ai-provider-btn`,
+        "data-ai-provider": value,
+        title: description,
+        "aria-pressed": index === 0 ? "true" : "false",
+        onClick: legacyAction("setAiProvider", value),
+      },
+      label
+    )
   );
 }
 
@@ -135,7 +153,7 @@ export function UploadStage() {
         h(
           "p",
           { className: "language-note" },
-          "Choose the language for notes, explanations, flashcards, and quizzes. Brand names such as Synapse stay unchanged."
+          "Choose the language for notes, explanations, image guides, flashcards, and quizzes. Brand names such as Synapse stay unchanged."
         ),
         h(LanguageSelect, {
           id: "preferredLanguage",
@@ -144,6 +162,31 @@ export function UploadStage() {
         })
       ),
       h("input", { type: "hidden", id: "detailLevel", value: "auto", readOnly: true }),
+      h(
+        "div",
+        { className: "language-box prompt-mode-box ai-provider-box" },
+        h("label", { htmlFor: "aiProvider", className: "form-label" }, "Generate AI"),
+        h(
+          "p",
+          { className: "language-note" },
+          "Choose which backend AI provider generates the notes. Both use the same Synapse prompts, source context, and validators."
+        ),
+        h("input", { type: "hidden", id: "aiProvider", value: "", readOnly: true }),
+        h(
+          "div",
+          {
+            className: "btn-group w-100 ai-provider-toggle",
+            role: "group",
+            "aria-label": "Generate AI provider",
+          },
+          aiProviderButtons()
+        ),
+        h(
+          "p",
+          { id: "aiProviderDescription", className: "language-note compact-note" },
+          "Backend default uses the provider selected in backend environment settings."
+        )
+      ),
       h(
         "div",
         { className: "language-box prompt-mode-box" },
@@ -172,18 +215,18 @@ export function UploadStage() {
       h(
         "div",
         { id: "noteLengthField", className: "language-box prompt-mode-box note-length-box" },
-        h("label", { htmlFor: "noteLength", className: "form-label" }, "Note length"),
+        h("label", { htmlFor: "noteLength", className: "form-label" }, "AI study depth"),
         h(
           "p",
           { className: "language-note" },
-          "Choose the target word range for modes that enforce a final output limit."
+          "Choose how deeply Synapse studies and explains the uploaded material. This controls content depth, not a fixed word count."
         ),
         h(
           "select",
           {
             id: "noteLength",
             className: "language-select prompt-mode-select",
-            "aria-label": "Note length",
+            "aria-label": "AI study depth",
             defaultValue: "standard_notes",
           },
           noteLengthOptions()
@@ -191,7 +234,7 @@ export function UploadStage() {
         h(
           "p",
           { id: "noteLengthDescription", className: "language-note compact-note" },
-          "Standard Notes is the default balance for revision."
+          "Standard Notes gives a balanced study depth for revision."
         )
       ),
       h(

@@ -51,10 +51,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=probability-table-v1";
+} from "./markdownRenderer.js?v=note-layout-v2";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "local-api-v2";
+const CONTROLLER_VERSION = "voice-tutor-v3";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
