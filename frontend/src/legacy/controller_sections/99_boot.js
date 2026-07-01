@@ -129,6 +129,7 @@ Object.assign(window, {
   generateQuizFromBroadcast,
   generateFlashcardsFromBroadcast,
   openBroadcastAsStudyMaterial,
+  setupBroadcastTool,
   renderBroadcastSetupPanel,
 });
 
@@ -168,6 +169,7 @@ setupTimelineTool();
 setupMasteryGraphTool();
 setupQuizTool();
 setupFlashcardTool();
+setupBroadcastTool();
 renderAccountMenu();
 window.addEventListener("synapse-auth-changed", () => {
   renderAccountMenu();

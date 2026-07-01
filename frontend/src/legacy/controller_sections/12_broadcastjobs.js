@@ -24,6 +24,38 @@ const BROADCAST_VOICE_OPTIONS = [
 const BROADCAST_DEPTH_OPTIONS = [["simple", "Simple"], ["standard", "Standard"], ["advanced", "Advanced"], ["exam_focused", "Exam-focused"]];
 const BROADCAST_LANGUAGE_OPTIONS = [["auto", "Auto-detect source language"], ["english", "English"], ["chinese", "Chinese"], ["bilingual", "Bilingual"]];
 
+function setupBroadcastTool() {
+  const switcher = document.querySelector(".tool-switcher");
+  if (switcher && !document.getElementById("toolBtnBroadcast")) {
+    switcher.insertAdjacentHTML("beforeend", `
+      <button id="toolBtnBroadcast" class="tool-switch-btn" type="button" onclick="switchTool('broadcast', this)">
+        <i class="bi bi-broadcast-pin me-1"></i>AI Broadcast
+      </button>
+    `);
+  }
+
+  const studyToolsCard = document.querySelector(".study-tools-card");
+  if (studyToolsCard && !document.getElementById("toolPanelBroadcast")) {
+    studyToolsCard.insertAdjacentHTML("beforeend", `
+      <div id="toolPanelBroadcast" class="tool-panel">
+        <div id="broadcastWorkspace" class="broadcast-workspace">
+          <div class="broadcast-setup-card">
+            <div class="tool-panel-head">
+              <div>
+                <h3>AI Broadcast</h3>
+                <p>Create a podcast-style study radio episode from the current notes.</p>
+              </div>
+            </div>
+            <button class="btn btn-primary" type="button" onclick="openAiBroadcastSetup()">
+              <i class="bi bi-broadcast-pin me-1"></i>Set up broadcast
+            </button>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+}
+
 function broadcastJobId() {
   if (globalThis.crypto?.randomUUID) return `broadcast_${globalThis.crypto.randomUUID()}`;
   return `broadcast_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;

@@ -18,6 +18,10 @@ for (const file of requiredFiles) {
 }
 
 const app = read("server/src/app.js");
+const index = read("frontend/index.html");
+const rootIndex = read("index.html");
+const main = read("frontend/src/main.js");
+const loader = read("frontend/src/legacy/loadLegacyController.js");
 const mysqlSchema = read("server/src/db/schema.sql");
 const supabaseSchema = read("server/src/db/supabase-schema.sql");
 const repository = read("server/src/repositories/broadcastJobsRepository.js");
@@ -25,11 +29,16 @@ const routes = read("server/src/routes/broadcastJobs.js");
 const dataClient = read("frontend/src/legacy/dataApiClient.js");
 const legacyController = read("frontend/src/legacy/controller.js");
 const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
+const reset = read("frontend/src/legacy/controller_sections/08_extractrealtimeresponsetranscript.js");
 const history = read("frontend/src/legacy/controller_sections/09_togglesourceviewer.js");
 const broadcastController = read("frontend/src/legacy/controller_sections/12_broadcastjobs.js");
 const studyTools = read("frontend/src/react/components/StudyTools.js");
 const styles = read("frontend/styles/04-section.css");
 
+assert.ok(rootIndex.includes("frontend/index.html"), "root index should open the single study workspace frontend");
+assert.ok(index.includes("ai-broadcast-v2"), "workspace HTML should bust cached React shell assets");
+assert.ok(main.includes("ai-broadcast-v2"), "main module should bust cached React and controller loader imports");
+assert.ok(loader.includes("ai-broadcast-v2"), "controller loader should bust cached legacy controller scripts");
 assert.ok(app.includes('"/api/broadcast-jobs"'), "Express app should mount broadcast job routes");
 
 assert.ok(mysqlSchema.includes("CREATE TABLE IF NOT EXISTS broadcast_jobs"), "MySQL schema should create broadcast_jobs");
@@ -104,14 +113,21 @@ for (const token of [
   "cancelBroadcastJob",
   "retryBroadcastJob",
   "deleteBroadcastJob",
-  "recoverBroadcastJobsOnBoot"
+  "recoverBroadcastJobsOnBoot",
+  "setupBroadcastTool"
 ]) {
   assert.ok(boot.includes(token), `boot should expose ${token}`);
 }
 
+assert.ok(boot.includes("setupBroadcastTool();"), "boot should install the AI Broadcast tool dynamically");
+assert.ok(reset.includes("setupBroadcastTool();"), "workspace reset should restore the AI Broadcast tool");
+
 for (const token of [
   "BROADCAST_JOBS_STORAGE_KEY",
   "AI Broadcast",
+  "function setupBroadcastTool()",
+  "toolBtnBroadcast",
+  "toolPanelBroadcast",
   "Study Podcast",
   "Exam Revision",
   "Deep Explanation",

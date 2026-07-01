@@ -570,6 +570,7 @@ function resetWorkspace() {
   setupMasteryGraphTool();
   setupQuizTool();
   setupFlashcardTool();
+  setupBroadcastTool();
   if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
 
