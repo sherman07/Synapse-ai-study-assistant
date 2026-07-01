@@ -54,6 +54,67 @@ assert.equal(material.aiSummary.includes("Gradients"), true);
 assert.deepEqual(material.studyHeadings.slice(0, 2), ["Key Ideas", "Worked Examples"]);
 assert.equal(material.flashcards.length, 1);
 assert.equal(material.quizzes[0].report.objectivePercent, 100);
+assert.equal(material.promptMode, "professor_mode");
+assert.equal(material.isSourceRestricted, false);
+
+const sourceLinkedMaterial = data.normalizeFocusRoomMaterial({
+  id: "source-linked",
+  title: "Cardiology Lecture",
+  summary: "# Evidence Bank\n\nBeta blockers reduce heart rate in the uploaded lecture.",
+  sections: {
+    "Evidence Bank": "Beta blockers reduce heart rate in the uploaded lecture."
+  },
+  sourceItems: [{
+    id: "upload:cardiology:0",
+    name: "cardiology-week-3.pdf",
+    title: "Cardiology Week 3",
+    kind: "pdf",
+    content: "The lecture states that beta blockers reduce heart rate and contractility."
+  }],
+  source_highlights: [{
+    title: "Beta blocker mechanism",
+    excerpt: "beta blockers reduce heart rate and contractility",
+    source_id: "upload:cardiology:0",
+    section_title: "Evidence Bank"
+  }]
+});
+
+assert.equal(sourceLinkedMaterial.sourceHighlights.length, 1);
+assert.equal(sourceLinkedMaterial.sourceHighlights[0].sourceId, "upload:cardiology:0");
+assert.equal(sourceLinkedMaterial.sourceHighlights[0].sectionTitle, "Evidence Bank");
+assert.ok(sourceLinkedMaterial.sourceHighlights[0].excerpt.includes("heart rate"));
+
+const fallbackSourceHighlights = data.normalizeFocusRoomMaterial({
+  id: "source-fallback",
+  summary: "# Notes\n\nUse the uploaded source.",
+  sourceItems: [{
+    id: "text:primary",
+    title: "Pasted source",
+    kind: "note",
+    content: "This pasted source excerpt should become a navigable evidence highlight in Focus Room."
+  }]
+});
+
+assert.equal(fallbackSourceHighlights.sourceHighlights.length, 1);
+assert.equal(fallbackSourceHighlights.sourceHighlights[0].sourceId, "text:primary");
+assert.ok(fallbackSourceHighlights.sourceHighlights[0].excerpt.includes("pasted source excerpt"));
+
+const mergedMaterials = data.mergeFocusRoomMaterials([
+  material
+], [{
+  id: "history-1",
+  summary: "# Key Ideas\n\nUpdated summary.",
+  prompt_mode: "source_strict_research_mode",
+  sections: {
+    "Key Ideas": "Updated source-grounded idea."
+  },
+  sources: [{ title: "Chapter 1 PDF" }]
+}]);
+
+assert.equal(mergedMaterials.length, 1);
+assert.equal(mergedMaterials[0].isSourceRestricted, true);
+assert.equal(mergedMaterials[0].sources[0].title, "Chapter 1 PDF");
+assert.equal(mergedMaterials[0].sections["Key Ideas"], "Updated source-grounded idea.");
 
 const plan = data.buildFocusRoomStudyPlan({
   material,
@@ -118,6 +179,16 @@ assert.equal(invalidNumericSession.pomodoroDuration, 25);
 assert.equal(invalidNumericSession.totalFocusTime, 0);
 assert.equal(invalidNumericSession.flashcardsCompleted, 0);
 assert.equal(invalidNumericSession.quizScore, null);
+
+assert.equal(data.FOCUS_ROOM_ACTIVE_SESSION_KEY, "synapse.focusRoom.active-session.v1");
+data.saveFocusRoomActiveSession("history-1", {
+  view: "session",
+  elapsedSeconds: 900,
+  workspaceNotes: "Need more practice with examples."
+});
+assert.equal(data.readFocusRoomActiveSessionForMaterial("history-1").elapsedSeconds, 900);
+data.clearFocusRoomActiveSession("history-1");
+assert.equal(data.readFocusRoomActiveSessionForMaterial("history-1"), null);
 
 const originalSetItem = globalThis.localStorage.setItem;
 const originalWarn = console.warn;

@@ -1544,6 +1544,100 @@
   gap: 18px;
 }
 
+.exam-readiness-summary {
+  margin: 0 0 22px;
+}
+
+.exam-readiness-summary-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  border: 1px solid #dce5fb;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(79, 124, 255, 0.08), transparent 32%),
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 18px 50px rgba(33, 52, 95, 0.08);
+  padding: 22px 24px;
+}
+
+.readiness-score {
+  --memory-score: 0%;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, #fff 58%, transparent 59%),
+    conic-gradient(#5f7cff var(--memory-score), #e7ecfb 0);
+  box-shadow: inset 0 0 0 1px #dce5fb, 0 16px 34px rgba(95, 124, 255, 0.16);
+}
+
+.readiness-score strong,
+.readiness-score span {
+  grid-area: 1 / 1;
+}
+
+.readiness-score strong {
+  color: #10182f;
+  font-size: 1.35rem;
+  font-weight: 950;
+  transform: translateY(-8px);
+}
+
+.readiness-score span {
+  color: #6c7a96;
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  transform: translateY(18px);
+}
+
+.readiness-body h3 {
+  margin: 2px 0 8px;
+  color: #10182f;
+  font-size: 1.22rem;
+  font-weight: 950;
+}
+
+.readiness-next-action {
+  margin: 0;
+  color: #27324d;
+  line-height: 1.5;
+}
+
+.readiness-metrics,
+.readiness-weak-topics div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.readiness-metrics span,
+.readiness-weak-topics span {
+  border: 1px solid #dce5fb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #53627c;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.readiness-weak-topics {
+  margin-top: 14px;
+}
+
+.readiness-weak-topics strong {
+  display: block;
+  color: #10182f;
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
 .memory-hero,
 .memory-stat,
 .memory-review-card,
@@ -1854,6 +1948,10 @@
 }
 
 @media (max-width: 900px) {
+  .exam-readiness-summary-card {
+    grid-template-columns: 1fr;
+  }
+
   .memory-hero {
     align-items: flex-start;
     flex-direction: column;

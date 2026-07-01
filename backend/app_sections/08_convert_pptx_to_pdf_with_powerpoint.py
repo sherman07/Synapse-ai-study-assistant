@@ -699,7 +699,7 @@ def _v23_visual_detail_fallbacks(card: dict, labels: dict) -> dict:
         base = {
             "what_shows": key_text,
             "why_relevant": f"This is not decoration: it turns the idea of {title} into inspectable source evidence, so the student can see the variables, sequence, comparison, or data relationship.",
-            "argument_supported": "It supports the surrounding explanation by making the method, pattern, mechanism, or contrast visible rather than asking the student to memorise an abstract claim.",
+            "argument_supported": "It helps the student point to the visible method, pattern, mechanism, or contrast and explain what that evidence can and cannot show.",
             "cross_source_connection": "Read it with the nearby concept: describe the visible evidence first, then explain how it supports, limits, or sharpens the claim in the notes.",
             "how_to_read": _v23_default_how_to_read(kind, "english"),
             "exam_use": "In an answer, describe what is visible, interpret the source evidence, state the limit or implication, and connect it back to the concept.",
@@ -731,7 +731,7 @@ def generate_visual_argument_cards(
     preferred_language: str,
     allow_model: bool = True,
 ) -> List[dict]:
-    """v23 override: model filters decorative candidates and keeps only teaching images."""
+    """Model filters decorative candidates and keeps only separate teaching-image cards."""
     labels = source_figure_labels(preferred_language)
     existing = []
     for unit in source_units or []:
@@ -765,7 +765,7 @@ def generate_visual_argument_cards(
         )
 
     prompt = f"""
-You are selecting in-text source figures for a professor-style study guide.
+You are selecting separate source-figure support cards for a professor-style study guide.
 
 Language requirement: {language_rule}
 Never translate the product name Synapse.
@@ -806,7 +806,7 @@ Rules:
 - Do not simply copy OCR text. Interpret the source screenshot as a tutor would.
 - Do not use generic phrases like "direct support", "nearby concept", "uploaded materials", or "read the labels/title first" unless followed by specific details from the figure.
 - Titles should name the concept shown in the figure, not the page/slide number.
-- For PDF/PPT pages, treat the attached image as the source screenshot that should be placed into the notes.
+- For PDF/PPT pages, treat the attached image as a source screenshot that can support the notes separately.
 - Keep the same order as their educational usefulness, not necessarily candidate order.
 - If none are useful, return {{"cards":[]}}.
 """
@@ -823,7 +823,17 @@ Rules:
             max_tokens=CONTROLLED_VISUAL_CARD_TOKENS,
         )
         cards = _v23_parse_relevant_visual_cards(raw, candidate_pool, labels)
-    except Exception:
+    except Exception as error:
+        if "_record_ai_call_event" in globals():
+            _record_ai_call_event({
+                "stage": "visual_cards",
+                "provider": active_text_provider() if "active_text_provider" in globals() else AI_TEXT_PROVIDER,
+                "model": model_for_depth("detailed") if "model_for_depth" in globals() else CHAT_MODEL,
+                "status": "fallback",
+                "api_request_attempted": False,
+                "error_type": type(error).__name__,
+                "error": _sanitize_ai_error(error) if "_sanitize_ai_error" in globals() else str(error),
+            })
         cards = []
 
     if not cards:

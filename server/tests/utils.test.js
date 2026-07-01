@@ -113,3 +113,41 @@ test("stripe billing routes verify webhooks and keep secrets server-side", () =>
   assert.ok(routeSource.includes("invoice.payment_failed"), "webhook route should handle failed invoice payments");
   assert.ok(generatedContentRoute.includes("requireProWhenRequested"), "Pro-marked generated content writes should be gated server-side");
 });
+
+test("Supabase storage wiring is present for users and study histories", () => {
+  const configSource = fs.readFileSync(path.join(serverRoot, "src/config.js"), "utf8");
+  const usersRepositorySource = fs.readFileSync(path.join(repositoryDir, "usersRepository.js"), "utf8");
+  const generatedRepositorySource = fs.readFileSync(path.join(repositoryDir, "generatedContentRepository.js"), "utf8");
+  const focusRepositorySource = fs.readFileSync(path.join(repositoryDir, "focusSessionsRepository.js"), "utf8");
+  const flashcardsRepositorySource = fs.readFileSync(path.join(repositoryDir, "flashcardsRepository.js"), "utf8");
+  const progressRepositorySource = fs.readFileSync(path.join(repositoryDir, "progressRepository.js"), "utf8");
+  const studyRoomsRepositorySource = fs.readFileSync(path.join(repositoryDir, "studyRoomsRepository.js"), "utf8");
+  const supabaseSchemaSource = fs.readFileSync(path.join(serverRoot, "src/db/supabase-schema.sql"), "utf8");
+  const readmeSource = fs.readFileSync(path.join(serverRoot, "README.md"), "utf8");
+  const authSource = fs.readFileSync(path.join(serverRoot, "src/middleware/auth.js"), "utf8");
+
+  assert.ok(configSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "server config should read the Supabase service-role key");
+  assert.ok(configSource.includes("SUPABASE_DB_SCHEMA"), "server config should allow a Supabase schema override");
+  assert.ok(usersRepositorySource.includes("supabaseStorageEnabled"), "users repository should support Supabase-backed storage");
+  assert.ok(generatedRepositorySource.includes("supabaseStorageEnabled"), "generated-content repository should support Supabase-backed storage");
+  assert.ok(focusRepositorySource.includes("supabaseStorageEnabled"), "focus sessions repository should support Supabase-backed storage");
+  assert.ok(flashcardsRepositorySource.includes("supabaseStorageEnabled"), "flashcards repository should support Supabase-backed storage");
+  assert.ok(progressRepositorySource.includes("supabaseStorageEnabled"), "progress repository should support Supabase-backed storage");
+  assert.ok(studyRoomsRepositorySource.includes("supabaseStorageEnabled"), "study rooms repository should support Supabase-backed storage");
+  for (const table of [
+    "users",
+    "generated_contents",
+    "study_rooms",
+    "study_room_members",
+    "focus_sessions",
+    "flashcard_decks",
+    "flashcards",
+    "progress_records"
+  ]) {
+    assert.ok(supabaseSchemaSource.includes(`create table if not exists public.${table}`), `Supabase schema should create ${table}`);
+    assert.ok(supabaseSchemaSource.includes(`alter table public.${table} enable row level security`), `Supabase schema should enable RLS on ${table}`);
+  }
+  assert.ok(supabaseSchemaSource.includes("grant select, insert, update, delete on table"), "Supabase schema should grant Data API table access explicitly");
+  assert.doesNotMatch(authSource, /role:\s*metadata\.role/, "Supabase roles must not come from user-editable metadata");
+  assert.ok(readmeSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "server README should document Supabase server setup");
+});

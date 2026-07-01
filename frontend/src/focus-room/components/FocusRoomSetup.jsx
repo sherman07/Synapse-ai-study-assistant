@@ -39,7 +39,7 @@ export function FocusRoomSetup({ audioState, onWorkspace, onHistory }) {
         <p>Pick the cinematic atmosphere that matches this focus block.</p>
         <article className="material-strip liquid-glass-lite">
           <span className="focus-pill">{material.materialType || "Study material"}</span>
-          <div>
+          <div className="material-strip-copy">
             <strong>{material.materialTitle || "Study material"}</strong>
             <p>{material.studyHeadings?.slice(0, 2).join(" / ") || "Generated notes"}</p>
           </div>

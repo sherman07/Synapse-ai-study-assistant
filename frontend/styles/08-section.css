@@ -183,6 +183,8 @@
 
 .markdown-table-wrap {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
   margin: 1.1rem 0;
   border: 1px solid rgba(99, 125, 255, 0.18);
@@ -193,8 +195,9 @@
 
 .markdown-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -207,6 +210,8 @@
   font-weight: 900;
   border-bottom: 1px solid rgba(99, 125, 255, 0.18);
   white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .markdown-table td {
@@ -215,9 +220,15 @@
   border-bottom: 1px solid rgba(99, 125, 255, 0.12);
   color: var(--text-soft);
   min-width: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
+  overflow: visible;
+  overflow-wrap: break-word;
   word-break: normal;
+  hyphens: auto;
+}
+
+.markdown-table td:first-child,
+.markdown-table th:first-child {
+  width: 18%;
 }
 
 .markdown-table td mjx-container,

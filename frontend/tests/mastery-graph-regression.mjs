@@ -18,8 +18,8 @@ const notes = read("frontend/src/legacy/controller_sections/02_openvisualmodal.j
 const timeline = read("frontend/src/legacy/controller_sections/03_rendertimeline.js");
 const quiz = read("frontend/src/legacy/controller_sections/05_persistcurrentquiztohistory.js");
 const styles = read("frontend/styles/07-section.css");
-const reactShellAssetVersion = "react-shell-v3";
-const legacyControllerAssetVersion = "local-api-v1";
+const reactShellAssetVersion = "voice-tutor-v3";
+const legacyControllerAssetVersion = "voice-tutor-v3";
 
 assert.ok(controller.includes('"04_masterygraph.js"'), "legacy controller should load the memory engine section");
 assert.ok(index.includes(reactShellAssetVersion), "index should bust cached React shell assets");
@@ -36,7 +36,7 @@ assert.ok(masteryGraph.includes("function gradeMemoryAnswer("), "memory engine s
 assert.ok(masteryGraph.includes("function markMasteryGraphSectionReviewed("), "reviewed action should exist");
 assert.ok(masteryGraph.includes("function practiceMasteryGraphSection("), "practice action should exist");
 assert.ok(masteryGraph.includes("toolBtnMasteryGraph"), "mastery button should be created");
-assert.ok(masteryGraph.includes("Memory Engine"), "memory engine UI label should be present");
+assert.ok(masteryGraph.includes("Exam Readiness"), "memory engine should be reframed as Exam Readiness in the UI");
 assert.ok(boot.includes("setupMasteryGraphTool();"), "memory engine should be installed at boot");
 assert.ok(reset.includes("setupMasteryGraphTool();"), "memory engine should be restored after workspace reset");
 assert.ok(boot.includes("checkMemoryRecallAnswer"), "memory answer checker should be exposed");

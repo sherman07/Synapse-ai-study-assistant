@@ -54,16 +54,30 @@
     return Boolean(config.supabaseUrl && config.supabaseAnonKey);
   }
 
+  function isPrivateIpv4Host(hostname) {
+    const value = String(hostname || "").toLowerCase();
+    const parts = value.split(".");
+    if (parts.length !== 4 || parts.some(part => !/^\d+$/.test(part))) return false;
+    const nums = parts.map(Number);
+    if (nums.some(num => num < 0 || num > 255)) return false;
+    return nums[0] === 10
+      || (nums[0] === 172 && nums[1] >= 16 && nums[1] <= 31)
+      || (nums[0] === 192 && nums[1] === 168);
+  }
+
   function isLocalDevHost(hostname) {
     const value = String(hostname || "").toLowerCase();
-    return value === "127.0.0.1" || value === "localhost" || value === "::1" || value === "[::1]";
+    return value === "127.0.0.1" || value === "localhost" || value === "::1" || value === "[::1]" || isPrivateIpv4Host(value);
   }
 
   function apiBase() {
-    const configured = readConfig().apiBase;
-    if (configured) return configured;
     const { protocol, hostname, port } = window.location;
     const backendPort = String(window.SYNAPSE_BACKEND_PORT || document.body?.dataset?.apiPort || "8001").trim();
+    const configured = readConfig().apiBase;
+    const currentOrigin = `${protocol}//${window.location.host}`.replace(/\/+$/, "");
+    if (configured && !(isLocalDevHost(hostname) && port !== backendPort && configured === currentOrigin)) {
+      return configured;
+    }
     if (protocol === "file:") return `http://127.0.0.1:${backendPort || "8001"}`;
     if (isLocalDevHost(hostname) && port !== backendPort) {
       return `http://127.0.0.1:${backendPort || "8001"}`;
@@ -72,10 +86,13 @@
   }
 
   function dataApiBase() {
-    const configured = readConfig().dataApiBase;
-    if (configured) return configured;
     const { protocol, hostname, port } = window.location;
     const dataPort = String(window.SYNAPSE_DATA_API_PORT || document.body?.dataset?.dataApiPort || "3001").trim();
+    const configured = readConfig().dataApiBase;
+    const currentOrigin = `${protocol}//${window.location.host}`.replace(/\/+$/, "");
+    if (configured && !(isLocalDevHost(hostname) && port !== dataPort && configured === currentOrigin)) {
+      return configured;
+    }
     if (protocol === "file:") return `http://127.0.0.1:${dataPort || "3001"}`;
     if (isLocalDevHost(hostname) && port !== dataPort) {
       return `http://127.0.0.1:${dataPort || "3001"}`;

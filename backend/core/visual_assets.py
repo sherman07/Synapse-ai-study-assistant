@@ -118,3 +118,36 @@ def filter_browser_visual_gallery(items: List[dict]) -> List[dict]:
         cleaned_item["url"] = browser_url
         cleaned.append(cleaned_item)
     return cleaned
+
+
+def visual_marker_indexes(items: List[dict]) -> set:
+    indexes = set()
+    for fallback_index, item in enumerate(items or []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            indexes.add(int(item.get("index", fallback_index)))
+        except Exception:
+            indexes.add(fallback_index)
+    return indexes
+
+
+def prune_unavailable_visual_markers(summary: str, items: List[dict]) -> str:
+    """Drop cached visual markers whose browser-safe visual card no longer exists."""
+    text = str(summary or "")
+    if not text:
+        return text
+    available_indexes = visual_marker_indexes(items)
+
+    def keep_or_remove(match) -> str:
+        try:
+            marker_index = int(match.group(1))
+        except Exception:
+            return ""
+        return match.group(0) if marker_index in available_indexes else ""
+
+    text = re.sub(r"(?m)^\s*\[\[VISUAL:(\d+)\]\]\s*$", keep_or_remove, text)
+    text = re.sub(r"\[\[VISUAL:(\d+)\]\]", keep_or_remove, text)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()

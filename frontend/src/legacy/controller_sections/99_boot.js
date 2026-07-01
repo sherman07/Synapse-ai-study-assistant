@@ -65,6 +65,7 @@ Object.assign(window, {
   resetFlashcardMatching,
   resetWorkspace,
   closeAccountPanel,
+  consumeFocusRoomReturnTarget,
   deleteAccountAndLocalData,
   goToAuthPage,
   exportAccountData,
@@ -131,6 +132,11 @@ if (mobileHistorySearch) {
 }
 cleanExistingHistoryTitles();
 renderHistory();
+if (typeof syncHistoryWithDataApi === "function") {
+  syncHistoryWithDataApi().catch(error => {
+    console.warn("Could not load synced generated note history:", error);
+  });
+}
 if (typeof renderFocusRoomWorkspaceActions === "function") {
   renderFocusRoomWorkspaceActions();
 }
@@ -143,7 +149,14 @@ setupMasteryGraphTool();
 setupQuizTool();
 setupFlashcardTool();
 renderAccountMenu();
-window.addEventListener("synapse-auth-changed", () => renderAccountMenu());
+window.addEventListener("synapse-auth-changed", () => {
+  renderAccountMenu();
+  if (typeof syncHistoryWithDataApi === "function") {
+    syncHistoryWithDataApi().catch(error => {
+      console.warn("Could not refresh synced generated note history:", error);
+    });
+  }
+});
 
 if (!window.__synapseFlashcardMatchResizeBound) {
   window.__synapseFlashcardMatchResizeBound = true;
@@ -156,7 +169,14 @@ if (!window.__synapseFlashcardMatchResizeBound) {
 
 const activeHistoryId = safeGetLocalStorage(ACTIVE_HISTORY_KEY, "");
 if (activeHistoryId && getHistory().some(item => item.id === activeHistoryId)) {
-  loadHistoryEntry(activeHistoryId, { preserveScroll: true });
+  Promise.resolve(loadHistoryEntry(activeHistoryId, { preserveScroll: true }))
+    .then(() => {
+      if (typeof consumeFocusRoomReturnTarget === "function") {
+        consumeFocusRoomReturnTarget();
+      }
+    });
+} else if (typeof consumeFocusRoomReturnTarget === "function") {
+  consumeFocusRoomReturnTarget();
 }
 
 if (questionInput) questionInput.addEventListener("keydown", (event) => {

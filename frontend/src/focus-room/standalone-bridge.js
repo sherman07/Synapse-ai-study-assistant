@@ -2,6 +2,7 @@ const HISTORY_STORAGE_KEY = "synapse.generated.history.v6";
 const ACTIVE_HISTORY_KEY = "synapse.active.generated.v6";
 const FLASHCARD_STORAGE_KEY = "synapse.flashcards.deck.v1";
 const QUIZ_HISTORY_STORAGE_KEY = "synapse.quiz.history.v1";
+const FOCUS_ROOM_RETURN_TARGET_KEY = "synapse.focusRoom.return-target.v1";
 
 function readJSON(key, fallback) {
   try {
@@ -18,6 +19,16 @@ function readJSON(key, fallback) {
 function writeValue(key, value) {
   try {
     globalThis.localStorage?.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn(`Could not write ${key}:`, error);
+    return false;
+  }
+}
+
+function writeJSON(key, value) {
+  try {
+    globalThis.localStorage?.setItem(key, JSON.stringify(value));
     return true;
   } catch (error) {
     console.warn(`Could not write ${key}:`, error);
@@ -111,6 +122,11 @@ function focusRoomMaterialFromHistoryItem(item = {}) {
     mindMap: item.mindMap || item.mind_map || item.brainstorm || null,
     studyPlan: item.studyPlan || [],
     progressHistory: [],
+    sources: Array.isArray(item.sources) ? item.sources : [],
+    sourceItems: Array.isArray(item.sourceItems) ? item.sourceItems : [],
+    sourceHighlights: Array.isArray(item.sourceHighlights || item.source_highlights)
+      ? (item.sourceHighlights || item.source_highlights)
+      : [],
     sourceFingerprint: item.sourceFingerprint || item.clientFingerprint || "",
     createdAt: item.createdAt || "",
     updatedAt: item.updatedAt || ""
@@ -139,10 +155,29 @@ function openSynapseFocusRoom(materialId = "") {
   globalThis.location.hash = `#/focus-room${suffix}`;
 }
 
-async function returnFromFocusRoomToWorkspace(materialId = "") {
+function normalizeReturnTarget(materialId = "", target = {}) {
+  const objectTarget = target && typeof target === "object" && !Array.isArray(target) ? target : {};
+  return {
+    materialId: String(materialId || ""),
+    action: String(objectTarget.action || "").trim().toLowerCase(),
+    sourceId: String(objectTarget.sourceId || objectTarget.source_id || ""),
+    sourceIndex: Number(objectTarget.sourceIndex || objectTarget.source_index || 0) || 0,
+    sourceLabel: String(objectTarget.sourceLabel || objectTarget.source_label || ""),
+    sectionTitle: String(objectTarget.sectionTitle || objectTarget.section_title || ""),
+    highlightId: String(objectTarget.highlightId || objectTarget.highlight_id || ""),
+    excerpt: String(objectTarget.excerpt || "").slice(0, 1600),
+    createdAt: new Date().toISOString()
+  };
+}
+
+async function returnFromFocusRoomToWorkspace(materialId = "", target = {}) {
   const id = String(materialId || "");
   if (id) {
     writeValue(ACTIVE_HISTORY_KEY, id);
+  }
+  const workspaceTarget = normalizeReturnTarget(id, target);
+  if (workspaceTarget.action) {
+    writeJSON(FOCUS_ROOM_RETURN_TARGET_KEY, workspaceTarget);
   }
   globalThis.location.href = id
     ? `index.html?focusReturn=${encodeURIComponent(id)}`

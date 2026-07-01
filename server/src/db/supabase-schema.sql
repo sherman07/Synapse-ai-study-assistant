@@ -1,0 +1,449 @@
+create or replace function public.synapse_set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+create table if not exists public.users (
+  id text primary key,
+  auth_provider text not null,
+  auth_subject text not null,
+  email text,
+  display_name text,
+  auth_mode text,
+  role text not null default 'student',
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  plan text not null default 'free',
+  subscription_status text not null default 'inactive',
+  current_period_end timestamptz,
+  metadata_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists users_auth_provider_subject_idx
+  on public.users (auth_provider, auth_subject);
+
+create index if not exists users_email_idx
+  on public.users (email);
+
+create index if not exists users_stripe_customer_idx
+  on public.users (stripe_customer_id);
+
+create index if not exists users_stripe_subscription_idx
+  on public.users (stripe_subscription_id);
+
+create index if not exists users_plan_status_idx
+  on public.users (plan, subscription_status);
+
+drop trigger if exists users_set_updated_at on public.users;
+create trigger users_set_updated_at
+before update on public.users
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.generated_contents (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  source_fingerprint text not null,
+  client_fingerprint text,
+  title text,
+  summary text not null,
+  language text,
+  detail_level text,
+  prompt_mode text,
+  source_count integer not null default 0,
+  cached boolean not null default false,
+  sections_json jsonb not null default '{}'::jsonb,
+  connections_json jsonb not null default '[]'::jsonb,
+  mind_map_json jsonb not null default '{}'::jsonb,
+  visual_gallery_json jsonb not null default '[]'::jsonb,
+  sources_json jsonb not null default '[]'::jsonb,
+  full_result_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists generated_contents_user_fingerprint_idx
+  on public.generated_contents (user_id, source_fingerprint);
+
+create index if not exists generated_contents_user_updated_idx
+  on public.generated_contents (user_id, updated_at desc);
+
+create index if not exists generated_contents_fingerprint_idx
+  on public.generated_contents (source_fingerprint);
+
+drop trigger if exists generated_contents_set_updated_at on public.generated_contents;
+create trigger generated_contents_set_updated_at
+before update on public.generated_contents
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.study_rooms (
+  id text primary key,
+  owner_user_id text not null references public.users(id) on delete cascade,
+  title text not null,
+  description text,
+  visibility text not null default 'private'
+    check (visibility in ('private', 'shared', 'public')),
+  settings_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists study_rooms_owner_updated_idx
+  on public.study_rooms (owner_user_id, updated_at desc);
+
+drop trigger if exists study_rooms_set_updated_at on public.study_rooms;
+create trigger study_rooms_set_updated_at
+before update on public.study_rooms
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.study_room_members (
+  study_room_id text not null references public.study_rooms(id) on delete cascade,
+  user_id text not null references public.users(id) on delete cascade,
+  role text not null default 'viewer'
+    check (role in ('owner', 'editor', 'viewer')),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  primary key (study_room_id, user_id)
+);
+
+create index if not exists study_room_members_user_idx
+  on public.study_room_members (user_id);
+
+drop trigger if exists study_room_members_set_updated_at on public.study_room_members;
+create trigger study_room_members_set_updated_at
+before update on public.study_room_members
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.focus_sessions (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  study_room_id text references public.study_rooms(id) on delete set null,
+  generated_content_id text references public.generated_contents(id) on delete set null,
+  material_id text,
+  material_title text,
+  study_goal text,
+  status text not null default 'completed'
+    check (status in ('planned', 'active', 'completed', 'cancelled')),
+  selected_scene text,
+  music_type text,
+  ambient_sound text,
+  pomodoro_minutes integer,
+  started_at timestamptz,
+  ended_at timestamptz,
+  total_focus_seconds integer not null default 0,
+  metrics_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists focus_sessions_user_updated_idx
+  on public.focus_sessions (user_id, updated_at desc);
+
+create index if not exists focus_sessions_room_idx
+  on public.focus_sessions (study_room_id);
+
+drop trigger if exists focus_sessions_set_updated_at on public.focus_sessions;
+create trigger focus_sessions_set_updated_at
+before update on public.focus_sessions
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.flashcard_decks (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  generated_content_id text references public.generated_contents(id) on delete set null,
+  study_room_id text references public.study_rooms(id) on delete set null,
+  title text not null,
+  language text,
+  settings_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists flashcard_decks_user_updated_idx
+  on public.flashcard_decks (user_id, updated_at desc);
+
+drop trigger if exists flashcard_decks_set_updated_at on public.flashcard_decks;
+create trigger flashcard_decks_set_updated_at
+before update on public.flashcard_decks
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.flashcards (
+  id text primary key,
+  deck_id text not null references public.flashcard_decks(id) on delete cascade,
+  front text not null,
+  back text not null,
+  hint text,
+  source_reference text,
+  difficulty text check (difficulty is null or difficulty in ('easy', 'medium', 'hard')),
+  tags_json jsonb not null default '[]'::jsonb,
+  card_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists flashcards_deck_order_idx
+  on public.flashcards (deck_id, card_order, created_at);
+
+drop trigger if exists flashcards_set_updated_at on public.flashcards;
+create trigger flashcards_set_updated_at
+before update on public.flashcards
+for each row
+execute function public.synapse_set_updated_at();
+
+create table if not exists public.progress_records (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  study_room_id text references public.study_rooms(id) on delete set null,
+  entity_type text not null,
+  entity_id text not null,
+  metric_type text not null,
+  score numeric(8,3),
+  status text,
+  payload_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists progress_records_user_updated_idx
+  on public.progress_records (user_id, updated_at desc);
+
+create index if not exists progress_records_entity_idx
+  on public.progress_records (entity_type, entity_id);
+
+drop trigger if exists progress_records_set_updated_at on public.progress_records;
+create trigger progress_records_set_updated_at
+before update on public.progress_records
+for each row
+execute function public.synapse_set_updated_at();
+
+revoke all privileges on table
+  public.users,
+  public.generated_contents,
+  public.study_rooms,
+  public.study_room_members,
+  public.focus_sessions,
+  public.flashcard_decks,
+  public.flashcards,
+  public.progress_records
+from anon, authenticated, service_role;
+
+grant usage on schema public to authenticated, service_role;
+grant select, insert, update, delete on table
+  public.users,
+  public.generated_contents,
+  public.study_rooms,
+  public.study_room_members,
+  public.focus_sessions,
+  public.flashcard_decks,
+  public.flashcards,
+  public.progress_records
+to authenticated, service_role;
+
+grant execute on function public.synapse_set_updated_at() to service_role;
+
+alter table public.users enable row level security;
+alter table public.generated_contents enable row level security;
+alter table public.study_rooms enable row level security;
+alter table public.study_room_members enable row level security;
+alter table public.focus_sessions enable row level security;
+alter table public.flashcard_decks enable row level security;
+alter table public.flashcards enable row level security;
+alter table public.progress_records enable row level security;
+
+drop policy if exists users_own_rows_select on public.users;
+create policy users_own_rows_select
+on public.users for select
+to authenticated
+using (auth_provider = 'supabase' and auth_subject = (select auth.uid())::text);
+
+drop policy if exists users_own_rows_insert on public.users;
+create policy users_own_rows_insert
+on public.users for insert
+to authenticated
+with check (auth_provider = 'supabase' and auth_subject = (select auth.uid())::text);
+
+drop policy if exists users_own_rows_update on public.users;
+create policy users_own_rows_update
+on public.users for update
+to authenticated
+using (auth_provider = 'supabase' and auth_subject = (select auth.uid())::text)
+with check (auth_provider = 'supabase' and auth_subject = (select auth.uid())::text);
+
+drop policy if exists users_own_rows_delete on public.users;
+create policy users_own_rows_delete
+on public.users for delete
+to authenticated
+using (auth_provider = 'supabase' and auth_subject = (select auth.uid())::text);
+
+drop policy if exists generated_contents_owner_access on public.generated_contents;
+create policy generated_contents_owner_access
+on public.generated_contents
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = generated_contents.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    where u.id = generated_contents.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists study_rooms_owner_access on public.study_rooms;
+create policy study_rooms_owner_access
+on public.study_rooms
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = study_rooms.owner_user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    where u.id = study_rooms.owner_user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists study_room_members_related_access on public.study_room_members;
+create policy study_room_members_related_access
+on public.study_room_members
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = study_room_members.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+  or exists (
+    select 1
+    from public.study_rooms r
+    join public.users u on u.id = r.owner_user_id
+    where r.id = study_room_members.study_room_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.study_rooms r
+    join public.users u on u.id = r.owner_user_id
+    where r.id = study_room_members.study_room_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists focus_sessions_owner_access on public.focus_sessions;
+create policy focus_sessions_owner_access
+on public.focus_sessions
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = focus_sessions.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    where u.id = focus_sessions.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists flashcard_decks_owner_access on public.flashcard_decks;
+create policy flashcard_decks_owner_access
+on public.flashcard_decks
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = flashcard_decks.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    where u.id = flashcard_decks.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists flashcards_deck_owner_access on public.flashcards;
+create policy flashcards_deck_owner_access
+on public.flashcards
+to authenticated
+using (
+  exists (
+    select 1
+    from public.flashcard_decks d
+    join public.users u on u.id = d.user_id
+    where d.id = flashcards.deck_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.flashcard_decks d
+    join public.users u on u.id = d.user_id
+    where d.id = flashcards.deck_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists progress_records_owner_access on public.progress_records;
+create policy progress_records_owner_access
+on public.progress_records
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = progress_records.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    where u.id = progress_records.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);

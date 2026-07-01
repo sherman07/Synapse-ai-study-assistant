@@ -754,7 +754,7 @@ def fetch_youtube_metadata(url: str) -> dict:
 
 
 def transcribe_media_bytes(filename: str, data: bytes) -> str:
-    require_openai()
+    require_openai_api()
     if not data:
         return "No audio/video data was provided."
     if len(data) > MAX_AUDIO_BYTES:

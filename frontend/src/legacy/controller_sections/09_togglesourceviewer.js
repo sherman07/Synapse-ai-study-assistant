@@ -522,18 +522,31 @@ function cleanTitle(title, fallback = "Generated Study Notes") {
 function saveHistoryEntry(payload) {
   const items = getHistory();
   const sourceFingerprint = payload.sourceFingerprint || payload.clientFingerprint || currentSourceFingerprint || "";
-  const existingIndex = sourceFingerprint
-    ? items.findIndex(item => item.sourceFingerprint === sourceFingerprint || item.clientFingerprint === sourceFingerprint)
-    : -1;
+  const databaseRecord = payload.databaseRecord || payload.database_record || null;
+  const databaseId = String(databaseRecord?.id || "").trim();
+  const existingIndex = items.findIndex(item => {
+    const itemDatabaseId = String(item?.databaseRecord?.id || item?.database_record?.id || "").trim();
+    if (databaseId && itemDatabaseId === databaseId) return true;
+    return Boolean(
+      sourceFingerprint &&
+      (item.sourceFingerprint === sourceFingerprint || item.clientFingerprint === sourceFingerprint)
+    );
+  });
+  const historyId = existingIndex >= 0
+    ? items[existingIndex].id
+    : (databaseId || Date.now().toString());
 
   const entry = {
     ...payload,
-    id: existingIndex >= 0 ? items[existingIndex].id : Date.now().toString(),
+    id: historyId,
     title: makeHistoryTitle(payload.title || payload.summary),
     createdAt: existingIndex >= 0 ? items[existingIndex].createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     sourceFingerprint,
     clientFingerprint: payload.clientFingerprint || sourceFingerprint,
+    databaseRecord: databaseRecord
+      ? { ...databaseRecord, id: databaseId || historyId }
+      : (existingIndex >= 0 ? items[existingIndex].databaseRecord || items[existingIndex].database_record || null : null),
   };
 
   const nextItems = existingIndex >= 0
@@ -547,6 +560,163 @@ function saveHistoryEntry(payload) {
   if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
   return entry;
+}
+
+let historySyncPromise = null;
+
+function historyIdentityKeys(item = {}) {
+  const keys = [];
+  const entryId = String(item.id || "").trim();
+  const databaseId = String(item?.databaseRecord?.id || item?.database_record?.id || "").trim();
+  const sourceFingerprint = String(item.sourceFingerprint || item.source_fingerprint || "").trim();
+  const clientFingerprint = String(item.clientFingerprint || item.client_fingerprint || "").trim();
+  if (entryId) keys.push(`id:${entryId}`);
+  if (databaseId) keys.push(`db:${databaseId}`);
+  if (sourceFingerprint) keys.push(`fp:${sourceFingerprint}`);
+  if (clientFingerprint) keys.push(`cf:${clientFingerprint}`);
+  return keys;
+}
+
+function historyTimestampValue(value) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function normalizeRemoteHistoryEntry(item = {}) {
+  const visuals = compactVisualGalleryForStorage(item.visual_gallery || item.visuals || item.visualGallery || []);
+  const databaseRecord = item.databaseRecord || item.database_record || {
+    id: item.id,
+    user_id: item.user_id,
+    source_fingerprint: item.source_fingerprint,
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  };
+  const entry = {
+    id: String(item.id || "").trim(),
+    title: makeHistoryTitle(item.title || item.summary),
+    summary: item.summary || "",
+    sections: item.sections || {},
+    connections: item.connections || [],
+    mindMap: item.mind_map || item.mindMap || null,
+    visualGallery: visuals,
+    language: item.output_language || item.language || "",
+    detailLevel: item.detail_level || item.detailLevel || "",
+    promptMode: item.prompt_mode || item.promptMode || "professor_mode",
+    primarySourceIdentity: item.primary_source_identity || item.source_identity || item.primarySourceIdentity || "",
+    sourceFingerprint: item.source_fingerprint || item.sourceFingerprint || "",
+    clientFingerprint: item.client_fingerprint || item.clientFingerprint || item.source_fingerprint || item.sourceFingerprint || "",
+    sources: Array.isArray(item.sources) ? item.sources : [],
+    sourceItems: Array.isArray(item.sourceItems) ? item.sourceItems : [],
+    visualGalleryCount: visuals.length,
+    databaseRecord,
+    cached: Boolean(item.cached),
+    createdAt: item.created_at || item.createdAt || new Date().toISOString(),
+    updatedAt: item.updated_at || item.updatedAt || item.created_at || item.createdAt || new Date().toISOString(),
+  };
+  if (!entry.title) entry.title = "Generated Study Notes";
+  return entry;
+}
+
+function mergeHistoryItem(localItem = {}, remoteItem = {}) {
+  const localVisuals = Array.isArray(localItem.visualGallery) ? localItem.visualGallery : [];
+  const remoteVisuals = Array.isArray(remoteItem.visualGallery) ? remoteItem.visualGallery : [];
+  const localSources = Array.isArray(localItem.sources) ? localItem.sources : [];
+  const remoteSources = Array.isArray(remoteItem.sources) ? remoteItem.sources : [];
+  const localSourceItems = Array.isArray(localItem.sourceItems) ? localItem.sourceItems : [];
+  const remoteSourceItems = Array.isArray(remoteItem.sourceItems) ? remoteItem.sourceItems : [];
+  const localSections = localItem.sections && typeof localItem.sections === "object" ? localItem.sections : {};
+  const remoteSections = remoteItem.sections && typeof remoteItem.sections === "object" ? remoteItem.sections : {};
+  const localConnections = Array.isArray(localItem.connections) ? localItem.connections : [];
+  const remoteConnections = Array.isArray(remoteItem.connections) ? remoteItem.connections : [];
+
+  return {
+    ...localItem,
+    ...remoteItem,
+    id: localItem.id || remoteItem.id,
+    title: remoteItem.title || localItem.title || "Generated Study Notes",
+    summary: remoteItem.summary || localItem.summary || "",
+    sections: Object.keys(remoteSections).length ? remoteSections : localSections,
+    connections: remoteConnections.length ? remoteConnections : localConnections,
+    mindMap: remoteItem.mindMap || localItem.mindMap || null,
+    visualGallery: remoteVisuals.length ? remoteVisuals : localVisuals,
+    sources: remoteSources.length ? remoteSources : localSources,
+    sourceItems: localSourceItems.length ? localSourceItems : remoteSourceItems,
+    sourceFingerprint: remoteItem.sourceFingerprint || localItem.sourceFingerprint || "",
+    clientFingerprint: remoteItem.clientFingerprint || localItem.clientFingerprint || remoteItem.sourceFingerprint || localItem.sourceFingerprint || "",
+    visualGalleryCount: remoteVisuals.length ? remoteVisuals.length : Number(localItem.visualGalleryCount || localVisuals.length || 0),
+    databaseRecord: remoteItem.databaseRecord || localItem.databaseRecord || null,
+    createdAt: localItem.createdAt || remoteItem.createdAt || new Date().toISOString(),
+    updatedAt: remoteItem.updatedAt || localItem.updatedAt || localItem.createdAt || remoteItem.createdAt || new Date().toISOString(),
+  };
+}
+
+async function syncHistoryWithDataApi(limit = 50) {
+  if (typeof fetchGeneratedContentFromDataApi !== "function") return getHistory();
+  if (historySyncPromise) return historySyncPromise;
+
+  historySyncPromise = (async () => {
+    let remoteItems = [];
+    try {
+      remoteItems = await fetchGeneratedContentFromDataApi(limit);
+    } catch (error) {
+      console.warn("Could not sync generated note history from the data API:", error);
+      return getHistory();
+    }
+
+    if (!Array.isArray(remoteItems) || !remoteItems.length) {
+      return getHistory();
+    }
+
+    const localItems = getHistory();
+    const localIndexByKey = new Map();
+    localItems.forEach((item, index) => {
+      historyIdentityKeys(item).forEach(key => {
+        if (!localIndexByKey.has(key)) localIndexByKey.set(key, index);
+      });
+    });
+
+    const usedLocalIndices = new Set();
+    const mergedItems = [];
+
+    remoteItems
+      .map(normalizeRemoteHistoryEntry)
+      .forEach(remoteItem => {
+        const localIndex = historyIdentityKeys(remoteItem).reduce((match, key) => {
+          if (match >= 0) return match;
+          const candidate = localIndexByKey.get(key);
+          return Number.isInteger(candidate) ? candidate : -1;
+        }, -1);
+
+        if (localIndex >= 0) {
+          usedLocalIndices.add(localIndex);
+          mergedItems.push(mergeHistoryItem(localItems[localIndex], remoteItem));
+          return;
+        }
+
+        mergedItems.push(remoteItem);
+      });
+
+    localItems.forEach((item, index) => {
+      if (!usedLocalIndices.has(index)) mergedItems.push(item);
+    });
+
+    const nextItems = mergedItems
+      .filter(item => item && item.id)
+      .sort((left, right) => historyTimestampValue(right.updatedAt || right.createdAt) - historyTimestampValue(left.updatedAt || left.createdAt))
+      .slice(0, 20);
+
+    setHistory(nextItems);
+    renderHistory(historySearch ? historySearch.value : "");
+    if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
+    if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
+    return nextItems;
+  })();
+
+  try {
+    return await historySyncPromise;
+  } finally {
+    historySyncPromise = null;
+  }
 }
 
 function findHistoryByFingerprint(fingerprint) {
@@ -580,12 +750,6 @@ function renderHistoryItemsHTML(items) {
         <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
         <div class="history-item-meta">${formatHistoryDate(item.createdAt)}</div>
       </button>
-      <button class="history-focus-room-btn" type="button"
-              title="Study in Focus Room"
-              aria-label="Study ${escapeAttr(makeHistoryTitle(item))} in Focus Room"
-              onclick="event.preventDefault(); event.stopPropagation(); openSynapseFocusRoom('${escapeAttr(item.id)}')">
-        <i class="bi bi-door-open"></i>
-      </button>
       <button class="history-delete-btn" type="button"
               title="Delete this history item"
               aria-label="Delete ${escapeAttr(makeHistoryTitle(item))}"
@@ -616,6 +780,15 @@ async function deleteHistoryEntry(event, id) {
   const confirmed = window.confirm(`Delete "${title}" from history?`);
   if (!confirmed) return;
 
+  const remoteId = String(target?.databaseRecord?.id || target?.database_record?.id || target?.id || "").trim();
+  if (remoteId && typeof deleteGeneratedContentFromDataApi === "function") {
+    try {
+      await deleteGeneratedContentFromDataApi(remoteId);
+    } catch (error) {
+      console.warn(`Could not delete generated note ${remoteId} from the data API:`, error);
+    }
+  }
+
   setHistory(items.filter(item => item.id !== id));
   await deleteVisualGalleryAssets(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   await deleteSourceAssets(id, target?.sourceFingerprint || target?.clientFingerprint || "");
@@ -642,9 +815,10 @@ async function loadHistoryEntry(id, options = {}) {
   connectionsData = item.connections || [];
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
   currentHistoryId = item.id;
-  currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || "";
+  currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || item.source_identity || "";
   currentPromptMode = item.promptMode || item.prompt_mode || "professor_mode";
   currentPromptModeLabel = item.promptModeLabel || item.prompt_mode_label || "";
+  currentAiGeneration = normaliseAiGenerationDiagnostics(item.aiGeneration || item.ai_generation || null);
   const localVisuals = Array.isArray(item.visualGallery) ? item.visualGallery : [];
   const restoredVisuals = await loadVisualGalleryAssets(id, currentSourceFingerprint);
   visualGalleryData = normalizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);

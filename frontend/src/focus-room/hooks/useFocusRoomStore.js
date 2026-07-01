@@ -1,8 +1,10 @@
 import { create } from "zustand/react";
 import {
+  clearFocusRoomActiveSession,
   FOCUS_ROOM_SCENES,
   formatFocusRoomDuration,
   getFocusRoomMaterial,
+  readFocusRoomActiveSessionForMaterial,
   readFocusRoomDraft,
   readFocusRoomSessions,
   saveFocusRoomSession,
@@ -59,9 +61,40 @@ function persistDraftFromState(source) {
     durationMinutes: clampDuration(source.pomodoroDuration),
     studyGoal: source.studyGoal,
     studyPlan: normalizeStudyPlanItems(source.studyPlan),
+    completedTasks: Array.isArray(source.completedTasks) ? source.completedTasks.filter(Boolean) : [],
+    workspaceNotes: String(source.workspaceNotes || ""),
+    workspaceUpdatedAt: source.workspaceUpdatedAt || "",
     updatedAt: new Date().toISOString()
   };
   writeFocusRoomDraft(root);
+}
+
+function draftCompletedTasks(draft) {
+  return Array.isArray(draft?.completedTasks)
+    ? draft.completedTasks.map(item => String(item || "").trim()).filter(Boolean)
+    : [];
+}
+
+function normalizeAssistantContext(context = {}) {
+  return {
+    sectionTitle: String(context.sectionTitle || "").trim(),
+    excerpt: String(context.excerpt || "").trim().slice(0, 1800)
+  };
+}
+
+function normalizeSourceHighlight(highlight = null) {
+  if (!highlight || typeof highlight !== "object") return null;
+  return {
+    id: String(highlight.id || "").trim(),
+    title: String(highlight.title || "").trim(),
+    excerpt: String(highlight.excerpt || "").trim().slice(0, 1800),
+    sourceId: String(highlight.sourceId || highlight.source_id || "").trim(),
+    sourceIndex: Number(highlight.sourceIndex || highlight.source_index || 0) || 0,
+    sourceLabel: String(highlight.sourceLabel || highlight.source_label || "").trim(),
+    sourceKind: String(highlight.sourceKind || highlight.source_kind || "").trim(),
+    sectionTitle: String(highlight.sectionTitle || highlight.section_title || "").trim(),
+    kind: String(highlight.kind || "evidence").trim()
+  };
 }
 
 function hydratedMaterialState(material, previous = {}) {
@@ -77,6 +110,9 @@ function hydratedMaterialState(material, previous = {}) {
   const studyGoal = String(draft?.studyGoal || `Study ${material?.materialTitle || "this material"}`);
   const draftPlan = normalizeStudyPlanItems(draft?.studyPlan);
   const studyPlan = draftPlan.length ? draftPlan : buildPlanForState(material, studyGoal, pomodoroDuration);
+  const completedTasks = draftCompletedTasks(draft);
+  const workspaceNotes = String(draft?.workspaceNotes || "");
+  const workspaceUpdatedAt = draft?.workspaceUpdatedAt || draft?.updatedAt || "";
 
   return {
     selectedScene,
@@ -86,7 +122,46 @@ function hydratedMaterialState(material, previous = {}) {
     ambientVolume,
     pomodoroDuration,
     studyGoal,
-    studyPlan
+    studyPlan,
+    completedTasks,
+    workspaceNotes,
+    workspaceUpdatedAt
+  };
+}
+
+function restoreActiveSessionState(materialId) {
+  const snapshot = readFocusRoomActiveSessionForMaterial(materialId);
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const restoredStatus = snapshot.timerStatus === "studying" ? "paused" : String(snapshot.timerStatus || "idle");
+  return {
+    route: snapshot.view === "session" ? "session" : "setup",
+    view: snapshot.view === "session" ? "session" : "setup",
+    timerStatus: ["idle", "paused", "completed"].includes(restoredStatus) ? restoredStatus : "idle",
+    elapsedSeconds: Math.max(0, Number(snapshot.elapsedSeconds) || 0),
+    startedAt: snapshot.startedAt || null,
+    currentSession: snapshot.currentSession || null,
+    completedTasks: Array.isArray(snapshot.completedTasks) ? snapshot.completedTasks.filter(Boolean) : [],
+    flashcardIndex: Math.max(0, Number(snapshot.flashcardIndex) || 0),
+    flashcardSide: snapshot.flashcardSide === "back" ? "back" : "front",
+    flashcardProgress: snapshot.flashcardProgress && typeof snapshot.flashcardProgress === "object" && !Array.isArray(snapshot.flashcardProgress)
+      ? snapshot.flashcardProgress
+      : {},
+    quizAnswers: snapshot.quizAnswers && typeof snapshot.quizAnswers === "object" && !Array.isArray(snapshot.quizAnswers)
+      ? snapshot.quizAnswers
+      : {},
+    quizChecked: snapshot.quizChecked && typeof snapshot.quizChecked === "object" && !Array.isArray(snapshot.quizChecked)
+      ? snapshot.quizChecked
+      : {},
+    chatMessages: normalizeChatMessages(snapshot.chatMessages),
+    chatPending: false,
+    chatError: "",
+    panelTab: PANEL_TABS.has(snapshot.panelTab) ? snapshot.panelTab : "materials",
+    workspaceNotes: String(snapshot.workspaceNotes || ""),
+    workspaceUpdatedAt: snapshot.workspaceUpdatedAt || snapshot.updatedAt || "",
+    activeNoteSection: String(snapshot.activeNoteSection || ""),
+    activeSourceHighlight: normalizeSourceHighlight(snapshot.activeSourceHighlight),
+    assistantContext: normalizeAssistantContext(snapshot.assistantContext),
+    audioPlaying: false
   };
 }
 
@@ -122,7 +197,7 @@ function focusQuizMistakesFromState(state) {
     .filter(Boolean);
 }
 
-async function requestFocusAssistantAnswer(question, chatHistory, material) {
+async function requestFocusAssistantAnswer(question, chatHistory, material, assistantContext = {}) {
   if (!globalThis.apiClient || typeof globalThis.apiClient.fetch !== "function") {
     return {
       answer: focusAssistantReply(question, material, useFocusRoomStore.getState().studyGoal),
@@ -135,7 +210,9 @@ async function requestFocusAssistantAnswer(question, chatHistory, material) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       question,
-      selected_section: material?.studyHeadings?.[0] || "",
+      selected_section: assistantContext.sectionTitle || material?.studyHeadings?.[0] || "",
+      selected_excerpt: assistantContext.excerpt || "",
+      source_strict: Boolean(material?.isSourceRestricted),
       preferred_language: globalThis.preferredLanguage?.value || "auto",
       title: material?.materialTitle || "Study material",
       summary: material?.aiSummary || material?.summaryText || "",
@@ -170,6 +247,9 @@ export const useFocusRoomStore = create((set, get) => {
   return {
     route: "workspace",
     view: "setup",
+    materials: [],
+    materialsStatus: "idle",
+    materialsError: "",
     selectedMaterialId: "",
     selectedMaterial: null,
     selectedScene: scene.id,
@@ -182,9 +262,6 @@ export const useFocusRoomStore = create((set, get) => {
     studyGoal: "",
     studyPlan: [],
     aiPanelOpen: false,
-    planDrawerOpen: false,
-    workspaceOpen: false,
-    historyOpen: false,
     isIdle: false,
     currentSession: null,
     sessionHistory: [],
@@ -192,7 +269,7 @@ export const useFocusRoomStore = create((set, get) => {
     audioPlaying: false,
     elapsedSeconds: 0,
     startedAt: null,
-    panelTab: "summary",
+    panelTab: "materials",
     summaryRecord: null,
     completedTasks: [],
     flashcardIndex: 0,
@@ -200,11 +277,24 @@ export const useFocusRoomStore = create((set, get) => {
     flashcardProgress: {},
     quizAnswers: {},
     quizChecked: {},
+    workspaceNotes: "",
+    workspaceUpdatedAt: "",
+    activeNoteSection: "",
+    activeSourceHighlight: null,
+    assistantContext: { sectionTitle: "", excerpt: "" },
     chatMessages: [],
     chatPending: false,
     chatError: "",
 
     setIdle: isIdle => set({ isIdle }),
+
+    setMaterialsState({ items = [], status = "ready", error = "" } = {}) {
+      set({
+        materials: Array.isArray(items) ? items : [],
+        materialsStatus: status === "error" ? "error" : (status === "loading" ? "loading" : "ready"),
+        materialsError: String(error || "")
+      });
+    },
 
     hydrateFocusRoute(route, material, { preserveSession = false } = {}) {
       const previous = get();
@@ -218,42 +308,53 @@ export const useFocusRoomStore = create((set, get) => {
           selectedMaterialId,
           selectedMaterial: null,
           aiPanelOpen: false,
-          planDrawerOpen: false,
-          workspaceOpen: false,
           activeDrawer: "",
           summaryRecord: null,
-          studyPlan: []
+          studyPlan: [],
+          workspaceNotes: "",
+          workspaceUpdatedAt: "",
+          activeNoteSection: "",
+          activeSourceHighlight: null,
+          assistantContext: { sectionTitle: "", excerpt: "" }
         });
         return;
       }
 
       const sameMaterial = previous.selectedMaterialId === selectedMaterialId;
+      const restoredSession = sameMaterial && preserveSession
+        ? null
+        : restoreActiveSessionState(selectedMaterialId);
       const hydrated = sameMaterial && preserveSession
         ? {}
         : hydratedMaterialState(material, previous);
+      const freshSessionState = sameMaterial && preserveSession ? {} : {
+        timerStatus: "idle",
+        elapsedSeconds: 0,
+        startedAt: null,
+        currentSession: null,
+        ...resetProgressState(),
+        chatMessages: [],
+        chatPending: false,
+        chatError: "",
+        activeNoteSection: "",
+        activeSourceHighlight: null,
+        assistantContext: { sectionTitle: "", excerpt: "" }
+      };
+      const nextView = sameMaterial && preserveSession
+        ? (previous.view === "session" ? "session" : "setup")
+        : (restoredSession?.view === "session" ? "session" : "setup");
 
       set({
         ...hydrated,
-        route: preserveSession && sameMaterial && previous.view === "session" ? "session" : "setup",
-        view: preserveSession && sameMaterial && previous.view === "session" ? "session" : "setup",
+        ...freshSessionState,
+        ...restoredSession,
+        route: nextView,
+        view: nextView,
         selectedMaterialId,
         selectedMaterial: material,
         aiPanelOpen: false,
-        planDrawerOpen: false,
-        workspaceOpen: false,
-        historyOpen: false,
         activeDrawer: "",
-        summaryRecord: null,
-        ...(sameMaterial && preserveSession ? {} : {
-          timerStatus: "idle",
-          elapsedSeconds: 0,
-          startedAt: null,
-          currentSession: null,
-          ...resetProgressState(),
-          chatMessages: [],
-          chatPending: false,
-          chatError: ""
-        })
+        summaryRecord: null
       });
     },
 
@@ -262,9 +363,6 @@ export const useFocusRoomStore = create((set, get) => {
         route: "history",
         view: "history",
         aiPanelOpen: false,
-        planDrawerOpen: false,
-        workspaceOpen: false,
-        historyOpen: true,
         activeDrawer: "",
         summaryRecord: null,
         sessionHistory: readFocusRoomSessions()
@@ -328,31 +426,56 @@ export const useFocusRoomStore = create((set, get) => {
 
     openDrawer(activeDrawer) {
       set({
-        activeDrawer,
-        planDrawerOpen: activeDrawer === "plan",
-        workspaceOpen: activeDrawer === "workspace",
-        historyOpen: activeDrawer === "history"
+        activeDrawer
       });
     },
 
     closeDrawer() {
       set({
-        activeDrawer: "",
-        planDrawerOpen: false,
-        workspaceOpen: false,
-        historyOpen: false
+        activeDrawer: ""
       });
     },
 
-    toggleAIPanel() {
-      set(state => ({ aiPanelOpen: !state.aiPanelOpen }));
+    toggleAIPanel(nextOpen = null) {
+      set(state => ({ aiPanelOpen: typeof nextOpen === "boolean" ? nextOpen : !state.aiPanelOpen }));
+    },
+
+    openStudyPanel(tab = "materials") {
+      const nextTab = PANEL_TABS.has(String(tab || "")) ? String(tab) : "materials";
+      set({
+        panelTab: nextTab,
+        aiPanelOpen: true,
+        activeDrawer: ""
+      });
+    },
+
+    selectSourceHighlight(highlight = null, { openPanel = true } = {}) {
+      const activeSourceHighlight = normalizeSourceHighlight(highlight);
+      set({
+        activeSourceHighlight,
+        activeNoteSection: activeSourceHighlight?.sectionTitle || get().activeNoteSection || "",
+        assistantContext: activeSourceHighlight
+          ? normalizeAssistantContext({
+              sectionTitle: activeSourceHighlight.sectionTitle,
+              excerpt: activeSourceHighlight.excerpt
+            })
+          : get().assistantContext,
+        ...(openPanel ? { panelTab: "sources", aiPanelOpen: true, activeDrawer: "" } : {})
+      });
+    },
+
+    setActiveNoteSection(sectionTitle = "") {
+      set({
+        activeNoteSection: String(sectionTitle || "").trim()
+      });
     },
 
     setPanelTab(tab) {
-      const nextTab = String(tab || "summary");
+      const nextTab = String(tab || "materials");
       set({
-        panelTab: PANEL_TABS.has(nextTab) ? nextTab : "summary",
-        aiPanelOpen: true
+        panelTab: PANEL_TABS.has(nextTab) ? nextTab : "materials",
+        aiPanelOpen: true,
+        activeDrawer: ""
       });
     },
 
@@ -474,18 +597,35 @@ export const useFocusRoomStore = create((set, get) => {
         completedTasks: state.completedTasks,
         recommendedNextStep: "Return to your notes, review any unchecked tasks, then start another short focus block."
       });
+      clearFocusRoomActiveSession(material.materialId);
 
       set({
         summaryRecord: record,
         sessionHistory: readFocusRoomSessions(),
         timerStatus: "completed",
         audioPlaying: false,
-        elapsedSeconds: total ? Math.min(total, state.elapsedSeconds) : state.elapsedSeconds
+        elapsedSeconds: total ? Math.min(total, state.elapsedSeconds) : state.elapsedSeconds,
+        currentSession: null
       });
     },
 
     closeSummary() {
       set({ summaryRecord: null });
+    },
+
+    setWorkspaceNotes(value) {
+      set(state => {
+        const next = {
+          workspaceNotes: String(value ?? ""),
+          workspaceUpdatedAt: new Date().toISOString()
+        };
+        persistDraftFromState({ ...state, ...next });
+        return next;
+      });
+    },
+
+    setAssistantContext(context = {}) {
+      set({ assistantContext: normalizeAssistantContext(context) });
     },
 
     toggleTask(index) {
@@ -618,7 +758,7 @@ export const useFocusRoomStore = create((set, get) => {
       });
 
       try {
-        const result = await requestFocusAssistantAnswer(text, priorChatHistory, material);
+        const result = await requestFocusAssistantAnswer(text, priorChatHistory, material, state.assistantContext);
         set(nextState => ({
           chatMessages: normalizeChatMessages([
             ...nextState.chatMessages,

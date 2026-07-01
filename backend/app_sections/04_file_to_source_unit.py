@@ -14,13 +14,26 @@ def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List
     }
 
     if content_type and content_type.startswith("image/"):
+        visual_label = {
+            "type": "text",
+            "text": (
+                f"IN-TEXT SOURCE FIGURE FROM {name} - uploaded image source. "
+                "This uploaded image is primary source evidence. Inspect the actual image for any "
+                "chart, table, graph, diagram, formula, data, result, comparison, method figure, "
+                "screenshot text, or labelled teaching structure before deciding whether it is useful."
+            ),
+        }
+        image_part = image_part_from_bytes(data, content_type)
         parts.append({
             "type": "text",
             "text": f"\n\nSOURCE FILE: {name}\nThis is an uploaded image. Use the attached image as primary evidence.",
         })
-        parts.append(image_part_from_bytes(data, content_type))
-        source_meta["text_excerpt"] = f"Uploaded image file: {name}. Visual analysis should use the attached image."
-        source_meta["visual_parts"] = [parts[-1]]
+        parts.append(visual_label)
+        parts.append(image_part)
+        source_meta["text_excerpt"] = (
+            f"Uploaded image file: {name}. Visual analysis should use the attached image as primary source evidence."
+        )
+        source_meta["visual_parts"] = [visual_label, image_part]
         return parts, source_meta
 
     is_audio_video = (
@@ -208,13 +221,17 @@ def build_analysis_fingerprint(
     depth: str = "auto",
     prompt_mode: str = "professor_mode",
     note_length_mode: str = "standard_notes",
+    ai_provider: str = "",
 ) -> str:
     identity_bits = [
         f"cache:{globals().get('CACHE_VERSION', 'v0')}",
+        f"visual_pipeline:{globals().get('VISUAL_PIPELINE_VERSION', 'visual-v0')}",
+        f"ai_provider:{normalise_text_provider(ai_provider) if 'normalise_text_provider' in globals() else (ai_provider or 'openai')}",
         f"lang:{preferred_language or 'auto'}",
         f"depth:{depth or 'auto'}",
         f"prompt_mode:{normalise_note_prompt_mode(prompt_mode)}",
         f"note_length:{normalise_note_length_mode(note_length_mode)}",
+        f"prompt_hash:{prompt_mode_prompt_hash(prompt_mode)}",
     ]
     for unit in units:
         source_identity = unit.get("source_identity") or ""
@@ -292,9 +309,15 @@ def normalise_language_key(preferred_language: str) -> str:
         "zh": "simplified_chinese",
         "zh_cn": "simplified_chinese",
         "zh_hans": "simplified_chinese",
+        "chinese": "simplified_chinese",
+        "中文": "simplified_chinese",
+        "简体": "simplified_chinese",
+        "简体中文": "simplified_chinese",
         "simplified": "simplified_chinese",
         "zh_tw": "traditional_chinese",
         "zh_hant": "traditional_chinese",
+        "繁體": "traditional_chinese",
+        "繁體中文": "traditional_chinese",
         "traditional": "traditional_chinese",
         "ja": "japanese",
         "jp": "japanese",
@@ -355,7 +378,7 @@ def resolve_generation_language_key(preferred_language: str, source_text: str = 
     key = normalise_language_key(preferred_language)
     if key != "auto":
         return key
-    return detect_dominant_source_language_key(source_text)
+    return "english"
 
 
 REALTIME_TRANSCRIPTION_LANGUAGE_CODES = {
@@ -408,67 +431,85 @@ def language_instruction_for_generation(preferred_language: str, source_text: st
     requested_key = normalise_language_key(preferred_language)
     if requested_key != "auto":
         return language_instruction_for(requested_key)
-    detected_key = resolve_generation_language_key(preferred_language, source_text)
-    detected_name = target_language_name(detected_key)
+    default_key = resolve_generation_language_key(preferred_language, source_text)
     return (
-        f"Auto language detected from the uploaded source as {detected_name}. "
-        f"{LANGUAGE_POLICIES[detected_key]['instruction']} "
+        "Auto language uses English by default. "
+        f"{LANGUAGE_POLICIES[default_key]['instruction']} "
         "Keep the entire generated notes page in this one language. "
         "Do not use bilingual headings or add translations from another language."
     )
 
 
 def source_strict_note_structure_for_language(preferred_language: str, source_text: str = "") -> str:
-    key = resolve_generation_language_key(preferred_language, source_text)
-    if key in {"simplified_chinese", "mixed_chinese_english"}:
-        return "\n".join([
-            "# [具体主题标题]",
-            "## 学习问题",
-            "## 关键结论",
-            "## 核心概念图",
-            "## 分章节主笔记",
-            "## 关键术语表",
-            "## 案例 / 例子拆解",
-            "## 证据库",
-            "## 考试答题模板",
-            "## 常见错误",
-            "## 复习清单",
-            "## 闪卡速记总结",
-        ])
-    if key == "traditional_chinese":
-        return "\n".join([
-            "# [具體主題標題]",
-            "## 學習問題",
-            "## 關鍵結論",
-            "## 核心概念圖",
-            "## 分章節主筆記",
-            "## 關鍵術語表",
-            "## 案例 / 例子拆解",
-            "## 證據庫",
-            "## 考試答題模板",
-            "## 常見錯誤",
-            "## 複習清單",
-            "## 閃卡速記總結",
-        ])
     return "\n".join([
         "# [specific topic title]",
-        "## Learning Question",
-        "## Key Takeaways",
-        "## Core Concept Map",
-        "## Main Notes by Lecture Section",
-        "## Key Terms Table",
-        "## Case Study / Example Breakdown",
-        "## Evidence Bank",
-        "## Exam Answer Templates",
-        "## Common Mistakes",
-        "## Revision Checklist",
-        "## Flashcard-ready Summary",
+        "## Source Question",
+        "## Direct Source Claims",
+        "## Source Evidence",
+        "## Inferences Allowed By The Source",
+        "## Gaps / Limits",
+        "## Exam / Research Use",
+        "## Compact Revision Summary",
     ])
 
 
 def note_structure_for_language(preferred_language: str, source_text: str = "", prompt_mode: str = "professor_mode") -> str:
-    if normalise_note_prompt_mode(prompt_mode) == "source_strict_research_mode":
+    prompt_mode_key = normalise_note_prompt_mode(prompt_mode)
+    if prompt_mode_key == "source_strict_research_mode":
         return source_strict_note_structure_for_language(preferred_language, source_text)
+    if prompt_mode_key == "quick_answer":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Direct Answer",
+            "## Why",
+            "## What To Do / Remember",
+        ])
+    if prompt_mode_key == "detailed_explanation":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Main Idea",
+            "## Key Concepts",
+            "## Step-by-Step Explanation",
+            "## Examples / Diagrams / Formulas",
+            "## Common Confusions",
+            "## Practice / Revision Checklist",
+        ])
+    if prompt_mode_key == "professor_mode":
+        return "\n".join([
+            "# Professional Study Guide: [specific topic title]",
+            "## 1. Big Picture: What This Material Is Really About",
+            "## 2. The Exam Will Probably Test These Ideas",
+            "## 3. What You Actually Need To Understand",
+            "## 4. Deep Explanation of the Core Concepts",
+            "## 5. Concept Connections: How The Ideas Work Together",
+            "## 6. Background Knowledge Needed To Understand This Properly",
+            "## 7. How To Apply This To New Questions",
+            "## 8. Common Mistakes That Lose Marks",
+            "## 9. High-Quality Student Thinking",
+            "## 10. Model High-Quality Answers",
+            "## 11. Exam Question Bank",
+            "## 12. Memory and Practice",
+        ])
+    if prompt_mode_key == "tutor_mode":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Start From The Basic Idea",
+            "## Build The Concept Step By Step",
+            "## Where Students Usually Get Confused",
+            "## Worked Example / Guided Explanation",
+            "## Try This",
+            "## Check Your Understanding",
+        ])
+    if prompt_mode_key == "assignment_apa_mode":
+        return "\n".join([
+            "# [specific topic title]",
+            "## Working Thesis / Answer",
+            "## APA-Style Outline",
+            "## Evidence Paragraphs",
+            "## Application / Analysis",
+            "## Counterpoint or Limitation",
+            "## References From Uploaded Sources",
+        ])
     key = resolve_generation_language_key(preferred_language, source_text)
     if key in {"simplified_chinese", "mixed_chinese_english"}:
         return "\n".join([
@@ -563,7 +604,7 @@ def polish_note_readability_markdown(summary: str, preferred_language: str = "au
         (r"Key terms(?: and mechanisms)?|关键术语与机制|關鍵術語與機制", "Key Terms and Mechanisms", "关键术语与机制", "關鍵術語與機制"),
         (r"Concepts? explained(?: with source evidence)?|结合源内证据讲解概念|結合源內證據講解概念", "Concepts Explained With Source Evidence", "结合源内证据讲解概念", "結合源內證據講解概念"),
         (r"Reading the source evidence|源内证据怎么读|源內證據怎麼讀", "Reading the Source Evidence", "源内证据怎么读", "源內證據怎麼讀"),
-        (r"Worked examples?(?: and evidence matrix)?|Source evidence\s*/\s*example matrix|例子与证据表|例子與證據表", "Worked Examples and Evidence", "例子与证据", "例子與證據"),
+        (r"Worked examples?(?!\s*/\s*guided)(?: and evidence matrix)?|Source evidence\s*/\s*example matrix|例子与证据表|例子與證據表", "Worked Examples and Evidence", "例子与证据", "例子與證據"),
         (r"Exam strategy(?: and common student mistakes)?|考试策略与常见错误|考試策略與常見錯誤", "Exam Strategy and Common Mistakes", "考试策略与常见错误", "考試策略與常見錯誤"),
         (r"How to use major pieces of source evidence|Using source evidence|使用源内证据|使用源內證據", "Using Source Evidence", "使用源内证据", "使用源內證據"),
         (r"Common mistakes|常见错误|常見錯誤", "Common Mistakes", "常见错误", "常見錯誤"),
@@ -725,6 +766,54 @@ def source_looks_academic_or_dense(source_context: str) -> bool:
     return count_readable_units(source_context) >= 1800 or signals >= 14
 
 
+PROFESSIONAL_TEMPLATE_PHRASES = (
+    "add only the background knowledge that makes the source easier to understand",
+    "to transfer the idea, identify the concept",
+    "a strong answer does more than repeat the source",
+    "use this sequence: define the concept",
+    "a high-quality response states the key judgement clearly",
+    "the value of this material is not just what the source says",
+    "the key task is to understand the central ideas",
+    "focus on the mental model behind the content",
+    "connect the material as a learning chain",
+)
+
+SOURCE_ANCHOR_STOPWORDS = {
+    "about", "accessed", "after", "again", "against", "answer", "appears", "because",
+    "before", "being", "between", "channel", "could", "definition", "describes",
+    "discussion", "document", "duration", "example", "explains", "figure", "first",
+    "from", "general", "important", "inside", "lecture", "material", "metadata",
+    "model", "notes", "original", "provided", "readable", "really", "section",
+    "source", "states", "study", "terms", "text", "their", "there", "these",
+    "thing", "title", "transcript", "uploaded", "video", "where", "which", "with",
+    "would", "youtube",
+    "course", "dr", "intro", "older", "outline", "psych", "slide", "slides",
+    "week", "wiser", "broader", "christopher", "contemporary", "field", "growing",
+    "ideas", "major", "picture", "place", "students", "think", "understand", "views",
+}
+
+
+def source_specific_anchor_terms(source_context: str, limit: int = 18) -> List[str]:
+    terms: List[str] = []
+    seen = set()
+    for token in re.findall(r"\b[A-Za-z][A-Za-z'-]{4,}\b", source_context or ""):
+        term = token.strip("'").lower()
+        if term in SOURCE_ANCHOR_STOPWORDS or len(term) < 5:
+            continue
+        if term in seen:
+            continue
+        seen.add(term)
+        terms.append(term)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def source_anchor_hit_count(summary: str, source_context: str) -> int:
+    lower_summary = (summary or "").lower()
+    return sum(1 for term in source_specific_anchor_terms(source_context) if term in lower_summary)
+
+
 def advanced_notes_quality_flags(summary: str, source_context: str) -> List[str]:
     """Return detail gaps that should trigger a targeted expansion pass."""
     flags: List[str] = []
@@ -755,6 +844,11 @@ def advanced_notes_quality_flags(summary: str, source_context: str) -> List[str]
     for label, pattern in required_signals.items():
         if not re.search(pattern, lower, flags=re.I):
             flags.append(f"missing {label}")
+    if any(phrase in lower for phrase in PROFESSIONAL_TEMPLATE_PHRASES):
+        flags.append("professional output is template-like")
+    anchor_terms = source_specific_anchor_terms(source_context)
+    if len(anchor_terms) >= 5 and source_anchor_hit_count(text, source_context) < 3:
+        flags.append("too few source-specific concepts")
     return flags
 
 

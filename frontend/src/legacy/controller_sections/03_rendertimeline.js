@@ -463,6 +463,7 @@ function toggleTimelineComplete(eventId) {
       return;
     }
     timelineCompletedIds.add(id);
+    const targetEvent = getTimelineEventById(id);
     recordMasteryGraphPathProgress(targetEvent?.section || targetEvent?.title || id);
   }
   persistTimelineForCurrentNote();
@@ -655,9 +656,11 @@ function normalizeVisualImageGuide(data) {
     title: cleanVisualGuideGeneratedText(source.title || storedTitle || "Visual Image Guide"),
     imageDataUrl,
     model: cleanVisualGuideGeneratedText(source.model || "gpt-image-1.5"),
+    requestedModel: cleanVisualGuideGeneratedText(source.requested_model || source.requestedModel || ""),
     size: cleanVisualGuideGeneratedText(source.size || ""),
     quality: cleanVisualGuideGeneratedText(source.quality || ""),
     styleVersion: cleanVisualGuideGeneratedText(source.style_version || source.styleVersion || ""),
+    renderingNote: cleanVisualGuideGeneratedText(source.rendering_note || source.renderingNote || ""),
     blueprint: source.blueprint || null,
     imageProcessing: imageProcessing && typeof imageProcessing === "object" ? imageProcessing : {},
     created: source.created || new Date().toISOString(),

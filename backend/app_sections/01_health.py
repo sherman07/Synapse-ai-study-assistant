@@ -10,8 +10,8 @@ def health():
 
 
 @app.get("/health/openai")
-def health_openai():
-    return health_reporter.openai_status()
+def health_openai(probe: bool = False):
+    return health_reporter.openai_status(probe=probe)
 
 stored_summary = ""
 stored_sections: Dict[str, str] = {}
@@ -340,7 +340,7 @@ def estimate_learning_depth(source_text: str, source_units: Optional[List[dict]]
     if legal_markers >= 8:
         reason_bits.append("legal concepts")
     if academic_markers >= 8:
-        reason_bits.append("academic analysis")
+        reason_bits.append("advanced study analysis")
     if table_like >= 2:
         reason_bits.append("table or figure content")
     if visual_count >= 1:

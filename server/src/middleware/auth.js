@@ -35,6 +35,7 @@ async function supabaseIdentity(req) {
     clearTimeout(timeoutId);
   }
   const metadata = user.user_metadata || {};
+  const appMetadata = user.app_metadata || {};
   const email = user.email || metadata.email || "";
   const displayName = metadata.full_name || metadata.name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ") || email;
   const subject = user.id || email;
@@ -45,8 +46,12 @@ async function supabaseIdentity(req) {
     email,
     display_name: displayName,
     auth_mode: "supabase",
-    role: metadata.role || "student",
-    metadata: { supabase_user_id: user.id }
+    role: appMetadata.role || "student",
+    metadata: {
+      supabase_user_id: user.id,
+      provider: appMetadata.provider || "",
+      providers: Array.isArray(appMetadata.providers) ? appMetadata.providers : []
+    }
   };
 }
 

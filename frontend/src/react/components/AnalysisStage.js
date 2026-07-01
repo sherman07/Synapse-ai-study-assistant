@@ -42,6 +42,7 @@ export function AnalysisStage() {
         )
       )
     ),
+    h("div", { id: "examReadinessSummary", className: "exam-readiness-summary d-none", "aria-live": "polite" }),
     h(
       "div",
       { id: "loadingBox", className: "loading-box d-none" },

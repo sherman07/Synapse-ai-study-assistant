@@ -1,8 +1,18 @@
 import os
+from contextvars import ContextVar
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from openai import OpenAI
+
+try:
+    from google.auth import default as google_auth_default
+    from google.auth.exceptions import DefaultCredentialsError
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+except Exception:
+    google_auth_default = None
+    DefaultCredentialsError = Exception
+    GoogleAuthRequest = None
 
 
 def env_bool(name: str, default: str = "false") -> bool:
@@ -33,21 +43,104 @@ def env_str(name: str, default: str = "") -> str:
     return value or default
 
 
+PLACEHOLDER_ENV_MARKERS = (
+    "__ADD_",
+    "__YOUR",
+    "YOUR_",
+    "your_key_here",
+    "PASTE_",
+)
+
+
+def is_placeholder_env_value(value: str | None) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return True
+    upper_text = text.upper()
+    return any(marker.upper() in upper_text for marker in PLACEHOLDER_ENV_MARKERS)
+
+
+def apply_env_values(
+    values: dict,
+    *,
+    environ: dict | None = None,
+    override: bool = False,
+    override_placeholders: bool = False,
+) -> None:
+    target = environ if environ is not None else os.environ
+    for key, value in values.items():
+        if value is None:
+            continue
+        current = str(target.get(key, "") or "").strip()
+        should_replace = override or not current
+        if override_placeholders and current:
+            should_replace = should_replace or is_placeholder_env_value(current)
+        if should_replace:
+            target[key] = str(value).strip()
+
+
+def load_env_defaults(env_paths: tuple[Path, ...]) -> None:
+    for env_path in env_paths:
+        load_dotenv(env_path)
+
+
+def load_env_overrides_for_placeholders(env_paths: tuple[Path, ...]) -> None:
+    for env_path in env_paths:
+        if env_path.exists():
+            apply_env_values(
+                dotenv_values(env_path),
+                override_placeholders=True,
+            )
+
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_DIR.parent
-for env_path in (
+BASE_ENV_PATHS = (
     BACKEND_DIR / ".env",
     BACKEND_DIR / "core" / ".env",
     PROJECT_ROOT / ".env",
-):
-    load_dotenv(env_path)
+)
+GPT_ENV_PATHS = (
+    BACKEND_DIR / ".env.gpt",
+    BACKEND_DIR / "core" / ".env.gpt",
+    PROJECT_ROOT / ".env.gpt",
+)
+GEMINI_ENV_PATHS = (
+    BACKEND_DIR / ".env.gemini",
+    BACKEND_DIR / "core" / ".env.gemini",
+    PROJECT_ROOT / ".env.gemini",
+)
+CONFIG_ENV_PATHS = BASE_ENV_PATHS + GPT_ENV_PATHS + GEMINI_ENV_PATHS
+load_env_defaults(BASE_ENV_PATHS + GEMINI_ENV_PATHS)
+load_env_overrides_for_placeholders(GPT_ENV_PATHS)
 load_dotenv()
+
+AI_TEXT_PROVIDER = env_str("AI_TEXT_PROVIDER", "openai").lower()
+if AI_TEXT_PROVIDER not in {"openai", "gemini"}:
+    AI_TEXT_PROVIDER = "openai"
+REQUEST_AI_TEXT_PROVIDER: ContextVar[str] = ContextVar(
+    "REQUEST_AI_TEXT_PROVIDER",
+    default="",
+)
 
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_ORG_ID = (os.getenv("OPENAI_ORG_ID") or "").strip() or None
 OPENAI_PROJECT_ID = (os.getenv("OPENAI_PROJECT_ID") or "").strip() or None
 OPENAI_TIMEOUT_SECONDS = max(30.0, env_float("OPENAI_TIMEOUT_SECONDS", 240.0))
 ANALYSIS_MAX_SECONDS = max(60, env_int("ANALYSIS_MAX_SECONDS", 300))
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip()
+GEMINI_AUTH_MODE = env_str("GEMINI_AUTH_MODE", "api_key" if GEMINI_API_KEY else "adc").lower()
+if GEMINI_AUTH_MODE not in {"api_key", "adc"}:
+    GEMINI_AUTH_MODE = "api_key" if GEMINI_API_KEY else "adc"
+GEMINI_PROJECT_ID = env_str(
+    "GEMINI_PROJECT_ID",
+    env_str("GOOGLE_CLOUD_PROJECT", env_str("GCLOUD_PROJECT", "")),
+)
+GEMINI_LOCATION = env_str("GEMINI_LOCATION", "us-central1")
+GEMINI_OPENAI_BASE_URL = env_str(
+    "GEMINI_OPENAI_BASE_URL",
+    "https://generativelanguage.googleapis.com/v1beta/openai/",
+)
 
 client = (
     OpenAI(
@@ -59,22 +152,58 @@ client = (
     if OPENAI_API_KEY
     else None
 )
+gemini_client = (
+    OpenAI(
+        api_key=GEMINI_API_KEY,
+        base_url=GEMINI_OPENAI_BASE_URL,
+        timeout=OPENAI_TIMEOUT_SECONDS,
+    )
+    if GEMINI_API_KEY and GEMINI_AUTH_MODE == "api_key"
+    else None
+)
 
 DEFAULT_TEXT_MODEL = "gpt-5.4-mini"
-DEFAULT_REALTIME_MODEL = "gpt-realtime-mini"
+DEFAULT_GEMINI_TEXT_MODEL = "gemini-2.5-flash"
+DEFAULT_REALTIME_MODEL = "gpt-realtime-2"
 DEFAULT_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 DEFAULT_VISUAL_IMAGE_GUIDE_MODEL = "gpt-image-1.5"
 
-ANALYSIS_MODEL = env_str("OPENAI_ANALYSIS_MODEL", DEFAULT_TEXT_MODEL)
-CHAT_MODEL = env_str("OPENAI_CHAT_MODEL", DEFAULT_TEXT_MODEL)
-FALLBACK_MODEL = env_str("OPENAI_FALLBACK_MODEL", ANALYSIS_MODEL)
-MINDMAP_MODEL = env_str("OPENAI_MINDMAP_MODEL", ANALYSIS_MODEL)
-TITLE_MODEL = env_str("OPENAI_TITLE_MODEL", ANALYSIS_MODEL)
+OPENAI_ANALYSIS_MODEL_NAME = env_str("OPENAI_ANALYSIS_MODEL", DEFAULT_TEXT_MODEL)
+OPENAI_CHAT_MODEL_NAME = env_str("OPENAI_CHAT_MODEL", DEFAULT_TEXT_MODEL)
+OPENAI_FALLBACK_MODEL_NAME = env_str("OPENAI_FALLBACK_MODEL", OPENAI_ANALYSIS_MODEL_NAME)
+OPENAI_MINDMAP_MODEL_NAME = env_str("OPENAI_MINDMAP_MODEL", OPENAI_ANALYSIS_MODEL_NAME)
+OPENAI_TITLE_MODEL_NAME = env_str("OPENAI_TITLE_MODEL", OPENAI_ANALYSIS_MODEL_NAME)
+
+GEMINI_ANALYSIS_MODEL = env_str("GEMINI_ANALYSIS_MODEL", env_str("GEMINI_MODEL", DEFAULT_GEMINI_TEXT_MODEL))
+GEMINI_CHAT_MODEL = env_str("GEMINI_CHAT_MODEL", GEMINI_ANALYSIS_MODEL)
+GEMINI_FALLBACK_MODEL = env_str("GEMINI_FALLBACK_MODEL", GEMINI_CHAT_MODEL)
+GEMINI_MINDMAP_MODEL = env_str("GEMINI_MINDMAP_MODEL", GEMINI_ANALYSIS_MODEL)
+GEMINI_TITLE_MODEL = env_str("GEMINI_TITLE_MODEL", GEMINI_CHAT_MODEL)
+GEMINI_FOCUSED_MODEL = env_str("GEMINI_FOCUSED_MODEL", env_str("GEMINI_BRIEF_MODEL", GEMINI_ANALYSIS_MODEL))
+GEMINI_STANDARD_MODEL = env_str("GEMINI_STANDARD_MODEL", GEMINI_ANALYSIS_MODEL)
+GEMINI_DETAILED_MODEL = env_str("GEMINI_DETAILED_MODEL", GEMINI_ANALYSIS_MODEL)
+GEMINI_COMPREHENSIVE_MODEL = env_str(
+    "GEMINI_COMPREHENSIVE_MODEL",
+    env_str("GEMINI_DEEP_MODEL", GEMINI_ANALYSIS_MODEL),
+)
+
+if AI_TEXT_PROVIDER == "gemini":
+    ANALYSIS_MODEL = GEMINI_ANALYSIS_MODEL
+    CHAT_MODEL = GEMINI_CHAT_MODEL
+    FALLBACK_MODEL = GEMINI_FALLBACK_MODEL
+    MINDMAP_MODEL = GEMINI_MINDMAP_MODEL
+    TITLE_MODEL = GEMINI_TITLE_MODEL
+else:
+    ANALYSIS_MODEL = OPENAI_ANALYSIS_MODEL_NAME
+    CHAT_MODEL = OPENAI_CHAT_MODEL_NAME
+    FALLBACK_MODEL = OPENAI_FALLBACK_MODEL_NAME
+    MINDMAP_MODEL = OPENAI_MINDMAP_MODEL_NAME
+    TITLE_MODEL = OPENAI_TITLE_MODEL_NAME
 TRANSCRIBE_MODEL = env_str("OPENAI_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIBE_MODEL)
 REALTIME_MODEL = env_str("OPENAI_REALTIME_MODEL", DEFAULT_REALTIME_MODEL)
 REALTIME_VOICE = env_str("OPENAI_REALTIME_VOICE", "marin")
 VISUAL_IMAGE_GUIDE_MODEL = env_str("OPENAI_VISUAL_IMAGE_GUIDE_MODEL", DEFAULT_VISUAL_IMAGE_GUIDE_MODEL)
-VISUAL_IMAGE_GUIDE_SIZE = env_str("OPENAI_VISUAL_IMAGE_GUIDE_SIZE", "1536x1024")
+VISUAL_IMAGE_GUIDE_SIZE = env_str("OPENAI_VISUAL_IMAGE_GUIDE_SIZE", "1024x1536")
 VISUAL_IMAGE_GUIDE_QUALITY = env_str("OPENAI_VISUAL_IMAGE_GUIDE_QUALITY", "medium")
 
 ENABLE_TUTOR_WEB_RESEARCH = env_bool("ENABLE_TUTOR_WEB_RESEARCH", "true")
@@ -132,44 +261,168 @@ try:
     CACHE_PATH = RUNTIME_DIR / "synapse_analysis_cache.json"
 except Exception:
     CACHE_PATH = DEFAULT_CACHE_PATH
-CACHE_VERSION = "source_identity_mindmap_v64_prompt_modes"
+CACHE_VERSION = "source_identity_mindmap_v67_inline_visual_markers"
+VISUAL_PIPELINE_VERSION = "inline-visual-markers-v1"
 
+DEFAULT_CORS_ALLOW_ORIGINS = [
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
+    "http://127.0.0.1:5175",
+    "http://localhost:5175",
+    "http://127.0.0.1:5176",
+    "http://localhost:5176",
+]
 CORS_ALLOW_ORIGINS = env_list(
     "SYNAPSE_CORS_ALLOW_ORIGINS",
-    ",".join(
-        [
-            "http://127.0.0.1:5175",
-            "http://localhost:5175",
-        ]
-    ),
+    ",".join(DEFAULT_CORS_ALLOW_ORIGINS),
 )
+for origin in DEFAULT_CORS_ALLOW_ORIGINS:
+    if origin not in CORS_ALLOW_ORIGINS:
+        CORS_ALLOW_ORIGINS.append(origin)
 CORS_ALLOW_ORIGIN_REGEX = (
     os.getenv(
         "SYNAPSE_CORS_ALLOW_ORIGIN_REGEX",
-        "",
+        r"^http://(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}):(?:5175|5176|5500)$",
     ).strip()
     or None
 )
 CORS_ALLOW_CREDENTIALS = env_bool("SYNAPSE_CORS_ALLOW_CREDENTIALS", "false")
 
 
+def normalise_text_provider(provider: str = "") -> str:
+    value = provider if isinstance(provider, str) else ""
+    value = value.strip().lower()
+    if value in {"gpt", "openai", "chatgpt"}:
+        return "openai"
+    if value in {"gemini", "google", "vertex"}:
+        return "gemini"
+    return AI_TEXT_PROVIDER
+
+
+def active_text_provider() -> str:
+    return normalise_text_provider(REQUEST_AI_TEXT_PROVIDER.get() or AI_TEXT_PROVIDER)
+
+
+def set_request_text_provider(provider: str):
+    return REQUEST_AI_TEXT_PROVIDER.set(normalise_text_provider(provider))
+
+
+def reset_request_text_provider(token) -> None:
+    REQUEST_AI_TEXT_PROVIDER.reset(token)
+
+
 def model_for_depth(depth: str) -> str:
+    if active_text_provider() == "gemini":
+        if depth == "focused":
+            return GEMINI_FOCUSED_MODEL
+        if depth == "standard":
+            return GEMINI_STANDARD_MODEL
+        if depth == "detailed":
+            return GEMINI_DETAILED_MODEL
+        return GEMINI_COMPREHENSIVE_MODEL
     if depth == "focused":
-        return env_str("OPENAI_FOCUSED_MODEL", env_str("OPENAI_BRIEF_MODEL", ANALYSIS_MODEL))
+        return env_str("OPENAI_FOCUSED_MODEL", env_str("OPENAI_BRIEF_MODEL", OPENAI_ANALYSIS_MODEL_NAME))
     if depth == "standard":
-        return env_str("OPENAI_STANDARD_MODEL", ANALYSIS_MODEL)
+        return env_str("OPENAI_STANDARD_MODEL", OPENAI_ANALYSIS_MODEL_NAME)
     if depth == "detailed":
-        return env_str("OPENAI_DETAILED_MODEL", ANALYSIS_MODEL)
-    return env_str("OPENAI_COMPREHENSIVE_MODEL", env_str("OPENAI_DEEP_MODEL", ANALYSIS_MODEL))
+        return env_str("OPENAI_DETAILED_MODEL", OPENAI_ANALYSIS_MODEL_NAME)
+    return env_str("OPENAI_COMPREHENSIVE_MODEL", env_str("OPENAI_DEEP_MODEL", OPENAI_ANALYSIS_MODEL_NAME))
 
 
 def has_openai() -> bool:
     return bool(OPENAI_API_KEY and client is not None)
 
 
-def require_openai() -> None:
+def require_openai_api() -> None:
     if not has_openai():
         raise RuntimeError(
             "OPENAI_API_KEY is missing. Create backend/.env and add "
             "OPENAI_API_KEY=your_key_here, then restart uvicorn."
         )
+
+
+def google_auth_request():
+    if GoogleAuthRequest is None:
+        return None
+    return GoogleAuthRequest()
+
+
+def has_gemini_adc_credentials() -> bool:
+    if google_auth_default is None or not GEMINI_PROJECT_ID.strip():
+        return False
+    try:
+        google_auth_default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        return True
+    except DefaultCredentialsError:
+        return False
+    except Exception:
+        return False
+
+
+def gemini_vertex_openai_base_url() -> str:
+    project_id = GEMINI_PROJECT_ID.strip()
+    location = (GEMINI_LOCATION or "us-central1").strip() or "us-central1"
+    if location == "global":
+        return f"https://aiplatform.googleapis.com/v1beta1/projects/{project_id}/locations/global/endpoints/openapi"
+    return f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/endpoints/openapi"
+
+
+def gemini_adc_client():
+    if google_auth_default is None:
+        return None
+    if not GEMINI_PROJECT_ID.strip():
+        return None
+    credentials, _ = google_auth_default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    request = google_auth_request()
+    if request is None:
+        return None
+    credentials.refresh(request)
+    return OpenAI(
+        api_key=credentials.token,
+        base_url=gemini_vertex_openai_base_url(),
+        timeout=OPENAI_TIMEOUT_SECONDS,
+    )
+
+
+def text_generation_client():
+    if active_text_provider() == "gemini":
+        if GEMINI_AUTH_MODE == "adc":
+            return gemini_adc_client()
+        return gemini_client
+    return client
+
+
+def has_text_ai() -> bool:
+    if active_text_provider() == "gemini" and GEMINI_AUTH_MODE == "adc":
+        return GoogleAuthRequest is not None and has_gemini_adc_credentials()
+    return text_generation_client() is not None
+
+
+def require_text_ai() -> None:
+    if has_text_ai():
+        return
+    if active_text_provider() == "gemini":
+        if GEMINI_AUTH_MODE == "adc":
+            if google_auth_default is None or GoogleAuthRequest is None:
+                raise RuntimeError(
+                    "google-auth is missing. Install backend requirements, then restart uvicorn."
+                )
+            if not GEMINI_PROJECT_ID.strip():
+                raise RuntimeError(
+                    "GEMINI_PROJECT_ID is missing. Add it to backend/.env.gemini or set GOOGLE_CLOUD_PROJECT, then restart uvicorn."
+                )
+            if not has_gemini_adc_credentials():
+                raise RuntimeError(
+                    "Google Application Default Credentials are missing. Install Google Cloud CLI, run "
+                    "`gcloud auth application-default login`, then restart uvicorn."
+                )
+        raise RuntimeError(
+            "GEMINI_API_KEY is missing. Create backend/.env.gemini and add "
+            "GEMINI_API_KEY=your_key_here, then restart uvicorn."
+        )
+    require_openai_api()
+
+
+def require_openai() -> None:
+    """Backward-compatible text-model guard used by older route code."""
+    require_text_ai()

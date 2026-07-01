@@ -20,7 +20,13 @@ class HealthReporter:
         max_visual_images = self._get("MAX_VISUAL_IMAGES_PER_SOURCE")
         return {
             "status": "ok",
-            "api_key_loaded": bool(self._get("OPENAI_API_KEY")),
+            "api_key_loaded": bool(self._call("has_text_ai")),
+            "text_provider": self._get("AI_TEXT_PROVIDER", "openai"),
+            "openai_api_key_loaded": bool(self._get("OPENAI_API_KEY")),
+            "gemini_api_key_loaded": bool(self._get("GEMINI_API_KEY")),
+            "gemini_auth_mode": self._get("GEMINI_AUTH_MODE"),
+            "gemini_project_id_loaded": bool(self._get("GEMINI_PROJECT_ID")),
+            "gemini_location": self._get("GEMINI_LOCATION"),
             "org_id_loaded": bool(self._get("OPENAI_ORG_ID")),
             "project_id_loaded": bool(self._get("OPENAI_PROJECT_ID")),
             "analysis_model": self._get("ANALYSIS_MODEL"),
@@ -60,9 +66,25 @@ class HealthReporter:
             "source_pptx_local_app_fallback_enabled": self._get("ENABLE_LOCAL_PPTX_APP_RENDER"),
         }
 
-    def openai_status(self) -> dict:
+    def openai_status(self, probe: bool = False) -> dict:
         try:
-            self._get("require_openai")()
+            self._get("require_text_ai", self._get("require_openai"))()
+            payload = {
+                "status": "ok",
+                "probe": bool(probe),
+                "text_provider": self._get("AI_TEXT_PROVIDER", "openai"),
+                "model": self._get("CHAT_MODEL"),
+                "fallback_model": self._get("FALLBACK_MODEL"),
+                "org_id_loaded": bool(self._get("OPENAI_ORG_ID")),
+                "project_id_loaded": bool(self._get("OPENAI_PROJECT_ID")),
+            }
+            if not probe:
+                payload["reply"] = None
+                payload["message"] = (
+                    "Text AI credentials are configured. Add ?probe=true to run a live model check."
+                )
+                return payload
+
             messages = [{"role": "user", "content": "Reply with OK only."}]
             generate_chat = self._get("generate_chat")
             if callable(generate_chat):
@@ -75,17 +97,12 @@ class HealthReporter:
                     max_tokens=5,
                 )
                 reply = (response.choices[0].message.content or "").strip()
-            return {
-                "status": "ok",
-                "model": self._get("CHAT_MODEL"),
-                "fallback_model": self._get("FALLBACK_MODEL"),
-                "reply": reply,
-                "org_id_loaded": bool(self._get("OPENAI_ORG_ID")),
-                "project_id_loaded": bool(self._get("OPENAI_PROJECT_ID")),
-            }
+            payload["reply"] = reply
+            return payload
         except Exception as error:
             return {
                 "status": "error",
+                "probe": bool(probe),
                 "message": str(error),
                 "hint": (
                     "Check OPENAI_API_KEY, OPENAI_ORG_ID, OPENAI_PROJECT_ID, billing, "

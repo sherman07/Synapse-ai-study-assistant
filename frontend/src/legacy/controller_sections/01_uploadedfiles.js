@@ -54,6 +54,7 @@ const generateBtn = document.getElementById("generateBtn");
 const preferredLanguage = document.getElementById("preferredLanguage");
 const detailLevel = document.getElementById("detailLevel");
 const promptMode = document.getElementById("promptMode");
+const aiProvider = document.getElementById("aiProvider");
 const historyNav = document.getElementById("historyNav");
 const historyList = document.getElementById("historyList");
 const historySearch = document.getElementById("historySearch");
@@ -77,6 +78,7 @@ const SOURCE_HISTORY_LIMIT = 20;
 const MAX_SOURCE_PREVIEW_BYTES = 80 * 1024 * 1024;
 const ANALYSIS_TIMEOUT_MS = Number(window.SYNAPSE_ANALYSIS_TIMEOUT_MS || 8 * 60 * 1000);
 const SUMMARY_NAV_COLLAPSED_KEY = "synapse.summary.nav.collapsed.v1";
+const AI_PROVIDER_STORAGE_KEY = "synapse.ai.provider.v1";
 const VISUAL_STORE_CONFIG = {
   dbName: VISUAL_DB_NAME,
   version: VISUAL_DB_VERSION,
@@ -90,23 +92,61 @@ const SOURCE_STORE_CONFIG = {
   errorLabel: "source cache"
 };
 const NOTE_LENGTH_DESCRIPTIONS = {
-  quick_review: "300-500 words for a concise analysis or fast revision pass.",
-  standard_notes: "900-1400 words with balanced explanation and evidence.",
-  deep_study: "1800-2500 words for fuller exam preparation."
+  quick_review: "Low content depth: core answer, key source anchors, and fastest revision value.",
+  standard_notes: "Balanced content depth: source concepts, reasoning, examples, and revision use.",
+  deep_study: "High content depth: deeper reasoning, concept links, source examples, applications, limits, and mistakes."
 };
 const PROMPT_MODE_DESCRIPTIONS = {
   quick_answer: "Creates a concise answer focused on the fastest useful study points.",
   detailed_explanation: "Teaches the material in a fuller step-by-step explanation.",
-  professor_mode: "Builds academic argument, critical analysis, thesis statements, and essay-ready explanations from the source.",
+  professor_mode: "Goes beyond the source to explain deeper meaning, useful background knowledge, concept connections, application, mistakes, and high-quality student thinking.",
   tutor_mode: "Explains the source simply with guided learning support.",
   source_strict_research_mode: "Uses only the uploaded source with clear evidence discipline.",
   assignment_apa_mode: "Shapes source material into assignment-aware structure and APA-ready guidance."
 };
+const AI_PROVIDER_DESCRIPTIONS = {
+  "": "Backend default uses the provider selected in backend environment settings.",
+  openai: "GPT uses the OpenAI/GPT backend configuration.",
+  gemini: "Gemini uses the Gemini backend configuration with the same Synapse prompts."
+};
+
+function normaliseAiGenerationDiagnostics(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    source: String(value.source || ""),
+    provider: String(value.provider || ""),
+    modelCallCount: Number(value.model_call_count || value.modelCallCount || 0),
+    successfulModelCalls: Number(value.successful_model_calls || value.successfulModelCalls || 0),
+    failedModelCalls: Number(value.failed_model_calls || value.failedModelCalls || 0),
+    models: Array.isArray(value.models) ? value.models.map(item => String(item || "")).filter(Boolean).slice(0, 4) : [],
+    fallbackUsed: Boolean(value.fallback_used || value.fallbackUsed),
+    fallbackStages: Array.isArray(value.fallback_stages || value.fallbackStages)
+      ? (value.fallback_stages || value.fallbackStages).map(item => String(item || "")).filter(Boolean).slice(0, 6)
+      : [],
+    lastError: String(value.last_error || value.lastError || "").slice(0, 280)
+  };
+}
+
+function renderAiGenerationNotice() {
+  const diagnostics = currentAiGeneration;
+  if (!diagnostics || !diagnostics.fallbackUsed) return "";
+  const provider = diagnostics.provider ? diagnostics.provider.toUpperCase() : "AI";
+  const model = diagnostics.models.length ? ` Model: ${diagnostics.models.join(", ")}.` : "";
+  const reason = diagnostics.lastError ? ` Reason: ${diagnostics.lastError}` : "";
+  return `
+    <div class="alert alert-warning ai-generation-notice" role="status">
+      <strong>${escapeHTML(provider)} main generation did not complete.</strong>
+      Synapse showed local fallback notes instead of verified AI-generated notes.${escapeHTML(model + reason)}
+    </div>
+  `;
+}
+
 let currentSourceFingerprint = "";
 let currentHistoryId = "";
 let currentPrimarySourceIdentity = "";
 let currentPromptMode = "professor_mode";
-let currentPromptModeLabel = "Academic Analysis";
+let currentPromptModeLabel = "Professional Mode";
+let currentAiGeneration = null;
 let currentMindMap = null;
 let storedTitle = "Study Notes";
 let activeTool = "mindmap";
@@ -135,6 +175,8 @@ let voiceRealtimeConnected = false;
 let voiceRealtimeConnecting = false;
 let voiceRealtimeMuted = false;
 let voiceRealtimeAssistantDraft = "";
+let voiceRealtimeStreamingAssistantItem = null;
+let voiceRealtimeStreamingAssistantElement = null;
 let voiceRealtimeResponseActive = false;
 let voiceRealtimeTranscriptCommitted = false;
 let voiceRealtimeLastTranscriptText = "";
@@ -187,6 +229,33 @@ function updatePromptModeDescription() {
   }
 }
 
+function normaliseAiProvider(value) {
+  const provider = String(value || "").toLowerCase();
+  if (provider === "gemini") return "gemini";
+  if (provider === "openai" || provider === "gpt") return "openai";
+  return "";
+}
+
+function setAiProvider(value) {
+  const provider = normaliseAiProvider(value);
+  const providerInput = document.getElementById("aiProvider");
+  if (providerInput) providerInput.value = provider;
+  safeSetLocalStorage(AI_PROVIDER_STORAGE_KEY, provider);
+
+  document.querySelectorAll("[data-ai-provider]").forEach(button => {
+    const active = button.getAttribute("data-ai-provider") === provider;
+    button.classList.toggle("active", active);
+    button.classList.toggle("btn-primary", active);
+    button.classList.toggle("btn-outline-primary", !active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  const description = document.getElementById("aiProviderDescription");
+  if (description) {
+    description.textContent = AI_PROVIDER_DESCRIPTIONS[provider] || AI_PROVIDER_DESCRIPTIONS.openai;
+  }
+}
+
 document.addEventListener("change", event => {
   if (event?.target?.id === "noteLength") {
     updateNoteLengthDescription();
@@ -197,8 +266,11 @@ document.addEventListener("change", event => {
 });
 updateNoteLengthDescription();
 updatePromptModeDescription();
+const initialAiProvider = normaliseAiProvider(safeGetLocalStorage(AI_PROVIDER_STORAGE_KEY, aiProvider ? aiProvider.value : ""));
+setAiProvider(initialAiProvider);
 requestAnimationFrame(updateNoteLengthDescription);
 requestAnimationFrame(updatePromptModeDescription);
+requestAnimationFrame(() => setAiProvider(normaliseAiProvider(safeGetLocalStorage(AI_PROVIDER_STORAGE_KEY, initialAiProvider))));
 
 const TIMELINE_STORAGE_KEY = "synapse.timeline.path.v1";
 const TIMELINE_TYPE_OPTIONS = [
@@ -228,8 +300,8 @@ let timelineCompletedIds = new Set();
 let timelinePracticeAnswers = {};
 let timelineCompletionCelebrated = false;
 
-const VISUAL_IMAGE_GUIDE_STYLE_VERSION = "grid-infographic-v5";
-const VISUAL_GUIDE_STORAGE_KEY = "synapse.visual.image.guide.v6";
+const VISUAL_IMAGE_GUIDE_STYLE_VERSION = "grid-infographic-v13";
+const VISUAL_GUIDE_STORAGE_KEY = "synapse.visual.image.guide.v13";
 let currentVisualGuide = null;
 let visualGuideError = "";
 let isVisualGuideGenerating = false;
@@ -375,9 +447,52 @@ function sanitizeLearningFigures(items) {
     .filter(isRelevantLearningFigure);
 }
 
+function activeSynapseApiBase() {
+  try {
+    const configured = typeof API_BASE !== "undefined" ? API_BASE : window.API_BASE;
+    return String(configured || "").replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function isLoopbackVisualHost(hostname) {
+  const value = String(hostname || "").toLowerCase();
+  return value === "127.0.0.1" || value === "localhost" || value === "::1" || value === "[::1]";
+}
+
+function normalizeVisualAssetUrl(url) {
+  const value = String(url || "").trim();
+  if (!value || value.startsWith("data:")) return value;
+
+  const apiBase = activeSynapseApiBase();
+  if (!apiBase) return value;
+
+  try {
+    const apiUrl = new URL(apiBase);
+    if (value.startsWith("/assets/visuals/")) {
+      return `${apiUrl.origin}${value}`;
+    }
+
+    const parsed = new URL(value);
+    if (!parsed.pathname.startsWith("/assets/visuals/")) return value;
+    if (!isLoopbackVisualHost(parsed.hostname)) return value;
+    if (parsed.origin === apiUrl.origin) return value;
+    return `${apiUrl.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return value;
+  }
+}
+
 function normalizeLearningFigures(items) {
   return (Array.isArray(items) ? items : [])
-    .map((item, index) => item && typeof item === "object" ? { ...item, index: Number.isFinite(Number(item.index)) ? Number(item.index) : index } : item)
+    .map((item, index) => item && typeof item === "object"
+      ? {
+        ...item,
+        index: Number.isFinite(Number(item.index)) ? Number(item.index) : index,
+        url: normalizeVisualAssetUrl(item.url)
+      }
+      : item)
     .filter(item => item && typeof item === "object");
 }
 
@@ -387,8 +502,8 @@ function getLearningFigureByMarker(index) {
   const figures = normalizeLearningFigures(visualGalleryData);
   const byStoredIndex = figures.find(item => Number(item?.index) === markerIndex);
   if (!byStoredIndex) return null;
-  // Backend visual cards are already selected to match generated [[VISUAL:n]]
-  // markers. Preserve the card so missing-image fallbacks can show its context.
+  // Backend visual cards are selected to match generated [[VISUAL:n]] markers.
+  // Marker lookup also keeps older saved notes renderable.
   return byStoredIndex;
 }
 
@@ -698,7 +813,7 @@ function parseMixedSources(rawSource) {
 
   return {
     links,
-    freeText: text
+    freeText: removeDetectedUrlsClient(text)
   };
 }
 
@@ -727,6 +842,7 @@ async function analyzeMaterials() {
   formData.append("detail_level", detailLevel ? detailLevel.value : "auto");
   formData.append("prompt_mode", promptMode ? promptMode.value : "professor_mode");
   formData.append("note_length", noteLengthSelect ? noteLengthSelect.value : "standard_notes");
+  formData.append("ai_provider", aiProvider ? normaliseAiProvider(aiProvider.value) : "");
   formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
@@ -762,10 +878,11 @@ async function analyzeMaterials() {
     fullSummary = ensureRenderableSummary(fullSummary, sections);
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
-    visualGalleryData = normalizeLearningFigures(data.visual_gallery || data.visuals || []);
-    currentPrimarySourceIdentity = data.primary_source_identity || "";
+    visualGalleryData = normalizeLearningFigures(data.visual_gallery || data.source_evidence_cards || data.figure_cards || data.visuals || []);
+    currentPrimarySourceIdentity = data.primary_source_identity || data.source_identity || "";
     currentPromptMode = data.prompt_mode || (promptMode ? promptMode.value : "professor_mode");
     currentPromptModeLabel = data.prompt_mode_label || "";
+    currentAiGeneration = normaliseAiGenerationDiagnostics(data.ai_generation || null);
     currentHistoryId = "";
     resetTimelineState();
     resetVisualGuideState();
@@ -785,6 +902,8 @@ async function analyzeMaterials() {
       reason: data.depth_reason,
       promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
       noteLength: data.note_length || (noteLengthSelect ? noteLengthSelect.value : "standard_notes"),
+      aiProvider: data.ai_provider || (aiProvider ? aiProvider.value : ""),
+      aiGeneration: currentAiGeneration,
       cached: Boolean(data.cached)
     });
 
@@ -838,9 +957,11 @@ async function analyzeMaterials() {
       promptModeLabel: data.prompt_mode_label || "",
       noteLength: data.note_length || (noteLengthSelect ? noteLengthSelect.value : "standard_notes"),
       noteLengthLabel: data.note_length_label || "",
+      aiProvider: data.ai_provider || (aiProvider ? aiProvider.value : ""),
+      aiGeneration: currentAiGeneration,
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
-      primarySourceIdentity: data.primary_source_identity || "",
+      primarySourceIdentity: data.primary_source_identity || data.source_identity || "",
       sources: data.sources || [],
       sourceItems: compactSourceItemsForHistory(sourceViewerItems),
       visualGalleryCount: visualGalleryData.length,
@@ -936,6 +1057,42 @@ function showAnalysisView({ scrollToTop = false } = {}) {
 
 function renderVisualGallery() {
   if (!visualGallery) return;
-  visualGallery.classList.add("d-none");
-  visualGallery.innerHTML = "";
+  const figures = sanitizeLearningFigures(visualGalleryData).slice(0, 8);
+  if (!figures.length) {
+    visualGallery.classList.add("d-none");
+    visualGallery.innerHTML = "";
+    return;
+  }
+
+  visualGallery.classList.remove("d-none");
+  visualGallery.innerHTML = `
+    <div class="visual-gallery-head">
+      <div>
+        <h3>Source Evidence</h3>
+        <p>Figures, tables, and diagrams from the uploaded material.</p>
+      </div>
+      <span>${figures.length} item${figures.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="visual-gallery-grid">
+      ${figures.map((item, fallbackIndex) => {
+        const index = Number.isFinite(Number(item.index)) ? Number(item.index) : fallbackIndex;
+        const title = cleanSourceFigureDisplayText(item.title) || `Source figure ${index + 1}`;
+        const caption = (
+          getVisualDetailText(item, ["what_shows", "caption"]) ||
+          getVisualDetailText(item, ["why_relevant", "argument_supported", "cross_source_connection"]) ||
+          cleanSourceFigureDisplayText(sourceFigureText(item))
+        );
+        return `
+          <figure class="visual-card" onclick="openVisualModal(${index})" role="button" tabindex="0" aria-label="Open ${escapeAttr(title)}">
+            <img src="${escapeAttr(item.url)}" alt="${escapeAttr(title)}" loading="lazy">
+            <figcaption>
+              <strong>Source figure ${index + 1}</strong>
+              <span>${escapeHTML(title)}</span>
+              ${caption ? `<small>${escapeHTML(shorten(caption, 150))}</small>` : ""}
+            </figcaption>
+          </figure>
+        `;
+      }).join("")}
+    </div>
+  `;
 }

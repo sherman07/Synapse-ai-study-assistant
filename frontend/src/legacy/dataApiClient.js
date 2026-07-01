@@ -1,5 +1,5 @@
 import { SynapseApiClient } from "./apiClient.js";
-import { DATA_API_BASE } from "./dataApiConfig.js";
+import { DATA_API_BASE } from "./dataApiConfig.js?v=lan-api-fix-v2";
 
 const dataApiClient = new SynapseApiClient(DATA_API_BASE);
 const configuredTimeoutMs = Number((globalThis.window || globalThis).SYNAPSE_DATA_API_TIMEOUT_MS || 6000);
@@ -48,6 +48,13 @@ async function fetchGeneratedContentFromDataApi(limit = 50) {
   return Array.isArray(payload.items) ? payload.items : [];
 }
 
+async function deleteGeneratedContentFromDataApi(contentId) {
+  const payload = await dataApiFetch(`/api/generated-content/${encodeURIComponent(contentId)}`, {
+    method: "DELETE"
+  });
+  return Boolean(payload.deleted);
+}
+
 async function saveFocusSessionToDataApi(session) {
   try {
     const payload = await dataApiFetch("/api/focus-sessions", {
@@ -71,6 +78,7 @@ export {
   DATA_API_BASE,
   dataApiClient,
   dataApiFetch,
+  deleteGeneratedContentFromDataApi,
   fetchFocusSessionsFromDataApi,
   fetchGeneratedContentFromDataApi,
   persistGeneratedContentToDataApi,

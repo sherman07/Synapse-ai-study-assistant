@@ -1,10 +1,12 @@
-import { API_BASE } from "./apiConfig.js?v=local-api-v1";
+import { API_BASE } from "./apiConfig.js?v=lan-api-fix-v2";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
   dataApiClient,
+  deleteGeneratedContentFromDataApi,
+  fetchGeneratedContentFromDataApi,
   persistGeneratedContentToDataApi
-} from "./dataApiClient.js";
+} from "./dataApiClient.js?v=lan-api-fix-v2";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -49,10 +51,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=probability-table-v1";
+} from "./markdownRenderer.js?v=note-layout-v2";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "local-api-v2";
+const CONTROLLER_VERSION = "voice-tutor-v3";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -95,6 +97,8 @@ const controllerLoader = new LegacyControllerLoader({
     markdownToHTML,
     pruneCacheRecords,
     dataApiClient,
+    deleteGeneratedContentFromDataApi,
+    fetchGeneratedContentFromDataApi,
     persistGeneratedContentToDataApi,
     removeAutoBilingualHeadings,
     removeDetectedUrlsClient,

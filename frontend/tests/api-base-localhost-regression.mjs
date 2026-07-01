@@ -21,6 +21,18 @@ async function loadApiBase({ protocol = "http:", hostname = "127.0.0.1", port = 
   return (await import(url)).API_BASE;
 }
 
+async function loadDataApiBase({ protocol = "http:", hostname = "127.0.0.1", port = "5175", configured = "", dataApiPort = "" }) {
+  const host = hostname.startsWith("[") ? `${hostname}:${port}` : `${hostname}:${port}`;
+  globalThis.window = {
+    SYNAPSE_DATA_API_BASE: configured,
+    SYNAPSE_DATA_API_PORT: dataApiPort,
+    location: { protocol, hostname, port, host }
+  };
+  globalThis.document = { body: { dataset: {} } };
+  const url = `${pathToFileURL(dataApiConfigPath).href}?case=${encodeURIComponent(`data:${protocol}:${hostname}:${port}:${configured}:${dataApiPort}:${Date.now()}`)}`;
+  return (await import(url)).DATA_API_BASE;
+}
+
 async function loadDataApiBaseWithoutBrowserGlobals() {
   delete globalThis.window;
   delete globalThis.document;
@@ -50,6 +62,38 @@ assert.equal(
   await loadApiBase({ hostname: "127.0.0.1", port: "5175", backendPort: "9000" }),
   "http://127.0.0.1:9000",
   "custom backend ports should still be respected"
+);
+
+assert.equal(
+  await loadApiBase({ hostname: "192.168.1.141", port: "5175" }),
+  "http://192.168.1.141:8001",
+  "private LAN frontend URLs should call the same server's FastAPI backend, not the Vite server"
+);
+
+assert.equal(
+  await loadApiBase({
+    hostname: "192.168.1.141",
+    port: "5175",
+    configured: "http://192.168.1.141:5175"
+  }),
+  "http://192.168.1.141:8001",
+  "same-origin Vite API overrides on private LAN dev URLs should be redirected to the backend port"
+);
+
+assert.equal(
+  await loadDataApiBase({ hostname: "192.168.1.141", port: "5175" }),
+  "http://192.168.1.141:3001",
+  "private LAN frontend URLs should call the same server's data API, not the Vite server"
+);
+
+assert.equal(
+  await loadDataApiBase({
+    hostname: "192.168.1.141",
+    port: "5175",
+    configured: "http://192.168.1.141:5175"
+  }),
+  "http://192.168.1.141:3001",
+  "same-origin Vite data API overrides on private LAN dev URLs should be redirected to the data API port"
 );
 
 assert.equal(

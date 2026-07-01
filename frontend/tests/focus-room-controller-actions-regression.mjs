@@ -9,12 +9,12 @@ const read = file => fs.readFileSync(path.join(repoRoot, file), "utf8");
 const controller = read("frontend/src/focus-room/controller.js");
 const focusSessionHook = read("frontend/src/focus-room/hooks/useFocusSession.js");
 const aiPanel = read("frontend/src/focus-room/components/AILearningPanel.jsx");
+const focusToolPanel = read("frontend/src/focus-room/components/FocusRoomToolPanel.jsx");
 const focusUtils = read("frontend/src/focus-room/utils.js");
+const aiPanelImplementation = `${aiPanel}\n${focusToolPanel}`;
 
 for (const token of [
   "createRoot",
-  "QueryClientProvider",
-  "HashRouter",
   "FocusRoomPage",
   "exposeFocusRoomGlobals",
   "startFocusRoomSession",
@@ -24,6 +24,12 @@ for (const token of [
 ]) {
   assert.ok(controller.includes(token), `React controller should preserve ${token}`);
 }
+assert.ok(!controller.includes("QueryClientProvider"), "React controller should not reintroduce the React Query boot wrapper");
+assert.ok(!controller.includes("HashRouter"), "React controller should not reintroduce the React Router boot wrapper");
+assert.ok(
+  controller.includes("FocusRoomPage.jsx?v=focus-room-react-vite-v5"),
+  "React controller should cache-bust the hook-owning FocusRoomPage module"
+);
 
 for (const token of [
   "__synapseFocusRoomApi",
@@ -33,14 +39,22 @@ for (const token of [
   "explicitMaterialId",
   "typeof materialId",
   "returnMaterialId",
+  "workspaceTarget",
   "flashcards",
   "quiz",
   "assistant",
   "mindmap",
-  "timeline"
+  "timeline",
+  "source",
+  "notes"
 ]) {
   assert.ok(focusSessionHook.includes(token), `Focus session hook should preserve workspace action ${token}`);
 }
+
+assert.ok(
+  focusSessionHook.includes("returnFromFocusRoomToWorkspace(returnMaterialId, workspaceTarget)"),
+  "Focus Room should pass direct source/note targets to the workspace bridge"
+);
 
 for (const token of [
   "Open Flashcard Workspace",
@@ -51,7 +65,7 @@ for (const token of [
   "Tabs.Root",
   "Dialog.Root"
 ]) {
-  assert.ok(aiPanel.includes(token), `AI Learning Panel should preserve ${token}`);
+  assert.ok(aiPanelImplementation.includes(token), `AI Learning Panel should preserve ${token}`);
 }
 
 assert.ok(

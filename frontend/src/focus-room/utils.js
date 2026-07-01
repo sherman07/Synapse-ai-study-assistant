@@ -10,7 +10,7 @@ export const MIN_DURATION_MINUTES = 10;
 export const MAX_DURATION_MINUTES = 180;
 export const SOUND_MIN = 0;
 export const SOUND_MAX = 100;
-export const PANEL_TAB_LIST = ["materials", "summary", "flashcards", "quiz", "mindmap", "chat", "plan"];
+export const PANEL_TAB_LIST = ["materials", "notes", "sources", "chat", "quiz", "flashcards", "mindmap", "plan", "workspace", "history"];
 export const PANEL_TABS = new Set(PANEL_TAB_LIST);
 
 export const spring = {
@@ -149,14 +149,14 @@ export function formatTimerClock(seconds) {
 }
 
 export function panelTabLabel(tab) {
+  if (tab === "notes") return "Generated Notes";
+  if (tab === "sources") return "Sources";
   if (tab === "mindmap") return "Mind Map";
   if (tab === "chat") return "AI Chat";
   if (tab === "plan") return "Study Plan";
+  if (tab === "workspace") return "Scratchpad";
+  if (tab === "history") return "History";
   return String(tab || "").replace(/^\w/, letter => letter.toUpperCase());
-}
-
-export function plainObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
 export function focusFlashcards(material) {

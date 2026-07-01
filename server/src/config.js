@@ -41,6 +41,8 @@ const config = {
   internalApiToken: envString("SYNAPSE_INTERNAL_API_TOKEN"),
   supabaseUrl: envString("SUPABASE_URL"),
   supabaseAnonKey: envString("SUPABASE_ANON_KEY"),
+  supabaseServiceRoleKey: envString("SUPABASE_SERVICE_ROLE_KEY"),
+  supabaseDbSchema: envString("SUPABASE_DB_SCHEMA", "public"),
   stripe: {
     secretKey: envString("STRIPE_SECRET_KEY"),
     webhookSecret: envString("STRIPE_WEBHOOK_SECRET"),

@@ -7,7 +7,7 @@ Synapse is an AI-powered study website and workspace that turns PDFs, lecture sl
 - `frontend/` - static public website, auth prototype pages, and the study workspace shell.
 - `frontend/src/` - React shell plus the existing legacy controller modules.
 - `backend/` - FastAPI backend for analysis, tutoring, quizzes, flashcards, source previews, contact enquiries, and generated assets.
-- `server/` - Express + MySQL data API for users, generated content records, study rooms, focus sessions, flashcards, and progress.
+- `server/` - Express data API. It can store users and generated notes in Supabase while mirroring compatibility data to MySQL-backed study features.
 - `logos/` and `frontend/logos/` - Synapse logo assets for local root serving and static frontend publishing.
 - `scripts/validate_static_site.mjs` - launch-readiness validation for static HTML.
 - `deploy/` - production runtime notes and service templates.
@@ -79,11 +79,54 @@ The auth pages use Supabase Auth when `window.SYNAPSE_SUPABASE_URL` and `window.
 
 Google sign-in uses Supabase OAuth. In Supabase Auth, enable the Google provider, add your Google OAuth client credentials, and allow the local redirect URL `http://127.0.0.1:5175/frontend/index.html` plus your deployed frontend callback URL.
 
-The MySQL data API is configured separately in `server/.env`. Keep `MYSQL_PASSWORD` and `SYNAPSE_INTERNAL_API_TOKEN` out of frontend files and Git. See `server/README.md` for local MySQL setup.
+The data API is configured separately in `server/.env`. Keep `MYSQL_PASSWORD`, `SYNAPSE_INTERNAL_API_TOKEN`, and `SUPABASE_SERVICE_ROLE_KEY` out of frontend files and Git. See `server/README.md` for the MySQL + Supabase setup.
 
 Edit or replace `frontend/config.js` during deployment with your public backend, Supabase, and Stripe Price ID values. `frontend/config.example.js` shows the same shape with filled example placeholders.
 
 ## Run Locally
+
+Start the full local stack with one command:
+
+```bash
+bash scripts/start_local_stack.sh
+```
+
+This starts:
+
+- Vite frontend on `5175`
+- FastAPI backend on `8001`
+- Express data API on `3001`
+
+Check status or stop it later:
+
+```bash
+bash scripts/status_local_stack.sh
+bash scripts/stop_local_stack.sh
+```
+
+If `backend/.env` does not exist yet, the start script creates it from `backend/.env.example`. Add your real `OPENAI_API_KEY` there, or run:
+
+```bash
+bash scripts/set_backend_openai_key.sh
+```
+
+To use Gemini for text generation instead of OpenAI, keep OpenAI settings in
+`backend/.env` and put Gemini/Vertex settings in the separate
+`backend/.env.gemini` file:
+
+```env
+AI_TEXT_PROVIDER=gemini
+GEMINI_AUTH_MODE=adc
+GEMINI_PROJECT_ID=your-google-cloud-project-id
+GEMINI_LOCATION=us-central1
+```
+
+Gemini uses the same Synapse prompt-mode builder, source context, and validators
+as the GPT path. OpenAI-only features such as realtime voice, transcription, and
+hosted image generation still require `OPENAI_API_KEY`.
+
+The upload form includes a Generate AI switch. Leave it on backend default to
+use `AI_TEXT_PROVIDER`, or choose GPT/Gemini for that generation request only.
 
 Start the backend:
 
@@ -118,7 +161,7 @@ Open the study workspace:
 http://127.0.0.1:5175/frontend/index.html
 ```
 
-Open the standalone Focus Room:
+The standalone Focus Room is currently disabled from the workspace UI and direct URL access, but the implementation is preserved for a future update:
 
 ```text
 http://127.0.0.1:5175/frontend/focus-room.html#/focus-room/:materialId

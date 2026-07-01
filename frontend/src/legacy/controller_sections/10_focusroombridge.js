@@ -2,6 +2,85 @@ function getFocusRoomSummaryText() {
   return fullSummary || summaryContent?.textContent || "";
 }
 
+const FOCUS_ROOM_RETURN_TARGET_KEY = "synapse.focusRoom.return-target.v1";
+
+function isSynapseFocusRoomEnabled() {
+  return window.SYNAPSE_FOCUS_ROOM_ENABLED === true || window.SYNAPSE_FOCUS_ROOM_ENABLED === "true";
+}
+
+function normalizeFocusRoomWorkspaceTarget(target = {}) {
+  const objectTarget = target && typeof target === "object" && !Array.isArray(target) ? target : {};
+  return {
+    materialId: String(objectTarget.materialId || "").trim(),
+    action: String(objectTarget.action || "").trim().toLowerCase(),
+    sourceId: String(objectTarget.sourceId || objectTarget.source_id || "").trim(),
+    sourceIndex: Number(objectTarget.sourceIndex || objectTarget.source_index || 0) || 0,
+    sourceLabel: String(objectTarget.sourceLabel || objectTarget.source_label || "").trim(),
+    sectionTitle: String(objectTarget.sectionTitle || objectTarget.section_title || "").trim(),
+    highlightId: String(objectTarget.highlightId || objectTarget.highlight_id || "").trim(),
+    excerpt: String(objectTarget.excerpt || "").trim()
+  };
+}
+
+function sourceViewerItemIdForTarget(target = {}) {
+  const sourceId = String(target.sourceId || "").trim();
+  if (sourceId && sourceViewerItems.some(item => item.id === sourceId)) return sourceId;
+  const sourceIndex = Number(target.sourceIndex || 0);
+  if (Number.isFinite(sourceIndex) && sourceIndex > 0 && sourceViewerItems[sourceIndex - 1]) {
+    return sourceViewerItems[sourceIndex - 1].id;
+  }
+  const sourceLabel = String(target.sourceLabel || "").trim();
+  if (sourceLabel) {
+    const match = sourceViewerItems.find(item =>
+      item.title === sourceLabel ||
+      item.name === sourceLabel ||
+      item.displayName === sourceLabel
+    );
+    if (match) return match.id;
+  }
+  return sourceViewerItems[0]?.id || "";
+}
+
+function applyFocusRoomWorkspaceTarget(rawTarget = {}) {
+  const target = normalizeFocusRoomWorkspaceTarget(rawTarget);
+  const run = () => {
+    if (target.action === "source") {
+      toggleSourceViewer(true);
+      const sourceId = sourceViewerItemIdForTarget(target);
+      if (sourceId) selectSourceItem(sourceId);
+      return;
+    }
+    if (target.action === "notes") {
+      showFullSummary();
+      return;
+    }
+    if (target.action === "assistant") {
+      openAssistant();
+      return;
+    }
+    if (["flashcards", "quiz", "mindmap", "timeline"].includes(target.action)) {
+      switchTool(target.action);
+    }
+  };
+
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+  else setTimeout(run, 0);
+}
+
+function consumeFocusRoomReturnTarget() {
+  const raw = safeGetLocalStorage(FOCUS_ROOM_RETURN_TARGET_KEY, "");
+  if (!raw) return;
+  safeRemoveLocalStorage(FOCUS_ROOM_RETURN_TARGET_KEY);
+  let target = null;
+  try {
+    target = JSON.parse(raw);
+  } catch {
+    target = null;
+  }
+  if (!target || typeof target !== "object") return;
+  applyFocusRoomWorkspaceTarget(target);
+}
+
 function getFocusRoomStoreRecordByKeys(readStore, keys, predicate) {
   const rawStore = typeof readStore === "function" ? readStore() : {};
   const store = rawStore && typeof rawStore === "object" && !Array.isArray(rawStore) ? rawStore : {};
@@ -116,6 +195,9 @@ function getSynapseFocusRoomCurrentMaterial() {
     mindMap: currentMindMap,
     studyPlan: currentTimeline?.events || [],
     progressHistory: [],
+    sources: [],
+    sourceItems: typeof compactSourceItemsForHistory === "function" ? compactSourceItemsForHistory(sourceViewerItems) : [],
+    sourceHighlights: [],
     sourceFingerprint: currentSourceFingerprint,
     createdAt: "",
     updatedAt: ""
@@ -135,6 +217,11 @@ function focusRoomMaterialFromHistoryItem(item) {
     mindMap: item.mindMap || item.mind_map || item.brainstorm || null,
     studyPlan: [],
     progressHistory: [],
+    sources: Array.isArray(item.sources) ? item.sources : [],
+    sourceItems: Array.isArray(item.sourceItems) ? item.sourceItems : (Array.isArray(item.sources) ? item.sources : []),
+    sourceHighlights: Array.isArray(item.sourceHighlights || item.source_highlights)
+      ? (item.sourceHighlights || item.source_highlights)
+      : [],
     sourceFingerprint: item.sourceFingerprint || item.clientFingerprint || "",
     createdAt: item.createdAt || "",
     updatedAt: item.updatedAt || ""
@@ -159,6 +246,13 @@ function getSynapseFocusRoomMaterial(materialId) {
 function renderFocusRoomWorkspaceActions() {
   const button = document.getElementById("focusRoomCta");
   if (!button) return;
+  if (!isSynapseFocusRoomEnabled()) {
+    button.classList.toggle("d-none", true);
+    button.disabled = true;
+    button.removeAttribute("data-material-id");
+    button.setAttribute("aria-label", "Focus Room is currently unavailable");
+    return;
+  }
   const material = getSynapseFocusRoomCurrentMaterial();
   button.classList.toggle("d-none", !material);
   button.disabled = !material;
@@ -181,13 +275,19 @@ function notifyFocusRoomMaterialsChanged() {
 }
 
 function openSynapseFocusRoom(materialId = "") {
+  if (!isSynapseFocusRoomEnabled()) {
+    renderFocusRoomWorkspaceActions();
+    return false;
+  }
   const requestedId = materialId || getSynapseFocusRoomCurrentMaterial()?.materialId || "";
   const suffix = requestedId ? `/${encodeURIComponent(requestedId)}` : "";
   window.location.href = `focus-room.html#/focus-room${suffix}`;
+  return true;
 }
 
-async function returnFromFocusRoomToWorkspace(materialId = "") {
+async function returnFromFocusRoomToWorkspace(materialId = "", target = {}) {
   const id = String(materialId || "");
+  const workspaceTarget = normalizeFocusRoomWorkspaceTarget({ ...target, materialId: id });
   try {
     if (id && getHistory().some(item => item.id === id)) {
       await loadHistoryEntry(id, { preserveScroll: true });
@@ -198,5 +298,6 @@ async function returnFromFocusRoomToWorkspace(materialId = "") {
     window.location.hash = "";
     renderFocusRoomWorkspaceActions();
     notifyFocusRoomMaterialsChanged();
+    applyFocusRoomWorkspaceTarget(workspaceTarget);
   }
 }

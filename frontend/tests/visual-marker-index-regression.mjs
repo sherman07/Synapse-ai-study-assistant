@@ -14,6 +14,7 @@ assert.notEqual(end, -1, "cleanSourceFigureDisplayText should exist");
 
 const visualHelpersSource = controllerSource.slice(start, end);
 const makeHelpers = new Function(`
+  const API_BASE = "http://192.168.1.141:8001";
   let visualGalleryData = [];
   ${visualHelpersSource}
   return {
@@ -21,6 +22,7 @@ const makeHelpers = new Function(`
       visualGalleryData = items;
     },
     getLearningFigureByMarker,
+    normalizeLearningFigures,
     sanitizeLearningFigures
   };
 `);
@@ -56,5 +58,20 @@ helpers.setVisualGalleryData([{
 }]);
 
 assert.equal(helpers.getLearningFigureByMarker(2)?.title, "Backend selected visual");
+assert.equal(
+  helpers.getLearningFigureByMarker(2)?.url,
+  "http://192.168.1.141:8001/assets/visuals/backend-selected.png",
+  "localhost backend visual assets should be rewritten to the active API_BASE host"
+);
+
+assert.equal(
+  helpers.normalizeLearningFigures([{
+    index: 3,
+    url: "https://cdn.example.com/assets/visuals/external.png",
+    title: "External figure"
+  }])[0].url,
+  "https://cdn.example.com/assets/visuals/external.png",
+  "external image URLs should not be rewritten"
+);
 
 console.log("visual marker index regression passed");

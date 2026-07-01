@@ -12,18 +12,20 @@ const SOURCE_BADGE_BY_SECTION = [
   [/^Flashcard-ready Summary$/i, ["Tutor explanation", "Must know"]],
 ];
 
-const ACADEMIC_BADGE_BY_SECTION = [
-  [/^Academic Overview$/i, ["Source-based", "Academic interpretation"]],
-  [/^Central Argument$/i, ["Academic interpretation", "Source-based"]],
-  [/^Conceptual Framework$/i, ["Source-based", "Academic interpretation"]],
-  [/^Key Tensions\s*\/\s*Debates$/i, ["Source-based", "Academic interpretation"]],
-  [/^Critical Analysis$/i, ["Source-based", "Academic interpretation", "Limitation"]],
-  [/^Strengths and Limits of the Source$/i, ["Source-based", "Limitation"]],
-  [/^Essay-Ready Thesis Statements$/i, ["Essay use"]],
-  [/^Model Academic Paragraph$/i, ["Essay use", "Limitation"]],
-  [/^Professional Vocabulary Bank$/i, ["Essay use"]],
-  [/^High-Grade Discussion Points$/i, ["Academic interpretation"]],
-  [/^(?:Essay\s*\/\s*Tutorial Use|How to use this in an essay or tutorial)$/i, ["Essay use"]],
+const PROFESSIONAL_BADGE_BY_SECTION = [
+  [/^(?:\d+\.\s*)?Big Picture\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?The Exam Will Probably Test These Ideas\b/i, ["Exam use"]],
+  [/^(?:\d+\.\s*)?What You Actually Need To Understand\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?Deep Explanation\b/i, ["Professional explanation", "Limitation"]],
+  [/^(?:\d+\.\s*)?Concept Connections\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?Background Knowledge(?: Layer| Needed To Understand This Properly)?\b/i, ["Background knowledge"]],
+  [/^(?:\d+\.\s*)?(?:Application To New Situations|How To Apply This To New Questions)\b/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Common Mistakes(?: That Lose Marks)?\b/i, ["Application", "Limitation"]],
+  [/^(?:\d+\.\s*)?High-Quality Student Thinking\b/i, ["Professional explanation"]],
+  [/^(?:\d+\.\s*)?How To Use This In Assessment\b/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Model High-Quality (?:Output|Answers)\b/i, ["Application"]],
+  [/^(?:\d+\.\s*)?Exam Question Bank\b/i, ["Exam use"]],
+  [/^(?:\d+\.\s*)?Memory and Practice\b/i, ["Application"]],
 ];
 
 const BADGE_CLASS_BY_LABEL = new Map([
@@ -32,7 +34,11 @@ const BADGE_CLASS_BY_LABEL = new Map([
   ["Tutor explanation", "tutor"],
   ["Not enough evidence", "needs-evidence"],
   ["Not enough evidence from source", "needs-evidence"],
+  ["Source anchor", "source-based"],
   ["Source-based", "source-based"],
+  ["Professional explanation", "professional-explanation"],
+  ["Background knowledge", "background-knowledge"],
+  ["Application", "application"],
   ["Academic interpretation", "academic-interpretation"],
   ["Limitation", "limitation"],
   ["Essay use", "essay-use"],
@@ -87,9 +93,9 @@ function inferSectionChips(title) {
   return [];
 }
 
-function inferAcademicSectionChips(title) {
+function inferProfessionalSectionChips(title) {
   const clean = cleanSectionTitleText(title);
-  for (const [pattern, chips] of ACADEMIC_BADGE_BY_SECTION) {
+  for (const [pattern, chips] of PROFESSIONAL_BADGE_BY_SECTION) {
     if (pattern.test(clean)) return chips;
   }
   return [];
@@ -116,6 +122,24 @@ function decorateStandaloneBadges(html) {
     (match, inner) => INLINE_BADGE_PRESENCE_PATTERN.test(inner)
       ? `<li>${inner.replace(INLINE_BADGE_PATTERN, (_, label) => chipHtml(label))}</li>`
       : match
+  );
+  return output;
+}
+
+function stripDuplicateSectionBodyBadges(html, sectionChips) {
+  const duplicateLabels = (sectionChips || [])
+    .filter(label => BADGE_CLASS_BY_LABEL.has(label))
+    .map(label => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!duplicateLabels.length) return html;
+  const duplicatePattern = duplicateLabels.join("|");
+  let output = String(html || "");
+  output = output.replace(
+    new RegExp(`(<p>\\s*)\\[(${duplicatePattern})\\]\\s*`, "gi"),
+    "$1"
+  );
+  output = output.replace(
+    new RegExp(`(<li>\\s*)\\[(${duplicatePattern})\\]\\s*`, "gi"),
+    "$1"
   );
   return output;
 }
@@ -176,77 +200,86 @@ function renderNotesSection(section, index, collapseSecondary) {
   `.trim();
 }
 
-function isAcademicAnalysisMode(value) {
+function isProfessionalMode(value) {
   const key = String(value || "").trim().toLowerCase().replace(/[-\s/]+/g, "_");
-  return key === "professor_mode" || key === "academic" || key === "academic_analysis" || key === "academic_analysis_mode";
+  return key === "professor_mode"
+    || key === "professional"
+    || key === "professional_mode"
+    || key === "academic"
+    || key === "academic_analysis"
+    || key === "academic_analysis_mode";
 }
 
-function academicSectionKind(title) {
+function professionalSectionKind(title) {
   const clean = cleanSectionTitleText(title);
-  if (/^Academic Overview$/i.test(clean)) return "overview";
-  if (/^Central Argument$/i.test(clean)) return "central-argument";
-  if (/^Conceptual Framework$/i.test(clean)) return "conceptual-framework";
-  if (/^Key Tensions\s*\/\s*Debates$/i.test(clean)) return "key-tensions";
-  if (/^Critical Analysis$/i.test(clean)) return "critical-analysis";
-  if (/^Strengths and Limits of the Source$/i.test(clean)) return "strengths-limits";
-  if (/^Essay-Ready Thesis Statements$/i.test(clean)) return "essay-thesis";
-  if (/^Model Academic Paragraph$/i.test(clean)) return "model-paragraph";
-  if (/^Professional Vocabulary Bank$/i.test(clean)) return "vocabulary-bank";
-  if (/^High-Grade Discussion Points$/i.test(clean)) return "discussion-points";
-  if (/^(?:Essay\s*\/\s*Tutorial Use|How to use this in an essay or tutorial)$/i.test(clean)) return "essay-use";
+  if (/^(?:\d+\.\s*)?Big Picture\b/i.test(clean)) return "big-picture";
+  if (/^(?:\d+\.\s*)?The Exam Will Probably Test These Ideas\b/i.test(clean)) return "exam-focus";
+  if (/^(?:\d+\.\s*)?What You Actually Need To Understand\b/i.test(clean)) return "core-understanding";
+  if (/^(?:\d+\.\s*)?Deep Explanation\b/i.test(clean)) return "deep-explanation";
+  if (/^(?:\d+\.\s*)?Concept Connections\b/i.test(clean)) return "concept-connections";
+  if (/^(?:\d+\.\s*)?Background Knowledge(?: Layer| Needed To Understand This Properly)?\b/i.test(clean)) return "background";
+  if (/^(?:\d+\.\s*)?(?:Application To New Situations|How To Apply This To New Questions)\b/i.test(clean)) return "application";
+  if (/^(?:\d+\.\s*)?Common Mistakes(?: That Lose Marks)?\b/i.test(clean)) return "common-mistakes";
+  if (/^(?:\d+\.\s*)?High-Quality Student Thinking\b/i.test(clean)) return "high-quality-thinking";
+  if (/^(?:\d+\.\s*)?How To Use This In Assessment\b/i.test(clean)) return "assessment-use";
+  if (/^(?:\d+\.\s*)?Model High-Quality (?:Output|Answers)\b/i.test(clean)) return "model-output";
+  if (/^(?:\d+\.\s*)?Exam Question Bank\b/i.test(clean)) return "question-bank";
+  if (/^(?:\d+\.\s*)?Memory and Practice\b/i.test(clean)) return "memory-practice";
   return "standard";
 }
 
-function academicSectionClass(kind) {
-  const classes = ["academic-analysis-section"];
-  if (kind === "overview") classes.push("academic-overview-card");
-  if (kind === "central-argument") classes.push("central-argument-card");
-  if (kind === "conceptual-framework") classes.push("conceptual-framework-card");
-  if (kind === "key-tensions") classes.push("key-tensions-card");
-  if (kind === "critical-analysis") classes.push("critical-analysis-section");
-  if (kind === "strengths-limits") classes.push("strengths-limits-card");
-  if (kind === "essay-thesis") classes.push("essay-thesis-card");
-  if (kind === "model-paragraph") classes.push("model-paragraph-card");
-  if (kind === "vocabulary-bank") classes.push("vocabulary-bank-card");
-  if (kind === "discussion-points") classes.push("discussion-points-card");
-  if (kind === "essay-use") classes.push("essay-use-card");
+function professionalSectionClass(kind) {
+  const classes = ["professional-mode-section"];
+  if (kind === "big-picture") classes.push("professional-big-picture-card");
+  if (kind === "exam-focus") classes.push("professional-exam-focus-card");
+  if (kind === "core-understanding") classes.push("professional-core-understanding-card");
+  if (kind === "concept-connections") classes.push("professional-concept-connections-card");
+  if (kind === "deep-explanation") classes.push("professional-deep-explanation-section");
+  if (kind === "background") classes.push("professional-background-card");
+  if (kind === "application") classes.push("professional-application-card");
+  if (kind === "high-quality-thinking") classes.push("professional-high-quality-thinking-card");
+  if (kind === "common-mistakes") classes.push("professional-common-mistakes-card");
+  if (kind === "assessment-use") classes.push("professional-assessment-use-card");
+  if (kind === "model-output") classes.push("professional-model-output-card");
+  if (kind === "question-bank") classes.push("professional-question-bank-card");
+  if (kind === "memory-practice") classes.push("professional-memory-practice-card");
   return classes.join(" ");
 }
 
-function academicBodyClass(kind) {
-  if (kind === "key-tensions") return "academic-section-body key-tensions-grid";
-  if (kind === "essay-thesis") return "academic-section-body essay-thesis-grid";
-  if (kind === "vocabulary-bank") return "academic-section-body vocabulary-bank-table";
-  if (kind === "discussion-points") return "academic-section-body discussion-checklist";
-  return "academic-section-body";
+function professionalBodyClass(kind) {
+  if (kind === "concept-connections") return "professional-section-body professional-connections-grid";
+  if (kind === "application") return "professional-section-body professional-application-steps";
+  if (kind === "common-mistakes") return "professional-section-body professional-mistakes-list";
+  if (kind === "memory-practice") return "professional-section-body professional-memory-list";
+  return "professional-section-body";
 }
 
-function renderAcademicHeader(section, chips) {
+function renderProfessionalHeader(section, chips) {
   const chipRow = chips.length
     ? `<div class="notes-section-chip-row">${chips.map(chipHtml).join("")}</div>`
     : "";
   return `
-    <div class="academic-section-header">
+    <div class="professional-section-header">
       <h2>${section.headingInnerHtml}</h2>
       ${chipRow}
     </div>
   `.trim();
 }
 
-function renderAcademicSection(section, index, collapseSecondary) {
+function renderProfessionalSection(section, index, collapseSecondary) {
   const titleText = cleanSectionTitleText(section.headingInnerHtml);
-  const chips = inferAcademicSectionChips(titleText);
-  const kind = academicSectionKind(titleText);
-  const bodyHtml = decorateStandaloneBadges(section.bodyHtml || "");
-  const open = !collapseSecondary || index <= 1 || kind === "critical-analysis" ? " open" : "";
-  const headerHtml = renderAcademicHeader(section, chips);
-  const bodyClass = academicBodyClass(kind);
-  const sectionClass = academicSectionClass(kind);
+  const chips = inferProfessionalSectionChips(titleText);
+  const kind = professionalSectionKind(titleText);
+  const bodyHtml = decorateStandaloneBadges(stripDuplicateSectionBodyBadges(section.bodyHtml || "", chips));
+  const open = !collapseSecondary || index <= 1 || kind === "deep-explanation" ? " open" : "";
+  const headerHtml = renderProfessionalHeader(section, chips);
+  const bodyClass = professionalBodyClass(kind);
+  const sectionClass = professionalSectionClass(kind);
 
-  if (kind === "critical-analysis") {
+  if (kind === "deep-explanation") {
     return `
       <details class="${sectionClass}"${open} data-section-title="${escapeAttrValue(titleText)}">
-        <summary class="academic-section-summary">
+        <summary class="professional-section-summary">
           ${headerHtml}
           <span class="notes-section-chevron" aria-hidden="true"></span>
         </summary>
@@ -267,18 +300,18 @@ function renderAcademicSection(section, index, collapseSecondary) {
   `.trim();
 }
 
-function renderAcademicAnalysisSurface(source, collapseSecondary) {
+function renderProfessionalModeSurface(source, collapseSecondary) {
   const { preludeHtml, sections } = splitHtmlSections(source);
   if (!sections.length) return source;
 
   const prelude = preludeHtml.trim()
-    ? `<section class="academic-analysis-title-card">${decorateStandaloneBadges(preludeHtml)}</section>`
+    ? `<section class="professional-mode-title-card">${decorateStandaloneBadges(preludeHtml)}</section>`
     : "";
   const renderedSections = sections
-    .map((section, index) => renderAcademicSection(section, index, collapseSecondary))
+    .map((section, index) => renderProfessionalSection(section, index, collapseSecondary))
     .join("\n");
   return `
-    <div class="academic-analysis-surface">
+    <div class="professional-mode-surface">
       ${prelude}
       ${renderedSections}
     </div>
@@ -286,13 +319,14 @@ function renderAcademicAnalysisSurface(source, collapseSecondary) {
 }
 
 function renderStudyNotesSurface(html, options = {}) {
-  const source = decorateStandaloneBadges(String(html || "").trim());
-  if (!source) return "";
+  const rawSource = String(html || "").trim();
+  if (!rawSource) return "";
 
-  if (isAcademicAnalysisMode(options.promptMode)) {
-    return renderAcademicAnalysisSurface(source, Boolean(options.collapseSecondary));
+  if (isProfessionalMode(options.promptMode)) {
+    return renderProfessionalModeSurface(rawSource, Boolean(options.collapseSecondary));
   }
 
+  const source = decorateStandaloneBadges(rawSource);
   const { preludeHtml, sections } = splitHtmlSections(source);
   if (!sections.length) return source;
 

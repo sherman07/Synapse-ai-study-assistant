@@ -1,15 +1,15 @@
 @app.post("/timeline/generate")
 async def generate_timeline(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         payload = data or {}
-        title = clean_quiz_string(payload.get("title") if isinstance(payload, dict) else "", stored_title or "Study Path")
+        title = clean_quiz_string(payload.get("title") if isinstance(payload, dict) else "", "Study Path")
         context = quiz_summary_context(payload)
         if not context:
-            return {"error": "No generated notes are available for timeline generation yet."}
+            return analysis_error_response("No generated notes are available for timeline generation yet.", 400)
 
         sections_payload = payload.get("sections") if isinstance(payload, dict) else {}
-        sections_source = sections_payload if isinstance(sections_payload, dict) and sections_payload else stored_sections
+        sections_source = sections_payload if isinstance(sections_payload, dict) and sections_payload else {}
         fallback = fallback_timeline_from_context(title, sections_source if isinstance(sections_source, dict) else {}, context)
         language_rule = language_instruction_for(payload.get("preferred_language", "auto") if isinstance(payload, dict) else "auto")
 
@@ -49,10 +49,10 @@ Return JSON only with this shape:
       "priority": "high | medium | low",
       "detail": "supporting explanation for the task",
       "evidence": "specific source evidence, figure, table, study, or example if relevant",
-      "why_it_matters": "why this checkpoint matters",
-      "misconception": "common mistake or confusion",
-      "exam_use": "how to use this in an answer or revision",
-      "source_reference": "source concept/evidence, not only a page number",
+      "why_it_matters": "why this checkpoint matters for understanding or exam readiness",
+      "misconception": "specific misunderstanding or common mistake this task repairs",
+      "exam_use": "how this task prepares the student for an exam question",
+      "source_reference": "section, source, slide, page, figure, or concept this task is grounded in",
       "related_terms": ["term 1", "term 2"]
     }}
   ]
@@ -67,6 +67,9 @@ Rules:
 - The "task" field must be a complete student-facing instruction in 1 to 3 full sentences. It must not end with ellipses, a colon, or a dangling word such as "and", "or", "with", "about", "of", or "to".
 - The "task" field should say exactly what to read/do and what mini-output to produce. Do not simply repeat the section title.
 - The "deliverable" and "mastery_check" fields must be concrete enough to display as completion criteria in the UI.
+- The "misconception" field must name the likely mistake this task prevents or repairs. If the notes do not imply one, write a concise trap such as "Only memorising the term without explaining the mechanism."
+- The "exam_use" field must say how this checkpoint helps answer exam questions, solve problems, compare concepts, interpret evidence, or avoid a common marking error.
+- The "source_reference" field must point to the section, source title, slide/page/figure, named concept, formula, example, or evidence used. Do not leave it blank.
 - Use realistic estimated_minutes values from 5 to 25.
 - Do not invent dates. If no real date exists, use Step markers.
 - Use exact course concepts, named researchers, experiments, diagrams, tables, and data only when they appear in the notes context.
@@ -99,7 +102,7 @@ Generated notes context:
             "generated_at": datetime.utcnow().isoformat() + "Z",
         }
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))
 
 
 def study_path_answer_text(answer_payload) -> str:
@@ -238,7 +241,7 @@ Student's wrong answer:
 @app.post("/timeline/check-answer")
 async def check_timeline_answer(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         payload = data or {}
         raw_event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
         raw_question = payload.get("question") if isinstance(payload.get("question"), dict) else {}
@@ -650,10 +653,10 @@ def normalise_quiz_questions(parsed: dict, desired_types: List[str], title: str,
 @app.post("/quiz/generate")
 async def generate_quiz(data: dict):
     try:
-        require_openai()
+        require_text_ai()
         plan = parse_quiz_type_plan(data or {})
         desired_types = expand_quiz_type_plan(plan)
-        title = clean_quiz_string(data.get("title") if isinstance(data, dict) else "", stored_title or "Study Quiz")
+        title = clean_quiz_string(data.get("title") if isinstance(data, dict) else "", "Study Quiz")
         preferred_language = normalise_quiz_language(data.get("preferred_language", "english") if isinstance(data, dict) else "english")
         exam_mode = bool(data.get("exam_mode", False)) if isinstance(data, dict) else False
         avoid_items = extract_quiz_avoidance(data or {})
@@ -665,7 +668,7 @@ async def generate_quiz(data: dict):
         variant_seed = clean_quiz_string((data or {}).get("variant_seed") if isinstance(data, dict) else "", "")
         context = quiz_summary_context(data or {})
         if not context:
-            return {"error": "No generated notes are available for quiz generation yet."}
+            return analysis_error_response("No generated notes are available for quiz generation yet.", 400)
         if not variant_seed:
             variant_seed = sha256_text(f"{title}|{len(avoid_items)}|{context[:400]}")[:12]
 
@@ -769,7 +772,7 @@ Generated notes context:
             "questions": questions,
         }
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))
 
 
 # -----------------------------------------------------------------------------
@@ -793,7 +796,7 @@ def resolve_flashcard_count(data: dict, context: str) -> Tuple[str, int]:
     if mode == "custom":
         return "custom", clamp_flashcard_count(data.get("card_count") or data.get("count"), 20)
 
-    section_count = len(data.get("sections") or {}) if isinstance(data.get("sections"), dict) else len(stored_sections or {})
+    section_count = len(data.get("sections") or {}) if isinstance(data.get("sections"), dict) else 0
     estimated = max(12, min(32, section_count * 3 if section_count else max(12, len(context) // 1800)))
     return "auto", clamp_flashcard_count(data.get("card_count"), estimated)
 

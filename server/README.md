@@ -1,11 +1,19 @@
 # Synapse Data API
 
-This service stores Synapse app data in MySQL. It is separate from the FastAPI AI backend:
+This service is the persistence layer for Synapse. It is separate from the FastAPI AI backend:
 
 - FastAPI on `8001`: AI analysis, extraction, tutor, quizzes, timelines, generated assets.
 - Express data API on `3001`: users, generated content records, study rooms, focus sessions, flashcards, progress.
 
-The frontend calls this API over HTTP. It never connects directly to MySQL.
+The frontend calls this API over HTTP. It never connects directly to Supabase or MySQL.
+
+## Storage Mode
+
+This repo supports a Supabase-first storage model with a local MySQL fallback:
+
+- Users, generated-note history, study rooms, focus sessions, flashcards, and progress can be stored in Supabase using the server-side Service Role key.
+- Writes are mirrored to MySQL when MySQL is configured, which keeps local development and older deployments compatible.
+- If Supabase storage is not configured, the API falls back to MySQL-only behavior.
 
 ## Local Setup
 
@@ -68,6 +76,33 @@ Check health:
 curl http://127.0.0.1:3001/health
 ```
 
+## Supabase Setup
+
+Add Supabase for account storage, generated-note history, and study-tool history.
+
+1. In Supabase, open the SQL Editor and run [`server/src/db/supabase-schema.sql`](/Users/zhenghui/Desktop/Synapse-ai-study-assistant/server/src/db/supabase-schema.sql).
+2. In `server/.env`, set:
+
+```env
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=your_public_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_DB_SCHEMA=public
+```
+
+3. In `frontend/config.js` or your deployed runtime config, set:
+
+```js
+window.SYNAPSE_SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
+window.SYNAPSE_SUPABASE_ANON_KEY = "your_public_anon_key";
+```
+
+4. Restart the data API and backend after updating env files.
+
+The frontend still signs in through Supabase Auth. The server verifies bearer tokens with `SUPABASE_ANON_KEY`, then stores user profiles and histories with `SUPABASE_SERVICE_ROLE_KEY`. Keep the service-role key only in `server/.env` or your server secret manager.
+
+The schema enables RLS and grants access explicitly for `authenticated` and `service_role`, matching Supabase's newer Data API behavior where tables may not be exposed automatically. The Express server uses the service role and still performs owner checks in application code before reading or writing user-scoped records.
+
 ## FastAPI Mirroring
 
 Set the same internal token in both places:
@@ -81,7 +116,7 @@ SYNAPSE_DATA_API_INTERNAL_URL=http://127.0.0.1:3001
 SYNAPSE_INTERNAL_API_TOKEN=long_random_value
 ```
 
-If this token is missing or the data API is down, FastAPI still returns generated notes to the frontend. Durable MySQL save is skipped and logged.
+If this token is missing or the data API is down, FastAPI still returns generated notes to the frontend. Durable storage is skipped and logged.
 
 ## Frontend Config
 
@@ -91,7 +126,7 @@ For local development the frontend defaults to:
 window.SYNAPSE_DATA_API_BASE = "http://127.0.0.1:3001";
 ```
 
-For production, set this to your deployed data API URL in `frontend/config.js` or injected runtime config. Do not put MySQL host, username, or password in frontend files.
+For production, set this to your deployed data API URL in `frontend/config.js` or injected runtime config. Do not put database credentials or Supabase service-role keys in frontend files.
 
 ## Stripe Billing
 
@@ -116,9 +151,11 @@ Configure the Stripe Customer Portal in the Stripe Dashboard before using “Man
 
 ## Production Notes
 
-- Use a managed MySQL database or a secured private MySQL server.
+- Use Supabase for users, generated contents, and learning-history tables when you want cloud-backed account and study data.
+- Keep MySQL configured only if you need the compatibility mirror or local fallback.
 - Set `ALLOW_LOCAL_DEMO_AUTH=false` before accepting real accounts.
 - Configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` for bearer-token verification.
+- Configure `SUPABASE_SERVICE_ROLE_KEY` on the server only if you want Supabase-backed storage.
 - Configure Stripe secrets and price IDs in server-side environment variables only.
 - Restrict `SYNAPSE_DATA_CORS_ORIGINS` to deployed frontend origins.
 - Store all secrets in the platform secret manager.

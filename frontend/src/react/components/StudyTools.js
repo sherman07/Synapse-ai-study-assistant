@@ -11,7 +11,7 @@ export function StudyTools() {
         "div",
         null,
         h("h2", null, "Study Tools"),
-        h("p", null, "Open interactive tools generated from your notes. More tools can be added here later.")
+        h("p", null, "Check readiness, practise weak topics, and turn generated notes into active study.")
       ),
       icon("bi-grid-1x2", "study-tools-icon")
     ),
@@ -31,15 +31,36 @@ export function StudyTools() {
       ),
       h(
         "button",
-        { className: "tool-switch-btn disabled", type: "button", disabled: true },
+        {
+          id: "toolBtnTimeline",
+          className: "tool-switch-btn",
+          type: "button",
+          onClick: legacyTargetAction("switchTool", "timeline"),
+        },
         icon("bi-signpost-split", "me-1"),
         "Study Path"
       ),
       h(
         "button",
-        { className: "tool-switch-btn disabled", type: "button", disabled: true },
+        {
+          id: "toolBtnQuiz",
+          className: "tool-switch-btn",
+          type: "button",
+          onClick: legacyTargetAction("switchTool", "quiz"),
+        },
         icon("bi-patch-question", "me-1"),
         "Quiz"
+      ),
+      h(
+        "button",
+        {
+          id: "toolBtnMasteryGraph",
+          className: "tool-switch-btn",
+          type: "button",
+          onClick: legacyTargetAction("switchTool", "masterygraph"),
+        },
+        icon("bi-repeat", "me-1"),
+        "Exam Readiness"
       )
     ),
     h(

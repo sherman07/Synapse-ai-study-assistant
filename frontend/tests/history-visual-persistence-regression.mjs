@@ -12,8 +12,8 @@ const visualSource = fs.readFileSync(visualSectionPath, "utf8");
 const cacheSource = fs.readFileSync(cacheSectionPath, "utf8");
 
 assert.ok(
-  uploadSource.includes("data.visual_gallery || data.visuals || []"),
-  "analyzeMaterials should accept visual_gallery and visuals response aliases"
+  uploadSource.includes("data.visual_gallery || data.source_evidence_cards || data.figure_cards || data.visuals || []"),
+  "analyzeMaterials should accept visual_gallery, source_evidence_cards, figure_cards, and visuals response aliases"
 );
 assert.ok(
   uploadSource.includes("visualGallery: compactVisualGalleryForStorage(visualGalleryData)"),

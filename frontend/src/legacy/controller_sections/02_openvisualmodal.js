@@ -142,7 +142,8 @@ function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are av
         promptMode: currentPromptMode || "professor_mode"
       })
       : renderedHtml;
-    typeInto(summaryContent, surfaceHtml, renderMath);
+    const noticeHtml = typeof renderAiGenerationNotice === "function" ? renderAiGenerationNotice() : "";
+    typeInto(summaryContent, `${noticeHtml}${surfaceHtml}`, renderMath);
   } catch (error) {
     console.error("Could not render notes markdown:", error);
     summaryContent.innerHTML = `<pre class="notes-render-fallback">${escapeHTML(source)}</pre>`;

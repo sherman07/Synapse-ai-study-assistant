@@ -1,18 +1,22 @@
 import { useEffect } from "react";
-import { useQuery, useQueryClient } from "../queryClient.js";
-import { getFocusRoomMaterial, getFocusRoomMaterials } from "../data.js";
+import { useQueryClient } from "../queryClient.js";
 import { useFocusRoomStore } from "./useFocusRoomStore.js";
+import { useFocusRoomMaterials } from "./useFocusRoomMaterials.js";
+
+function resolveMaterial(materials, materialId) {
+  const items = Array.isArray(materials) ? materials : [];
+  const requestedId = String(materialId || "");
+  if (!requestedId) return items[0] || null;
+  return items.find(item => item.materialId === requestedId) || items[0] || null;
+}
 
 export function useStudyMaterial(route) {
   const queryClient = useQueryClient();
   const hydrateFocusRoute = useFocusRoomStore(state => state.hydrateFocusRoute);
   const showStudyHistory = useFocusRoomStore(state => state.showStudyHistory);
+  const setMaterialsState = useFocusRoomStore(state => state.setMaterialsState);
 
-  const materialsQuery = useQuery({
-    queryKey: ["focus-room", "materials"],
-    queryFn: () => getFocusRoomMaterials(),
-    staleTime: 1000
-  });
+  const materialsQuery = useFocusRoomMaterials();
 
   useEffect(() => {
     const refresh = () => {
@@ -28,14 +32,29 @@ export function useStudyMaterial(route) {
   }, [queryClient]);
 
   useEffect(() => {
+    setMaterialsState({
+      items: Array.isArray(materialsQuery.data) ? materialsQuery.data : [],
+      status: materialsQuery.isError
+        ? "error"
+        : ((materialsQuery.isPending || materialsQuery.isFetching) && !(materialsQuery.data || []).length ? "loading" : "ready"),
+      error: materialsQuery.error?.message || ""
+    });
+  }, [
+    materialsQuery.data,
+    materialsQuery.error?.message,
+    materialsQuery.isError,
+    materialsQuery.isFetching,
+    materialsQuery.isPending,
+    setMaterialsState
+  ]);
+
+  useEffect(() => {
     if (route.name === "history") {
       showStudyHistory();
       return;
     }
     if (route.name !== "focus") return;
-    const material = route.materialId
-      ? getFocusRoomMaterial(route.materialId)
-      : getFocusRoomMaterial("");
+    const material = resolveMaterial(materialsQuery.data, route.materialId);
     hydrateFocusRoute(route, material || null, { preserveSession: true });
   }, [hydrateFocusRoute, materialsQuery.data, route, showStudyHistory]);
 
