@@ -61,6 +61,17 @@ export function StudyTools() {
         },
         icon("bi-repeat", "me-1"),
         "Exam Readiness"
+      ),
+      h(
+        "button",
+        {
+          id: "toolBtnBroadcast",
+          className: "tool-switch-btn",
+          type: "button",
+          onClick: legacyTargetAction("switchTool", "broadcast"),
+        },
+        icon("bi-broadcast-pin", "me-1"),
+        "AI Broadcast"
       )
     ),
     h(
@@ -77,6 +88,38 @@ export function StudyTools() {
         )
       ),
       h("div", { id: "mindMapCanvas", className: "mindmap-canvas" })
+    ),
+    h(
+      "div",
+      { id: "toolPanelBroadcast", className: "tool-panel" },
+      h(
+        "div",
+        { id: "broadcastWorkspace", className: "broadcast-workspace" },
+        h(
+          "div",
+          { className: "broadcast-setup-card" },
+          h(
+            "div",
+            { className: "tool-panel-head" },
+            h(
+              "div",
+              null,
+              h("h3", null, "AI Broadcast"),
+              h("p", null, "Create a podcast-style study radio episode from the current notes.")
+            )
+          ),
+          h(
+            "button",
+            {
+              className: "btn btn-primary",
+              type: "button",
+              onClick: legacyTargetAction("openAiBroadcastSetup"),
+            },
+            icon("bi-broadcast-pin", "me-1"),
+            "Set up broadcast"
+          )
+        )
+      )
     )
   );
 }

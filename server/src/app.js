@@ -5,6 +5,7 @@ import { config } from "./config.js";
 import { checkDatabase } from "./db/pool.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
 import { billingRouter, billingWebhookRouter } from "./routes/billing.js";
+import { broadcastJobsRouter } from "./routes/broadcastJobs.js";
 import { cardsRouter, decksRouter } from "./routes/flashcards.js";
 import { focusSessionsRouter } from "./routes/focusSessions.js";
 import { generatedContentRouter, internalGeneratedContentRouter } from "./routes/generatedContent.js";
@@ -94,6 +95,7 @@ function createApp() {
   app.use("/api/users", usersRouter);
   app.use("/api/study-rooms", studyRoomsRouter);
   app.use("/api/focus-sessions", focusSessionsRouter);
+  app.use("/api/broadcast-jobs", broadcastJobsRouter);
   app.use("/api/flashcard-decks", decksRouter);
   app.use("/api/flashcards", cardsRouter);
   app.use("/api/progress", progressRouter);

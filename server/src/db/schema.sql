@@ -47,6 +47,56 @@ CREATE TABLE IF NOT EXISTS generated_contents (
   CONSTRAINT fk_generated_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS broadcast_jobs (
+  id VARCHAR(96) PRIMARY KEY,
+  user_id VARCHAR(80) NOT NULL,
+  source_id VARCHAR(96) NULL,
+  note_id VARCHAR(96) NULL,
+  source_fingerprint VARCHAR(191) NULL,
+  title VARCHAR(500) NOT NULL DEFAULT 'AI Broadcast',
+  status ENUM(
+    'queued',
+    'extracting_source',
+    'planning',
+    'scripting',
+    'validating',
+    'generating_audio',
+    'building_audio',
+    'completed',
+    'failed',
+    'cancelled'
+  ) NOT NULL DEFAULT 'queued',
+  style VARCHAR(80) NOT NULL DEFAULT 'study_podcast',
+  length_minutes INT NOT NULL DEFAULT 5,
+  custom_length_minutes INT NULL,
+  voice_format VARCHAR(80) NOT NULL DEFAULT 'two_ai_hosts',
+  depth VARCHAR(80) NOT NULL DEFAULT 'standard',
+  language VARCHAR(80) NOT NULL DEFAULT 'auto',
+  progress_message VARCHAR(500) NULL,
+  progress_percent INT NOT NULL DEFAULT 0,
+  script_model VARCHAR(120) NOT NULL DEFAULT 'gpt-5.4-mini',
+  tts_provider VARCHAR(80) NOT NULL DEFAULT 'gemini',
+  tts_model VARCHAR(120) NOT NULL DEFAULT 'gemini-2.5-pro-tts',
+  plan_json JSON NULL,
+  script_json JSON NULL,
+  validation_json JSON NULL,
+  transcript_json JSON NULL,
+  chapters_json JSON NULL,
+  key_ideas_json JSON NULL,
+  source_references_json JSON NULL,
+  audio_url VARCHAR(1000) NULL,
+  audio_metadata_json JSON NULL,
+  error_message TEXT NULL,
+  cancelled_at DATETIME(3) NULL,
+  completed_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_broadcast_jobs_user_updated (user_id, updated_at),
+  KEY idx_broadcast_jobs_status (status, updated_at),
+  KEY idx_broadcast_jobs_note (note_id),
+  CONSTRAINT fk_broadcast_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS study_rooms (
   id VARCHAR(96) PRIMARY KEY,
   owner_user_id VARCHAR(80) NOT NULL,

@@ -41,6 +41,8 @@ Object.assign(window, {
   markMasteryGraphSectionReviewed,
   notifyFocusRoomMaterialsChanged,
   openGenerationJob,
+  openAiBroadcastSetup,
+  openBroadcastJob,
   openActiveMindMapSection,
   openAccountPanel,
   openAssistant,
@@ -119,6 +121,15 @@ Object.assign(window, {
   returnFromFocusRoomToWorkspace,
   cancelGenerationJob,
   retryGenerationJob,
+  generateBroadcastFromSetup,
+  cancelBroadcastJob,
+  retryBroadcastJob,
+  deleteBroadcastJob,
+  explainBroadcastPart,
+  generateQuizFromBroadcast,
+  generateFlashcardsFromBroadcast,
+  openBroadcastAsStudyMaterial,
+  renderBroadcastSetupPanel,
 });
 
 if (historySearch) {
@@ -136,6 +147,9 @@ if (mobileHistorySearch) {
 cleanExistingHistoryTitles();
 if (typeof recoverGenerationJobsOnBoot === "function") {
   recoverGenerationJobsOnBoot();
+}
+if (typeof recoverBroadcastJobsOnBoot === "function") {
+  recoverBroadcastJobsOnBoot();
 }
 renderHistory();
 if (typeof syncHistoryWithDataApi === "function") {

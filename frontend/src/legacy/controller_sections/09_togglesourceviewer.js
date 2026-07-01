@@ -736,18 +736,22 @@ function renderHistory(filter = "") {
   const jobs = typeof getVisibleGenerationJobs === "function"
     ? getVisibleGenerationJobs(query, items.map(item => item.id))
     : [];
+  const broadcastJobs = typeof getVisibleBroadcastJobs === "function"
+    ? getVisibleBroadcastJobs(query)
+    : [];
 
-  const html = renderHistoryItemsHTML(items, jobs);
+  const html = renderHistoryItemsHTML(items, jobs, broadcastJobs);
   if (historyList) historyList.innerHTML = html;
   if (mobileHistoryList) mobileHistoryList.innerHTML = html;
 }
 
-function renderHistoryItemsHTML(items, jobs = []) {
-  if (!items.length && !jobs.length) {
+function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = []) {
+  if (!items.length && !jobs.length && !broadcastJobs.length) {
     return `<p class="history-empty">No matching generated notes yet.</p>`;
   }
 
   const jobHtml = jobs.map(job => renderGenerationJobHistoryItemHTML(job)).join("");
+  const broadcastJobHtml = broadcastJobs.map(job => renderBroadcastJobHistoryItemHTML(job)).join("");
   const itemHtml = items.map(item => `
     <div class="history-item-wrap">
       <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
@@ -762,7 +766,7 @@ function renderHistoryItemsHTML(items, jobs = []) {
       </button>
     </div>
   `).join("");
-  return `${jobHtml}${itemHtml}`;
+  return `${jobHtml}${broadcastJobHtml}${itemHtml}`;
 }
 
 function closeMobileNavIfOpen() {

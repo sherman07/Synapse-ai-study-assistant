@@ -84,6 +84,68 @@ before update on public.generated_contents
 for each row
 execute function public.synapse_set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.broadcast_jobs (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  source_id text,
+  note_id text,
+  source_fingerprint text,
+  title text not null default 'AI Broadcast',
+  status text not null default 'queued'
+    check (status in (
+      'queued',
+      'extracting_source',
+      'planning',
+      'scripting',
+      'validating',
+      'generating_audio',
+      'building_audio',
+      'completed',
+      'failed',
+      'cancelled'
+    )),
+  style text not null default 'study_podcast',
+  length_minutes integer not null default 5,
+  custom_length_minutes integer,
+  voice_format text not null default 'two_ai_hosts',
+  depth text not null default 'standard',
+  language text not null default 'auto',
+  progress_message text,
+  progress_percent integer not null default 0,
+  script_model text not null default 'gpt-5.4-mini',
+  tts_provider text not null default 'gemini',
+  tts_model text not null default 'gemini-2.5-pro-tts',
+  plan_json jsonb not null default '{}'::jsonb,
+  script_json jsonb not null default '{}'::jsonb,
+  validation_json jsonb not null default '{}'::jsonb,
+  transcript_json jsonb not null default '[]'::jsonb,
+  chapters_json jsonb not null default '[]'::jsonb,
+  key_ideas_json jsonb not null default '[]'::jsonb,
+  source_references_json jsonb not null default '[]'::jsonb,
+  audio_url text,
+  audio_metadata_json jsonb not null default '{}'::jsonb,
+  error_message text,
+  cancelled_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists broadcast_jobs_user_updated_idx
+  on public.broadcast_jobs (user_id, updated_at desc);
+
+create index if not exists broadcast_jobs_status_idx
+  on public.broadcast_jobs (status, updated_at desc);
+
+create index if not exists broadcast_jobs_note_idx
+  on public.broadcast_jobs (note_id);
+
+drop trigger if exists broadcast_jobs_set_updated_at on public.broadcast_jobs;
+create trigger broadcast_jobs_set_updated_at
+before update on public.broadcast_jobs
+for each row
+execute function public.synapse_set_updated_at();
+
 create table if not exists public.study_rooms (
   id text primary key,
   owner_user_id text not null references public.users(id) on delete cascade,
@@ -231,6 +293,7 @@ execute function public.synapse_set_updated_at();
 revoke all privileges on table
   public.users,
   public.generated_contents,
+  public.broadcast_jobs,
   public.study_rooms,
   public.study_room_members,
   public.focus_sessions,
@@ -243,6 +306,7 @@ grant usage on schema public to authenticated, service_role;
 grant select, insert, update, delete on table
   public.users,
   public.generated_contents,
+  public.broadcast_jobs,
   public.study_rooms,
   public.study_room_members,
   public.focus_sessions,
@@ -255,6 +319,7 @@ grant execute on function public.synapse_set_updated_at() to service_role;
 
 alter table public.users enable row level security;
 alter table public.generated_contents enable row level security;
+alter table public.broadcast_jobs enable row level security;
 alter table public.study_rooms enable row level security;
 alter table public.study_room_members enable row level security;
 alter table public.focus_sessions enable row level security;
@@ -303,6 +368,27 @@ with check (
   exists (
     select 1 from public.users u
     where u.id = generated_contents.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+);
+
+drop policy if exists broadcast_jobs_owner_access on public.broadcast_jobs;
+create policy broadcast_jobs_owner_access
+on public.broadcast_jobs
+to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    where u.id = broadcast_jobs.user_id
+      and u.auth_provider = 'supabase'
+      and u.auth_subject = (select auth.uid())::text
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    where u.id = broadcast_jobs.user_id
       and u.auth_provider = 'supabase'
       and u.auth_subject = (select auth.uid())::text
   )

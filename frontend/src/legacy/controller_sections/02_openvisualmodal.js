@@ -400,7 +400,8 @@ function getToolPanelId(toolName) {
     timeline: "toolPanelTimeline",
     masterygraph: "toolPanelMasteryGraph",
     quiz: "toolPanelQuiz",
-    flashcards: "toolPanelFlashcards"
+    flashcards: "toolPanelFlashcards",
+    broadcast: "toolPanelBroadcast"
   };
   return ids[toolName] || `toolPanel${toolName.charAt(0).toUpperCase()}${toolName.slice(1)}`;
 }
@@ -429,6 +430,8 @@ function switchTool(toolName, clickedBtn = null) {
     document.getElementById("toolBtnQuiz")?.classList.add("active");
   } else if (toolName === "flashcards") {
     document.getElementById("toolBtnFlashcards")?.classList.add("active");
+  } else if (toolName === "broadcast") {
+    document.getElementById("toolBtnBroadcast")?.classList.add("active");
   }
 
   if (toolName === "mindmap") {
@@ -446,6 +449,8 @@ function switchTool(toolName, clickedBtn = null) {
     }
   } else if (toolName === "flashcards") {
     renderFlashcardPanel();
+  } else if (toolName === "broadcast") {
+    renderBroadcastSetupPanel();
   }
 }
 

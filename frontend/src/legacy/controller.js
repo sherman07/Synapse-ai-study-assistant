@@ -2,10 +2,16 @@ import { API_BASE } from "./apiConfig.js?v=lan-api-fix-v2";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
+  cancelBroadcastJobInDataApi,
+  createBroadcastJobInDataApi,
   dataApiClient,
   deleteGeneratedContentFromDataApi,
+  deleteBroadcastJobFromDataApi,
+  fetchBroadcastJobFromDataApi,
+  fetchBroadcastJobsFromDataApi,
   fetchGeneratedContentFromDataApi,
-  persistGeneratedContentToDataApi
+  persistGeneratedContentToDataApi,
+  retryBroadcastJobInDataApi
 } from "./dataApiClient.js?v=lan-api-fix-v2";
 import {
   safeGetLocalStorage,
@@ -54,7 +60,7 @@ import {
 } from "./markdownRenderer.js?v=note-layout-v2";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "background-generation-v1";
+const CONTROLLER_VERSION = "ai-broadcast-v1";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -68,6 +74,7 @@ const CONTROLLER_DEFINITION_FILES = [
   "09_togglesourceviewer.js",
   "10_focusroombridge.js",
   "11_generationjobs.js",
+  "12_broadcastjobs.js",
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
 const apiClient = new SynapseApiClient(API_BASE);
@@ -84,8 +91,10 @@ const controllerLoader = new LegacyControllerLoader({
     ApiConnectionError,
     apiClient,
     cacheRecordKeys,
+    cancelBroadcastJobInDataApi,
     cleanAutoLanguageSectionTitles,
     cleanMindText,
+    createBroadcastJobInDataApi,
     escapeAttr,
     escapeHTML,
     ensureRenderableSummary,
@@ -98,13 +107,17 @@ const controllerLoader = new LegacyControllerLoader({
     markdownToHTML,
     pruneCacheRecords,
     dataApiClient,
+    deleteBroadcastJobFromDataApi,
     deleteGeneratedContentFromDataApi,
+    fetchBroadcastJobFromDataApi,
+    fetchBroadcastJobsFromDataApi,
     fetchGeneratedContentFromDataApi,
     persistGeneratedContentToDataApi,
     removeAutoBilingualHeadings,
     removeDetectedUrlsClient,
     renderMath,
     renderStudyNotesSurface,
+    retryBroadcastJobInDataApi,
     safeGetLocalStorage,
     safeReadJSONStorage,
     safeRemoveLocalStorage,

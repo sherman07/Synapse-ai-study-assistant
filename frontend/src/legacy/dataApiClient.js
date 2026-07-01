@@ -48,6 +48,51 @@ async function fetchGeneratedContentFromDataApi(limit = 50) {
   return Array.isArray(payload.items) ? payload.items : [];
 }
 
+async function createBroadcastJobInDataApi(job) {
+  try {
+    const payload = await dataApiFetch("/api/broadcast-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(job || {})
+    });
+    return payload.item || null;
+  } catch (error) {
+    warnDataApiSkip("Synapse data API broadcast-job create skipped:", error);
+    return null;
+  }
+}
+
+async function fetchBroadcastJobsFromDataApi(limit = 50) {
+  const payload = await dataApiFetch(`/api/broadcast-jobs?limit=${encodeURIComponent(limit)}`);
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
+async function fetchBroadcastJobFromDataApi(jobId) {
+  const payload = await dataApiFetch(`/api/broadcast-jobs/${encodeURIComponent(jobId)}`);
+  return payload.item || null;
+}
+
+async function cancelBroadcastJobInDataApi(jobId) {
+  const payload = await dataApiFetch(`/api/broadcast-jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST"
+  });
+  return payload.item || null;
+}
+
+async function retryBroadcastJobInDataApi(jobId) {
+  const payload = await dataApiFetch(`/api/broadcast-jobs/${encodeURIComponent(jobId)}/retry`, {
+    method: "POST"
+  });
+  return payload.item || null;
+}
+
+async function deleteBroadcastJobFromDataApi(jobId) {
+  const payload = await dataApiFetch(`/api/broadcast-jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE"
+  });
+  return Boolean(payload.deleted);
+}
+
 async function deleteGeneratedContentFromDataApi(contentId) {
   const payload = await dataApiFetch(`/api/generated-content/${encodeURIComponent(contentId)}`, {
     method: "DELETE"
@@ -76,11 +121,17 @@ async function fetchFocusSessionsFromDataApi(limit = 40) {
 
 export {
   DATA_API_BASE,
+  cancelBroadcastJobInDataApi,
+  createBroadcastJobInDataApi,
   dataApiClient,
   dataApiFetch,
   deleteGeneratedContentFromDataApi,
+  deleteBroadcastJobFromDataApi,
+  fetchBroadcastJobFromDataApi,
+  fetchBroadcastJobsFromDataApi,
   fetchFocusSessionsFromDataApi,
   fetchGeneratedContentFromDataApi,
   persistGeneratedContentToDataApi,
+  retryBroadcastJobInDataApi,
   saveFocusSessionToDataApi
 };
