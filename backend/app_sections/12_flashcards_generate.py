@@ -3,11 +3,11 @@ async def generate_flashcards(data: dict):
     try:
         require_text_ai()
         data = data or {}
-        title = clean_quiz_string(data.get("title"), stored_title or "Study Flashcards")
+        title = clean_quiz_string(data.get("title"), "Study Flashcards")
         preferred_language = normalise_quiz_language(data.get("preferred_language", "english"))
         context = quiz_summary_context(data)
         if not context:
-            return {"error": "No generated notes are available for flashcard generation yet."}
+            return analysis_error_response("No generated notes are available for flashcard generation yet.", 400)
 
         count_mode, card_count = resolve_flashcard_count(data, context)
         language_rule = quiz_language_instruction(preferred_language)
@@ -69,4 +69,4 @@ Generated notes context:
             "cards": cards,
         }
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))

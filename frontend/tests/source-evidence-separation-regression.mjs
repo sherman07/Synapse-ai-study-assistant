@@ -17,6 +17,11 @@ assert.ok(
   "source evidence cards should be stored in separate visual gallery state"
 );
 
+assert.ok(
+  uploadSource.includes("currentPrimarySourceIdentity = data.primary_source_identity || data.source_identity || \"\";"),
+  "analysis response handling should accept both primary_source_identity and source_identity"
+);
+
 const renderStart = uploadSource.indexOf("function renderVisualGallery()");
 assert.notEqual(renderStart, -1, "renderVisualGallery should exist");
 const nextFunction = uploadSource.indexOf("\nfunction ", renderStart + 1);

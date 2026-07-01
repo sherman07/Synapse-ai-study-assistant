@@ -310,6 +310,32 @@ class ApiShapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json(), {"error": "GEMINI_API_KEY is missing."})
 
+    def test_analyze_response_exposes_source_identity_alias(self):
+        with (
+            patch("backend.app.require_text_ai"),
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.cache_set"),
+            patch("backend.app.should_run_optional_analysis_stage", return_value=False),
+            patch("backend.app.build_visual_gallery", return_value=[]),
+            patch(
+                "backend.app.generate_reference_style_multisource_notes",
+                return_value="# Overview\n\nThis source explains evidence and revision use.",
+            ),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="A short source about evidence, concepts, and revision use.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertTrue(payload["source_identity"].startswith("text:"))
+        self.assertEqual(payload["source_identity"], payload["primary_source_identity"])
+
     def test_cached_result_visual_rebuild_never_calls_model(self):
         visual_parts = [
             {
@@ -785,6 +811,37 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
 
 class VisualGalleryTests(unittest.TestCase):
+    def test_uploaded_image_source_becomes_inline_visual_candidate_without_model_call(self):
+        png_data = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
+        _, source = file_to_source_unit("results-chart.png", "image/png", png_data)
+        source_units = [source]
+
+        self.assertEqual(source["visual_parts"][0]["type"], "text")
+        candidates = iter_visual_candidates(source_units)
+        self.assertEqual(len(candidates), 1)
+        self.assertFalse(candidates[0]["is_likely_decorative"])
+        self.assertIn(candidates[0]["visual_kind"], {"data/table", "graph/chart", "diagram/model", "method/result figure"})
+
+        with patch("backend.app.generate_chat", side_effect=AssertionError("uploaded image fallback should not call the model")):
+            cards = rebuild_cached_visual_argument_cards(source_units, "english")
+            summary = finalize_generated_summary(
+                "## Notes\n\nThe uploaded results chart should be used as source evidence.",
+                requested_language="english",
+                generation_language="english",
+                source_context="",
+                source_units=source_units,
+                attach_visuals=True,
+            )
+            gallery = build_visual_gallery(source_units)
+
+        self.assertEqual(len(cards), 1)
+        self.assertIn("[[VISUAL:0]]", summary)
+        self.assertEqual(len(gallery), 1)
+        assert_served_visual_asset(self, gallery[0]["url"], "image/png")
+
     def test_selected_visual_card_uses_marker_index(self):
         source_units = [{
             "visual_argument_cards": [{

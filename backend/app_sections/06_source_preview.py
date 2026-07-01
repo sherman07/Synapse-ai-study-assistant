@@ -25,7 +25,7 @@ async def source_preview(file: UploadFile = File(...)):
             "error": "This file type is not readable in the source viewer yet. PDFs, PPTX, DOCX, and text are converted to readable previews.",
         }
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))
 
 
 @app.post("/ask")
@@ -48,7 +48,10 @@ async def ask_question(data: dict):
         request_title = str(data.get("title") or "").strip()
         request_source_identity = str(data.get("source_identity") or "").strip()
         if not request_summary and not context_sections:
-            return {"error": "No current note context was provided. Open or generate the note again before asking the tutor."}
+            return analysis_error_response(
+                "No current note context was provided. Open or generate the note again before asking the tutor.",
+                400,
+            )
 
         context_summary = request_summary
         context_title = request_title or "Current Notes"
@@ -140,7 +143,7 @@ Requirements:
             ],
         }
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))
 
 
 # -----------------------------------------------------------------------------

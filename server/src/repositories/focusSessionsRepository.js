@@ -1,4 +1,5 @@
 import { createPool } from "../db/pool.js";
+import { firstSupabaseRow, supabaseRequest, supabaseStorageEnabled } from "../supabase/rest.js";
 import { randomId } from "../utils/ids.js";
 import {
   allowedValue,
@@ -74,7 +75,7 @@ function rowFromPayload(userId, payload = {}) {
   };
 }
 
-async function createFocusSession(userId, payload = {}) {
+async function mysqlCreateFocusSession(userId, payload = {}) {
   const row = rowFromPayload(userId, payload);
   const [existing] = await createPool().execute(
     "SELECT user_id FROM focus_sessions WHERE id = ? LIMIT 1",
@@ -125,10 +126,10 @@ async function createFocusSession(userId, payload = {}) {
       jsonString(row.metrics_json, {})
     ]
   );
-  return getFocusSession(userId, row.id);
+  return mysqlGetFocusSession(userId, row.id);
 }
 
-async function listFocusSessions(userId, limit = 50) {
+async function mysqlListFocusSessions(userId, limit = 50) {
   const safeLimit = limitValue(limit);
   const [rows] = await createPool().execute(
     `SELECT * FROM focus_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT ${safeLimit}`,
@@ -137,7 +138,7 @@ async function listFocusSessions(userId, limit = 50) {
   return rows.map(mapFocusSession);
 }
 
-async function getFocusSession(userId, sessionId) {
+async function mysqlGetFocusSession(userId, sessionId) {
   const [rows] = await createPool().execute(
     "SELECT * FROM focus_sessions WHERE user_id = ? AND id = ? LIMIT 1",
     [userId, cleanString(sessionId, 96)]
@@ -145,18 +146,173 @@ async function getFocusSession(userId, sessionId) {
   return rows[0] ? mapFocusSession(rows[0]) : null;
 }
 
-async function patchFocusSession(userId, sessionId, patch = {}) {
-  const current = await getFocusSession(userId, sessionId);
+async function mysqlPatchFocusSession(userId, sessionId, patch = {}) {
+  const current = await mysqlGetFocusSession(userId, sessionId);
   if (!current) return null;
-  return createFocusSession(userId, { ...current.metrics, ...current, ...patch, id: current.id });
+  return mysqlCreateFocusSession(userId, { ...current.metrics, ...current, ...patch, id: current.id });
 }
 
-async function deleteFocusSession(userId, sessionId) {
+async function mysqlDeleteFocusSession(userId, sessionId) {
   const [result] = await createPool().execute(
     "DELETE FROM focus_sessions WHERE user_id = ? AND id = ?",
     [userId, cleanString(sessionId, 96)]
   );
   return result.affectedRows > 0;
+}
+
+async function supabaseExistingFocusSession(sessionId) {
+  const payload = await supabaseRequest("GET", "focus_sessions", {
+    query: {
+      select: "id,user_id",
+      id: `eq.${cleanString(sessionId, 96)}`,
+      limit: 1
+    }
+  });
+  return firstSupabaseRow(payload);
+}
+
+function supabaseFocusSessionRow(row = {}) {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    study_room_id: row.study_room_id,
+    generated_content_id: row.generated_content_id,
+    material_id: row.material_id,
+    material_title: row.material_title,
+    study_goal: row.study_goal,
+    status: row.status,
+    selected_scene: row.selected_scene,
+    music_type: row.music_type,
+    ambient_sound: row.ambient_sound,
+    pomodoro_minutes: row.pomodoro_minutes,
+    started_at: row.started_at,
+    ended_at: row.ended_at,
+    total_focus_seconds: row.total_focus_seconds,
+    metrics_json: row.metrics_json
+  };
+}
+
+async function supabaseCreateFocusSession(userId, payload = {}) {
+  const row = rowFromPayload(userId, payload);
+  const existing = await supabaseExistingFocusSession(row.id);
+  if (existing && existing.user_id !== userId) {
+    const error = new Error("Focus session id is not available.");
+    error.status = 403;
+    throw error;
+  }
+  const saved = await supabaseRequest("POST", "focus_sessions", {
+    query: { on_conflict: "id" },
+    body: [supabaseFocusSessionRow(row)],
+    prefer: "resolution=merge-duplicates,return=representation"
+  });
+  const savedRow = firstSupabaseRow(saved);
+  return savedRow ? mapFocusSession(savedRow) : supabaseGetFocusSession(userId, row.id);
+}
+
+async function supabaseListFocusSessions(userId, limit = 50) {
+  const safeLimit = limitValue(limit);
+  const rows = await supabaseRequest("GET", "focus_sessions", {
+    query: {
+      select: "*",
+      user_id: `eq.${cleanString(userId, 80)}`,
+      order: "updated_at.desc",
+      limit: safeLimit
+    }
+  });
+  return Array.isArray(rows) ? rows.map(mapFocusSession) : [];
+}
+
+async function supabaseGetFocusSession(userId, sessionId) {
+  const rows = await supabaseRequest("GET", "focus_sessions", {
+    query: {
+      select: "*",
+      user_id: `eq.${cleanString(userId, 80)}`,
+      id: `eq.${cleanString(sessionId, 96)}`,
+      limit: 1
+    }
+  });
+  const row = firstSupabaseRow(rows);
+  return row ? mapFocusSession(row) : null;
+}
+
+async function supabasePatchFocusSession(userId, sessionId, patch = {}) {
+  const current = await supabaseGetFocusSession(userId, sessionId);
+  if (!current) return null;
+  return supabaseCreateFocusSession(userId, { ...current.metrics, ...current, ...patch, id: current.id });
+}
+
+async function supabaseDeleteFocusSession(userId, sessionId) {
+  const rows = await supabaseRequest("DELETE", "focus_sessions", {
+    query: {
+      user_id: `eq.${cleanString(userId, 80)}`,
+      id: `eq.${cleanString(sessionId, 96)}`
+    },
+    prefer: "return=representation"
+  });
+  return Array.isArray(rows) ? rows.length > 0 : Boolean(rows);
+}
+
+async function mirrorMysql(operation, label) {
+  try {
+    return await operation();
+  } catch (error) {
+    console.warn(`[storage] MySQL ${label} mirror failed: ${error.message}`);
+    return null;
+  }
+}
+
+async function createFocusSession(userId, payload = {}) {
+  if (!supabaseStorageEnabled()) return mysqlCreateFocusSession(userId, payload);
+  const supabaseItem = await supabaseCreateFocusSession(userId, payload);
+  await mirrorMysql(() => mysqlCreateFocusSession(userId, payload), "focus-session upsert");
+  return supabaseItem;
+}
+
+async function listFocusSessions(userId, limit = 50) {
+  if (supabaseStorageEnabled()) {
+    try {
+      return await supabaseListFocusSessions(userId, limit);
+    } catch (error) {
+      console.warn(`[storage] Supabase focus-session list failed: ${error.message}`);
+    }
+  }
+  return mysqlListFocusSessions(userId, limit);
+}
+
+async function getFocusSession(userId, sessionId) {
+  if (supabaseStorageEnabled()) {
+    try {
+      const item = await supabaseGetFocusSession(userId, sessionId);
+      if (item) return item;
+    } catch (error) {
+      console.warn(`[storage] Supabase focus-session get failed: ${error.message}`);
+    }
+  }
+  return mysqlGetFocusSession(userId, sessionId);
+}
+
+async function patchFocusSession(userId, sessionId, patch = {}) {
+  if (!supabaseStorageEnabled()) return mysqlPatchFocusSession(userId, sessionId, patch);
+  let supabaseItem = null;
+  try {
+    supabaseItem = await supabasePatchFocusSession(userId, sessionId, patch);
+  } catch (error) {
+    console.warn(`[storage] Supabase focus-session patch failed: ${error.message}`);
+  }
+  const mysqlItem = await mirrorMysql(() => mysqlPatchFocusSession(userId, sessionId, patch), "focus-session patch");
+  return supabaseItem || mysqlItem || getFocusSession(userId, sessionId);
+}
+
+async function deleteFocusSession(userId, sessionId) {
+  if (!supabaseStorageEnabled()) return mysqlDeleteFocusSession(userId, sessionId);
+  let deleted = false;
+  try {
+    deleted = await supabaseDeleteFocusSession(userId, sessionId);
+  } catch (error) {
+    console.warn(`[storage] Supabase focus-session delete failed: ${error.message}`);
+  }
+  const mysqlDeleted = await mirrorMysql(() => mysqlDeleteFocusSession(userId, sessionId), "focus-session delete");
+  return deleted || Boolean(mysqlDeleted);
 }
 
 export { createFocusSession, deleteFocusSession, getFocusSession, listFocusSessions, patchFocusSession };

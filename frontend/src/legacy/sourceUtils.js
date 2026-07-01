@@ -56,7 +56,9 @@ class ByteFormatter {
 class SourceTextCleaner {
   removeDetectedUrls(text) {
     return String(text || "")
-      .replace(/https?:\/\/[^\s<>()]+/g, "")
+      .replace(/(?:https?:\/\/|www\.|youtube(?:-nocookie)?\.com\/|youtu\.be\/|[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\/[^\s<>()]*)?)[^\s<>()]*/gi, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
   }

@@ -813,7 +813,7 @@ function parseMixedSources(rawSource) {
 
   return {
     links,
-    freeText: text
+    freeText: removeDetectedUrlsClient(text)
   };
 }
 
@@ -879,7 +879,7 @@ async function analyzeMaterials() {
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
     visualGalleryData = normalizeLearningFigures(data.visual_gallery || data.source_evidence_cards || data.figure_cards || data.visuals || []);
-    currentPrimarySourceIdentity = data.primary_source_identity || "";
+    currentPrimarySourceIdentity = data.primary_source_identity || data.source_identity || "";
     currentPromptMode = data.prompt_mode || (promptMode ? promptMode.value : "professor_mode");
     currentPromptModeLabel = data.prompt_mode_label || "";
     currentAiGeneration = normaliseAiGenerationDiagnostics(data.ai_generation || null);
@@ -961,7 +961,7 @@ async function analyzeMaterials() {
       aiGeneration: currentAiGeneration,
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
-      primarySourceIdentity: data.primary_source_identity || "",
+      primarySourceIdentity: data.primary_source_identity || data.source_identity || "",
       sources: data.sources || [],
       sourceItems: compactSourceItemsForHistory(sourceViewerItems),
       visualGalleryCount: visualGalleryData.length,

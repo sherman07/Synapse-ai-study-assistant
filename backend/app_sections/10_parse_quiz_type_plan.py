@@ -45,7 +45,7 @@ def expand_quiz_type_plan(plan: List[dict]) -> List[str]:
 
 
 def quiz_sections_context(sections_payload) -> str:
-    source = sections_payload if isinstance(sections_payload, dict) and sections_payload else stored_sections
+    source = sections_payload if isinstance(sections_payload, dict) else {}
     if not isinstance(source, dict):
         return ""
     blocks = []
@@ -55,8 +55,9 @@ def quiz_sections_context(sections_payload) -> str:
 
 
 def quiz_summary_context(data: dict) -> str:
-    summary = data.get("summary") or stored_summary or ""
-    sections_context = quiz_sections_context(data.get("sections"))
+    payload = data if isinstance(data, dict) else {}
+    summary = payload.get("summary") or ""
+    sections_context = quiz_sections_context(payload.get("sections"))
     combined = f"{summary}\n\n{sections_context}".strip()
     combined = re.sub(r"\[\[VISUAL:\d+\]\]", "[source image inserted in notes]", combined)
     return truncate_text(combined, env_int("QUIZ_CONTEXT_CHARS", 70000))

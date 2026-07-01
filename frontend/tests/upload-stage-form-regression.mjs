@@ -13,6 +13,7 @@ function read(relativePath) {
 const uploadStageSource = read("frontend/src/react/components/UploadStage.js");
 const languageOptionsSource = read("frontend/src/react/components/LanguageOptions.js");
 const constantsSource = read("frontend/src/react/constants.js");
+const uploadControllerSource = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
 const uploadStylesPrimary = read("frontend/styles/01-section.css");
 const uploadStylesSecondary = read("frontend/styles/04-section.css");
 
@@ -75,6 +76,10 @@ assert.ok(
 assert.ok(
   uploadStageSource.includes('id: "noteLengthField", className: "language-box prompt-mode-box note-length-box"'),
   "Upload stage should keep the note-length field visible in the main form"
+);
+assert.ok(
+  !uploadControllerSource.includes("generateBtn.innerHTML = isGenerating\n  generateBtn.innerHTML = isGenerating"),
+  "Generating state should not contain a duplicated button-label assignment"
 );
 
 console.log("upload stage form regression passed");

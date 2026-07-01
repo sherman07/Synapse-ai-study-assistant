@@ -36,7 +36,7 @@ assert.ok(masteryGraph.includes("function gradeMemoryAnswer("), "memory engine s
 assert.ok(masteryGraph.includes("function markMasteryGraphSectionReviewed("), "reviewed action should exist");
 assert.ok(masteryGraph.includes("function practiceMasteryGraphSection("), "practice action should exist");
 assert.ok(masteryGraph.includes("toolBtnMasteryGraph"), "mastery button should be created");
-assert.ok(masteryGraph.includes("Memory Engine"), "memory engine UI label should be present");
+assert.ok(masteryGraph.includes("Exam Readiness"), "memory engine should be reframed as Exam Readiness in the UI");
 assert.ok(boot.includes("setupMasteryGraphTool();"), "memory engine should be installed at boot");
 assert.ok(reset.includes("setupMasteryGraphTool();"), "memory engine should be restored after workspace reset");
 assert.ok(boot.includes("checkMemoryRecallAnswer"), "memory answer checker should be exposed");

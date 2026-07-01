@@ -11,6 +11,7 @@ import { generatedContentRouter, internalGeneratedContentRouter } from "./routes
 import { progressRouter } from "./routes/progress.js";
 import { studyRoomsRouter } from "./routes/studyRooms.js";
 import { usersRouter } from "./routes/users.js";
+import { checkSupabaseStorage, supabaseStorageEnabled } from "./supabase/rest.js";
 
 function createApp() {
   const app = express();
@@ -39,33 +40,51 @@ function createApp() {
   app.use("/api/billing/webhook", express.raw({ type: "application/json" }), billingWebhookRouter);
 
   app.get("/health", async (_req, res) => {
+    const storageMode = supabaseStorageEnabled() ? "supabase+mysql-mirror" : "mysql";
+    const supabase = {
+      auth_configured: Boolean(config.supabaseUrl && config.supabaseAnonKey),
+      storage_configured: supabaseStorageEnabled(),
+      schema: config.supabaseDbSchema || "public",
+      connected: false
+    };
+    let mysqlConnected = false;
+    let supabaseConnected = false;
+
     try {
       await checkDatabase();
+      mysqlConnected = true;
+    } catch {
+      mysqlConnected = false;
+    }
+
+    if (supabase.storage_configured) {
+      try {
+        supabaseConnected = await checkSupabaseStorage();
+      } catch {
+        supabaseConnected = false;
+      }
+    }
+
+    supabase.connected = supabaseConnected;
+    if (mysqlConnected || supabaseConnected) {
       res.json({
         ok: true,
         status: "ok",
-        database: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey) ? "mysql+supabase" : "mysql",
-        mysql: { connected: true },
-        supabase: {
-          auth_configured: Boolean(config.supabaseUrl && config.supabaseAnonKey),
-          storage_configured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
-          schema: config.supabaseDbSchema || "public"
-        }
+        database: storageMode,
+        mysql: { connected: mysqlConnected },
+        supabase
       });
-    } catch (error) {
-      res.status(503).json({
-        ok: false,
-        status: "degraded",
-        database: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey) ? "mysql+supabase" : "mysql",
-        mysql: { connected: false },
-        supabase: {
-          auth_configured: Boolean(config.supabaseUrl && config.supabaseAnonKey),
-          storage_configured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
-          schema: config.supabaseDbSchema || "public"
-        },
-        error: "Database connection unavailable."
-      });
+      return;
     }
+
+    res.status(503).json({
+      ok: false,
+      status: "degraded",
+      database: storageMode,
+      mysql: { connected: false },
+      supabase,
+      error: "Database connection unavailable."
+    });
   });
 
   app.use("/api/generated-content", express.json({ limit: "12mb" }), generatedContentRouter);

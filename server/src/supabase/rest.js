@@ -10,6 +10,15 @@ function supabaseStorageEnabled() {
   return Boolean(normalizedSupabaseUrl() && config.supabaseServiceRoleKey);
 }
 
+async function checkSupabaseStorage() {
+  if (!supabaseStorageEnabled()) return false;
+  await supabaseRequest("GET", "users", {
+    query: { select: "id", limit: 1 },
+    timeoutMs: 5000
+  });
+  return true;
+}
+
 function supabaseStorageHeaders({ prefer = "", hasBody = false } = {}) {
   const headers = {
     Accept: "application/json",
@@ -84,4 +93,4 @@ function firstSupabaseRow(payload) {
   return Array.isArray(payload) ? payload[0] || null : (payload && typeof payload === "object" ? payload : null);
 }
 
-export { firstSupabaseRow, supabaseRequest, supabaseStorageEnabled };
+export { checkSupabaseStorage, firstSupabaseRow, supabaseRequest, supabaseStorageEnabled };

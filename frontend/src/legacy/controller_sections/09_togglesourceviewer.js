@@ -602,6 +602,7 @@ function normalizeRemoteHistoryEntry(item = {}) {
     language: item.output_language || item.language || "",
     detailLevel: item.detail_level || item.detailLevel || "",
     promptMode: item.prompt_mode || item.promptMode || "professor_mode",
+    primarySourceIdentity: item.primary_source_identity || item.source_identity || item.primarySourceIdentity || "",
     sourceFingerprint: item.source_fingerprint || item.sourceFingerprint || "",
     clientFingerprint: item.client_fingerprint || item.clientFingerprint || item.source_fingerprint || item.sourceFingerprint || "",
     sources: Array.isArray(item.sources) ? item.sources : [],
@@ -814,7 +815,7 @@ async function loadHistoryEntry(id, options = {}) {
   connectionsData = item.connections || [];
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
   currentHistoryId = item.id;
-  currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || "";
+  currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || item.source_identity || "";
   currentPromptMode = item.promptMode || item.prompt_mode || "professor_mode";
   currentPromptModeLabel = item.promptModeLabel || item.prompt_mode_label || "";
   currentAiGeneration = normaliseAiGenerationDiagnostics(item.aiGeneration || item.ai_generation || null);

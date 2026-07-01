@@ -261,11 +261,13 @@ async def analyze_materials(
             stored_connections = cached_result.get("connections", [])
             stored_mind_map = cached_result.get("mind_map", {})
             stored_title = cached_result.get("title", "Generated Study Notes")
-            stored_source_identity = cached_result.get("primary_source_identity", "")
+            stored_source_identity = cached_result.get("primary_source_identity") or cached_result.get("source_identity", "")
             response_payload = {
                 **cached_result,
                 "cached": True,
                 "source_fingerprint": source_fingerprint,
+                "primary_source_identity": cached_result.get("primary_source_identity") or stored_source_identity,
+                "source_identity": cached_result.get("source_identity") or stored_source_identity,
                 "language": postprocess_language,
                 "output_language": postprocess_language,
                 "prompt_mode": selected_prompt_mode,
@@ -353,6 +355,7 @@ async def analyze_materials(
             "source_evidence_cards": visual_gallery,
             "figure_cards": visual_gallery,
             "primary_source_identity": stored_source_identity,
+            "source_identity": stored_source_identity,
             "source_count": len(source_units),
             "sources": [
                 {
@@ -872,7 +875,10 @@ async def voice_tutor_respond(
         sections_dict = parse_json_dict(sections)
         note_summary = str(summary or "").strip()
         if not note_summary and not sections_dict:
-            return {"error": "No current note context was provided. Open or generate the note before starting voice tutor."}
+            return analysis_error_response(
+                "No current note context was provided. Open or generate the note before starting voice tutor.",
+                400,
+            )
 
         transcript_text = normalise_space(transcript)
         if audio is not None and audio.filename:
@@ -969,7 +975,7 @@ Return JSON only:
         fallback = "Tell me what you already understand about this topic. Start with the main idea, then one example or source detail you remember."
         return normalise_voice_tutor_json(parsed, fallback, transcript_text, parsed_history)
     except Exception as error:
-        return {"error": str(error)}
+        return analysis_error_response(str(error), analysis_exception_status(error))
 
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):

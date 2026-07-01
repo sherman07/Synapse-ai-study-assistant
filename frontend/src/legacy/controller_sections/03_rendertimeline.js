@@ -463,6 +463,7 @@ function toggleTimelineComplete(eventId) {
       return;
     }
     timelineCompletedIds.add(id);
+    const targetEvent = getTimelineEventById(id);
     recordMasteryGraphPathProgress(targetEvent?.section || targetEvent?.title || id);
   }
   persistTimelineForCurrentNote();

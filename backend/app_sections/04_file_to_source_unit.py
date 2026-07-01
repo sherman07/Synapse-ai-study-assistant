@@ -14,13 +14,26 @@ def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List
     }
 
     if content_type and content_type.startswith("image/"):
+        visual_label = {
+            "type": "text",
+            "text": (
+                f"IN-TEXT SOURCE FIGURE FROM {name} - uploaded image source. "
+                "This uploaded image is primary source evidence. Inspect the actual image for any "
+                "chart, table, graph, diagram, formula, data, result, comparison, method figure, "
+                "screenshot text, or labelled teaching structure before deciding whether it is useful."
+            ),
+        }
+        image_part = image_part_from_bytes(data, content_type)
         parts.append({
             "type": "text",
             "text": f"\n\nSOURCE FILE: {name}\nThis is an uploaded image. Use the attached image as primary evidence.",
         })
-        parts.append(image_part_from_bytes(data, content_type))
-        source_meta["text_excerpt"] = f"Uploaded image file: {name}. Visual analysis should use the attached image."
-        source_meta["visual_parts"] = [parts[-1]]
+        parts.append(visual_label)
+        parts.append(image_part)
+        source_meta["text_excerpt"] = (
+            f"Uploaded image file: {name}. Visual analysis should use the attached image as primary source evidence."
+        )
+        source_meta["visual_parts"] = [visual_label, image_part]
         return parts, source_meta
 
     is_audio_video = (
