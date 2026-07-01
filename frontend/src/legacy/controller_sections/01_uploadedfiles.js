@@ -818,6 +818,19 @@ function parseMixedSources(rawSource) {
 }
 
 async function analyzeMaterials() {
+  return startGenerationJobFromCurrentUpload();
+}
+
+function generationSourceTitle(files = [], rawSource = "", sourceLinks = []) {
+  const firstFile = files[0]?.name || "";
+  if (firstFile && files.length > 1) return `${firstFile} + ${files.length - 1} more`;
+  if (firstFile) return firstFile;
+  if (sourceLinks.length) return shorten(sourceLinks[0], 68);
+  const text = String(rawSource || "").trim().replace(/\s+/g, " ");
+  return text ? shorten(text, 68) : "Study material";
+}
+
+async function startGenerationJobFromCurrentUpload() {
   const rawSource = sourceInput ? sourceInput.value.trim() : "";
   const parsedSources = parseMixedSources(rawSource);
   const sourceLinks = uniqueSourceLinks([...uploadedLinks, ...parsedSources.links]);
@@ -829,27 +842,99 @@ async function analyzeMaterials() {
   }
 
   currentSourceFingerprint = await buildClientFingerprint(rawSource, sourceLinks);
+  const existingJob = typeof findActiveGenerationJobByNoteId === "function"
+    ? findActiveGenerationJobByNoteId(currentSourceFingerprint)
+    : null;
+  if (existingJob) {
+    openGenerationJob(existingJob.jobId);
+    updateGenerateButtonForCurrentJob();
+    return existingJob;
+  }
 
+  const request = {
+    rawSource,
+    freeText: parsedSources.freeText,
+    sourceLinks,
+    uploadedLinks: [...uploadedLinks],
+    fileNames: uploadedFiles.map(file => file.name || "Uploaded source"),
+    hasFiles: uploadedFiles.length > 0,
+    preferredLanguage: preferredLanguage ? preferredLanguage.value : "auto",
+    detailLevel: detailLevel ? detailLevel.value : "auto",
+    promptMode: promptMode ? promptMode.value : "professor_mode",
+    noteLength: noteLengthSelect ? noteLengthSelect.value : "standard_notes",
+    aiProvider: aiProvider ? normaliseAiProvider(aiProvider.value) : "",
+    clientFingerprint: currentSourceFingerprint
+  };
+  const job = createGenerationJob({
+    noteId: currentSourceFingerprint,
+    classId: currentSourceFingerprint,
+    sourceTitle: generationSourceTitle(uploadedFiles, rawSource, sourceLinks),
+    request
+  });
+  openGenerationJob(job.jobId);
+  setGenerateButtonForJob(job);
+  enqueueGenerationJobRun(job.jobId, {
+    ...request,
+    parsedSources,
+    files: [...uploadedFiles]
+  });
+  return job;
+}
 
-  setGeneratingState(true);
-
+async function runGenerationJobAnalysis(jobId, context = {}) {
+  const job = getGenerationJob(jobId);
+  if (!job) return;
+  const request = job.request || {};
+  const rawSource = context.rawSource ?? request.rawSource ?? "";
+  const parsedSources = context.parsedSources || {
+    links: Array.isArray(request.sourceLinks) ? request.sourceLinks : [],
+    freeText: request.freeText || ""
+  };
+  const sourceLinks = uniqueSourceLinks(context.sourceLinks || request.sourceLinks || []);
+  const files = Array.isArray(context.files) ? context.files : [];
+  const outputLanguageSetting = context.preferredLanguage || request.preferredLanguage || "auto";
+  const detailLevelValue = context.detailLevel || request.detailLevel || "auto";
+  const promptModeValue = context.promptMode || request.promptMode || "professor_mode";
+  const noteLengthValue = context.noteLength || request.noteLength || "standard_notes";
+  const aiProviderValue = normaliseAiProvider(context.aiProvider || request.aiProvider || "");
+  const previousUploadedFiles = uploadedFiles;
+  const previousUploadedLinks = uploadedLinks;
+  const previousHistoryId = currentHistoryId;
+  uploadedFiles = files;
+  uploadedLinks = Array.isArray(context.uploadedLinks) ? context.uploadedLinks : (request.uploadedLinks || []);
+  currentSourceFingerprint = job.noteId || request.clientFingerprint || currentSourceFingerprint;
+  upsertGenerationJob({
+    jobId,
+    status: "analysing",
+    progress: 18,
+    message: "Reading sources and preparing context"
+  });
   const formData = new FormData();
-  uploadedFiles.forEach(file => formData.append("files", file));
+  files.forEach(file => formData.append("files", file));
 
   formData.append("links", JSON.stringify(sourceLinks));
   formData.append("free_text", parsedSources.freeText);
-  formData.append("preferred_language", preferredLanguage ? preferredLanguage.value : "auto");
-  formData.append("detail_level", detailLevel ? detailLevel.value : "auto");
-  formData.append("prompt_mode", promptMode ? promptMode.value : "professor_mode");
-  formData.append("note_length", noteLengthSelect ? noteLengthSelect.value : "standard_notes");
-  formData.append("ai_provider", aiProvider ? normaliseAiProvider(aiProvider.value) : "");
+  formData.append("preferred_language", outputLanguageSetting);
+  formData.append("detail_level", detailLevelValue);
+  formData.append("prompt_mode", promptModeValue);
+  formData.append("note_length", noteLengthValue);
+  formData.append("ai_provider", aiProviderValue);
   formData.append("client_fingerprint", currentSourceFingerprint);
 
   try {
+    const abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
+    if (abortController) runtimeGenerationJobControllers.set(jobId, abortController);
+    upsertGenerationJob({
+      jobId,
+      status: "generating",
+      progress: 34,
+      message: "Generating tutor-style study notes"
+    });
     const response = await apiClient.fetch("/analyze", {
       method: "POST",
       body: formData,
-      timeoutMs: ANALYSIS_TIMEOUT_MS
+      timeoutMs: ANALYSIS_TIMEOUT_MS,
+      signal: abortController?.signal
     });
 
     let data = null;
@@ -871,7 +956,7 @@ async function analyzeMaterials() {
       throw new Error(data.error || `Analysis failed with status ${response.status}.`);
     }
 
-    const outputLanguage = preferredLanguage ? preferredLanguage.value : "auto";
+    const outputLanguage = outputLanguageSetting;
     fullSummary = removeAutoBilingualHeadings(data.summary || "", outputLanguage);
     storedTitle = data.title || makeHistoryTitle(fullSummary) || "Study Notes";
     sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(data.sections || {}, fullSummary), fullSummary, outputLanguage);
@@ -880,7 +965,7 @@ async function analyzeMaterials() {
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
     visualGalleryData = normalizeLearningFigures(data.visual_gallery || data.source_evidence_cards || data.figure_cards || data.visuals || []);
     currentPrimarySourceIdentity = data.primary_source_identity || data.source_identity || "";
-    currentPromptMode = data.prompt_mode || (promptMode ? promptMode.value : "professor_mode");
+    currentPromptMode = data.prompt_mode || promptModeValue;
     currentPromptModeLabel = data.prompt_mode_label || "";
     currentAiGeneration = normaliseAiGenerationDiagnostics(data.ai_generation || null);
     currentHistoryId = "";
@@ -900,20 +985,22 @@ async function analyzeMaterials() {
       depth: data.generation_depth || data.detail_level,
       label: data.depth_label,
       reason: data.depth_reason,
-      promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
-      noteLength: data.note_length || (noteLengthSelect ? noteLengthSelect.value : "standard_notes"),
-      aiProvider: data.ai_provider || (aiProvider ? aiProvider.value : ""),
+      promptMode: data.prompt_mode || promptModeValue,
+      noteLength: data.note_length || noteLengthValue,
+      aiProvider: data.ai_provider || aiProviderValue,
       aiGeneration: currentAiGeneration,
       cached: Boolean(data.cached)
     });
 
-    showAnalysisView({ scrollToTop: true });
-
-    renderSections();
-    renderConnections();
-    switchTool("mindmap");
-    renderMindMap(currentMindMap);
-    renderVisualGallery();
+    const shouldPresentJobResult = isGenerationJobSelected(jobId);
+    if (shouldPresentJobResult) {
+      showAnalysisView({ scrollToTop: true });
+      renderSections();
+      renderConnections();
+      switchTool("mindmap");
+      renderMindMap(currentMindMap);
+      renderVisualGallery();
+    }
     let dataApiRecord = null;
     if (typeof persistGeneratedContentToDataApi === "function") {
       try {
@@ -953,11 +1040,11 @@ async function analyzeMaterials() {
       detailLevel: data.detail_level || data.generation_depth || "auto",
       depthLabel: data.depth_label || data.generation_depth || data.detail_level || "Auto",
       depthReason: data.depth_reason || "",
-      promptMode: data.prompt_mode || (promptMode ? promptMode.value : "professor_mode"),
+      promptMode: data.prompt_mode || promptModeValue,
       promptModeLabel: data.prompt_mode_label || "",
-      noteLength: data.note_length || (noteLengthSelect ? noteLengthSelect.value : "standard_notes"),
+      noteLength: data.note_length || noteLengthValue,
       noteLengthLabel: data.note_length_label || "",
-      aiProvider: data.ai_provider || (aiProvider ? aiProvider.value : ""),
+      aiProvider: data.ai_provider || aiProviderValue,
       aiGeneration: currentAiGeneration,
       sourceFingerprint: data.source_fingerprint || currentSourceFingerprint,
       clientFingerprint: currentSourceFingerprint,
@@ -971,6 +1058,15 @@ async function analyzeMaterials() {
     if (savedEntry && savedEntry.id) {
       currentHistoryId = savedEntry.id;
       safeSetLocalStorage(ACTIVE_HISTORY_KEY, savedEntry.id);
+      upsertGenerationJob({
+        jobId,
+        status: "completed",
+        progress: 100,
+        message: "Study notes are ready",
+        resultId: savedEntry.id,
+        completedAt: new Date().toISOString(),
+        error: ""
+      });
       await saveVisualGalleryAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint, visualGalleryData);
       await saveSourceAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint, sourceViewerItems);
       if (!visualGalleryData.length) {
@@ -981,46 +1077,91 @@ async function analyzeMaterials() {
         }
       }
     }
-    loadTimelineForCurrentNote();
-    loadVisualGuideForCurrentNote();
-    loadQuizHistoryForCurrentNote();
-    loadFlashcardsForCurrentNote();
-    loadTutorChatHistoryForCurrentNote();
-    loadVoiceTutorHistoryForCurrentNote();
-    renderMasteryGraphPanel();
-    renderFullNotes();
-    requestAnimationFrame(() => renderMindMap(currentMindMap));
+    if (shouldPresentJobResult) {
+      loadTimelineForCurrentNote();
+      loadVisualGuideForCurrentNote();
+      loadQuizHistoryForCurrentNote();
+      loadFlashcardsForCurrentNote();
+      loadTutorChatHistoryForCurrentNote();
+      loadVoiceTutorHistoryForCurrentNote();
+      renderMasteryGraphPanel();
+      renderFullNotes();
+      requestAnimationFrame(() => renderMindMap(currentMindMap));
+    } else if (previousHistoryId && getHistory().some(item => item.id === previousHistoryId)) {
+      await loadHistoryEntry(previousHistoryId, { preserveScroll: true });
+    }
   } catch (error) {
     console.error(error);
-    showAnalysisView({ scrollToTop: true });
-    visualGalleryData = [];
-    renderVisualGallery();
-    summaryContent.innerHTML = `
-      <div class="alert alert-danger">
-        <strong>Analysis failed.</strong><br>
-        ${escapeHTML(error.message)}
-      </div>`;
+    const wasCancelled = getGenerationJob(jobId)?.status === "cancelled";
+    if (!wasCancelled) {
+      upsertGenerationJob({
+        jobId,
+        status: "failed",
+        progress: 100,
+        message: "Generation failed",
+        error: error.message || "Synapse could not generate this note."
+      });
+      if (isGenerationJobSelected(jobId)) {
+        renderGenerationJobProgress(jobId);
+      }
+    }
   } finally {
-    setGeneratingState(false);
+    uploadedFiles = previousUploadedFiles;
+    uploadedLinks = previousUploadedLinks;
+    updateGenerateButtonForCurrentJob();
   }
 }
 
-function setGeneratingState(isGenerating) {
-  generateBtn.disabled = isGenerating;
-  generateBtn.innerHTML = isGenerating
-    ? `<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Analysing...`
-    : `<i class="bi bi-stars me-2"></i>Analyze with Synapse`;
+function resetGenerateButton() {
+  if (!generateBtn) return;
+  generateBtn.disabled = false;
+  generateBtn.innerHTML = `<i class="bi bi-stars me-2"></i>Analyze with Synapse`;
+}
 
-  if (isGenerating) {
-    appLayout.classList.add("loading-state");
-    appLayout.classList.add("assistant-closed");
-    assistant.classList.add("hidden");
-    openAssistantBtn.style.display = "none";
-    uploadStage.classList.add("d-none");
-    analysisStage.classList.remove("d-none");
-    loadingBox.classList.remove("d-none");
-    resultGrid.classList.add("d-none");
-  }
+function setGenerateButtonForJob(job = {}) {
+  if (!generateBtn) return;
+  const status = job.status || "generating";
+  const isActive = ["queued", "analysing", "generating"].includes(status);
+  generateBtn.disabled = isActive;
+  generateBtn.innerHTML = isActive
+    ? `<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Generating...`
+    : `<i class="bi bi-stars me-2"></i>Analyze with Synapse`;
+}
+
+function updateGenerateButtonForCurrentJob() {
+  if (!generateBtn) return;
+  const activeJob = typeof findActiveGenerationJobByNoteId === "function"
+    ? findActiveGenerationJobByNoteId(currentSourceFingerprint)
+    : null;
+  if (activeJob) setGenerateButtonForJob(activeJob);
+  else resetGenerateButton();
+}
+
+function setGeneratingState(isGenerating) {
+  if (isGenerating) setGenerateButtonForJob({ status: "generating" });
+  else resetGenerateButton();
+}
+
+function retryGenerationJobFromUpload(job = {}) {
+  const request = job.request || {};
+  if (request.hasFiles) return false;
+  upsertGenerationJob({
+    jobId: job.jobId,
+    status: "queued",
+    progress: 4,
+    message: "Queued for retry",
+    error: ""
+  });
+  openGenerationJob(job.jobId);
+  enqueueGenerationJobRun(job.jobId, {
+    ...request,
+    parsedSources: {
+      links: Array.isArray(request.sourceLinks) ? request.sourceLinks : [],
+      freeText: request.freeText || ""
+    },
+    files: []
+  });
+  return true;
 }
 
 

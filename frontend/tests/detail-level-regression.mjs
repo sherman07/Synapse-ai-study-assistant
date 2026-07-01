@@ -8,8 +8,12 @@ const controllerPath = path.resolve(__dirname, "../src/legacy/controller_section
 const controllerSource = fs.readFileSync(controllerPath, "utf8");
 
 assert.ok(
-  controllerSource.includes('formData.append("detail_level", detailLevel ? detailLevel.value : "auto");'),
-  "analyzeMaterials should send the user's selected detail level to the backend"
+  controllerSource.includes('detailLevel: detailLevel ? detailLevel.value : "auto"'),
+  "generation jobs should snapshot the user's selected detail level"
+);
+assert.ok(
+  controllerSource.includes('formData.append("detail_level", detailLevelValue);'),
+  "job runner should send the selected detail level to the backend"
 );
 assert.ok(
   !controllerSource.includes('formData.append("detail_level", "auto");'),

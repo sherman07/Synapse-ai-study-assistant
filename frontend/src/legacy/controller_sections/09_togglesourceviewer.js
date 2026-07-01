@@ -733,18 +733,22 @@ function renderHistory(filter = "") {
     const haystack = `${item.title || ""} ${item.summary || ""}`.toLowerCase();
     return !query || haystack.includes(query);
   });
+  const jobs = typeof getVisibleGenerationJobs === "function"
+    ? getVisibleGenerationJobs(query, items.map(item => item.id))
+    : [];
 
-  const html = renderHistoryItemsHTML(items);
+  const html = renderHistoryItemsHTML(items, jobs);
   if (historyList) historyList.innerHTML = html;
   if (mobileHistoryList) mobileHistoryList.innerHTML = html;
 }
 
-function renderHistoryItemsHTML(items) {
-  if (!items.length) {
+function renderHistoryItemsHTML(items, jobs = []) {
+  if (!items.length && !jobs.length) {
     return `<p class="history-empty">No matching generated notes yet.</p>`;
   }
 
-  return items.map(item => `
+  const jobHtml = jobs.map(job => renderGenerationJobHistoryItemHTML(job)).join("");
+  const itemHtml = items.map(item => `
     <div class="history-item-wrap">
       <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
         <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
@@ -758,6 +762,7 @@ function renderHistoryItemsHTML(items) {
       </button>
     </div>
   `).join("");
+  return `${jobHtml}${itemHtml}`;
 }
 
 function closeMobileNavIfOpen() {
@@ -806,6 +811,7 @@ async function deleteHistoryEntry(event, id) {
 async function loadHistoryEntry(id, options = {}) {
   const item = getHistory().find(entry => entry.id === id);
   if (!item) return;
+  if (typeof clearActiveGenerationJob === "function") clearActiveGenerationJob();
   closeMobileNavIfOpen();
 
   fullSummary = removeAutoBilingualHeadings(item.summary || "", item.language || "auto");

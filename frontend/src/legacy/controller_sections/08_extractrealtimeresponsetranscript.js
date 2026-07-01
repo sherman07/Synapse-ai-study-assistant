@@ -516,6 +516,7 @@ window.addEventListener("resize", syncAssistantMobileState);
 
 function resetWorkspace() {
   safeRemoveLocalStorage(ACTIVE_HISTORY_KEY);
+  if (typeof clearActiveGenerationJob === "function") clearActiveGenerationJob();
   stopRealtimeVoiceTutor({ silent: true });
   revokeSourceObjectURLs();
 

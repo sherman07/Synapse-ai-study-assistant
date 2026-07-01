@@ -40,6 +40,7 @@ Object.assign(window, {
   loadQuizHistoryRecord,
   markMasteryGraphSectionReviewed,
   notifyFocusRoomMaterialsChanged,
+  openGenerationJob,
   openActiveMindMapSection,
   openAccountPanel,
   openAssistant,
@@ -116,6 +117,8 @@ Object.assign(window, {
   renderFocusRoomWorkspaceActions,
   renderFlashcardMatchLines,
   returnFromFocusRoomToWorkspace,
+  cancelGenerationJob,
+  retryGenerationJob,
 });
 
 if (historySearch) {
@@ -131,6 +134,9 @@ if (mobileHistorySearch) {
   });
 }
 cleanExistingHistoryTitles();
+if (typeof recoverGenerationJobsOnBoot === "function") {
+  recoverGenerationJobsOnBoot();
+}
 renderHistory();
 if (typeof syncHistoryWithDataApi === "function") {
   syncHistoryWithDataApi().catch(error => {

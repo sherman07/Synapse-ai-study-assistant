@@ -54,7 +54,7 @@ import {
 } from "./markdownRenderer.js?v=note-layout-v2";
 import { LegacyControllerLoader } from "./controllerLoader.js?v=combined-loader-v4";
 
-const CONTROLLER_VERSION = "voice-tutor-v3";
+const CONTROLLER_VERSION = "background-generation-v1";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -67,6 +67,7 @@ const CONTROLLER_DEFINITION_FILES = [
   "08_extractrealtimeresponsetranscript.js",
   "09_togglesourceviewer.js",
   "10_focusroombridge.js",
+  "11_generationjobs.js",
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
 const apiClient = new SynapseApiClient(API_BASE);
