@@ -20,6 +20,7 @@ for (const file of requiredFiles) {
 const app = read("server/src/app.js");
 const index = read("frontend/index.html");
 const rootIndex = read("index.html");
+const appShim = read("app.html");
 const main = read("frontend/src/main.js");
 const loader = read("frontend/src/legacy/loadLegacyController.js");
 const mysqlSchema = read("server/src/db/schema.sql");
@@ -35,7 +36,8 @@ const broadcastController = read("frontend/src/legacy/controller_sections/12_bro
 const studyTools = read("frontend/src/react/components/StudyTools.js");
 const styles = read("frontend/styles/04-section.css");
 
-assert.ok(rootIndex.includes("frontend/index.html"), "root index should open the single study workspace frontend");
+assert.ok(rootIndex.includes("frontend/landing.html"), "root index should keep the landing page as the public entry");
+assert.ok(appShim.includes("frontend/index.html"), "app shim should open the study workspace frontend");
 assert.ok(index.includes("ai-broadcast-v2"), "workspace HTML should bust cached React shell assets");
 assert.ok(main.includes("ai-broadcast-v2"), "main module should bust cached React and controller loader imports");
 assert.ok(loader.includes("ai-broadcast-v2"), "controller loader should bust cached legacy controller scripts");

@@ -18,7 +18,7 @@ assert.ok(authScript.includes("signInWithGoogle"), "Google auth should delegate 
 assert.ok(fs.existsSync(path.join(repoRoot, "index.html")));
 
 const rootIndex = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
-assert.ok(rootIndex.includes("frontend/index.html"));
+assert.ok(rootIndex.includes("frontend/landing.html"));
 const rootApp = fs.readFileSync(path.join(repoRoot, "app.html"), "utf8");
 assert.ok(rootApp.includes("frontend/index.html"));
 
