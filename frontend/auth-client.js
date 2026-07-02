@@ -275,8 +275,9 @@
   async function signUpEmail({ firstName, lastName, email, password, role }) {
     const client = await getSupabaseClient();
     if (!client) throw new Error("Production auth is not configured.");
+    const normalizedEmail = normalizeEmail(email);
     const { data, error } = await client.auth.signUp({
-      email: normalizeEmail(email),
+      email: normalizedEmail,
       password,
       options: {
         data: {
@@ -291,7 +292,35 @@
     });
     if (error) throw error;
     if (data?.session?.user) return { session: saveSession(publicSessionFromSupabase(data.session)) };
-    return { requiresEmailConfirmation: true };
+    if (data?.user && !data?.session) {
+      return {
+        requiresEmailConfirmation: true,
+        emailConfirmationStatus: "session_pending",
+        email: normalizedEmail,
+        userId: data.user.id || ""
+      };
+    }
+    return {
+      requiresEmailConfirmation: true,
+      emailConfirmationStatus: "unknown_delivery",
+      email: normalizedEmail
+    };
+  }
+
+  async function resendSignupConfirmation(email) {
+    const client = await getSupabaseClient();
+    if (!client) throw new Error("Production auth is not configured.");
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) throw new Error("Enter the email address you used to sign up.");
+    const { error } = await client.auth.resend({
+      type: "signup",
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: absoluteAppUrl()
+      }
+    });
+    if (error) throw error;
+    return { resent: true, email: normalizedEmail };
   }
 
   async function signInEmail({ email, password }) {
@@ -551,6 +580,7 @@
     isConfigured,
     requestAccountDeletion,
     requestServerExport,
+    resendSignupConfirmation,
     resetPassword,
     saveSession,
     signInEmail,

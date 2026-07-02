@@ -199,6 +199,45 @@
     status.className = `auth-form-status show ${type}`;
   }
 
+  function signupConfirmationMessage(email) {
+    const address = normalizeEmail(email);
+    const accountTarget = address ? ` for ${address}` : '';
+    return `Supabase created the account${accountTarget} but did not start a signed-in session. If email confirmation is enabled, check inbox and spam. If nothing arrives, fix Supabase Auth email/SMTP settings or try logging in.`;
+  }
+
+  function showSignupConfirmationStatus(form, email) {
+    const normalizedEmail = normalizeEmail(email);
+    showAuthStatus(form, 'success', signupConfirmationMessage(normalizedEmail));
+    const status = form?.querySelector?.('.auth-form-status');
+    if (!status || !normalizedEmail || !window.SynapseAuth?.resendSignupConfirmation) return;
+
+    const actions = document.createElement('div');
+    actions.className = 'auth-status-actions';
+
+    const resendButton = document.createElement('button');
+    resendButton.type = 'button';
+    resendButton.className = 'auth-status-button';
+    resendButton.textContent = 'Resend confirmation';
+    resendButton.addEventListener('click', () => {
+      resendButton.disabled = true;
+      resendButton.textContent = 'Sending...';
+      window.SynapseAuth.resendSignupConfirmation(normalizedEmail)
+        .then(() => {
+          showAuthStatus(
+            form,
+            'success',
+            `Confirmation request sent for ${normalizedEmail}. If it still does not arrive, check Supabase Auth logs and Auth email/SMTP settings.`
+          );
+        })
+        .catch(error => {
+          showAuthStatus(form, 'error', error.message || 'Could not resend the confirmation request.');
+        });
+    });
+
+    actions.appendChild(resendButton);
+    status.appendChild(actions);
+  }
+
   function clearAuthStatus(form) {
     const status = form?.querySelector?.('.auth-form-status');
     if (status) {
@@ -589,7 +628,7 @@
         window.SynapseAuth.signUpEmail({ firstName, lastName, email, role, password })
           .then(result => {
             if (result?.requiresEmailConfirmation) {
-              showAuthStatus(signupForm, 'success', 'Account created. Check your email to confirm your Synapse account, then login.');
+              showSignupConfirmationStatus(signupForm, result.email || email);
               signupForm.reset();
               return;
             }

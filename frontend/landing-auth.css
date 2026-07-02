@@ -2242,6 +2242,34 @@ body::before {
   border: 1px solid #fecaca;
 }
 
+.auth-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.auth-status-button {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 850;
+  padding: 8px 12px;
+}
+
+.auth-status-button:hover {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.auth-status-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .auth-form-row {
   display: flex;
   align-items: center;

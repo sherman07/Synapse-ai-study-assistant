@@ -6,6 +6,8 @@ import vm from "node:vm";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const authScript = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.js"), "utf8");
+const authCss = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.css"), "utf8");
+const authClientScript = fs.readFileSync(path.join(repoRoot, "frontend/auth-client.js"), "utf8");
 const accountsKey = "synapse.auth.accounts.v1";
 const sessionKey = "synapse.auth.session.v1";
 
@@ -15,6 +17,17 @@ assert.ok(authScript.includes(sessionKey));
 assert.ok(!authScript.includes("window.location.href = '/index.html'"));
 assert.ok(!authScript.includes("window.prompt"), "Google auth must not use a fake prompt-based login fallback");
 assert.ok(authScript.includes("signInWithGoogle"), "Google auth should delegate to the real auth provider");
+assert.ok(!authScript.includes("Check your email to confirm your Synapse account, then login."), "Signup UI must not claim an email was sent when Supabase only returned no session");
+assert.ok(authScript.includes("Supabase created the account"), "Signup UI should explain that Supabase accepted the signup");
+assert.ok(authScript.includes("did not start a signed-in session"), "Signup UI should explain the actual Supabase state");
+assert.ok(authScript.includes("Auth email/SMTP settings"), "Signup UI should point users to the deliverability setting that controls confirmation emails");
+assert.ok(authScript.includes("showSignupConfirmationStatus"), "Signup UI should provide the confirmation-pending state");
+assert.ok(authScript.includes("Resend confirmation"), "Signup UI should let users retry a missing confirmation email");
+assert.ok(authClientScript.includes("data?.user && !data?.session"), "Supabase signup should distinguish user-created/no-session from immediate signin");
+assert.ok(authClientScript.includes("emailConfirmationStatus"), "Supabase signup should return an explicit confirmation status for the UI");
+assert.ok(authClientScript.includes("resendSignupConfirmation"), "Auth client should expose a resend confirmation helper");
+assert.ok(authClientScript.includes("client.auth.resend"), "Resend helper should delegate to Supabase Auth resend");
+assert.ok(authCss.includes(".auth-status-button"), "Confirmation retry should have visible button styling");
 assert.ok(fs.existsSync(path.join(repoRoot, "index.html")));
 
 const rootIndex = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
