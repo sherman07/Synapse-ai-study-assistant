@@ -72,6 +72,7 @@ Object.assign(window, {
   deleteAccountAndLocalData,
   goToAuthPage,
   exportAccountData,
+  refreshAccountSessionFromProvider,
   renderAccountMenu,
   revealQuizAnswer,
   saveQuizSettingsFromModal,
@@ -171,6 +172,11 @@ setupQuizTool();
 setupFlashcardTool();
 setupBroadcastTool();
 renderAccountMenu();
+if (typeof refreshAccountSessionFromProvider === "function") {
+  refreshAccountSessionFromProvider().catch(error => {
+    console.warn("Could not refresh account session on boot:", error);
+  });
+}
 window.addEventListener("synapse-auth-changed", () => {
   renderAccountMenu();
   if (typeof syncHistoryWithDataApi === "function") {

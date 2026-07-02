@@ -33,8 +33,8 @@ export function HistoryNavigation() {
             "aria-haspopup": "menu",
             "aria-label": "Open account menu",
           },
-          h("span", { className: "account-avatar account-menu-avatar" }, "S"),
-          h("span", { className: "history-account-plan account-menu-plan" }, "Starter")
+          h("span", { className: "account-avatar account-menu-avatar" }, "GS"),
+          h("span", { className: "history-account-plan account-menu-plan" }, "Free")
         ),
         h(
           "div",
@@ -46,15 +46,15 @@ export function HistoryNavigation() {
             h(
               "div",
               null,
-              h("strong", { className: "account-menu-name" }, "Synapse Student"),
+              h("strong", { className: "account-menu-name" }, "Guest Student"),
               h("p", { className: "account-menu-email" }, "Not signed in")
             )
           ),
           h(
             "div",
             { className: "account-plan-row" },
-            h("span", null, icon("bi-lightning-charge"), " ", h("span", { className: "account-menu-plan" }, "Starter")),
-            h("strong", null, h("span", { className: "account-menu-credits" }, "500"), " credits")
+            h("span", null, icon("bi-lightning-charge"), " ", h("span", { className: "account-menu-plan" }, "Free")),
+            h("strong", null, h("span", { className: "account-menu-credits" }, "0"), " credits")
           ),
           h(
             "button",
@@ -64,19 +64,19 @@ export function HistoryNavigation() {
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", onClick: legacyAction("openAccountPanel", "profile") },
+            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("openAccountPanel", "profile") },
             icon("bi-person-circle"),
             h("span", null, "Profile")
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", onClick: legacyAction("openAccountPanel", "billing") },
+            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("openAccountPanel", "billing") },
             icon("bi-credit-card"),
             h("span", null, "Billing & credits")
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", onClick: legacyAction("openAccountPanel", "settings") },
+            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("openAccountPanel", "settings") },
             icon("bi-gear"),
             h("span", null, "Settings")
           ),
@@ -89,7 +89,7 @@ export function HistoryNavigation() {
           h("div", { className: "account-menu-divider" }),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", onClick: legacyAction("signOutAccount") },
+            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("signOutAccount") },
             icon("bi-box-arrow-right"),
             h("span", null, "Sign out")
           ),

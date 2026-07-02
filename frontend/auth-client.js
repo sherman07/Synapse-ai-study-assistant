@@ -275,9 +275,9 @@
         persistSession: true
       }
     });
-    supabaseClient.auth.onAuthStateChange((_event, sessionPayload) => {
+    supabaseClient.auth.onAuthStateChange((event, sessionPayload) => {
       if (sessionPayload?.user) saveSession(publicSessionFromSupabase(sessionPayload));
-      else saveSession(null);
+      else if (event === "SIGNED_OUT" || event === "USER_DELETED") saveSession(null);
     });
     return supabaseClient;
   }
@@ -289,6 +289,7 @@
     const { data, error } = await client.auth.getSession();
     if (error) throw error;
     if (data?.session?.user) session = saveSession(publicSessionFromSupabase(data.session));
+    else if (session?.authMode === "supabase") session = saveSession(null);
     return syncBillingSessionFromServer(session);
   }
 
@@ -319,8 +320,8 @@
           first_name: String(firstName || "").trim(),
           last_name: String(lastName || "").trim(),
           role: role || "student",
-          plan: "Starter",
-          credits: 0
+          plan: "free",
+          credits: creditsForPlan("free")
         },
         emailRedirectTo: absoluteVerificationUrl()
       }

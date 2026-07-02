@@ -75,11 +75,11 @@ export function MobileNavigation() {
               onClick: legacyAction("openAccountPanel", "profile"),
               "data-bs-dismiss": "offcanvas",
             },
-            h("span", { className: "account-avatar account-menu-avatar" }, "S"),
+            h("span", { className: "account-avatar account-menu-avatar" }, "GS"),
             h(
               "div",
               null,
-              h("strong", { className: "account-menu-name" }, "Synapse Student"),
+              h("strong", { className: "account-menu-name" }, "Guest Student"),
               h("p", { className: "account-menu-email" }, "Not signed in")
             )
           ),

@@ -33,6 +33,9 @@ assert.ok(authClientScript.includes("absoluteVerificationUrl"), "Signup confirma
 assert.ok(authClientScript.includes("isRepeatedSignupUser"), "Auth client should classify repeated signup responses from Supabase");
 assert.ok(authClientScript.includes("existing_account"), "Auth client should return a clear existing-account signup status");
 assert.ok(authClientScript.includes("completeAuthRedirect"), "Auth client should complete Supabase redirect sessions on the verify page");
+assert.ok(authClientScript.includes('event === "SIGNED_OUT"'), "Auth client should clear the app session only on explicit Supabase sign-out events");
+assert.ok(authClientScript.includes('session?.authMode === "supabase"'), "Auth sync should clear stale Supabase app sessions when no provider session exists");
+assert.ok(authClientScript.includes('plan: "free"'), "New Supabase signups should use the Free plan id, not the old Starter label");
 assert.ok(authClientScript.includes("resendSignupConfirmation"), "Auth client should expose a resend confirmation helper");
 assert.ok(authClientScript.includes("client.auth.resend"), "Resend helper should delegate to Supabase Auth resend");
 assert.ok(authCss.includes(".auth-status-button"), "Confirmation retry should have visible button styling");

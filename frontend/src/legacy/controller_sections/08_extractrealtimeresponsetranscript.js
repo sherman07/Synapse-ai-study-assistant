@@ -738,6 +738,18 @@ function renderAccountMenu() {
   });
 }
 
+async function refreshAccountSessionFromProvider() {
+  renderAccountMenu();
+  if (!window.SynapseAuth?.syncSessionFromProvider) return getCurrentAccountSession();
+  try {
+    await window.SynapseAuth.syncSessionFromProvider();
+  } catch (error) {
+    console.warn("Could not refresh Synapse auth session:", error);
+  }
+  renderAccountMenu();
+  return getCurrentAccountSession();
+}
+
 function authPageUrl(page = "login") {
   const file = page === "signup" ? "signup.html" : "login.html";
   return (window.location.pathname || "").includes("/frontend/") ? file : `frontend/${file}`;
