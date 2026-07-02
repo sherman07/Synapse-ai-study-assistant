@@ -2261,6 +2261,10 @@ body::before {
   padding: 8px 12px;
 }
 
+.auth-status-link {
+  text-decoration: none;
+}
+
 .auth-status-button:hover {
   background: rgba(255, 255, 255, 0.94);
 }
@@ -2276,6 +2280,189 @@ body::before {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.verify-card {
+  overflow: hidden;
+}
+
+.verify-header {
+  margin-bottom: 26px;
+}
+
+.verify-orb {
+  align-items: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #4a7cff 0%, #7c5cff 52%, #28c7a8 100%);
+  border-radius: 22px;
+  box-shadow: 0 22px 48px rgba(74, 124, 255, 0.28);
+  color: #fff;
+  display: inline-flex;
+  font-size: 2rem;
+  height: 74px;
+  justify-content: center;
+  margin: 8px auto 18px;
+  width: 74px;
+}
+
+.verify-status {
+  align-items: flex-start;
+  border: 1px solid #dbe7ff;
+  border-radius: 22px;
+  display: flex;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding: 16px;
+}
+
+.verify-status-icon {
+  align-items: center;
+  border-radius: 16px;
+  display: inline-flex;
+  flex: 0 0 46px;
+  font-size: 1.35rem;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.verify-status strong,
+.verify-status span {
+  display: block;
+}
+
+.verify-status strong {
+  color: #10182f;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.verify-status span {
+  color: #62708a;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.verify-status-loading {
+  background: #f7faff;
+}
+
+.verify-status-loading .verify-status-icon {
+  background: #e7efff;
+  color: #4a7cff;
+}
+
+.verify-status-loading .verify-status-icon i {
+  animation: verify-spin 1.1s linear infinite;
+}
+
+.verify-status-success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.verify-status-success .verify-status-icon {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.verify-status-pending {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.verify-status-pending .verify-status-icon {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.verify-status-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.verify-status-error .verify-status-icon {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.verify-steps {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 22px;
+}
+
+.verify-step {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dbe7ff;
+  border-radius: 18px;
+  color: #6f7d95;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+  font-weight: 850;
+  gap: 8px;
+  justify-content: center;
+  min-height: 96px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.verify-step i {
+  align-items: center;
+  background: #eaf1ff;
+  border-radius: 999px;
+  color: #4a7cff;
+  display: inline-flex;
+  font-size: 1.05rem;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.verify-step.is-current {
+  background: #eef5ff;
+  border-color: #bcd2ff;
+  color: #254064;
+}
+
+.verify-step.is-complete {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.verify-step.is-complete i {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.verify-actions {
+  display: grid;
+  gap: 12px;
+}
+
+@keyframes verify-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .verify-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .verify-step {
+    flex-direction: row;
+    justify-content: flex-start;
+    min-height: auto;
+    text-align: left;
+  }
 }
 
 .auth-form-row-2 {

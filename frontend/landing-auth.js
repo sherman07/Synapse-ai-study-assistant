@@ -202,7 +202,7 @@
   function signupConfirmationMessage(email) {
     const address = normalizeEmail(email);
     const accountTarget = address ? ` for ${address}` : '';
-    return `Supabase created the account${accountTarget} but did not start a signed-in session. If email confirmation is enabled, check inbox and spam. If nothing arrives, fix Supabase Auth email/SMTP settings or try logging in.`;
+    return `Almost there. Synapse created the account${accountTarget}; open the verification email to unlock the workspace. If it does not arrive, use Resend verification or try the recovery path below.`;
   }
 
   function showSignupConfirmationStatus(form, email) {
@@ -217,7 +217,7 @@
     const resendButton = document.createElement('button');
     resendButton.type = 'button';
     resendButton.className = 'auth-status-button';
-    resendButton.textContent = 'Resend confirmation';
+    resendButton.textContent = 'Resend verification';
     resendButton.addEventListener('click', () => {
       resendButton.disabled = true;
       resendButton.textContent = 'Sending...';
@@ -226,15 +226,42 @@
           showAuthStatus(
             form,
             'success',
-            `Confirmation request sent for ${normalizedEmail}. If it still does not arrive, check Supabase Auth logs and Auth email/SMTP settings.`
+            `Verification request sent for ${normalizedEmail}. If it still does not arrive, this Supabase project may be on the built-in email rate limit; use password recovery or configure Auth email/SMTP settings.`
           );
         })
         .catch(error => {
-          showAuthStatus(form, 'error', error.message || 'Could not resend the confirmation request.');
+          showAuthStatus(form, 'error', error.message || 'Could not resend the verification request.');
         });
     });
 
     actions.appendChild(resendButton);
+    actions.appendChild(createStatusLink('Login', 'login.html'));
+    actions.appendChild(createStatusLink('Reset password', `forgot-password.html?email=${encodeURIComponent(normalizedEmail)}`));
+    status.appendChild(actions);
+  }
+
+  function createStatusLink(label, href) {
+    const link = document.createElement('a');
+    link.className = 'auth-status-button auth-status-link';
+    link.href = href;
+    link.textContent = label;
+    return link;
+  }
+
+  function showExistingAccountStatus(form, email) {
+    const normalizedEmail = normalizeEmail(email);
+    const address = normalizedEmail ? ` for ${normalizedEmail}` : '';
+    showAuthStatus(
+      form,
+      'success',
+      `This signup is already connected to a Synapse account${address}. No new signup email is needed. Log in instead, or reset the password if you do not remember it.`
+    );
+    const status = form?.querySelector?.('.auth-form-status');
+    if (!status) return;
+    const actions = document.createElement('div');
+    actions.className = 'auth-status-actions';
+    actions.appendChild(createStatusLink('Log in instead', 'login.html'));
+    actions.appendChild(createStatusLink('Reset password', `forgot-password.html?email=${encodeURIComponent(normalizedEmail)}`));
     status.appendChild(actions);
   }
 
@@ -627,6 +654,10 @@
         setButtonLoading(signupForm, 'signupSpinner', true);
         window.SynapseAuth.signUpEmail({ firstName, lastName, email, role, password })
           .then(result => {
+            if (result?.requiresExistingAccountAction) {
+              showExistingAccountStatus(signupForm, result.email || email);
+              return;
+            }
             if (result?.requiresEmailConfirmation) {
               showSignupConfirmationStatus(signupForm, result.email || email);
               signupForm.reset();
@@ -670,6 +701,14 @@
   
   const forgotPasswordForm = document.getElementById('forgotPasswordForm');
   if (forgotPasswordForm) {
+    const resetEmailInput = document.getElementById('resetEmail');
+    try {
+      const prefillEmail = normalizeEmail(new URLSearchParams(window.location.search || '').get('email'));
+      if (resetEmailInput && prefillEmail) resetEmailInput.value = prefillEmail;
+    } catch {
+      // Ignore malformed query strings; the form validation will handle manual input.
+    }
+
     forgotPasswordForm.addEventListener('submit', function(e) {
       e.preventDefault();
       clearAllErrors();

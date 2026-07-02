@@ -108,8 +108,28 @@
     return new URL(appEntryUrl(), window.location.href).toString();
   }
 
+  function verificationUrl() {
+    return (window.location.pathname || "").includes("/frontend/") ? "verify.html" : "frontend/verify.html";
+  }
+
+  function absoluteVerificationUrl() {
+    return new URL(verificationUrl(), window.location.href).toString();
+  }
+
   function normalizeEmail(email) {
     return String(email || "").trim().toLowerCase();
+  }
+
+  function urlAuthParams() {
+    const params = new URLSearchParams(window.location.search || "");
+    const hash = String(window.location.hash || "").replace(/^#/, "");
+    if (hash) {
+      const hashParams = new URLSearchParams(hash);
+      hashParams.forEach((value, key) => {
+        if (!params.has(key)) params.set(key, value);
+      });
+    }
+    return params;
   }
 
   function readJSON(key, fallback) {
@@ -272,6 +292,21 @@
     return syncBillingSessionFromServer(session);
   }
 
+  function isRepeatedSignupUser(user) {
+    return Array.isArray(user?.identities) && user.identities.length === 0;
+  }
+
+  async function signInAfterRepeatedSignup(client, email, password) {
+    if (!password) return null;
+    try {
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error || !data?.session?.user) return null;
+      return saveSession(publicSessionFromSupabase(data.session));
+    } catch {
+      return null;
+    }
+  }
+
   async function signUpEmail({ firstName, lastName, email, password, role }) {
     const client = await getSupabaseClient();
     if (!client) throw new Error("Production auth is not configured.");
@@ -287,14 +322,32 @@
           plan: "Starter",
           credits: 0
         },
-        emailRedirectTo: absoluteAppUrl()
+        emailRedirectTo: absoluteVerificationUrl()
       }
     });
     if (error) throw error;
     if (data?.session?.user) return { session: saveSession(publicSessionFromSupabase(data.session)) };
     if (data?.user && !data?.session) {
+      if (isRepeatedSignupUser(data.user)) {
+        const existingSession = await signInAfterRepeatedSignup(client, normalizedEmail, password);
+        if (existingSession) {
+          return {
+            session: existingSession,
+            signupStatus: "signed_in_existing",
+            email: normalizedEmail
+          };
+        }
+        return {
+          requiresExistingAccountAction: true,
+          signupStatus: "existing_account",
+          emailConfirmationStatus: "existing_account",
+          email: normalizedEmail,
+          userId: data.user.id || ""
+        };
+      }
       return {
         requiresEmailConfirmation: true,
+        signupStatus: "confirmation_pending",
         emailConfirmationStatus: "session_pending",
         email: normalizedEmail,
         userId: data.user.id || ""
@@ -302,6 +355,7 @@
     }
     return {
       requiresEmailConfirmation: true,
+      signupStatus: "confirmation_pending",
       emailConfirmationStatus: "unknown_delivery",
       email: normalizedEmail
     };
@@ -316,11 +370,34 @@
       type: "signup",
       email: normalizedEmail,
       options: {
-        emailRedirectTo: absoluteAppUrl()
+        emailRedirectTo: absoluteVerificationUrl()
       }
     });
     if (error) throw error;
     return { resent: true, email: normalizedEmail };
+  }
+
+  async function completeAuthRedirect() {
+    const params = urlAuthParams();
+    const redirectError = params.get("error_description") || params.get("error");
+    if (redirectError) {
+      return {
+        ok: false,
+        status: "error",
+        error: redirectError.replace(/\+/g, " ")
+      };
+    }
+
+    const session = await syncSessionFromProvider();
+    if (session?.accountId || session?.email) {
+      return { ok: true, status: "signed_in", session };
+    }
+
+    return {
+      ok: false,
+      status: "pending",
+      message: "Open your confirmation link from the same browser, or log in after verification."
+    };
   }
 
   async function signInEmail({ email, password }) {
@@ -569,6 +646,7 @@
     authHeaders,
     clearLocalSynapseData,
     collectLocalData,
+    completeAuthRedirect,
     createCheckoutSession,
     createPortalSession,
     dataApiBase,

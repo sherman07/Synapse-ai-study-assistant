@@ -18,13 +18,21 @@ assert.ok(!authScript.includes("window.location.href = '/index.html'"));
 assert.ok(!authScript.includes("window.prompt"), "Google auth must not use a fake prompt-based login fallback");
 assert.ok(authScript.includes("signInWithGoogle"), "Google auth should delegate to the real auth provider");
 assert.ok(!authScript.includes("Check your email to confirm your Synapse account, then login."), "Signup UI must not claim an email was sent when Supabase only returned no session");
-assert.ok(authScript.includes("Supabase created the account"), "Signup UI should explain that Supabase accepted the signup");
-assert.ok(authScript.includes("did not start a signed-in session"), "Signup UI should explain the actual Supabase state");
+assert.ok(authScript.includes("Synapse created the account"), "Signup UI should explain that Supabase accepted the signup");
+assert.ok(authScript.includes("open the verification email"), "Signup UI should explain the next verification step");
 assert.ok(authScript.includes("Auth email/SMTP settings"), "Signup UI should point users to the deliverability setting that controls confirmation emails");
 assert.ok(authScript.includes("showSignupConfirmationStatus"), "Signup UI should provide the confirmation-pending state");
-assert.ok(authScript.includes("Resend confirmation"), "Signup UI should let users retry a missing confirmation email");
+assert.ok(authScript.includes("Resend verification"), "Signup UI should let users retry a missing confirmation email");
+assert.ok(authScript.includes("showExistingAccountStatus"), "Signup UI should handle Supabase repeated-signup responses");
+assert.ok(authScript.includes("Log in instead"), "Repeated signup should offer a direct login path");
+assert.ok(authScript.includes("Reset password"), "Repeated signup should offer recovery instead of waiting for another signup email");
+assert.ok(authScript.includes("prefillEmail"), "Password recovery should prefill the email from repeated-signup actions");
 assert.ok(authClientScript.includes("data?.user && !data?.session"), "Supabase signup should distinguish user-created/no-session from immediate signin");
 assert.ok(authClientScript.includes("emailConfirmationStatus"), "Supabase signup should return an explicit confirmation status for the UI");
+assert.ok(authClientScript.includes("absoluteVerificationUrl"), "Signup confirmation should redirect to a dedicated verification page");
+assert.ok(authClientScript.includes("isRepeatedSignupUser"), "Auth client should classify repeated signup responses from Supabase");
+assert.ok(authClientScript.includes("existing_account"), "Auth client should return a clear existing-account signup status");
+assert.ok(authClientScript.includes("completeAuthRedirect"), "Auth client should complete Supabase redirect sessions on the verify page");
 assert.ok(authClientScript.includes("resendSignupConfirmation"), "Auth client should expose a resend confirmation helper");
 assert.ok(authClientScript.includes("client.auth.resend"), "Resend helper should delegate to Supabase Auth resend");
 assert.ok(authCss.includes(".auth-status-button"), "Confirmation retry should have visible button styling");
@@ -35,10 +43,19 @@ assert.ok(rootIndex.includes("frontend/landing.html"));
 const rootApp = fs.readFileSync(path.join(repoRoot, "app.html"), "utf8");
 assert.ok(rootApp.includes("frontend/index.html"));
 
-for (const page of ["landing", "login", "signup", "forgot-password"]) {
+for (const page of ["landing", "login", "signup", "forgot-password", "verify"]) {
   const shim = fs.readFileSync(path.join(repoRoot, `${page}.html`), "utf8");
   assert.ok(shim.includes(`frontend/${page}.html`), `${page}.html should redirect to frontend/${page}.html`);
 }
+
+const verifyPage = fs.readFileSync(path.join(repoRoot, "frontend/verify.html"), "utf8");
+const verifyScript = fs.readFileSync(path.join(repoRoot, "frontend/verify-auth.js"), "utf8");
+const forgotPage = fs.readFileSync(path.join(repoRoot, "frontend/forgot-password.html"), "utf8");
+assert.ok(verifyPage.includes("verify-auth.js"), "Verify page should run the Supabase auth callback controller");
+assert.ok(verifyPage.includes("data-testid=\"verify-status\""), "Verify page should expose a testable status region");
+assert.ok(verifyScript.includes("completeAuthRedirect"), "Verify page should complete Supabase redirect sessions");
+assert.ok(!verifyScript.includes("innerHTML"), "Verify page should render URL-derived auth errors with text nodes");
+assert.ok(forgotPage.includes("Send Reset Link"), "Password recovery page should present a production reset flow");
 
 function makeClassList() {
   const values = new Set();
