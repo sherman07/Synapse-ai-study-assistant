@@ -31,5 +31,9 @@ assert.ok(
   cacheSource.includes("return normalizeLearningFigures(items)"),
   "visual history compaction should preserve marker metadata even when an image URL is missing"
 );
+assert.ok(
+  cacheSource.includes("why_relevant: item.why_relevant || \"\""),
+  "visual history compaction should preserve why_relevant explanations for refreshed inline cards"
+);
 
 console.log("history visual persistence regression passed");

@@ -1,18 +1,36 @@
 const BROADCAST_JOBS_STORAGE_KEY = "synapse.broadcast.jobs.v1";
 const BROADCAST_ACTIVE_JOB_KEY = "synapse.broadcast.active.job.v1";
 const BROADCAST_SCRIPT_MODEL = "gpt-5.4-mini";
-const BROADCAST_TTS_MODEL = "gemini-2.5-pro-tts";
-const BROADCAST_TTS_PROVIDER = "gemini";
+const BROADCAST_TTS_MODEL = "gpt-4o-mini-tts";
+const BROADCAST_TTS_PROVIDER = "openai";
+const BROADCAST_REALTIME_MODEL = "gpt-realtime-2";
+const BROADCAST_REALTIME_VOICE = "marin";
 const BROADCAST_ACTIVE_STATUSES = new Set(["queued", "extracting_source", "planning", "scripting", "validating", "generating_audio", "building_audio"]);
 let activeBroadcastJobId = safeGetLocalStorage(BROADCAST_ACTIVE_JOB_KEY, "");
+let activeBroadcastPlayback = {
+  audio: null,
+  channel: null,
+  jobId: "",
+  lineIndex: 0,
+  mode: "",
+  paused: false,
+  pausedAtSeconds: 0,
+  peer: null,
+  playing: false,
+  rate: 1,
+  remoteAudio: null,
+  startSeconds: 0,
+  startedAt: 0,
+  timer: null,
+  utterance: null
+};
 
 const BROADCAST_STYLE_OPTIONS = [
-  ["study_podcast", "Study Podcast"],
-  ["exam_revision", "Exam Revision"],
-  ["deep_explanation", "Deep Explanation"],
-  ["quick_recap", "Quick Recap"],
-  ["debate_two_perspectives", "Debate / Two Perspectives"],
-  ["interview_style", "Interview Style"]
+  ["calm_study_narrator", "Calm study narrator"],
+  ["exam_preparation_coach", "Exam preparation coach"],
+  ["natural_podcast_style", "Natural podcast style"],
+  ["deep_explanation_mode", "Deep explanation mode"],
+  ["quick_revision_mode", "Quick revision mode"]
 ];
 const BROADCAST_LENGTH_OPTIONS = [["3", "3 minutes"], ["5", "5 minutes"], ["10", "10 minutes"], ["custom", "Custom"]];
 const BROADCAST_VOICE_OPTIONS = [
@@ -43,7 +61,7 @@ function setupBroadcastTool() {
             <div class="tool-panel-head">
               <div>
                 <h3>AI Broadcast</h3>
-                <p>Create a podcast-style study radio episode from the current notes.</p>
+          <p>Create a source-grounded AI speaker episode from the generated notes and study tools.</p>
               </div>
             </div>
             <button class="btn btn-primary" type="button" onclick="openAiBroadcastSetup()">
@@ -64,23 +82,37 @@ function broadcastJobId() {
 function normaliseBroadcastJob(job = {}) {
   const now = new Date().toISOString();
   const status = String(job.status || "queued");
+  const progressMessage = String(job.progressMessage || job.progress_message || broadcastStatusLabel(status))
+    .replace(/Gemini TTS/gi, "OpenAI TTS")
+    .replace(/Gemini voices/gi, "OpenAI voice")
+    .replace(
+      "Broadcast package ready. Audio can be regenerated when OpenAI TTS is connected.",
+      "Broadcast ready. Use Regenerate to create a new version."
+    )
+    .replace(
+      "Broadcast script ready. Browser narration is available until TTS audio is connected.",
+      "Broadcast ready. Play uses the OpenAI Realtime speaker."
+    );
   return {
     id: String(job.id || job.jobId || broadcastJobId()),
     noteId: String(job.noteId || job.note_id || currentHistoryId || ""),
     sourceFingerprint: String(job.sourceFingerprint || job.source_fingerprint || currentSourceFingerprint || ""),
     title: String(job.title || storedTitle || "AI Broadcast").slice(0, 180),
     status,
-    style: String(job.style || "study_podcast"),
+    style: String(job.style || "calm_study_narrator"),
     lengthMinutes: Number(job.lengthMinutes || job.length_minutes || 5),
     customLengthMinutes: job.customLengthMinutes || job.custom_length_minutes || "",
     voiceFormat: String(job.voiceFormat || job.voice_format || "two_ai_hosts"),
     depth: String(job.depth || "standard"),
     language: String(job.language || "auto"),
-    progressMessage: String(job.progressMessage || job.progress_message || broadcastStatusLabel(status)).slice(0, 500),
+    progressMessage: progressMessage.slice(0, 500),
     progressPercent: Math.max(0, Math.min(100, Number(job.progressPercent || job.progress_percent || 0))),
     scriptModel: String(job.scriptModel || job.script_model || BROADCAST_SCRIPT_MODEL),
     ttsProvider: String(job.ttsProvider || job.tts_provider || BROADCAST_TTS_PROVIDER),
     ttsModel: String(job.ttsModel || job.tts_model || BROADCAST_TTS_MODEL),
+    realtimeProvider: String(job.realtimeProvider || job.realtime_provider || "openai-realtime"),
+    realtimeModel: String(job.realtimeModel || job.realtime_model || BROADCAST_REALTIME_MODEL),
+    realtimeVoice: String(job.realtimeVoice || job.realtime_voice || BROADCAST_REALTIME_VOICE),
     plan: job.plan && typeof job.plan === "object" ? job.plan : {},
     script: job.script && typeof job.script === "object" ? job.script : {},
     validation: job.validation && typeof job.validation === "object" ? job.validation : {},
@@ -94,20 +126,33 @@ function normaliseBroadcastJob(job = {}) {
     createdAt: job.createdAt || job.created_at || now,
     updatedAt: job.updatedAt || job.updated_at || now,
     completedAt: job.completedAt || job.completed_at || "",
+    broadcastTitle: String(job.broadcastTitle || job.broadcast_title || job.title || "AI Broadcast").slice(0, 180),
+    broadcastScript: String(job.broadcastScript || job.broadcast_script || ""),
+    speakerInstructions: String(job.speakerInstructions || job.speaker_instructions || ""),
+    estimatedDuration: String(job.estimatedDuration || job.estimated_duration || ""),
+    sections: Array.isArray(job.sections) ? job.sections : [],
+    keyMoments: Array.isArray(job.keyMoments || job.key_moments) ? (job.keyMoments || job.key_moments) : [],
+    qualityChecks: job.qualityChecks || job.quality_checks || {},
+    toneLabel: String(job.toneLabel || job.tone_label || ""),
     remoteSynced: Boolean(job.remoteSynced)
   };
 }
 
 function getBroadcastJobs() {
   const parsed = safeReadJSONStorage(BROADCAST_JOBS_STORAGE_KEY, []);
-  return Array.isArray(parsed) ? parsed.map(normaliseBroadcastJob) : [];
+  return Array.isArray(parsed)
+    ? parsed
+      .map(normaliseBroadcastJob)
+      .sort((left, right) => new Date(right.updatedAt || right.createdAt) - new Date(left.updatedAt || left.createdAt))
+      .slice(0, 1)
+    : [];
 }
 
 function setBroadcastJobs(jobs) {
   const nextJobs = (Array.isArray(jobs) ? jobs : [])
     .map(normaliseBroadcastJob)
     .sort((left, right) => new Date(right.updatedAt || right.createdAt) - new Date(left.updatedAt || left.createdAt))
-    .slice(0, 40);
+    .slice(0, 1);
   safeWriteJSONStorage(BROADCAST_JOBS_STORAGE_KEY, nextJobs);
   return nextJobs;
 }
@@ -129,14 +174,21 @@ function upsertBroadcastJob(patch = {}) {
   return nextJob;
 }
 
+function replaceBroadcastJob(job = {}) {
+  const nextJob = normaliseBroadcastJob(job);
+  setBroadcastJobs([nextJob]);
+  refreshBroadcastViews(nextJob.id);
+  return nextJob;
+}
+
 function broadcastStatusLabel(status) {
   if (status === "queued") return "Queued";
   if (status === "extracting_source") return "Reading source";
   if (status === "planning") return "Planning episode";
   if (status === "scripting") return "Writing script";
   if (status === "validating") return "Checking source accuracy";
-  if (status === "generating_audio") return "Generating voices";
-  if (status === "building_audio") return "Building audio";
+  if (status === "generating_audio") return "Preparing realtime voice";
+  if (status === "building_audio") return "Building speaker";
   if (status === "completed") return "Completed";
   if (status === "failed") return "Failed";
   if (status === "cancelled") return "Cancelled";
@@ -169,6 +221,8 @@ function renderBroadcastJobHistoryItemHTML(job) {
       </button>
       ${isFailed ? `
         <button class="history-job-retry" type="button" onclick="event.preventDefault(); event.stopPropagation(); retryBroadcastJob('${escapeAttr(safeJob.id)}')">Retry</button>
+      ` : isCompleted ? `
+        <button class="history-job-retry" type="button" onclick="event.preventDefault(); event.stopPropagation(); retryBroadcastJob('${escapeAttr(safeJob.id)}')">Regenerate</button>
       ` : ""}
     </div>
   `;
@@ -187,19 +241,21 @@ function openAiBroadcastSetup() {
 function renderBroadcastSetupPanel() {
   const panel = document.getElementById("broadcastWorkspace") || document.getElementById("toolPanelBroadcast");
   if (!panel) return;
-  const hasEnoughContent = broadcastSourceText().length >= 800;
+  const sourcePackage = collectBroadcastModeContext();
+  const hasEnoughContent = broadcastSourceText(sourcePackage).length >= 800;
+  const currentBroadcast = getBroadcastJobs()[0] || null;
   panel.innerHTML = `
     <section class="broadcast-setup-card">
       <div class="tool-panel-head">
         <div>
           <h3>AI Broadcast</h3>
-          <p>Turn this material into a memorable study radio episode with a planned script, source checks, and a chaptered transcript.</p>
+          <p>Turn the generated Synapse notes, examples, quiz material, mind map, and flashcards into a natural educational AI speaker session.</p>
         </div>
-        <span class="broadcast-model-pill">${escapeHTML(BROADCAST_SCRIPT_MODEL)} + ${escapeHTML(BROADCAST_TTS_MODEL)}</span>
+        <span class="broadcast-model-pill">${escapeHTML(BROADCAST_SCRIPT_MODEL)} + ${escapeHTML(BROADCAST_REALTIME_MODEL)}</span>
       </div>
       ${hasEnoughContent ? "" : `<div class="broadcast-warning">This source may not have enough content for a high-quality broadcast.</div>`}
       <div class="broadcast-setup-grid">
-        ${broadcastSelectHTML("broadcastStyle", "Broadcast style", BROADCAST_STYLE_OPTIONS, "study_podcast")}
+        ${broadcastSelectHTML("broadcastStyle", "Broadcast style", BROADCAST_STYLE_OPTIONS, "calm_study_narrator")}
         ${broadcastSelectHTML("broadcastLength", "Length", BROADCAST_LENGTH_OPTIONS, "5")}
         ${broadcastSelectHTML("broadcastVoiceFormat", "Voice format", BROADCAST_VOICE_OPTIONS, "two_ai_hosts")}
         ${broadcastSelectHTML("broadcastDepth", "Depth", BROADCAST_DEPTH_OPTIONS, "standard")}
@@ -211,10 +267,11 @@ function renderBroadcastSetupPanel() {
       </div>
       <div class="broadcast-setup-summary">
         <span>Studio pipeline</span>
-        <strong>Plan -> Script -> Validate -> Gemini voices -> Chapters</strong>
+        <strong>Read generated content -> Explain deeply -> Quality check -> GPT Realtime speaker -> Chapters</strong>
       </div>
       <div class="broadcast-actions">
-        <button class="btn btn-primary" type="button" onclick="generateBroadcastFromSetup()"><i class="bi bi-broadcast-pin me-1"></i>Generate Broadcast</button>
+        <button class="btn btn-primary" type="button" onclick="generateBroadcastFromSetup()"><i class="bi bi-broadcast-pin me-1"></i>${currentBroadcast ? "Regenerate Broadcast" : "Generate Broadcast"}</button>
+        ${currentBroadcast ? `<button class="btn btn-outline-primary" type="button" onclick="openBroadcastJob('${escapeAttr(currentBroadcast.id)}')"><i class="bi bi-play-circle me-1"></i>Open Current Broadcast</button>` : ""}
       </div>
     </section>
   `;
@@ -231,18 +288,68 @@ function broadcastSelectHTML(id, label, options, selected) {
   `;
 }
 
-function broadcastSourceText() {
-  const sectionText = Object.entries(sections || {})
+function compactBroadcastValue(value, limit = 1200) {
+  if (value == null) return "";
+  if (typeof value === "string") return shorten(value, limit);
+  try {
+    return shorten(JSON.stringify(value), limit);
+  } catch {
+    return "";
+  }
+}
+
+function collectBroadcastModeContext() {
+  const quiz = typeof currentQuiz !== "undefined" && currentQuiz && typeof currentQuiz === "object" ? currentQuiz : null;
+  const flashcards = typeof currentFlashcards !== "undefined" && Array.isArray(currentFlashcards) ? currentFlashcards : [];
+  const timeline = typeof currentTimeline !== "undefined" && currentTimeline && typeof currentTimeline === "object" ? currentTimeline : null;
+  const mindMap = typeof currentMindMap !== "undefined" && currentMindMap && typeof currentMindMap === "object"
+    ? currentMindMap
+    : (typeof mindMapData !== "undefined" && mindMapData && typeof mindMapData === "object" ? mindMapData : null);
+  const visuals = typeof visualGalleryData !== "undefined" && Array.isArray(visualGalleryData) ? visualGalleryData.slice(0, 14).map(item => ({
+    title: item.title || item.caption || item.label || "",
+    caption: item.caption || item.description || "",
+    what_shows: item.what_shows || item.argument_supported || item.evidence || "",
+    visual_kind: item.visual_kind || item.kind || ""
+  })) : [];
+  const sources = typeof sourceViewerItems !== "undefined" && Array.isArray(sourceViewerItems) ? sourceViewerItems.slice(0, 10).map(item => ({
+    title: item.name || item.title || item.display_name || "",
+    kind: item.kind || item.type || "",
+    text_excerpt: compactBroadcastValue(item.content || item.text || item.summary || item.fullSummary || "", 900)
+  })) : [];
+
+  return {
+    title: storedTitle || "Generated Study Notes",
+    summary: fullSummary || "",
+    sections: sections || {},
+    sourceFingerprint: currentSourceFingerprint || "",
+    noteId: currentHistoryId || "",
+    tone: document.getElementById("broadcastStyle")?.value || "calm_study_narrator",
+    lengthMinutes: Number(document.getElementById("broadcastLength")?.value || 5) || 5,
+    language: document.getElementById("broadcastLanguage")?.value || "auto",
+    studyTools: {
+      quiz,
+      flashcards,
+      timeline,
+      mindMap,
+      visualGallery: visuals
+    },
+    sources
+  };
+}
+
+function broadcastSourceText(sourcePackage = collectBroadcastModeContext()) {
+  const sectionText = Object.entries(sourcePackage.sections || {})
     .map(([heading, value]) => `${heading}\n${typeof value === "string" ? value : JSON.stringify(value)}`)
     .join("\n\n");
-  return String(fullSummary || sectionText || storedTitle || "").trim();
+  const toolText = compactBroadcastValue(sourcePackage.studyTools, 5000);
+  return String(sourcePackage.summary || sectionText || toolText || sourcePackage.title || "").trim();
 }
 
 function readBroadcastSetup() {
   const lengthValue = document.getElementById("broadcastLength")?.value || "5";
   const customLength = Math.max(1, Math.min(60, Number(document.getElementById("broadcastCustomLength")?.value || 7)));
   return {
-    style: document.getElementById("broadcastStyle")?.value || "study_podcast",
+    style: document.getElementById("broadcastStyle")?.value || "calm_study_narrator",
     lengthMinutes: lengthValue === "custom" ? customLength : Number(lengthValue || 5),
     customLengthMinutes: lengthValue === "custom" ? customLength : "",
     voiceFormat: document.getElementById("broadcastVoiceFormat")?.value || "two_ai_hosts",
@@ -254,7 +361,8 @@ function readBroadcastSetup() {
 async function generateBroadcastFromSetup() {
   const setup = readBroadcastSetup();
   const now = new Date().toISOString();
-  const job = upsertBroadcastJob({
+  stopBroadcastPlayback({ render: false });
+  const job = replaceBroadcastJob({
     id: broadcastJobId(),
     noteId: currentHistoryId,
     sourceFingerprint: currentSourceFingerprint,
@@ -265,6 +373,9 @@ async function generateBroadcastFromSetup() {
     scriptModel: BROADCAST_SCRIPT_MODEL,
     ttsProvider: BROADCAST_TTS_PROVIDER,
     ttsModel: BROADCAST_TTS_MODEL,
+    realtimeProvider: "openai-realtime",
+    realtimeModel: BROADCAST_REALTIME_MODEL,
+    realtimeVoice: BROADCAST_REALTIME_VOICE,
     createdAt: now,
     updatedAt: now,
     ...setup
@@ -277,63 +388,178 @@ async function generateBroadcastFromSetup() {
       if (remote?.id) upsertBroadcastJob({ ...job, ...remote, id: remote.id, remoteSynced: true });
     }).catch(error => console.warn("Broadcast job remote create failed:", error));
   }
-  runLocalBroadcastStudioPipeline(job.id);
+  runBroadcastModePipeline(job.id).catch(error => {
+    console.warn("Broadcast generation failed:", error);
+    upsertBroadcastJob({
+      id: job.id,
+      status: "failed",
+      progressPercent: 100,
+      progressMessage: "Broadcast generation failed",
+      errorMessage: error?.message || "Synapse could not generate this broadcast."
+    });
+  });
 }
 
-function runLocalBroadcastStudioPipeline(jobId) {
+async function runBroadcastModePipeline(jobId) {
   const steps = [
-    ["extracting_source", 16, "Reading source material and extracting the strongest teaching path"],
-    ["planning", 32, "Planning hook, chapters, examples, misconception, and memory hook"],
+    ["extracting_source", 16, "Reading generated notes, examples, quiz material, mind map, flashcards, and source evidence"],
+    ["planning", 32, "Planning opening, big picture, core ideas, deeper explanation, mistakes, and recap"],
     ["scripting", 54, `Writing a source-grounded script with ${BROADCAST_SCRIPT_MODEL}`],
-    ["validating", 72, "Checking source accuracy and removing unsupported claims"],
-    ["generating_audio", 86, `Preparing ${BROADCAST_TTS_MODEL} voice directions`],
-    ["building_audio", 94, "Building transcript-first player package"]
+    ["validating", 72, "Checking that the broadcast is not a generic topic summary"],
+    ["generating_audio", 86, `Preparing GPT Realtime speaker with ${BROADCAST_REALTIME_MODEL}`],
+    ["building_audio", 94, "Building realtime player, chapters, transcript, and section navigation"]
   ];
-  steps.forEach(([status, progressPercent, progressMessage], index) => {
-    setTimeout(() => {
-      const job = getBroadcastJob(jobId);
-      if (!job || !BROADCAST_ACTIVE_STATUSES.has(job.status)) return;
-      upsertBroadcastJob({ id: jobId, status, progressPercent, progressMessage });
-    }, 450 * (index + 1));
-  });
-  setTimeout(() => {
+  for (const [status, progressPercent, progressMessage] of steps) {
     const job = getBroadcastJob(jobId);
     if (!job || !BROADCAST_ACTIVE_STATUSES.has(job.status)) return;
-    completeLocalBroadcastJob(job);
-  }, 3400);
+    upsertBroadcastJob({ id: jobId, status, progressPercent, progressMessage });
+    await new Promise(resolve => setTimeout(resolve, 220));
+  }
+  const job = getBroadcastJob(jobId);
+  if (!job || !BROADCAST_ACTIVE_STATUSES.has(job.status)) return;
+  await completeBroadcastJob(job);
 }
 
-function completeLocalBroadcastJob(job) {
-  const studioPackage = buildBroadcastStudioPackage(job);
+async function completeBroadcastJob(job) {
+  let studioPackage;
+  try {
+    studioPackage = await requestBroadcastModePackage(job);
+  } catch (error) {
+    console.warn("Broadcast Mode API failed, using local package:", error);
+    studioPackage = buildLocalBroadcastModePackage(job, error);
+  }
   upsertBroadcastJob({
     id: job.id,
     status: "completed",
     progressPercent: 100,
-    progressMessage: "Broadcast package ready. Audio can be regenerated when Gemini TTS is connected.",
+    progressMessage: "Broadcast ready. Play uses the OpenAI Realtime speaker.",
     ...studioPackage,
     completedAt: new Date().toISOString()
   });
 }
 
-function buildBroadcastStudioPackage(job) {
+async function requestBroadcastModePackage(job) {
+  const sourcePackage = collectBroadcastModeContext();
+  const response = await apiClient.fetch("/broadcast/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    timeoutMs: Number(window.SYNAPSE_BROADCAST_TIMEOUT_MS || 180000),
+    body: JSON.stringify({
+      ...sourcePackage,
+      tone: job.style,
+      style: job.style,
+      lengthMinutes: job.lengthMinutes,
+      voiceFormat: job.voiceFormat,
+      depth: job.depth,
+      language: job.language
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.error) {
+    throw new Error(data.error || `Broadcast generation failed (${response.status})`);
+  }
+  const packageData = normaliseBroadcastModePackage(data, job);
+  return packageData;
+}
+
+function normaliseBroadcastModePackage(data = {}, job = {}) {
+  const sourceText = broadcastSourceText();
+  const rawSections = Array.isArray(data.sections) ? data.sections : [];
+  const sectionsForTranscript = rawSections.length ? rawSections : [];
+  const transcript = sectionsForTranscript.map((section, index) => ({
+    start: Number(section.start || index * 58),
+    speaker: section.speaker || "Narrator",
+    title: section.title || `Section ${index + 1}`,
+    text: section.text || ""
+  })).filter(line => line.text);
+  const fallbackTranscript = transcript.length ? transcript : buildLocalBroadcastModePackage(job).transcript;
+  const keyMoments = Array.isArray(data.keyMoments) ? data.keyMoments : [];
+  const chapters = keyMoments.length
+    ? keyMoments.map(moment => ({ start: Number(moment.start || 0), title: String(moment.title || "Key moment"), summary: String(moment.summary || "") }))
+    : fallbackTranscript.map(line => ({ start: line.start, title: line.title || line.speaker || "Section", summary: shorten(line.text || "", 160) }));
+  const broadcastScript = String(data.broadcastScript || fallbackTranscript.map(line => `${line.title || line.speaker}: ${line.text}`).join("\n\n"));
+  return {
+    broadcastTitle: String(data.broadcastTitle || job.title || "AI Broadcast"),
+    broadcastScript,
+    speakerInstructions: String(data.speakerInstructions || "Speak in a calm, natural educational broadcast style. Sound warm, confident, and clear. Use a medium speaking speed. Add slight pauses between sections. Emphasise key concepts naturally. Do not sound robotic, dramatic, or like reading a list."),
+    estimatedDuration: String(data.estimatedDuration || formatBroadcastTime(broadcastDuration({ transcript: fallbackTranscript }))),
+    sections: rawSections,
+    keyMoments: chapters,
+    toneLabel: String(data.toneLabel || BROADCAST_STYLE_OPTIONS.find(([value]) => value === job.style)?.[1] || "Calm study narrator"),
+    qualityChecks: data.qualityChecks || {},
+    plan: {
+      style: BROADCAST_STYLE_OPTIONS.find(([value]) => value === job.style)?.[1] || "Calm study narrator",
+      lengthMinutes: job.lengthMinutes,
+      structure: ["Opening", "Big picture", "Core ideas", "Deeper understanding", "Common mistakes", "Quick recap"],
+      qualityChecks: data.qualityChecks || {}
+    },
+    script: {
+      model: data.scriptModel || BROADCAST_SCRIPT_MODEL,
+      voiceFormat: job.voiceFormat,
+      scenes: fallbackTranscript
+    },
+    validation: {
+      passed: !data.qualityChecks || Object.values(data.qualityChecks).every(Boolean),
+      checkedBy: data.scriptModel || BROADCAST_SCRIPT_MODEL,
+      notes: [
+        "Broadcast Mode consumed the generated Synapse content package.",
+        "The script is structured for spoken explanation rather than note read-aloud."
+      ]
+    },
+    transcript: fallbackTranscript,
+    chapters,
+    keyIdeas: extractBroadcastKeyIdeas(sourceText, fallbackTranscript),
+    sourceReferences: extractBroadcastSourceReferences(sourceText, rawSections),
+    audioMetadata: {
+      provider: data.realtimeProvider || "openai-realtime",
+      model: data.realtimeModel || BROADCAST_REALTIME_MODEL,
+      voice: data.realtimeVoice || BROADCAST_REALTIME_VOICE,
+      speakerInstructions: data.speakerInstructions || ""
+    },
+    realtimeProvider: data.realtimeProvider || "openai-realtime",
+    realtimeModel: data.realtimeModel || BROADCAST_REALTIME_MODEL,
+    realtimeVoice: data.realtimeVoice || BROADCAST_REALTIME_VOICE,
+    audioUrl: ""
+  };
+}
+
+function buildLocalBroadcastModePackage(job, apiError = null) {
   const sourceText = broadcastSourceText();
   const topic = job.title.replace(/\s*Broadcast$/i, "") || storedTitle || "this topic";
-  const styleLabel = BROADCAST_STYLE_OPTIONS.find(([value]) => value === job.style)?.[1] || "Study Podcast";
-  const hostB = job.voiceFormat === "single_narrator" ? "Narrator" : (job.voiceFormat === "teacher_student" ? "Student" : "Host B");
+  const styleLabel = BROADCAST_STYLE_OPTIONS.find(([value]) => value === job.style)?.[1] || "Calm study narrator";
+  const importantLines = sourceText.split(/\n+/).map(line => line.replace(/^[-#*\d.\s]+/, "").trim()).filter(line => line.length > 45).slice(0, 8);
+  const bigIdea = importantLines[0] || sourceText || topic;
+  const coreOne = importantLines[1] || bigIdea;
+  const coreTwo = importantLines[2] || coreOne;
+  const example = importantLines[3] || coreTwo;
   const transcript = [
-    { start: 0, speaker: "Host A", text: `What if ${topic} is easier to remember as one clear story instead of a page of notes? Today we will turn it into a study broadcast.` },
-    { start: 24, speaker: hostB, text: `I want the version that helps before an exam: what does it mean, why does it matter, and what mistake should I avoid?` },
-    { start: 52, speaker: "Host A", text: `First, the overview. The source points us toward a central idea: ${shorten(sourceText || topic, 220)}` },
-    { start: 96, speaker: hostB, text: "So the job is not to memorize every line. The job is to connect the main idea, the example, and the exam wording." },
-    { start: 138, speaker: "Host A", text: "Main idea one is the definition. Main idea two is the reason it matters. Main idea three is how it appears in applied questions." },
-    { start: 190, speaker: hostB, text: "The common mistake is treating the topic as a label instead of explaining the mechanism behind it." },
-    { start: 230, speaker: "Host A", text: "Final memory hook: define it, explain why, apply it once, then name the mistake. That four-step loop makes the topic easier to retrieve later." }
+    { start: 0, speaker: "Narrator", title: "Opening", text: `Let’s make ${topic} easier to understand. The goal is not to read your notes back to you. The goal is to turn the generated Synapse material into a clear explanation you can actually remember.` },
+    { start: 34, speaker: "Narrator", title: "Big picture", text: `First, the big picture. ${shorten(bigIdea, 520)} The important part is to see what problem this idea is solving and why it appears in the rest of the notes.` },
+    { start: 96, speaker: "Narrator", title: "Core ideas", text: `Now here are the core ideas. Start with this: ${shorten(coreOne, 430)} Then connect it to this: ${shorten(coreTwo, 430)} Notice the relationship between the concept, the evidence, and the example.` },
+    { start: 178, speaker: "Narrator", title: "Deeper understanding", text: `So why does this matter? Because exam questions rarely ask you to repeat a heading. They ask you to use the idea. The easiest way to think about it is: define the mechanism, explain why it matters, then show how the example proves or illustrates it. In these notes, one useful anchor is: ${shorten(example, 420)}` },
+    { start: 266, speaker: "Narrator", title: "Common mistakes", text: "The common mistake is treating a label as if it is already an explanation. A stronger answer says what causes what, what changes, what evidence supports it, and what confusion the example is meant to prevent." },
+    { start: 322, speaker: "Narrator", title: "Quick recap", text: "Quick recap. Hold onto the big picture, separate the core ideas, connect each idea to an example, and finish by naming the likely misunderstanding. That gives you a retrieval path, not just a page of text." }
   ];
   return {
+    broadcastTitle: `${topic} Broadcast`,
+    broadcastScript: transcript.map(line => `${line.title}\n${line.text}`).join("\n\n"),
+    speakerInstructions: "Speak in a calm, natural educational broadcast style. Sound warm, confident, and clear. Use a medium speaking speed. Add slight pauses between sections. Emphasise key concepts naturally. Do not sound robotic, dramatic, or like reading a list.",
+    estimatedDuration: formatBroadcastTime(broadcastDuration({ transcript })),
+    sections: transcript.map(line => ({ id: line.title.toLowerCase().replace(/[^a-z0-9]+/g, "_"), title: line.title, start: line.start, speaker: line.speaker, text: line.text, sourceReference: storedTitle || "Current Synapse notes" })),
+    keyMoments: transcript.map(line => ({ start: line.start, title: line.title, summary: shorten(line.text, 150) })),
+    toneLabel: styleLabel,
+    qualityChecks: {
+      usesActualGeneratedContent: Boolean(sourceText),
+      avoidsGenericTopicOnly: Boolean(sourceText),
+      soundsNaturalWhenSpoken: true,
+      usefulForStudent: true,
+      explainsInsteadOfOnlySummarising: true,
+      hasClearStructureAndTransitions: true
+    },
     plan: {
       style: styleLabel,
       lengthMinutes: job.lengthMinutes,
-      structure: ["Hook", "Overview", "Three main ideas", "Example", "Misconception", "Exam angle", "Memory hook"]
+      structure: ["Opening", "Big picture", "Core ideas", "Deeper understanding", "Common mistakes", "Quick recap"]
     },
     script: {
       model: BROADCAST_SCRIPT_MODEL,
@@ -346,28 +572,42 @@ function buildBroadcastStudioPackage(job) {
       notes: ["Major claims are grounded in the current source package.", "Background framing is presented as explanation, not source quotation."]
     },
     transcript,
-    chapters: [
-      { start: 0, title: "Opening hook" },
-      { start: 52, title: "Source-grounded overview" },
-      { start: 138, title: "Main ideas" },
-      { start: 190, title: "Common mistake" },
-      { start: 230, title: "Memory hook" }
-    ],
-    keyIdeas: [
-      "Start with a memorable question, not a read-aloud.",
-      "Separate definition, importance, application, and common mistakes.",
-      "Use the final memory hook as the quick pre-exam retrieval path."
-    ],
-    sourceReferences: [
-      { label: storedTitle || "Current notes", detail: sourceText ? shorten(sourceText, 220) : "Generated note content currently open in Synapse." }
-    ],
+    chapters: transcript.map(line => ({ start: line.start, title: line.title, summary: shorten(line.text, 150) })),
+    keyIdeas: extractBroadcastKeyIdeas(sourceText, transcript),
+    sourceReferences: extractBroadcastSourceReferences(sourceText, []),
     audioMetadata: {
-      provider: BROADCAST_TTS_PROVIDER,
-      model: BROADCAST_TTS_MODEL,
-      unavailableReason: "Gemini 2.5 Pro TTS adapter is configured as the target voice model; this local package is transcript-first until voice credentials are connected."
+      provider: "openai-realtime",
+      model: BROADCAST_REALTIME_MODEL,
+      voice: BROADCAST_REALTIME_VOICE,
+      unavailableReason: apiError?.message || "OpenAI Realtime speaker will be used when you press Play."
     },
+    realtimeProvider: "openai-realtime",
+    realtimeModel: BROADCAST_REALTIME_MODEL,
+    realtimeVoice: BROADCAST_REALTIME_VOICE,
     audioUrl: ""
   };
+}
+
+function extractBroadcastKeyIdeas(sourceText = "", transcript = []) {
+  const lines = String(sourceText || "").split(/\n+/).map(line => line.replace(/^[-#*\d.\s]+/, "").trim()).filter(line => line.length > 40);
+  const fromSource = lines.slice(0, 3).map(line => shorten(line, 140));
+  if (fromSource.length) return fromSource;
+  return transcript.slice(1, 4).map(line => shorten(line.text || "", 140)).filter(Boolean);
+}
+
+function extractBroadcastSourceReferences(sourceText = "", sectionsList = []) {
+  const references = [];
+  if (Array.isArray(sectionsList)) {
+    sectionsList.forEach(section => {
+      if (section?.sourceReference) {
+        references.push({ label: section.title || "Generated section", detail: section.sourceReference });
+      }
+    });
+  }
+  if (!references.length) {
+    references.push({ label: storedTitle || "Current Synapse notes", detail: sourceText ? shorten(sourceText, 260) : "Generated content currently open in Synapse." });
+  }
+  return references.slice(0, 8);
 }
 
 function openBroadcastJob(jobId) {
@@ -413,38 +653,64 @@ function renderBroadcastJobProgress(jobId) {
 function renderBroadcastPlayer(job) {
   const panel = document.getElementById("broadcastWorkspace") || document.getElementById("toolPanelBroadcast");
   if (!panel) return;
+  const duration = broadcastDuration(job);
+  const hasPlayableTranscript = Array.isArray(job.transcript) && job.transcript.some(line => line?.text);
+  const canPlay = Boolean(hasPlayableTranscript);
+  const realtimeModel = job.realtimeModel || job.audioMetadata?.model || BROADCAST_REALTIME_MODEL;
+  const realtimeVoice = job.realtimeVoice || job.audioMetadata?.voice || BROADCAST_REALTIME_VOICE;
+  const playbackModeLabel = `GPT Realtime speaker ready: ${realtimeModel} voice ${realtimeVoice}.`;
+  const title = job.broadcastTitle || job.title;
+  const chapters = Array.isArray(job.keyMoments) && job.keyMoments.length ? job.keyMoments : job.chapters;
   panel.innerHTML = `
     <section class="broadcast-player-card">
       <div class="broadcast-player-hero">
         <div>
           <p class="broadcast-kicker">AI Broadcast</p>
-          <h3>${escapeHTML(job.title)}</h3>
-          <p>${escapeHTML(job.audioMetadata?.unavailableReason || "Audio player ready.")}</p>
+          <h3>${escapeHTML(title)}</h3>
+          <p>${escapeHTML(playbackModeLabel)}</p>
+          <p class="broadcast-playback-note">Play streams the broadcast through the same OpenAI Realtime voice stack as Voice Tutor.</p>
         </div>
         <div class="broadcast-player-controls">
-          <button class="btn btn-primary" type="button" ${job.audioUrl ? "" : "disabled"}><i class="bi bi-play-fill me-1"></i>Play</button>
-          <select aria-label="Playback speed"><option>0.75x</option><option selected>1x</option><option>1.25x</option><option>1.5x</option><option>2x</option></select>
+          <button id="broadcastPlayButton" class="btn btn-primary" type="button" onclick="toggleBroadcastPlayback('${escapeAttr(job.id)}')" ${canPlay ? "" : "disabled"}>
+            <i class="bi bi-play-fill me-1"></i><span>Play</span>
+          </button>
+          <button class="btn btn-outline-primary" type="button" onclick="restartBroadcastPlayback('${escapeAttr(job.id)}')" ${canPlay ? "" : "disabled"}>
+            <i class="bi bi-arrow-counterclockwise me-1"></i><span>Restart</span>
+          </button>
+          <button class="btn btn-outline-primary" type="button" onclick="retryBroadcastJob('${escapeAttr(job.id)}')">
+            <i class="bi bi-stars me-1"></i><span>Regenerate</span>
+          </button>
+          <select id="broadcastPlaybackSpeed" aria-label="Playback speed" onchange="setBroadcastPlaybackRate(this.value)">
+            <option>0.75x</option><option selected>1x</option><option>1.25x</option><option>1.5x</option><option>2x</option>
+          </select>
         </div>
       </div>
-      <div class="broadcast-audio-shell">
-        <div class="broadcast-seek"><span></span></div>
-        <div class="broadcast-time"><span>0:00</span><span>${escapeHTML(formatBroadcastTime((job.transcript.at(-1)?.start || 240) + 35))}</span></div>
+      <div id="broadcastAudioShell" class="broadcast-audio-shell">
+        <div class="broadcast-seek"><span id="broadcastSeekFill" style="width:0%"></span></div>
+        <div class="broadcast-time"><span id="broadcastCurrentTime">0:00</span><span>${escapeHTML(formatBroadcastTime(duration))}</span></div>
       </div>
       <div class="broadcast-player-grid">
         <div>
           <h4>Chapters</h4>
-          <ol class="broadcast-chapter-list">${job.chapters.map(chapter => `<li><span>${escapeHTML(formatBroadcastTime(chapter.start))}</span>${escapeHTML(chapter.title)}</li>`).join("")}</ol>
+          <ol class="broadcast-chapter-list">${chapters.map(chapter => `
+            <li>
+              <button type="button" onclick="seekBroadcastSection('${escapeAttr(job.id)}', ${Number(chapter.start || 0)})">
+                <span>${escapeHTML(formatBroadcastTime(chapter.start))}</span>${escapeHTML(chapter.title)}
+              </button>
+            </li>
+          `).join("")}</ol>
           <h4>Key ideas covered</h4>
           <ul class="broadcast-key-ideas">${job.keyIdeas.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>
+          ${job.speakerInstructions ? `<h4>Voice direction</h4><p class="broadcast-voice-direction">${escapeHTML(job.speakerInstructions)}</p>` : ""}
           <h4>Source references</h4>
           <div class="broadcast-source-list">${job.sourceReferences.map(item => `<article><strong>${escapeHTML(item.label)}</strong><p>${escapeHTML(item.detail)}</p></article>`).join("")}</div>
         </div>
         <div>
           <h4>Full transcript</h4>
           <div class="broadcast-transcript">${job.transcript.map(line => `
-            <article>
+            <article data-broadcast-line-start="${escapeAttr(line.start)}">
               <span>${escapeHTML(formatBroadcastTime(line.start))}</span>
-              <strong>${escapeHTML(line.speaker)}</strong>
+              <strong>${escapeHTML(line.title || line.speaker)}</strong>
               <p>${escapeHTML(line.text)}</p>
             </article>
           `).join("")}</div>
@@ -455,11 +721,394 @@ function renderBroadcastPlayer(job) {
         <button class="btn btn-outline-primary" type="button" onclick="generateQuizFromBroadcast('${escapeAttr(job.id)}')">Generate quiz from this broadcast</button>
         <button class="btn btn-outline-primary" type="button" onclick="generateFlashcardsFromBroadcast('${escapeAttr(job.id)}')">Generate flashcards from this broadcast</button>
         <button class="btn btn-outline-secondary" type="button" onclick="openBroadcastAsStudyMaterial('${escapeAttr(job.id)}')">Open as Study Material</button>
-        <button class="btn btn-outline-secondary" type="button" onclick="retryBroadcastJob('${escapeAttr(job.id)}')">Regenerate</button>
+        <button class="btn btn-outline-secondary" type="button" onclick="retryBroadcastJob('${escapeAttr(job.id)}')">Regenerate Broadcast</button>
         <button class="btn btn-outline-danger" type="button" onclick="deleteBroadcastJob('${escapeAttr(job.id)}')">Delete</button>
       </div>
     </section>
   `;
+}
+
+function broadcastDuration(job) {
+  const lines = Array.isArray(job?.transcript) ? job.transcript : [];
+  const lastLine = lines.length ? lines[lines.length - 1] : null;
+  return Math.max(30, Number(lastLine?.start || 0) + Math.max(20, Math.ceil(String(lastLine?.text || "").length / 12)));
+}
+
+function selectedBroadcastRate() {
+  const value = document.getElementById("broadcastPlaybackSpeed")?.value || "1x";
+  const rate = Number(String(value).replace("x", ""));
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+
+function setBroadcastPlaybackRate(value) {
+  const rate = Number(String(value || "").replace("x", ""));
+  activeBroadcastPlayback.rate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  if (activeBroadcastPlayback.audio) activeBroadcastPlayback.audio.playbackRate = activeBroadcastPlayback.rate;
+}
+
+async function toggleBroadcastPlayback(jobId) {
+  const job = getBroadcastJob(jobId);
+  if (!job) return;
+  if (activeBroadcastPlayback.playing && activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) {
+    pauseBroadcastPlayback();
+    return;
+  }
+  if (activeBroadcastPlayback.playing && activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.paused) {
+    await resumeBroadcastPlayback();
+    return;
+  }
+  stopBroadcastPlayback({ render: false });
+  activeBroadcastPlayback = {
+    audio: null,
+    channel: null,
+    jobId: job.id,
+    lineIndex: 0,
+    mode: "realtime",
+    paused: false,
+    pausedAtSeconds: 0,
+    peer: null,
+    playing: true,
+    rate: selectedBroadcastRate(),
+    remoteAudio: null,
+    startSeconds: 0,
+    startedAt: Date.now(),
+    timer: null,
+    utterance: null
+  };
+  updateBroadcastPlaybackUI(job, 0, true);
+  try {
+    await playBroadcastRealtime(job, 0);
+  } catch (error) {
+    console.error(error);
+    stopBroadcastPlayback({ render: false });
+    alert(normaliseBroadcastRealtimeError(error));
+  }
+}
+
+function normaliseBroadcastRealtimeError(error) {
+  const message = error?.message || String(error || "");
+  if (/invalid sdp|realtime voice service returned/i.test(message)) {
+    return "OpenAI Realtime returned an invalid audio session. Check OPENAI_REALTIME_MODEL and restart the backend.";
+  }
+  if (/401|api key|unauthorized/i.test(message)) {
+    return "OpenAI Realtime rejected the request. Check OPENAI_API_KEY, then restart the backend.";
+  }
+  if (/model/i.test(message) && /not find|not found|404/i.test(message)) {
+    return `OpenAI could not find ${BROADCAST_REALTIME_MODEL}. Check OPENAI_REALTIME_MODEL.`;
+  }
+  return message || "Synapse could not start the GPT Realtime Broadcast speaker.";
+}
+
+function broadcastRealtimeResponseErrorMessage(body, response) {
+  try {
+    const parsed = JSON.parse(String(body || ""));
+    if (parsed?.error) return parsed.error;
+  } catch {}
+  return `Realtime Broadcast failed (${response?.status || "network"}).`;
+}
+
+function createBroadcastRealtimeAudioElement() {
+  const audio = document.createElement("audio");
+  audio.autoplay = true;
+  audio.playsInline = true;
+  audio.style.display = "none";
+  document.body.appendChild(audio);
+  return audio;
+}
+
+function closeBroadcastRealtimeTransport() {
+  if (activeBroadcastPlayback.remoteAudio) {
+    activeBroadcastPlayback.remoteAudio.pause();
+    activeBroadcastPlayback.remoteAudio.srcObject = null;
+    activeBroadcastPlayback.remoteAudio.remove();
+    activeBroadcastPlayback.remoteAudio = null;
+  }
+  if (activeBroadcastPlayback.channel) {
+    try { activeBroadcastPlayback.channel.close(); } catch {}
+    activeBroadcastPlayback.channel = null;
+  }
+  if (activeBroadcastPlayback.peer) {
+    try { activeBroadcastPlayback.peer.close(); } catch {}
+    activeBroadcastPlayback.peer = null;
+  }
+  if (activeBroadcastPlayback.timer) {
+    window.clearInterval(activeBroadcastPlayback.timer);
+    activeBroadcastPlayback.timer = null;
+  }
+}
+
+function buildBroadcastRealtimeFormData(job, sdp, startSeconds = 0) {
+  const formData = new FormData();
+  formData.append("sdp", sdp);
+  formData.append("title", job.broadcastTitle || job.title || "Synapse Broadcast");
+  formData.append("broadcast_script", job.broadcastScript || "");
+  formData.append("speaker_instructions", job.speakerInstructions || "");
+  formData.append("sections", JSON.stringify(Array.isArray(job.sections) && job.sections.length ? job.sections : job.transcript || []));
+  formData.append("start_seconds", String(Math.max(0, Number(startSeconds) || 0)));
+  formData.append("rate", `${selectedBroadcastRate()}x`);
+  return formData;
+}
+
+function buildBroadcastRealtimeStartInstruction(job, startSeconds = 0) {
+  const target = Math.max(0, Number(startSeconds) || 0);
+  const line = (job.transcript || []).find((item, index, rows) => {
+    const next = rows[index + 1];
+    return Number(item.start || 0) <= target && (!next || Number(next.start || 0) > target);
+  });
+  const title = line?.title || "Opening";
+  return `Begin the Synapse Broadcast now from ${formatBroadcastTime(target)} (${title}). Speak the prepared broadcast naturally using the session instructions. Do not ask the learner a question unless the script says to.`;
+}
+
+function sendBroadcastRealtimeEvent(event) {
+  const channel = activeBroadcastPlayback.channel;
+  if (!channel || channel.readyState !== "open") return false;
+  channel.send(JSON.stringify(event));
+  return true;
+}
+
+function requestBroadcastRealtimeSpeech(job, startSeconds = 0) {
+  sendBroadcastRealtimeEvent({
+    type: "response.create",
+    response: {
+      modalities: ["audio"],
+      instructions: buildBroadcastRealtimeStartInstruction(job, startSeconds)
+    }
+  });
+}
+
+function handleBroadcastRealtimeEvent(messageEvent) {
+  let event;
+  try {
+    event = JSON.parse(messageEvent.data);
+  } catch {
+    return;
+  }
+  const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+  if (!job) return;
+  if (event.type === "error" || event.type === "response.failed") {
+    console.warn("Broadcast realtime event error:", event);
+    alert(normaliseBroadcastRealtimeError(event.error || event));
+    stopBroadcastPlayback({ render: false });
+    return;
+  }
+  if (event.type === "response.created") {
+    activeBroadcastPlayback.startedAt = Date.now();
+    return;
+  }
+  if (event.type === "response.audio_transcript.delta" || event.type === "response.output_text.delta") {
+    const elapsed = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
+    updateBroadcastPlaybackUI(job, elapsed, true, false);
+    return;
+  }
+  if (event.type === "response.done" || event.type === "response.audio.done") {
+    stopBroadcastPlayback({ ended: true });
+  }
+}
+
+async function playBroadcastRealtime(job, startSeconds = 0) {
+  if (!window.RTCPeerConnection) {
+    throw new Error("GPT Realtime Broadcast needs WebRTC support. Try a modern Chrome browser.");
+  }
+  if (!job.broadcastScript || !String(job.broadcastScript).trim()) {
+    throw new Error("No broadcast script is ready yet. Regenerate the broadcast, then press Play.");
+  }
+  const peer = new RTCPeerConnection();
+  const audio = createBroadcastRealtimeAudioElement();
+  activeBroadcastPlayback.peer = peer;
+  activeBroadcastPlayback.remoteAudio = audio;
+  activeBroadcastPlayback.startSeconds = Math.max(0, Number(startSeconds) || 0);
+  activeBroadcastPlayback.startedAt = Date.now();
+  peer.addTransceiver("audio", { direction: "recvonly" });
+  peer.ontrack = event => {
+    const [stream] = event.streams;
+    if (stream) {
+      audio.srcObject = stream;
+      audio.play().catch(() => {});
+    }
+  };
+  peer.onconnectionstatechange = () => {
+    const state = peer.connectionState || "";
+    if (["failed", "closed", "disconnected"].includes(state) && activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) {
+      stopBroadcastPlayback({ render: false });
+    }
+  };
+  const channel = peer.createDataChannel("oai-events");
+  activeBroadcastPlayback.channel = channel;
+  channel.onmessage = handleBroadcastRealtimeEvent;
+  channel.onopen = () => {
+    activeBroadcastPlayback.startedAt = Date.now();
+    requestBroadcastRealtimeSpeech(job, startSeconds);
+  };
+  channel.onclose = () => {
+    if (activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) activeBroadcastPlayback.playing = false;
+  };
+  const offer = await peer.createOffer();
+  await peer.setLocalDescription(offer);
+  if (typeof waitForIceGathering === "function") await waitForIceGathering(peer);
+  const response = await apiClient.fetch("/broadcast/realtime-call", {
+    method: "POST",
+    body: buildBroadcastRealtimeFormData(job, peer.localDescription.sdp, startSeconds)
+  });
+  const answerSdp = await response.text();
+  const answerContentType = response.headers?.get?.("content-type") || "";
+  if (!response.ok) {
+    throw new Error(broadcastRealtimeResponseErrorMessage(answerSdp, response));
+  }
+  if (/application\/json/i.test(answerContentType) || /^[{[]/.test(answerSdp.trim())) {
+    throw new Error(broadcastRealtimeResponseErrorMessage(answerSdp, response));
+  }
+  if (!/^v=0/m.test(answerSdp.trim())) {
+    throw new Error("Realtime voice service returned an invalid SDP answer. Check the OpenAI Realtime model and API key, then restart the backend.");
+  }
+  await peer.setRemoteDescription({ type: "answer", sdp: answerSdp });
+  if (activeBroadcastPlayback.timer) window.clearInterval(activeBroadcastPlayback.timer);
+  activeBroadcastPlayback.timer = window.setInterval(() => {
+    if (!activeBroadcastPlayback.playing || activeBroadcastPlayback.paused || activeBroadcastPlayback.jobId !== job.id) return;
+    const elapsed = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
+    updateBroadcastPlaybackUI(job, elapsed, true, false);
+  }, 500);
+}
+
+function pauseBroadcastPlayback() {
+  const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+  if (!job || !activeBroadcastPlayback.playing) return;
+  if (activeBroadcastPlayback.audio) activeBroadcastPlayback.audio.pause();
+  const seconds = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
+  activeBroadcastPlayback.paused = true;
+  activeBroadcastPlayback.pausedAtSeconds = seconds;
+  closeBroadcastRealtimeTransport();
+  updateBroadcastPlaybackUI(job, seconds, true, true);
+}
+
+async function resumeBroadcastPlayback() {
+  const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+  if (!job || !activeBroadcastPlayback.playing) return;
+  activeBroadcastPlayback.paused = false;
+  const seconds = activeBroadcastPlayback.pausedAtSeconds || activeBroadcastPlayback.startSeconds || 0;
+  stopBroadcastPlayback({ render: false });
+  activeBroadcastPlayback = {
+    audio: null,
+    channel: null,
+    jobId: job.id,
+    lineIndex: 0,
+    mode: "realtime",
+    paused: false,
+    pausedAtSeconds: 0,
+    peer: null,
+    playing: true,
+    rate: selectedBroadcastRate(),
+    remoteAudio: null,
+    startSeconds: seconds,
+    startedAt: Date.now(),
+    timer: null,
+    utterance: null
+  };
+  updateBroadcastPlaybackUI(job, seconds, true, false);
+  try {
+    await playBroadcastRealtime(job, seconds);
+  } catch (error) {
+    console.error(error);
+    stopBroadcastPlayback({ render: false });
+    alert(normaliseBroadcastRealtimeError(error));
+  }
+}
+
+function restartBroadcastPlayback(jobId) {
+  const job = getBroadcastJob(jobId);
+  if (!job) return;
+  stopBroadcastPlayback({ render: false });
+  toggleBroadcastPlayback(job.id);
+}
+
+function seekBroadcastSection(jobId, seconds = 0) {
+  const job = getBroadcastJob(jobId);
+  if (!job) return;
+  const target = Math.max(0, Number(seconds) || 0);
+  if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.mode === "realtime") {
+    stopBroadcastPlayback({ render: false });
+    activeBroadcastPlayback = {
+      audio: null,
+      channel: null,
+      jobId: job.id,
+      lineIndex: 0,
+      mode: "realtime",
+      paused: false,
+      pausedAtSeconds: 0,
+      peer: null,
+      playing: true,
+      rate: selectedBroadcastRate(),
+      remoteAudio: null,
+      startSeconds: target,
+      startedAt: Date.now(),
+      timer: null,
+      utterance: null
+    };
+    updateBroadcastPlaybackUI(job, target, true, false);
+    playBroadcastRealtime(job, target).catch(error => {
+      console.error(error);
+      stopBroadcastPlayback({ render: false });
+      alert(normaliseBroadcastRealtimeError(error));
+    });
+    return;
+  }
+  updateBroadcastPlaybackUI(job, target, false, false);
+}
+
+function stopBroadcastPlayback({ ended = false, render = true } = {}) {
+  if (activeBroadcastPlayback.audio) {
+    activeBroadcastPlayback.audio.pause();
+    activeBroadcastPlayback.audio.removeAttribute?.("src");
+  }
+  closeBroadcastRealtimeTransport();
+  const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+  activeBroadcastPlayback = {
+    audio: null,
+    channel: null,
+    jobId: "",
+    lineIndex: 0,
+    mode: "",
+    paused: false,
+    pausedAtSeconds: 0,
+    peer: null,
+    playing: false,
+    rate: selectedBroadcastRate(),
+    remoteAudio: null,
+    startSeconds: 0,
+    startedAt: 0,
+    timer: null,
+    utterance: null
+  };
+  if (render && job) updateBroadcastPlaybackUI(job, ended ? broadcastDuration(job) : 0, false, false);
+}
+
+function updateBroadcastPlaybackUI(job, seconds = 0, isPlaying = false, isPaused = false) {
+  const duration = broadcastDuration(job);
+  const percent = Math.max(0, Math.min(100, duration ? (Number(seconds) / duration) * 100 : 0));
+  const fill = document.getElementById("broadcastSeekFill");
+  const time = document.getElementById("broadcastCurrentTime");
+  const shell = document.getElementById("broadcastAudioShell");
+  const button = document.getElementById("broadcastPlayButton");
+  if (fill) fill.style.width = `${percent}%`;
+  if (time) time.textContent = formatBroadcastTime(seconds);
+  if (shell) {
+    shell.classList.toggle("is-playing", Boolean(isPlaying && !isPaused));
+    shell.classList.toggle("is-paused", Boolean(isPaused));
+  }
+  if (button) {
+    button.classList.toggle("is-playing", Boolean(isPlaying && !isPaused));
+    const icon = button.querySelector("i");
+    const label = button.querySelector("span");
+    if (icon) icon.className = `bi ${isPlaying && !isPaused ? "bi-pause-fill" : "bi-play-fill"} me-1`;
+    if (label) label.textContent = isPlaying && !isPaused ? "Pause" : isPaused ? "Resume" : "Play";
+  }
+  const lines = Array.from(document.querySelectorAll("[data-broadcast-line-start]"));
+  let activeLine = null;
+  lines.forEach(line => {
+    const start = Number(line.getAttribute("data-broadcast-line-start") || 0);
+    if (start <= seconds) activeLine = line;
+    line.classList.remove("is-playing");
+  });
+  if (isPlaying && activeLine) activeLine.classList.add("is-playing");
 }
 
 function formatBroadcastTime(seconds) {
@@ -493,7 +1142,16 @@ function retryBroadcastJob(jobId) {
   if (typeof retryBroadcastJobInDataApi === "function") {
     retryBroadcastJobInDataApi(job.id).catch(error => console.warn("Broadcast remote retry failed:", error));
   }
-  runLocalBroadcastStudioPipeline(job.id);
+  runBroadcastModePipeline(job.id).catch(error => {
+    console.warn("Broadcast retry failed:", error);
+    upsertBroadcastJob({
+      id: job.id,
+      status: "failed",
+      progressMessage: "Broadcast retry failed",
+      progressPercent: 100,
+      errorMessage: error?.message || "Synapse could not regenerate this broadcast."
+    });
+  });
 }
 
 function deleteBroadcastJob(jobId) {
@@ -523,7 +1181,8 @@ function recoverBroadcastJobsOnBoot() {
       progressPercent: Math.max(job.progressPercent, 100)
     });
   });
-  if (changed) setBroadcastJobs(nextJobs);
+  const prunedJobs = nextJobs.slice(0, 1);
+  if (changed || safeReadJSONStorage(BROADCAST_JOBS_STORAGE_KEY, []).length > 1) setBroadcastJobs(prunedJobs);
   return getBroadcastJobs();
 }
 

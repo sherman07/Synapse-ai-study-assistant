@@ -1172,6 +1172,80 @@ class AnalysisCacheTests(unittest.TestCase):
             self.assertEqual(store.get("fingerprint")["summary"], "ok")
             self.assertFalse(list(Path(tmp).glob(".cache.json.*.tmp")))
 
+    def test_analyze_cache_hit_does_not_require_text_ai_client(self):
+        cached_result = {
+            "title": "Cached Study Notes",
+            "summary": "# Cached Study Notes\n\nCached body from an earlier successful analysis.",
+            "display_summary": "# Cached Study Notes\n\nCached body from an earlier successful analysis.",
+            "sections": {"Cached Study Notes": "Cached body from an earlier successful analysis."},
+            "connections": [],
+            "mind_map": {"center": "Cached Study Notes", "branches": []},
+            "source_identity": "text:cached",
+            "primary_source_identity": "text:cached",
+            "visual_gallery": [],
+            "visuals": [],
+        }
+
+        with (
+            patch("backend.app.require_text_ai", side_effect=RuntimeError("OPENAI_API_KEY is not configured.")) as require_text_ai,
+            patch("backend.app.cache_get", return_value=cached_result) as cache_get,
+            patch("backend.app.generate_chat", side_effect=AssertionError("cache hit should not call the model")),
+            patch("backend.app.persist_generated_analysis_result", return_value={}),
+        ):
+            result = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Cached source text",
+                preferred_language="english",
+                detail_level="standard",
+                prompt_mode="professor_mode",
+                note_length="standard_notes",
+                ai_provider="openai",
+                client_fingerprint="cache-client",
+                request=None,
+            ))
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result["cached"])
+        self.assertEqual(result["title"], "Cached Study Notes")
+        self.assertIn("Cached body", result["summary"])
+        require_text_ai.assert_not_called()
+        cache_get.assert_called_once()
+
+    def test_analyze_stops_before_model_generation_when_client_disconnected(self):
+        class DisconnectedRequest:
+            async def is_disconnected(self):
+                return True
+
+        with (
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.require_text_ai") as require_text_ai,
+            patch(
+                "backend.app.generate_reference_style_multisource_notes",
+                side_effect=AssertionError("model should not be called after disconnect"),
+            ) as generate_notes,
+            patch("backend.app.generate_chat", side_effect=AssertionError("model should not be called after disconnect")),
+            patch("backend.app.persist_generated_analysis_result", return_value={}),
+        ):
+            response = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="A short source about opportunity cost and scarce resources.",
+                preferred_language="english",
+                detail_level="focused",
+                prompt_mode="professor_mode",
+                note_length="standard_notes",
+                ai_provider="openai",
+                client_fingerprint="disconnect-client",
+                request=DisconnectedRequest(),
+            ))
+
+        self.assertEqual(response.status_code, 499)
+        self.assertIn("application/json", response.media_type)
+        self.assertIn("Client disconnected", response.body.decode("utf-8"))
+        require_text_ai.assert_not_called()
+        generate_notes.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+import warnings
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -26,6 +27,7 @@ class AuxiliaryEndpointErrorStatusTests(unittest.TestCase):
             ("post", "/timeline/generate", {}),
             ("post", "/quiz/generate", {}),
             ("post", "/flashcards/generate", {}),
+            ("post", "/broadcast/generate", {}),
         ]
 
         with (
@@ -69,6 +71,24 @@ class ToolPromptIsolationTests(unittest.TestCase):
             }))
 
         self.assertNotIn("error", payload)
+
+    def test_timeline_generation_uses_warning_free_utc_timestamp(self):
+        with (
+            patch("backend.app.require_text_ai"),
+            patch("backend.app.generate_chat", return_value='{"title":"Study Path","summary":"Plan","events":[]}'),
+            warnings.catch_warnings(record=True) as caught,
+        ):
+            warnings.simplefilter("always", DeprecationWarning)
+            payload = asyncio.run(backend_app_module.generate_timeline({
+                "summary": "This note explains evidence, concepts, and revision priorities.",
+                "sections": {"Overview": "This note explains evidence and concepts."},
+            }))
+
+        self.assertNotIn("error", payload)
+        self.assertFalse(
+            any("utcnow" in str(item.message).lower() for item in caught),
+            [str(item.message) for item in caught],
+        )
 
     def test_quiz_prompt_does_not_use_stale_global_title(self):
         def fake_generate_chat(messages, **kwargs):

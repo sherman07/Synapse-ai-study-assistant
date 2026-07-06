@@ -40,11 +40,21 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
+        root: resolve(__dirname, "index.html"),
+        app: resolve(__dirname, "app.html"),
         landing: resolve(__dirname, "frontend/landing.html"),
         workspace: resolve(__dirname, "frontend/index.html"),
+        login: resolve(__dirname, "frontend/login.html"),
+        signup: resolve(__dirname, "frontend/signup.html"),
+        forgotPassword: resolve(__dirname, "frontend/forgot-password.html"),
+        resetPassword: resolve(__dirname, "frontend/reset-password.html"),
+        verify: resolve(__dirname, "frontend/verify.html"),
         pricing: resolve(__dirname, "frontend/pricing.html"),
         billingSuccess: resolve(__dirname, "frontend/billing-success.html"),
         billingCancel: resolve(__dirname, "frontend/billing-cancel.html"),
+        privacy: resolve(__dirname, "frontend/privacy.html"),
+        terms: resolve(__dirname, "frontend/terms.html"),
+        notFound: resolve(__dirname, "frontend/404.html"),
         focusRoom: resolve(__dirname, "frontend/focus-room.html")
       }
     }

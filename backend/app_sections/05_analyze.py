@@ -29,6 +29,8 @@ def analysis_error_response(message: str, status_code: int = 400) -> Response:
 
 
 def analysis_exception_status(error: Exception) -> int:
+    if isinstance(error, AnalysisClientDisconnected):
+        return 499
     message = str(error)
     if "OPENAI_API_KEY" in message or "GEMINI_API_KEY" in message or "not configured" in message:
         return 503
@@ -37,6 +39,23 @@ def analysis_exception_status(error: Exception) -> int:
     if isinstance(error, ValueError):
         return 400
     return 500
+
+
+class AnalysisClientDisconnected(RuntimeError):
+    """Raised when the browser has already cancelled the analysis request."""
+
+
+async def raise_if_analysis_client_disconnected(request: Optional[Request], stage: str = "analysis") -> None:
+    if request is None or not hasattr(request, "is_disconnected"):
+        return
+    try:
+        disconnected = await request.is_disconnected()
+    except Exception:
+        return
+    if disconnected:
+        raise AnalysisClientDisconnected(
+            f"Client disconnected before {stage}. Analysis stopped before additional generation."
+        )
 
 
 def voice_realtime_provider_error_message(response: requests.Response) -> str:
@@ -80,7 +99,6 @@ async def analyze_materials(
     trace_token = begin_ai_call_trace() if "begin_ai_call_trace" in globals() else None
     try:
         selected_ai_provider = active_text_provider()
-        require_text_ai()
         analysis_started_at = time.monotonic()
         skipped_optional_stages: List[str] = []
 
@@ -285,6 +303,9 @@ async def analyze_materials(
                 response_payload["database_record"] = database_record
             return response_payload
 
+        await raise_if_analysis_client_disconnected(request, "fresh study-note generation")
+        require_text_ai()
+
         title_hint = choose_best_source_title(title_candidates)
         # v42: use the controlled advanced tutor generator for both single and
         # multi-source uploads. This avoids an expensive source-digest prepass
@@ -318,6 +339,7 @@ async def analyze_materials(
             note_length_mode=selected_note_length,
         )
         stored_sections = parse_sections(stored_summary)
+        await raise_if_analysis_client_disconnected(request, "optional title and mind-map generation")
         if allow_optional_stage("title", env_int("TITLE_STAGE_MIN_SECONDS", 18)):
             stored_title = make_notes_title(stored_summary, title_candidates)
         else:
@@ -329,6 +351,7 @@ async def analyze_materials(
                 stored_title = shared_title_hint
         stored_title = localise_title_if_needed(stored_title, postprocess_language)
         stored_connections = generate_connections_from_sections(stored_sections)
+        await raise_if_analysis_client_disconnected(request, "optional mind-map generation")
         if allow_optional_stage("mind_map", env_int("MINDMAP_STAGE_MIN_SECONDS", 35)):
             stored_mind_map = generate_ai_mind_map(
                 stored_title,

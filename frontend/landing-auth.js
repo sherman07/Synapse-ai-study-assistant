@@ -65,6 +65,36 @@
     showError(errorId, message);
   }
 
+  const signupFieldErrors = {
+    firstName: ['firstName', 'firstNameError'],
+    lastName: ['lastName', 'lastNameError'],
+    email: ['signupEmail', 'signupEmailError'],
+    role: ['role', null],
+    password: ['signupPassword', 'signupPasswordError'],
+    confirmPassword: ['confirmPassword', 'confirmPasswordError'],
+    terms: [null, 'termsError']
+  };
+
+  function showSignupFieldErrors(errors = {}) {
+    Object.entries(errors || {}).forEach(([name, message]) => {
+      const mapping = signupFieldErrors[name];
+      if (!mapping || !message) return;
+      const [fieldId, errorId] = mapping;
+      if (fieldId && errorId) markInvalid(fieldId, errorId, message);
+      else if (errorId) showError(errorId, message);
+    });
+  }
+
+  function clearFieldError(fieldId, errorId) {
+    if (fieldId) {
+      const field = document.getElementById(fieldId);
+      if (field && typeof field.setAttribute === 'function') {
+        field.setAttribute('aria-invalid', 'false');
+      }
+    }
+    if (errorId) hideError(errorId);
+  }
+
   function appEntryUrl() {
     const path = window.location.pathname || '';
     if (path.includes('/frontend/')) {
@@ -199,10 +229,41 @@
     status.className = `auth-form-status show ${type}`;
   }
 
+  function emailDomain(email) {
+    const address = normalizeEmail(email);
+    return address.includes('@') ? address.split('@').pop() : '';
+  }
+
+  function mailboxTargetForEmail(email) {
+    const domain = emailDomain(email);
+    const targets = {
+      'gmail.com': { label: 'Open Gmail', href: 'https://mail.google.com/' },
+      'googlemail.com': { label: 'Open Gmail', href: 'https://mail.google.com/' },
+      '163.com': { label: 'Open 163 Mail', href: 'https://mail.163.com/' },
+      '126.com': { label: 'Open 126 Mail', href: 'https://mail.126.com/' },
+      'qq.com': { label: 'Open QQ Mail', href: 'https://mail.qq.com/' },
+      'outlook.com': { label: 'Open Outlook', href: 'https://outlook.live.com/mail/' },
+      'hotmail.com': { label: 'Open Outlook', href: 'https://outlook.live.com/mail/' },
+      'icloud.com': { label: 'Open iCloud Mail', href: 'https://www.icloud.com/mail/' },
+      'yahoo.com': { label: 'Open Yahoo Mail', href: 'https://mail.yahoo.com/' }
+    };
+    return targets[domain] || null;
+  }
+
+  function mailboxClarity(email) {
+    const domain = emailDomain(email);
+    if (!domain) return '';
+    if (domain === 'gmail.com' || domain === 'googlemail.com') {
+      return ' This is a Gmail address.';
+    }
+    return ` This is a ${domain} address, so it will not arrive in Gmail unless that mailbox forwards to Gmail.`;
+  }
+
   function signupConfirmationMessage(email) {
     const address = normalizeEmail(email);
-    const accountTarget = address ? ` for ${address}` : '';
-    return `Almost there. Synapse created the account${accountTarget}; open the verification email to unlock the workspace. If it does not arrive, use Resend verification or try the recovery path below.`;
+    return address
+      ? `Account created for ${address}. Check that exact inbox, including Spam and Promotions, to confirm your Synapse account.${mailboxClarity(address)}`
+      : 'Account created. Check your email, including Spam and Promotions, to confirm your Synapse account.';
   }
 
   function showSignupConfirmationStatus(form, email) {
@@ -217,26 +278,29 @@
     const resendButton = document.createElement('button');
     resendButton.type = 'button';
     resendButton.className = 'auth-status-button';
-    resendButton.textContent = 'Resend verification';
+    resendButton.textContent = 'Resend Confirmation Email';
     resendButton.addEventListener('click', () => {
       resendButton.disabled = true;
       resendButton.textContent = 'Sending...';
       window.SynapseAuth.resendSignupConfirmation(normalizedEmail)
-        .then(() => {
-          showAuthStatus(
-            form,
-            'success',
-            `Verification request sent for ${normalizedEmail}. If it still does not arrive, this Supabase project may be on the built-in email rate limit; use password recovery or configure Auth email/SMTP settings.`
-          );
+        .then(result => {
+          showSignupConfirmationStatus(form, result?.email || normalizedEmail);
+          const refreshedStatus = form?.querySelector?.('.auth-form-status');
+          if (refreshedStatus?.firstChild) {
+            refreshedStatus.firstChild.textContent = result?.message || 'Confirmation email sent. Please check your inbox and spam folder.';
+          }
         })
         .catch(error => {
-          showAuthStatus(form, 'error', error.message || 'Could not resend the verification request.');
+          showAuthStatus(form, 'error', error.message || 'Could not resend the confirmation email.');
         });
     });
 
     actions.appendChild(resendButton);
-    actions.appendChild(createStatusLink('Login', 'login.html'));
-    actions.appendChild(createStatusLink('Reset password', `forgot-password.html?email=${encodeURIComponent(normalizedEmail)}`));
+    const mailboxTarget = mailboxTargetForEmail(normalizedEmail);
+    if (mailboxTarget) {
+      actions.appendChild(createStatusLink(mailboxTarget.label, mailboxTarget.href));
+    }
+    actions.appendChild(createStatusLink('Go to Login', 'login.html'));
     status.appendChild(actions);
   }
 
@@ -250,19 +314,99 @@
 
   function showExistingAccountStatus(form, email) {
     const normalizedEmail = normalizeEmail(email);
-    const address = normalizedEmail ? ` for ${normalizedEmail}` : '';
     showAuthStatus(
       form,
-      'success',
-      `This signup is already connected to a Synapse account${address}. No new signup email is needed. Log in instead, or reset the password if you do not remember it.`
+      'warning',
+      normalizedEmail
+        ? `An account already exists for ${normalizedEmail}. Please log in instead.`
+        : 'An account already exists for this email. Please log in instead.'
     );
     const status = form?.querySelector?.('.auth-form-status');
     if (!status) return;
     const actions = document.createElement('div');
     actions.className = 'auth-status-actions';
-    actions.appendChild(createStatusLink('Log in instead', 'login.html'));
-    actions.appendChild(createStatusLink('Reset password', `forgot-password.html?email=${encodeURIComponent(normalizedEmail)}`));
+    actions.appendChild(createStatusLink('Go to Login', 'login.html'));
+    actions.appendChild(createStatusLink('Forgot Password', `forgot-password.html?email=${encodeURIComponent(normalizedEmail)}`));
     status.appendChild(actions);
+  }
+
+  function showPendingAccountStatus(form, email) {
+    const normalizedEmail = normalizeEmail(email);
+    showAuthStatus(
+      form,
+      'info',
+      normalizedEmail
+        ? `This email already has a pending account for ${normalizedEmail}. Check that inbox, including Spam and Promotions, or resend the confirmation email.${mailboxClarity(normalizedEmail)}`
+        : 'This email already has a pending account. Please check your inbox, including Spam and Promotions, or resend the confirmation email.'
+    );
+    const status = form?.querySelector?.('.auth-form-status');
+    if (!status) return;
+    const actions = document.createElement('div');
+    actions.className = 'auth-status-actions';
+
+    const resendButton = document.createElement('button');
+    resendButton.type = 'button';
+    resendButton.className = 'auth-status-button';
+    resendButton.textContent = 'Resend Confirmation Email';
+    resendButton.disabled = !normalizedEmail || !window.SynapseAuth?.resendSignupConfirmation;
+    resendButton.addEventListener('click', () => {
+      resendButton.disabled = true;
+      resendButton.textContent = 'Sending...';
+      window.SynapseAuth.resendSignupConfirmation(normalizedEmail)
+        .then(result => {
+          showAuthStatus(
+            form,
+            'success',
+            result?.message || 'Confirmation email sent. Please check your inbox and spam folder.'
+          );
+        })
+        .catch(error => {
+          showAuthStatus(form, 'error', error.message || 'Could not resend the confirmation email.');
+        });
+    });
+
+    const changeEmailButton = document.createElement('button');
+    changeEmailButton.type = 'button';
+    changeEmailButton.className = 'auth-status-button';
+    changeEmailButton.textContent = 'Change Email';
+    changeEmailButton.addEventListener('click', () => {
+      clearAuthStatus(form);
+      const emailInput = document.getElementById('signupEmail');
+      if (emailInput) {
+        emailInput.focus();
+        emailInput.select?.();
+      }
+    });
+
+    actions.appendChild(resendButton);
+    const mailboxTarget = mailboxTargetForEmail(normalizedEmail);
+    if (mailboxTarget) {
+      actions.appendChild(createStatusLink(mailboxTarget.label, mailboxTarget.href));
+    }
+    actions.appendChild(changeEmailButton);
+    status.appendChild(actions);
+  }
+
+  function showSignupAccountState(form, result, fallbackEmail) {
+    const state = result?.state || '';
+    const email = result?.email || fallbackEmail;
+    if (state === 'created_confirmation_sent') {
+      showSignupConfirmationStatus(form, email);
+      return true;
+    }
+    if (state === 'existing_confirmed') {
+      showExistingAccountStatus(form, email);
+      return true;
+    }
+    if (state === 'existing_unconfirmed') {
+      showPendingAccountStatus(form, email);
+      return true;
+    }
+    if (state === 'email_confirmation_disabled') {
+      showAuthStatus(form, 'error', result?.message || 'Supabase email confirmation appears disabled.');
+      return true;
+    }
+    return false;
   }
 
   function clearAuthStatus(form) {
@@ -550,6 +694,8 @@
   
   const signupForm = document.getElementById('signupForm');
   if (signupForm) {
+    let signupSubmitting = false;
+
     // Toggle password visibility for signup
     const toggleSignupPassword = document.getElementById('toggleSignupPassword');
     const signupPassword = document.getElementById('signupPassword');
@@ -585,9 +731,23 @@
       });
     }
 
+    if (typeof signupForm.querySelectorAll === 'function') {
+      signupForm.querySelectorAll('input, select').forEach(field => {
+        const clearSignupField = () => {
+          const key = field.name === 'email' ? 'email' : field.name;
+          const mapping = signupFieldErrors[key];
+          if (mapping) clearFieldError(mapping[0], mapping[1]);
+          clearAuthStatus(signupForm);
+        };
+        field.addEventListener?.('input', clearSignupField);
+        field.addEventListener?.('change', clearSignupField);
+      });
+    }
+
     // Form submission
     signupForm.addEventListener('submit', function(e) {
       e.preventDefault();
+      if (signupSubmitting) return;
       clearAllErrors();
       clearAuthStatus(signupForm);
 
@@ -629,6 +789,9 @@
       } else if (password.length < 8) {
         markInvalid('signupPassword', 'signupPasswordError', 'Password must be at least 8 characters');
         hasError = true;
+      } else if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+        markInvalid('signupPassword', 'signupPasswordError', 'Password must include at least one letter and one number');
+        hasError = true;
       }
 
       // Validate confirm password
@@ -651,25 +814,46 @@
       }
 
       if (realAuthEnabled()) {
+        signupSubmitting = true;
         setButtonLoading(signupForm, 'signupSpinner', true);
-        window.SynapseAuth.signUpEmail({ firstName, lastName, email, role, password })
+        window.SynapseAuth.signUpEmail({
+          firstName,
+          lastName,
+          email,
+          role,
+          password,
+          confirmPassword: confirmPass,
+          termsAccepted: Boolean(termsCheckbox && termsCheckbox.checked)
+        })
           .then(result => {
-            if (result?.requiresExistingAccountAction) {
-              showExistingAccountStatus(signupForm, result.email || email);
+            if (showSignupAccountState(signupForm, result, email)) {
+              if (result?.state === 'created_confirmation_sent') {
+                signupForm.reset();
+              }
               return;
             }
-            if (result?.requiresEmailConfirmation) {
-              showSignupConfirmationStatus(signupForm, result.email || email);
+            if (result?.session) {
+              redirectToApp();
+              return;
+            }
+            if (result?.ok) {
+              showAuthStatus(signupForm, 'success', result.message || 'Account created. Check your email to confirm your Synapse account, then log in.');
               signupForm.reset();
               return;
             }
-            redirectToApp();
+            showAuthStatus(signupForm, 'error', result?.message || 'Sign up failed.');
           })
           .catch(error => {
-            markInvalid('signupEmail', 'signupEmailError', error.message || 'Sign up failed.');
+            if (error?.errors) {
+              showSignupFieldErrors(error.errors);
+            }
+            if (!error?.errors || Object.keys(error.errors).length === 0) {
+              markInvalid('signupEmail', 'signupEmailError', error.message || 'Sign up failed.');
+            }
             showAuthStatus(signupForm, 'error', error.message || 'Sign up failed.');
           })
           .finally(() => {
+            signupSubmitting = false;
             setButtonLoading(signupForm, 'signupSpinner', false);
           });
         return;

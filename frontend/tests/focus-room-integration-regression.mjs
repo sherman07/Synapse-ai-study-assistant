@@ -103,6 +103,23 @@ assert.ok(packageJson.scripts["test:focus-room"].includes("focus-room-integratio
 assert.ok(runtimeConfig.includes("SYNAPSE_FOCUS_ROOM_ENABLED"), "runtime config should expose the Focus Room feature flag");
 assert.ok(viteConfig.includes("frontend/index.html"), "Vite config should include the workspace HTML entry");
 assert.ok(viteConfig.includes("frontend/focus-room.html"), "Vite config should include the Focus Room HTML entry");
+for (const deploymentEntry of [
+  "index.html",
+  "app.html",
+  "frontend/login.html",
+  "frontend/signup.html",
+  "frontend/forgot-password.html",
+  "frontend/reset-password.html",
+  "frontend/verify.html",
+  "frontend/privacy.html",
+  "frontend/terms.html",
+  "frontend/404.html"
+]) {
+  assert.ok(
+    viteConfig.includes(deploymentEntry),
+    `Vite config should include ${deploymentEntry} so Vercel publishes the public route`
+  );
+}
 assert.ok(viteConfig.includes("@vitejs/plugin-react"), "Vite config should use the React plugin");
 assert.ok(packageJson.scripts.build.includes("vite.focus-room-static.config.js"), "build should regenerate the static Focus Room bundle");
 assert.ok(staticFocusRoomConfig.includes("frontend/assets/focus-room-app"), "static Focus Room bundle should build into frontend assets");
@@ -136,8 +153,12 @@ assert.ok(
   "Standalone Focus Room page should redirect direct visitors to the workspace while disabled"
 );
 assert.ok(
-  focusRoomHtml.includes('await import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7")'),
+  focusRoomHtml.includes('import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7")'),
   "Standalone Focus Room page should only import the loader after the feature flag allows it"
+);
+assert.ok(
+  !focusRoomHtml.includes("await import("),
+  "Standalone Focus Room page should avoid top-level await so Vercel's production build target can transpile it"
 );
 assert.ok(
   !focusRoomHtml.includes('type="module" src="src/focus-room/static-compatible-loader.js'),

@@ -99,7 +99,7 @@ Generated notes context:
         timeline = normalise_timeline(parsed or {}, fallback)
         return {
             **timeline,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": utc_timestamp("microseconds"),
         }
     except Exception as error:
         return analysis_error_response(str(error), analysis_exception_status(error))

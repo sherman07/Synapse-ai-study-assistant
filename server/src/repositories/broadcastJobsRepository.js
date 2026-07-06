@@ -13,8 +13,8 @@ import {
 } from "../utils/validators.js";
 
 const BROADCAST_SCRIPT_MODEL = process.env.BROADCAST_SCRIPT_MODEL || "gpt-5.4-mini";
-const BROADCAST_TTS_PROVIDER = process.env.BROADCAST_TTS_PROVIDER || "gemini";
-const BROADCAST_TTS_MODEL = process.env.BROADCAST_TTS_MODEL || "gemini-2.5-pro-tts";
+const BROADCAST_TTS_PROVIDER = process.env.BROADCAST_TTS_PROVIDER || "openai";
+const BROADCAST_TTS_MODEL = process.env.BROADCAST_TTS_MODEL || "gpt-4o-mini-tts";
 
 const BROADCAST_STATUSES = new Set([
   "queued",
@@ -43,7 +43,7 @@ function mapBroadcastJob(row = {}) {
     sourceFingerprint: row.source_fingerprint || "",
     title: row.title || "AI Broadcast",
     status: normaliseStatus(row.status),
-    style: row.style || "study_podcast",
+    style: row.style || "calm_study_narrator",
     lengthMinutes: row.length_minutes || 5,
     customLengthMinutes: row.custom_length_minutes || null,
     voiceFormat: row.voice_format || "two_ai_hosts",
@@ -78,8 +78,13 @@ function rowFromPayload(userId, payload = {}, existing = {}) {
     "deep_explanation",
     "quick_recap",
     "debate_two_perspectives",
-    "interview_style"
-  ], existing.style || "study_podcast");
+    "interview_style",
+    "calm_study_narrator",
+    "exam_preparation_coach",
+    "natural_podcast_style",
+    "deep_explanation_mode",
+    "quick_revision_mode"
+  ], existing.style || "calm_study_narrator");
   const voiceFormat = allowedValue(firstValue(payload, ["voice_format", "voiceFormat"]), [
     "single_narrator",
     "two_ai_hosts",

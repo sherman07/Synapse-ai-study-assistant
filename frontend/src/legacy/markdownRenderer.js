@@ -7,7 +7,7 @@ import {
   prepareMathMarkdown,
   repairLatexDelimiterLeakage,
   splitMarkdownTableCells
-} from "./mathMarkdown.js?v=note-layout-v2";
+} from "./mathMarkdown.js?v=ai-broadcast-v7";
 
 const DESMOS_API_URL = "https://www.desmos.com/api/v1.11/calculator.js";
 const DESMOS_DEFAULT_API_KEY = "desmos";

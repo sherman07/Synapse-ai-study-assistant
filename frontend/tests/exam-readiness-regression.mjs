@@ -11,6 +11,7 @@ const masteryGraph = read("frontend/src/legacy/controller_sections/04_masterygra
 const timeline = read("frontend/src/legacy/controller_sections/03_rendertimeline.js");
 const backendStudyPath = read("backend/app_sections/11_timeline_generate.py");
 const styles = read("frontend/styles/07-section.css");
+const styleRoot = read("frontend/style.css");
 
 assert.ok(studyTools.includes("Exam Readiness"), "Study Tools should expose Exam Readiness as a first-class tool");
 assert.ok(studyTools.includes('id: "toolBtnTimeline"'), "Study Path button should be present in the React shell");
@@ -33,6 +34,7 @@ assert.ok(backendStudyPath.includes('"exam_use": "how this task prepares the stu
 assert.ok(backendStudyPath.includes('"source_reference": "section, source, slide, page, figure, or concept this task is grounded in"'), "Study path prompt should require source references");
 
 assert.ok(styles.includes(".exam-readiness-summary"), "Exam Readiness summary styles should be available");
+assert.ok(styleRoot.includes("07-section.css?v=ai-broadcast-v7"), "Root stylesheet should bust cached Exam Readiness styles");
 assert.ok(styles.includes(".readiness-next-action"), "Next-action styles should be available");
 
 console.log("exam readiness regression passed");

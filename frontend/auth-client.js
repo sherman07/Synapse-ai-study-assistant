@@ -116,6 +116,14 @@
     return new URL(verificationUrl(), window.location.href).toString();
   }
 
+  function passwordResetUrl() {
+    return (window.location.pathname || "").includes("/frontend/") ? "reset-password.html" : "frontend/reset-password.html";
+  }
+
+  function absolutePasswordResetUrl() {
+    return new URL(passwordResetUrl(), window.location.href).toString();
+  }
+
   function normalizeEmail(email) {
     return String(email || "").trim().toLowerCase();
   }
@@ -130,6 +138,17 @@
       });
     }
     return params;
+  }
+
+  function hasAuthCallbackParams() {
+    const params = urlAuthParams();
+    return Boolean(
+      params.get("code")
+      || params.get("access_token")
+      || params.get("refresh_token")
+      || params.get("token_hash")
+      || params.get("type")
+    );
   }
 
   function readJSON(key, fallback) {
@@ -293,89 +312,50 @@
     return syncBillingSessionFromServer(session);
   }
 
-  function isRepeatedSignupUser(user) {
-    return Array.isArray(user?.identities) && user.identities.length === 0;
-  }
-
-  async function signInAfterRepeatedSignup(client, email, password) {
-    if (!password) return null;
-    try {
-      const { data, error } = await client.auth.signInWithPassword({ email, password });
-      if (error || !data?.session?.user) return null;
-      return saveSession(publicSessionFromSupabase(data.session));
-    } catch {
-      return null;
+  async function readAuthApiResponse(response, fallbackMessage) {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : "";
+      const error = new Error(data.message || data.error || detail || fallbackMessage);
+      error.state = data.state || "api_error";
+      error.errors = data.errors || {};
+      error.response = data;
+      throw error;
     }
+    return data;
   }
 
-  async function signUpEmail({ firstName, lastName, email, password, role }) {
-    const client = await getSupabaseClient();
-    if (!client) throw new Error("Production auth is not configured.");
+  async function signUpEmail({ firstName, lastName, email, password, confirmPassword, role, termsAccepted }) {
+    if (!isConfigured()) throw new Error("Production auth is not configured.");
     const normalizedEmail = normalizeEmail(email);
-    const { data, error } = await client.auth.signUp({
-      email: normalizedEmail,
-      password,
-      options: {
-        data: {
-          first_name: String(firstName || "").trim(),
-          last_name: String(lastName || "").trim(),
-          role: role || "student",
-          plan: "free",
-          credits: creditsForPlan("free")
-        },
-        emailRedirectTo: absoluteVerificationUrl()
-      }
-    });
-    if (error) throw error;
-    if (data?.session?.user) return { session: saveSession(publicSessionFromSupabase(data.session)) };
-    if (data?.user && !data?.session) {
-      if (isRepeatedSignupUser(data.user)) {
-        const existingSession = await signInAfterRepeatedSignup(client, normalizedEmail, password);
-        if (existingSession) {
-          return {
-            session: existingSession,
-            signupStatus: "signed_in_existing",
-            email: normalizedEmail
-          };
-        }
-        return {
-          requiresExistingAccountAction: true,
-          signupStatus: "existing_account",
-          emailConfirmationStatus: "existing_account",
-          email: normalizedEmail,
-          userId: data.user.id || ""
-        };
-      }
-      return {
-        requiresEmailConfirmation: true,
-        signupStatus: "confirmation_pending",
-        emailConfirmationStatus: "session_pending",
+    const response = await publicApiFetch("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        firstName: String(firstName || "").trim(),
+        lastName: String(lastName || "").trim(),
         email: normalizedEmail,
-        userId: data.user.id || ""
-      };
-    }
-    return {
-      requiresEmailConfirmation: true,
-      signupStatus: "confirmation_pending",
-      emailConfirmationStatus: "unknown_delivery",
-      email: normalizedEmail
-    };
+        role: role || "student",
+        password,
+        confirmPassword,
+        termsAccepted: Boolean(termsAccepted),
+        redirectTo: absoluteVerificationUrl()
+      })
+    });
+    return readAuthApiResponse(response, "Sign up failed.");
   }
 
   async function resendSignupConfirmation(email) {
-    const client = await getSupabaseClient();
-    if (!client) throw new Error("Production auth is not configured.");
+    if (!isConfigured()) throw new Error("Production auth is not configured.");
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail) throw new Error("Enter the email address you used to sign up.");
-    const { error } = await client.auth.resend({
-      type: "signup",
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: absoluteVerificationUrl()
-      }
+    const response = await publicApiFetch("/api/auth/resend-confirmation", {
+      method: "POST",
+      body: JSON.stringify({
+        email: normalizedEmail,
+        redirectTo: absoluteVerificationUrl()
+      })
     });
-    if (error) throw error;
-    return { resent: true, email: normalizedEmail };
+    return readAuthApiResponse(response, "Could not resend the confirmation email.");
   }
 
   async function completeAuthRedirect() {
@@ -427,10 +407,90 @@
     const client = await getSupabaseClient();
     if (!client) throw new Error("Production auth is not configured.");
     const { error } = await client.auth.resetPasswordForEmail(normalizeEmail(email), {
-      redirectTo: absoluteAppUrl()
+      redirectTo: absolutePasswordResetUrl()
     });
     if (error) throw error;
     return { ok: true };
+  }
+
+  async function readCurrentSupabaseSession() {
+    const client = await getSupabaseClient();
+    if (!client) throw new Error("Production auth is not configured.");
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    if (data?.session?.user) {
+      return saveSession(publicSessionFromSupabase(data.session));
+    }
+    return null;
+  }
+
+  async function waitForRecoverySession(timeoutMs = 10000) {
+    const client = await getSupabaseClient();
+    if (!client) throw new Error("Production auth is not configured.");
+
+    const existing = await readCurrentSupabaseSession();
+    if (existing?.accountId || existing?.email) return existing;
+    if (!hasAuthCallbackParams()) return null;
+
+    return new Promise(resolve => {
+      let settled = false;
+      let subscription = null;
+      const finish = session => {
+        if (settled) return;
+        settled = true;
+        if (subscription?.unsubscribe) subscription.unsubscribe();
+        else if (subscription?.subscription?.unsubscribe) subscription.subscription.unsubscribe();
+        resolve(session);
+      };
+
+      const timer = window.setTimeout(async () => {
+        try {
+          finish(await readCurrentSupabaseSession());
+        } catch {
+          finish(null);
+        }
+      }, timeoutMs);
+
+      const authChange = client.auth.onAuthStateChange((event, sessionPayload) => {
+        if (sessionPayload?.user && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+          window.clearTimeout(timer);
+          finish(saveSession(publicSessionFromSupabase(sessionPayload)));
+        }
+      });
+      subscription = authChange?.data?.subscription || authChange?.subscription || null;
+    });
+  }
+
+  async function preparePasswordRecovery() {
+    const params = urlAuthParams();
+    const redirectError = params.get("error_description") || params.get("error");
+    if (redirectError) {
+      return {
+        ok: false,
+        status: "error",
+        error: redirectError.replace(/\+/g, " ")
+      };
+    }
+
+    const session = await waitForRecoverySession();
+    if (session?.accountId || session?.email) {
+      return { ok: true, status: "ready", session };
+    }
+
+    return {
+      ok: false,
+      status: "missing_session",
+      message: "This reset link is invalid or expired. Request a new Synapse password reset email."
+    };
+  }
+
+  async function updatePassword(password) {
+    const client = await getSupabaseClient();
+    if (!client) throw new Error("Production auth is not configured.");
+    const { data, error } = await client.auth.updateUser({ password });
+    if (error) throw error;
+    await readCurrentSupabaseSession().catch(() => null);
+    return { ok: true, user: data?.user || null, session: getStoredSession() };
   }
 
   async function signOut() {
@@ -504,6 +564,36 @@
       ...options,
       headers
     });
+  }
+
+  async function publicApiFetch(path, options = {}, timeoutMs = 20000) {
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Synapse-Client-Id": cleanHeaderValue(getSynapseClientId(), 160),
+      ...(options.headers || {})
+    };
+    const controller = new AbortController();
+    const callerSignal = options.signal;
+    const abortFromCaller = () => controller.abort(callerSignal?.reason);
+    if (callerSignal?.aborted) abortFromCaller();
+    else callerSignal?.addEventListener?.("abort", abortFromCaller, { once: true });
+
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await window.fetch(`${apiBase()}/${String(path || "").replace(/^\/+/, "")}`, {
+        ...options,
+        headers,
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error("Synapse could not reach the auth server in time. Check that the backend is running, then try again.");
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timer);
+      callerSignal?.removeEventListener?.("abort", abortFromCaller);
+    }
   }
 
   async function apiFetch(path, options = {}) {
@@ -657,6 +747,7 @@
     getBillingPlans: () => readConfig().billingPlans,
     getStoredSession,
     isConfigured,
+    preparePasswordRecovery,
     requestAccountDeletion,
     requestServerExport,
     resendSignupConfirmation,
@@ -667,7 +758,8 @@
     signOut,
     signUpEmail,
     syncBillingSessionFromServer,
-    syncSessionFromProvider
+    syncSessionFromProvider,
+    updatePassword
   };
   document.documentElement.dataset.synapseAuthClient = "loaded";
 

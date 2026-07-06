@@ -28,3 +28,5 @@ credentials.json
 backend/.env
 backend/core/.env
 server/.env
+.vercel/
+.env.local

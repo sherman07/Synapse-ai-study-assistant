@@ -8,6 +8,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const authScript = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.js"), "utf8");
 const authCss = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.css"), "utf8");
 const authClientScript = fs.readFileSync(path.join(repoRoot, "frontend/auth-client.js"), "utf8");
+const backendAppScript = fs.readFileSync(path.join(repoRoot, "backend/app.py"), "utf8");
 const accountsKey = "synapse.auth.accounts.v1";
 const sessionKey = "synapse.auth.session.v1";
 
@@ -18,27 +19,32 @@ assert.ok(!authScript.includes("window.location.href = '/index.html'"));
 assert.ok(!authScript.includes("window.prompt"), "Google auth must not use a fake prompt-based login fallback");
 assert.ok(authScript.includes("signInWithGoogle"), "Google auth should delegate to the real auth provider");
 assert.ok(!authScript.includes("Check your email to confirm your Synapse account, then login."), "Signup UI must not claim an email was sent when Supabase only returned no session");
-assert.ok(authScript.includes("Synapse created the account"), "Signup UI should explain that Supabase accepted the signup");
-assert.ok(authScript.includes("open the verification email"), "Signup UI should explain the next verification step");
-assert.ok(authScript.includes("Auth email/SMTP settings"), "Signup UI should point users to the deliverability setting that controls confirmation emails");
+assert.ok(authScript.includes("Account created. Check your email to confirm your Synapse account, then log in."), "Signup UI should only show the confirmation message returned by the signup flow");
 assert.ok(authScript.includes("showSignupConfirmationStatus"), "Signup UI should provide the confirmation-pending state");
-assert.ok(authScript.includes("Resend verification"), "Signup UI should let users retry a missing confirmation email");
+assert.ok(authScript.includes("showPendingAccountStatus"), "Signup UI should provide an unconfirmed-account state");
+assert.ok(authScript.includes("Resend Confirmation Email"), "Signup UI should let users retry a missing confirmation email");
 assert.ok(authScript.includes("showExistingAccountStatus"), "Signup UI should handle Supabase repeated-signup responses");
-assert.ok(authScript.includes("Log in instead"), "Repeated signup should offer a direct login path");
-assert.ok(authScript.includes("Reset password"), "Repeated signup should offer recovery instead of waiting for another signup email");
+assert.ok(authScript.includes("Go to Login"), "Repeated signup should offer a direct login path");
+assert.ok(authScript.includes("Forgot Password"), "Repeated signup should offer recovery instead of waiting for another signup email");
 assert.ok(authScript.includes("prefillEmail"), "Password recovery should prefill the email from repeated-signup actions");
-assert.ok(authClientScript.includes("data?.user && !data?.session"), "Supabase signup should distinguish user-created/no-session from immediate signin");
-assert.ok(authClientScript.includes("emailConfirmationStatus"), "Supabase signup should return an explicit confirmation status for the UI");
+assert.ok(authClientScript.includes('publicApiFetch("/api/auth/signup"'), "Supabase signup should go through the backend auth endpoint");
+assert.ok(authClientScript.includes('publicApiFetch("/api/auth/resend-confirmation"'), "Confirmation resend should go through the backend auth endpoint");
 assert.ok(authClientScript.includes("absoluteVerificationUrl"), "Signup confirmation should redirect to a dedicated verification page");
-assert.ok(authClientScript.includes("isRepeatedSignupUser"), "Auth client should classify repeated signup responses from Supabase");
-assert.ok(authClientScript.includes("existing_account"), "Auth client should return a clear existing-account signup status");
+assert.ok(authClientScript.includes("readAuthApiResponse"), "Auth client should parse structured backend auth responses");
+assert.ok(authScript.includes("existing_confirmed"), "Signup UI should handle confirmed duplicate accounts");
+assert.ok(authScript.includes("existing_unconfirmed"), "Signup UI should handle unconfirmed duplicate accounts");
 assert.ok(authClientScript.includes("completeAuthRedirect"), "Auth client should complete Supabase redirect sessions on the verify page");
 assert.ok(authClientScript.includes('event === "SIGNED_OUT"'), "Auth client should clear the app session only on explicit Supabase sign-out events");
 assert.ok(authClientScript.includes('session?.authMode === "supabase"'), "Auth sync should clear stale Supabase app sessions when no provider session exists");
-assert.ok(authClientScript.includes('plan: "free"'), "New Supabase signups should use the Free plan id, not the old Starter label");
+assert.ok(backendAppScript.includes('"plan": "free"'), "New Supabase signups should use the Free plan id, not the old Starter label");
 assert.ok(authClientScript.includes("resendSignupConfirmation"), "Auth client should expose a resend confirmation helper");
-assert.ok(authClientScript.includes("client.auth.resend"), "Resend helper should delegate to Supabase Auth resend");
 assert.ok(authCss.includes(".auth-status-button"), "Confirmation retry should have visible button styling");
+assert.ok(authCss.includes(".auth-form-status.warning"), "Existing account status should have warning styling");
+assert.ok(authCss.includes(".auth-form-status.info"), "Pending account status should have info styling");
+for (const frontendFile of ["frontend/auth-client.js", "frontend/landing-auth.js", "frontend/signup.html"]) {
+  const source = fs.readFileSync(path.join(repoRoot, frontendFile), "utf8");
+  assert.ok(!/service_role|SERVICE_ROLE|admin\/users/.test(source), `${frontendFile} must not expose Supabase admin credentials or admin auth routes`);
+}
 assert.ok(fs.existsSync(path.join(repoRoot, "index.html")));
 
 const rootIndex = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
@@ -46,7 +52,7 @@ assert.ok(rootIndex.includes("frontend/landing.html"));
 const rootApp = fs.readFileSync(path.join(repoRoot, "app.html"), "utf8");
 assert.ok(rootApp.includes("frontend/index.html"));
 
-for (const page of ["landing", "login", "signup", "forgot-password", "verify"]) {
+for (const page of ["landing", "login", "signup", "forgot-password", "verify", "reset-password"]) {
   const shim = fs.readFileSync(path.join(repoRoot, `${page}.html`), "utf8");
   assert.ok(shim.includes(`frontend/${page}.html`), `${page}.html should redirect to frontend/${page}.html`);
 }
@@ -54,11 +60,23 @@ for (const page of ["landing", "login", "signup", "forgot-password", "verify"]) 
 const verifyPage = fs.readFileSync(path.join(repoRoot, "frontend/verify.html"), "utf8");
 const verifyScript = fs.readFileSync(path.join(repoRoot, "frontend/verify-auth.js"), "utf8");
 const forgotPage = fs.readFileSync(path.join(repoRoot, "frontend/forgot-password.html"), "utf8");
+const resetPage = fs.readFileSync(path.join(repoRoot, "frontend/reset-password.html"), "utf8");
+const resetScript = fs.readFileSync(path.join(repoRoot, "frontend/reset-password.js"), "utf8");
 assert.ok(verifyPage.includes("verify-auth.js"), "Verify page should run the Supabase auth callback controller");
 assert.ok(verifyPage.includes("data-testid=\"verify-status\""), "Verify page should expose a testable status region");
 assert.ok(verifyScript.includes("completeAuthRedirect"), "Verify page should complete Supabase redirect sessions");
 assert.ok(!verifyScript.includes("innerHTML"), "Verify page should render URL-derived auth errors with text nodes");
 assert.ok(forgotPage.includes("Send Reset Link"), "Password recovery page should present a production reset flow");
+assert.ok(authClientScript.includes("absolutePasswordResetUrl"), "Password reset emails should redirect to the dedicated password reset page");
+assert.ok(authClientScript.includes("reset-password.html"), "Auth client should know the dedicated password reset page");
+assert.ok(!authClientScript.includes("resetPasswordForEmail(normalizeEmail(email), {\n      redirectTo: absoluteAppUrl()"), "Password reset must not redirect recovery links to the app homepage");
+assert.ok(authClientScript.includes("preparePasswordRecovery"), "Auth client should prepare Supabase recovery sessions before password update");
+assert.ok(authClientScript.includes("updateUser({ password })"), "Auth client should update the Supabase password from the recovery page");
+assert.ok(resetPage.includes("reset-password.js"), "Reset password page should run its dedicated controller");
+assert.ok(resetPage.includes("data-testid=\"reset-password-status\""), "Reset password page should expose a testable status region");
+assert.ok(resetScript.includes("preparePasswordRecovery"), "Reset password page should verify the recovery session");
+assert.ok(resetScript.includes("updatePassword"), "Reset password page should call the auth client's password update helper");
+assert.ok(!resetScript.includes("innerHTML"), "Reset password page should render URL-derived auth errors with text nodes");
 
 function makeClassList() {
   const values = new Set();

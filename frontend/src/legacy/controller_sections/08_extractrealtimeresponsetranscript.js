@@ -1068,6 +1068,7 @@ function compactVisualGalleryForStorage(items) {
       url: isCompactVisualUrl(item.url) ? item.url : "",
       title: item.title || "",
       what_shows: item.what_shows || "",
+      why_relevant: item.why_relevant || "",
       argument_supported: item.argument_supported || "",
       cross_source_connection: item.cross_source_connection || "",
       how_to_read: item.how_to_read || "",

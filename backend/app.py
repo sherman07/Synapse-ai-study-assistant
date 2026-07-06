@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import html
 import json
@@ -12,13 +13,14 @@ import tempfile
 import textwrap
 import time
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
+from dotenv import dotenv_values
 from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +34,12 @@ from core.config import (
     AI_TEXT_PROVIDER,
     ANALYSIS_MAX_SECONDS,
     ANALYSIS_MODEL,
+    BROADCAST_REALTIME_MODEL,
+    BROADCAST_SCRIPT_MODEL,
+    BROADCAST_TTS_INPUT_CHAR_LIMIT,
+    BROADCAST_TTS_MODEL,
+    BROADCAST_TTS_PROVIDER,
+    BROADCAST_TTS_VOICE,
     CACHE_PATH,
     CACHE_VERSION,
     CHAT_MODEL,
@@ -214,6 +222,11 @@ import logging
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
+
+def utc_timestamp(timespec: str = "seconds") -> str:
+    return datetime.now(timezone.utc).isoformat(timespec=timespec).replace("+00:00", "Z")
+
+
 # Defensive literals for LaTeX environments inside f-string prompts. If a
 # prompt accidentally contains "\begin{bmatrix}" instead of escaped braces,
 # Python would otherwise try to interpolate a variable named bmatrix.
@@ -250,17 +263,27 @@ APP_SECTION_FILES = (
     "10_parse_quiz_type_plan.py",
     "11_timeline_generate.py",
     "12_flashcards_generate.py",
+    "13_broadcast_mode.py",
 )
 
 AppSectionLoader(BACKEND_PACKAGE_DIR, APP_SECTION_FILES).load(globals())
 
-SUPABASE_URL = (os.getenv("SUPABASE_URL") or os.getenv("SYNAPSE_SUPABASE_URL") or "").rstrip("/")
-SUPABASE_ANON_KEY = (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SYNAPSE_SUPABASE_ANON_KEY") or "").strip()
+SERVER_ENV_VALUES = dotenv_values(BACKEND_PACKAGE_DIR.parent / "server" / ".env")
+
+
+def auth_env_value(*names: str) -> str:
+    for name in names:
+        value = (os.getenv(name) or SERVER_ENV_VALUES.get(name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+SUPABASE_URL = auth_env_value("SUPABASE_URL", "SYNAPSE_SUPABASE_URL").rstrip("/")
+SUPABASE_ANON_KEY = auth_env_value("SUPABASE_ANON_KEY", "SYNAPSE_SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = (
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    or os.getenv("SYNAPSE_SUPABASE_SERVICE_ROLE_KEY")
-    or ""
-).strip()
+    auth_env_value("SUPABASE_SERVICE_ROLE_KEY", "SYNAPSE_SUPABASE_SERVICE_ROLE_KEY")
+)
 STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
 SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK = (
@@ -284,6 +307,14 @@ if stripe and STRIPE_SECRET_KEY:
 def json_error(message: str, status_code: int = 400) -> Response:
     return Response(
         json.dumps({"error": message}),
+        status_code=status_code,
+        media_type="application/json",
+    )
+
+
+def json_payload(payload: Dict[str, Any], status_code: int = 200) -> Response:
+    return Response(
+        json.dumps(payload),
         status_code=status_code,
         media_type="application/json",
     )
@@ -453,6 +484,278 @@ def database_identity_from_request(request: Optional[Request], client_fingerprin
     }
 
 
+AUTH_SIGNUP_ROLES = {"student", "teacher", "professional", "other"}
+AUTH_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+AUTH_COMMON_WEAK_PASSWORDS = {
+    "password",
+    "password1",
+    "password12",
+    "password123",
+    "12345678",
+    "123456789",
+    "qwerty123",
+    "synapse123",
+}
+
+
+def auth_api_response(
+    ok: bool,
+    state: str,
+    message: str,
+    status_code: int = 200,
+    **extra: Any,
+) -> Response:
+    payload = {"ok": ok, "state": state, "message": message}
+    payload.update(extra)
+    return json_payload(payload, status_code)
+
+
+def normalize_auth_email(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def clean_signup_text(value: Any, limit: int = 80) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())[:limit]
+
+
+def auth_private_ipv4_host(hostname: str) -> bool:
+    parts = str(hostname or "").split(".")
+    if len(parts) != 4 or any(not part.isdigit() for part in parts):
+        return False
+    nums = [int(part) for part in parts]
+    if any(num < 0 or num > 255 for num in nums):
+        return False
+    return nums[0] == 10 or (nums[0] == 172 and 16 <= nums[1] <= 31) or (nums[0] == 192 and nums[1] == 168)
+
+
+def auth_local_dev_host(hostname: str) -> bool:
+    value = str(hostname or "").lower()
+    return value in {"localhost", "127.0.0.1", "::1"} or auth_private_ipv4_host(value)
+
+
+def masked_auth_email(email: str) -> str:
+    normalized = normalize_auth_email(email)
+    if not normalized:
+        return "<missing>"
+    return f"email_hash:{sha256_text(normalized)[:12]}"
+
+
+def signup_redirect_to(request: Request, payload: Dict[str, Any]) -> str:
+    raw = str(payload.get("redirectTo") or payload.get("redirect_to") or "").strip()
+    parsed = urlparse(raw)
+    configured_frontend = urlparse(SYNAPSE_FRONTEND_BASE_URL)
+    allowed_hosts = {configured_frontend.netloc} if configured_frontend.netloc else set()
+    configured_is_local = auth_local_dev_host(configured_frontend.hostname or "")
+    if (
+        parsed.scheme in {"http", "https"}
+        and parsed.netloc
+        and parsed.path.endswith("/verify.html")
+        and (parsed.netloc in allowed_hosts or (configured_is_local and auth_local_dev_host(parsed.hostname or "")))
+    ):
+        return raw
+    return f"{SYNAPSE_FRONTEND_BASE_URL}/verify.html"
+
+
+async def request_json_payload(request: Request) -> Dict[str, Any]:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def validate_signup_payload(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    first_name = clean_signup_text(payload.get("firstName") or payload.get("first_name"))
+    last_name = clean_signup_text(payload.get("lastName") or payload.get("last_name"))
+    role = clean_signup_text(payload.get("role") or "student", 40).lower()
+    email = normalize_auth_email(payload.get("email"))
+    password = str(payload.get("password") or "")
+    confirm_password = str(payload.get("confirmPassword") or payload.get("confirm_password") or "")
+    terms_accepted = payload.get("termsAccepted")
+    if terms_accepted is None:
+        terms_accepted = payload.get("terms_accepted")
+
+    errors: Dict[str, str] = {}
+    if not first_name:
+        errors["firstName"] = "First name is required."
+    if not last_name:
+        errors["lastName"] = "Last name is required."
+    if role not in AUTH_SIGNUP_ROLES:
+        errors["role"] = "Choose a valid account type."
+    if not email:
+        errors["email"] = "Email is required."
+    elif not AUTH_EMAIL_RE.match(email):
+        errors["email"] = "Enter a valid email address."
+    if not password:
+        errors["password"] = "Password is required."
+    elif len(password) < 8:
+        errors["password"] = "Password must be at least 8 characters."
+    elif not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        errors["password"] = "Password must include at least one letter and one number."
+    elif password.lower() in AUTH_COMMON_WEAK_PASSWORDS:
+        errors["password"] = "Choose a stronger password."
+    else:
+        email_name = email.split("@", 1)[0].lower() if email else ""
+        if len(email_name) >= 4 and email_name in password.lower():
+            errors["password"] = "Password cannot contain your email name."
+    if not confirm_password:
+        errors["confirmPassword"] = "Please confirm your password."
+    elif password and password != confirm_password:
+        errors["confirmPassword"] = "Passwords do not match."
+    if terms_accepted is not True:
+        errors["terms"] = "You must agree to the Terms of Service and Privacy Policy."
+
+    clean_payload = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "role": role,
+        "email": email,
+        "password": password,
+    }
+    return clean_payload, errors
+
+
+def validate_resend_payload(payload: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
+    email = normalize_auth_email(payload.get("email"))
+    errors: Dict[str, str] = {}
+    if not email:
+        errors["email"] = "Email is required."
+    elif not AUTH_EMAIL_RE.match(email):
+        errors["email"] = "Enter a valid email address."
+    return email, errors
+
+
+def supabase_admin_headers() -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Content-Type": "application/json",
+    }
+
+
+def supabase_public_headers() -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "apikey": SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+    }
+
+
+def supabase_auth_config_error(require_service_role: bool = False) -> Optional[str]:
+    missing = []
+    if not SUPABASE_URL:
+        missing.append("SUPABASE_URL")
+    if not SUPABASE_ANON_KEY:
+        missing.append("SUPABASE_ANON_KEY")
+    if require_service_role and not SUPABASE_SERVICE_ROLE_KEY:
+        missing.append("SUPABASE_SERVICE_ROLE_KEY")
+    if missing:
+        return f"Supabase Auth is not configured on the backend. Missing: {', '.join(missing)}."
+    return None
+
+
+def supabase_user_confirmed(user: Dict[str, Any]) -> bool:
+    return bool(
+        user.get("email_confirmed_at")
+        or user.get("confirmed_at")
+        or (user.get("confirmation_sent_at") and user.get("last_sign_in_at"))
+    )
+
+
+def supabase_auth_error_message(error_text: str) -> str:
+    lowered = error_text.lower()
+    if "rate" in lowered or "too many" in lowered:
+        return "Supabase is rate-limiting confirmation emails. Please wait a moment and try again."
+    if "smtp" in lowered or "email" in lowered or "mail" in lowered:
+        return "Supabase could not send the confirmation email. Check Auth email/SMTP settings."
+    if "redirect" in lowered:
+        return "Supabase rejected the confirmation redirect URL. Check the Site URL and redirect allow list."
+    return "Supabase could not complete the auth request. Please try again."
+
+
+def find_supabase_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    target = normalize_auth_email(email)
+    per_page = 1000
+    page = 1
+    while True:
+        response = requests.get(
+            f"{SUPABASE_URL}/auth/v1/admin/users",
+            headers=supabase_admin_headers(),
+            params={"page": page, "per_page": per_page},
+            timeout=15,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(f"admin list users failed: {response.status_code} {response.text[:240]}")
+        payload = response.json()
+        users = payload.get("users") if isinstance(payload, dict) else payload
+        if not isinstance(users, list):
+            users = []
+        for user in users:
+            if normalize_auth_email(user.get("email")) == target:
+                return user
+        if len(users) < per_page:
+            return None
+        page += 1
+    return None
+
+
+def call_supabase_signup(clean_payload: Dict[str, Any], redirect_to: str) -> Tuple[Optional[Dict[str, Any]], Optional[str], int]:
+    response = requests.post(
+        f"{SUPABASE_URL}/auth/v1/signup",
+        headers=supabase_public_headers(),
+        params={"redirect_to": redirect_to},
+        json={
+            "email": clean_payload["email"],
+            "password": clean_payload["password"],
+            "data": {
+                "first_name": clean_payload["first_name"],
+                "last_name": clean_payload["last_name"],
+                "role": clean_payload["role"],
+                "plan": "free",
+                "credits": 500,
+            },
+        },
+        timeout=18,
+    )
+    if response.status_code >= 400:
+        return None, response.text[:500], response.status_code
+    return response.json(), None, response.status_code
+
+
+def call_supabase_resend(email: str, redirect_to: str) -> Tuple[bool, Optional[str], int]:
+    response = requests.post(
+        f"{SUPABASE_URL}/auth/v1/resend",
+        headers=supabase_public_headers(),
+        params={"redirect_to": redirect_to},
+        json={"type": "signup", "email": email},
+        timeout=18,
+    )
+    if response.status_code >= 400:
+        return False, response.text[:500], response.status_code
+    return True, None, response.status_code
+
+
+def existing_account_response(email: str, user: Dict[str, Any]) -> Response:
+    account_ref = user.get("id") or masked_auth_email(email)
+    if supabase_user_confirmed(user):
+        logger.info("Duplicate confirmed Supabase account detected for %s", account_ref)
+        return auth_api_response(
+            False,
+            "existing_confirmed",
+            "An account already exists for this email. Please log in instead.",
+            email=email,
+            actions=["login", "forgot_password"],
+        )
+    logger.info("Unconfirmed Supabase account detected for %s", account_ref)
+    return auth_api_response(
+        False,
+        "existing_unconfirmed",
+        "This email already has a pending account. Please check your inbox or resend the confirmation email.",
+        email=email,
+        actions=["resend_confirmation", "change_email"],
+    )
+
+
 def persist_generated_analysis_result(
     request: Optional[Request],
     result: Dict[str, Any],
@@ -501,8 +804,8 @@ def get_billing_profile(user: Dict[str, Any]) -> Dict[str, Any]:
         "user_id": user["id"],
         "email": user.get("email"),
         "stripe_customer_id": "",
-        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "created_at": utc_timestamp(),
+        "updated_at": utc_timestamp(),
     }
     store[user["id"]] = profile
     save_billing_store(store)
@@ -511,7 +814,7 @@ def get_billing_profile(user: Dict[str, Any]) -> Dict[str, Any]:
 
 def save_billing_profile(user_id: str, profile: Dict[str, Any]) -> None:
     store = billing_store()
-    profile["updated_at"] = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    profile["updated_at"] = utc_timestamp()
     store[user_id] = profile
     save_billing_store(store)
 
@@ -538,6 +841,170 @@ def _clean_contact_text(value: Any, limit: int) -> str:
 
 def _valid_contact_email(value: str) -> bool:
     return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", value or ""))
+
+
+@app.post("/api/auth/signup")
+async def signup_account(request: Request) -> Response:
+    logger.info("Signup attempt started")
+    payload = await request_json_payload(request)
+    clean_payload, errors = validate_signup_payload(payload)
+    email = clean_payload["email"]
+    email_ref = masked_auth_email(email)
+    logger.info("Signup email normalized: %s", email_ref)
+    if errors:
+        return auth_api_response(
+            False,
+            "validation_error",
+            "Please fix the highlighted fields.",
+            422,
+            errors=errors,
+        )
+
+    config_error = supabase_auth_config_error(require_service_role=True)
+    if config_error:
+        logger.error("Signup blocked by Supabase config: %s", config_error)
+        return auth_api_response(False, "auth_not_configured", config_error, 503)
+
+    try:
+        existing_user = await asyncio.to_thread(find_supabase_user_by_email, email)
+    except Exception as error:
+        logger.exception("Supabase admin account lookup failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "account_lookup_failed",
+            "Could not verify this email with Supabase. Please try again.",
+            502,
+        )
+    if existing_user:
+        return existing_account_response(email, existing_user)
+
+    redirect_to = signup_redirect_to(request, payload)
+    try:
+        signup_payload, signup_error, signup_status = await asyncio.to_thread(
+            call_supabase_signup,
+            clean_payload,
+            redirect_to,
+        )
+    except Exception as error:
+        logger.exception("Supabase signup request failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "signup_request_failed",
+            "Could not reach Supabase Auth. Please try again.",
+            502,
+        )
+
+    if signup_error:
+        logger.error("Supabase signup error for %s: %s", email_ref, signup_error)
+        try:
+            existing_user = await asyncio.to_thread(find_supabase_user_by_email, email)
+        except Exception:
+            existing_user = None
+        if existing_user:
+            return existing_account_response(email, existing_user)
+        return auth_api_response(
+            False,
+            "signup_failed",
+            supabase_auth_error_message(signup_error),
+            502 if signup_status >= 500 else 400,
+        )
+
+    user = (signup_payload or {}).get("user") or {}
+    if (signup_payload or {}).get("session") or supabase_user_confirmed(user):
+        logger.error("Supabase signup for %s returned an immediate session; email confirmation may be disabled", email_ref)
+        return auth_api_response(
+            False,
+            "email_confirmation_disabled",
+            "Account was created, but Supabase email confirmation appears disabled. Enable email confirmations before production launch.",
+            502,
+            email=email,
+        )
+
+    logger.info("Supabase signup accepted for %s; confirmation email requested", email_ref)
+    return auth_api_response(
+        True,
+        "created_confirmation_sent",
+        "Account created. Check your email to confirm your Synapse account, then log in.",
+        email=email,
+        actions=["login", "resend_confirmation"],
+    )
+
+
+@app.post("/api/auth/resend-confirmation")
+async def resend_signup_confirmation(request: Request) -> Response:
+    payload = await request_json_payload(request)
+    email, errors = validate_resend_payload(payload)
+    email_ref = masked_auth_email(email)
+    logger.info("Confirmation resend requested for %s", email_ref)
+    if errors:
+        return auth_api_response(
+            False,
+            "validation_error",
+            "Please enter a valid email address.",
+            422,
+            errors=errors,
+        )
+
+    config_error = supabase_auth_config_error(require_service_role=True)
+    if config_error:
+        logger.error("Confirmation resend blocked by Supabase config: %s", config_error)
+        return auth_api_response(False, "auth_not_configured", config_error, 503)
+
+    try:
+        existing_user = await asyncio.to_thread(find_supabase_user_by_email, email)
+    except Exception as error:
+        logger.exception("Supabase admin account lookup failed before resend for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "account_lookup_failed",
+            "Could not verify this email with Supabase. Please try again.",
+            502,
+        )
+    if not existing_user:
+        logger.info("Confirmation resend skipped; no Supabase account for %s", email_ref)
+        return auth_api_response(
+            False,
+            "account_not_found",
+            "No pending Synapse account was found for this email. Create a new account instead.",
+            404,
+            email=email,
+        )
+    if supabase_user_confirmed(existing_user):
+        return existing_account_response(email, existing_user)
+
+    redirect_to = signup_redirect_to(request, payload)
+    try:
+        resent, resend_error, resend_status = await asyncio.to_thread(
+            call_supabase_resend,
+            email,
+            redirect_to,
+        )
+    except Exception as error:
+        logger.exception("Supabase confirmation resend request failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "resend_request_failed",
+            "Could not reach Supabase Auth. Please try again.",
+            502,
+        )
+    if not resent:
+        logger.error("Supabase confirmation resend error for %s: %s", email_ref, resend_error)
+        return auth_api_response(
+            False,
+            "resend_failed",
+            supabase_auth_error_message(resend_error or ""),
+            502 if resend_status >= 500 else 400,
+            email=email,
+        )
+
+    logger.info("Supabase confirmation resend accepted for %s", email_ref)
+    return auth_api_response(
+        True,
+        "confirmation_resent",
+        "Confirmation email sent. Please check your inbox and spam folder.",
+        email=email,
+        actions=["login"],
+    )
 
 
 @app.post("/contact")
@@ -575,7 +1042,7 @@ async def submit_contact(request: Request) -> Dict[str, Any]:
         )
 
     record = {
-        "received_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "received_at": utc_timestamp(),
         "name": name,
         "email": email,
         "interest": interest,
@@ -750,7 +1217,7 @@ async def stripe_billing_webhook(request: Request) -> Any:
     event_type = event.get("type", "")
     event_object = (event.get("data") or {}).get("object") or {}
     record = {
-        "received_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "received_at": utc_timestamp(),
         "event_id": event.get("id"),
         "type": event_type,
         "object_id": event_object.get("id"),
@@ -791,7 +1258,7 @@ async def export_account_data(request: Request) -> Any:
     generated_content = synapse_database.export_user_content(database_identity)
     return {
         "ok": True,
-        "exported_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "exported_at": utc_timestamp(),
         "user": public_user_payload(user),
         "billing_profile": profile,
         "billing_ledger": ledger,
@@ -817,7 +1284,7 @@ async def delete_account(request: Request) -> Any:
 
     profile = get_billing_profile(user)
     deletion_record = {
-        "deleted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "deleted_at": utc_timestamp(),
         "synapse_user_id": user["id"],
         "email": user.get("email"),
         "stripe_customer_id": profile.get("stripe_customer_id"),
