@@ -93,6 +93,8 @@ for (const requiredId of ["product", "features", "how-it-works", "about", "prici
 
 assert.ok(fs.existsSync(path.join(frontendRoot, "logos", "synapse.png")), "frontend publish directory needs synapse.png");
 assert.ok(fs.existsSync(path.join(frontendRoot, "logos", "synapse_no_spark.png")), "frontend publish directory needs synapse_no_spark.png");
+assert.ok(fs.existsSync(path.join(repoRoot, "public", "logos", "synapse.png")), "Vite public assets need /logos/synapse.png");
+assert.ok(fs.existsSync(path.join(repoRoot, "public", "logos", "synapse_no_spark.png")), "Vite public assets need /logos/synapse_no_spark.png");
 assert.ok(read(path.join(repoRoot, "index.html")).includes("frontend/landing.html"), "project root should open the public landing page");
 
 console.log("static launch validation passed");
