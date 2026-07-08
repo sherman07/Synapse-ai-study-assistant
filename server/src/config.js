@@ -32,7 +32,7 @@ function envList(name, fallback = "") {
 }
 
 const config = {
-  port: envInt("SYNAPSE_DATA_API_PORT", 3001),
+  port: envInt("SYNAPSE_DATA_API_PORT", envInt("PORT", 3001)),
   corsOrigins: envList(
     "SYNAPSE_DATA_CORS_ORIGINS",
     "http://127.0.0.1:5175,http://localhost:5175"

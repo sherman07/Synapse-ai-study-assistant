@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { billingPlanList, hasActivePro, subscriptionAccessPlan, userEntitlements } from "../src/billing/plans.js";
 import { allowedReturnUrl } from "../src/routes/billing.js";
 import { stableUserId } from "../src/utils/ids.js";
@@ -11,6 +11,7 @@ import { allowedValue, cleanString, limitValue, validateProgressPayload } from "
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryDir = path.resolve(__dirname, "../src/repositories");
 const serverRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(serverRoot, "..");
 
 test("stableUserId is deterministic and scoped by provider", () => {
   assert.equal(stableUserId("local_demo", "abc"), stableUserId("local_demo", "abc"));
@@ -77,6 +78,51 @@ test("billing return URLs stay on allowed origins", () => {
     allowedReturnUrl("http://127.0.0.1:5175/frontend/billing-success.html?session_id={CHECKOUT_SESSION_ID}", fallbackOrigin),
     "http://127.0.0.1:5175/frontend/billing-success.html?session_id={CHECKOUT_SESSION_ID}"
   );
+});
+
+test("data API port falls back to Render PORT", async () => {
+  const previousPort = process.env.PORT;
+  const previousSynapsePort = process.env.SYNAPSE_DATA_API_PORT;
+
+  try {
+    process.env.SYNAPSE_DATA_API_PORT = "";
+    process.env.PORT = "4488";
+
+    const configUrl = `${pathToFileURL(path.join(serverRoot, "src/config.js")).href}?render-port=${Date.now()}`;
+    const { config } = await import(configUrl);
+    assert.equal(config.port, 4488);
+  } finally {
+    if (previousPort === undefined) {
+      delete process.env.PORT;
+    } else {
+      process.env.PORT = previousPort;
+    }
+
+    if (previousSynapsePort === undefined) {
+      delete process.env.SYNAPSE_DATA_API_PORT;
+    } else {
+      process.env.SYNAPSE_DATA_API_PORT = previousSynapsePort;
+    }
+  }
+});
+
+test("Render blueprint deploys Python AI backend and Node data API separately", () => {
+  const renderYamlSource = fs.readFileSync(path.join(repoRoot, "render.yaml"), "utf8");
+
+  assert.ok(renderYamlSource.includes("name: synapse-ai-backend"), "Render blueprint should define the Python AI backend");
+  assert.ok(renderYamlSource.includes("runtime: python"), "AI backend should use the Python runtime");
+  assert.ok(
+    renderYamlSource.includes("python -m pip install --upgrade pip && python -m pip install -r backend/requirements.txt"),
+    "AI backend should install Python dependencies from backend/requirements.txt"
+  );
+  assert.ok(
+    renderYamlSource.includes("python -m uvicorn backend.app:app --host 0.0.0.0 --port $PORT"),
+    "AI backend should start uvicorn through the Python module path on Render's PORT"
+  );
+  assert.ok(renderYamlSource.includes("name: synapse-data-api"), "Render blueprint should define the Node data API");
+  assert.ok(renderYamlSource.includes("rootDir: server"), "Node data API should build from the server directory");
+  assert.ok(renderYamlSource.includes("buildCommand: npm ci --omit=dev"), "Node data API should install production npm dependencies");
+  assert.ok(renderYamlSource.includes("startCommand: npm start"), "Node data API should use its package start script");
 });
 
 test("stripe billing routes verify webhooks and keep secrets server-side", () => {
