@@ -99,6 +99,7 @@ for (const dep of [
   assert.ok(packageJson.dependencies[dep], `package.json should install ${dep}`);
 }
 assert.ok(packageJson.scripts.build.includes("vite build"), "package.json should expose a Vite build");
+assert.ok(packageJson.scripts.build.includes("copy_frontend_runtime_assets.mjs"), "production build should copy static frontend runtime assets into dist/frontend");
 assert.ok(packageJson.scripts["test:focus-room"].includes("focus-room-integration-regression.mjs"), "package.json should expose focused Focus Room tests");
 assert.ok(runtimeConfig.includes("SYNAPSE_FOCUS_ROOM_ENABLED"), "runtime config should expose the Focus Room feature flag");
 assert.ok(viteConfig.includes("frontend/index.html"), "Vite config should include the workspace HTML entry");

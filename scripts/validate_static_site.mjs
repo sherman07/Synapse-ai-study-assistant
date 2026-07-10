@@ -97,4 +97,37 @@ assert.ok(fs.existsSync(path.join(repoRoot, "public", "logos", "synapse.png")), 
 assert.ok(fs.existsSync(path.join(repoRoot, "public", "logos", "synapse_no_spark.png")), "Vite public assets need /logos/synapse_no_spark.png");
 assert.ok(read(path.join(repoRoot, "index.html")).includes("frontend/landing.html"), "project root should open the public landing page");
 
+const distFrontendRoot = path.join(repoRoot, "dist", "frontend");
+if (fs.existsSync(distFrontendRoot)) {
+  for (const runtimeFile of [
+    "auth-client.js",
+    "billing-pages.css",
+    "billing-result.js",
+    "config.js",
+    "landing-auth.css",
+    "landing-auth.js",
+    "pricing.js",
+    "reset-password.js",
+    "style.css",
+    "synapse-selects.css",
+    "synapse-selects.js",
+    "verify-auth.js",
+    "styles/09-focus-room.css",
+    "assets/focus-room-app/focus-room-static.js"
+  ]) {
+    assert.ok(
+      fs.existsSync(path.join(distFrontendRoot, runtimeFile)),
+      `Vite output is missing frontend runtime asset: ${runtimeFile}`
+    );
+  }
+  assert.ok(
+    read(path.join(distFrontendRoot, "config.js")).includes("https://synapse-ai-backend-idnc.onrender.com"),
+    "deployed frontend config should include the Render FastAPI backend URL"
+  );
+  assert.ok(
+    read(path.join(distFrontendRoot, "config.js")).includes("https://synapse-data-api.onrender.com"),
+    "deployed frontend config should include the Render data API URL"
+  );
+}
+
 console.log("static launch validation passed");
