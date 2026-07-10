@@ -127,6 +127,14 @@ assert.ok(staticFocusRoomConfig.includes("process.env.NODE_ENV"), "static Focus 
 assertReactResolverConfig(viteConfig, "Vite dev config");
 assertReactResolverConfig(staticFocusRoomConfig, "Focus Room static build config");
 assertFocusRoomOptimizerConfig(viteConfig);
+assert.ok(
+  runtimeConfig.includes('const SYNAPSE_PRODUCTION_API_BASE = "https://synapse-ai-backend-idnc.onrender.com"'),
+  "runtime config should point public Vercel builds at the Render FastAPI backend"
+);
+assert.ok(
+  runtimeConfig.includes('const SYNAPSE_PRODUCTION_DATA_API_BASE = "https://synapse-data-api.onrender.com"'),
+  "runtime config should point public Vercel builds at the Render data API"
+);
 
 assert.ok(indexHtml.includes("react@18/umd/react.production.min.js"), "Workspace should keep CDN React for static-server compatibility");
 assert.ok(indexHtml.includes("react-dom@18/umd/react-dom.production.min.js"), "Workspace should keep CDN ReactDOM for static-server compatibility");

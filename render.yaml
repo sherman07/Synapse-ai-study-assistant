@@ -13,7 +13,7 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: SYNAPSE_PUBLIC_BACKEND_URL
-        sync: false
+        value: https://synapse-ai-backend-idnc.onrender.com
       - key: SYNAPSE_CORS_ALLOW_ORIGINS
         value: https://synapse-ai-study-assistant-tutor.vercel.app
       - key: SYNAPSE_FRONTEND_BASE_URL
@@ -31,7 +31,7 @@ services:
       - key: ENABLE_SOURCE_PPTX_PREVIEW_RENDER
         value: "true"
       - key: SYNAPSE_DATA_API_INTERNAL_URL
-        sync: false
+        value: https://synapse-data-api.onrender.com
       - key: SYNAPSE_INTERNAL_API_TOKEN
         sync: false
 
