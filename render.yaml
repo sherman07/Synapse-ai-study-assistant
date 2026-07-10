@@ -18,6 +18,12 @@ services:
         value: https://synapse-ai-study-assistant-tutor.vercel.app
       - key: SYNAPSE_FRONTEND_BASE_URL
         value: https://synapse-ai-study-assistant-tutor.vercel.app/frontend
+      - key: SUPABASE_URL
+        value: https://yoopvoutgfhnldhmqmip.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_WhUSmLHyEZ7E_-R9_sjbPA_5KVgHzXF
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: OPENAI_TIMEOUT_SECONDS
         value: "240"
       - key: ANALYSIS_MAX_SECONDS

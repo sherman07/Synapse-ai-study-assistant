@@ -119,6 +119,9 @@ test("Render blueprint deploys Python AI backend and Node data API separately", 
     renderYamlSource.includes("python -m uvicorn backend.app:app --host 0.0.0.0 --port $PORT"),
     "AI backend should start uvicorn through the Python module path on Render's PORT"
   );
+  assert.ok(renderYamlSource.includes("SUPABASE_URL"), "AI backend should receive Supabase URL for signup");
+  assert.ok(renderYamlSource.includes("SUPABASE_ANON_KEY"), "AI backend should receive Supabase anon key for signup");
+  assert.ok(renderYamlSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "AI backend should receive Supabase service-role key for signup");
   assert.ok(renderYamlSource.includes("name: synapse-data-api"), "Render blueprint should define the Node data API");
   assert.ok(renderYamlSource.includes("rootDir: server"), "Node data API should build from the server directory");
   assert.ok(renderYamlSource.includes("buildCommand: npm ci --omit=dev"), "Node data API should install production npm dependencies");
