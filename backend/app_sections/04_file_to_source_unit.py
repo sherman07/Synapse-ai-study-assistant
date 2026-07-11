@@ -959,7 +959,7 @@ def requested_language_already_satisfied(summary: str, language_key: str) -> boo
     return False
 
 
-def enforce_requested_language(summary: str, preferred_language: str) -> str:
+def enforce_requested_language(summary: str, preferred_language: str, request_timeout: Optional[float] = None) -> str:
     """
     Universal language enforcement.
     If the user selects any specific output language, rewrite the whole notes into that language.
@@ -998,13 +998,13 @@ NOTES TO REWRITE:
         rewritten = generate_chat([
             {"role": "system", "content": "You are a precise multilingual academic editor. You rewrite study notes into the user's selected language while preserving structure, meaning, source faithfulness, and the exact brand name Synapse."},
             {"role": "user", "content": prompt},
-        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=12000)
+        ], model=ANALYSIS_MODEL, temperature=0, max_tokens=12000, request_timeout=request_timeout)
         return rewritten or summary
     except Exception:
         return summary
 
 
-def localise_title_if_needed(title: str, preferred_language: str) -> str:
+def localise_title_if_needed(title: str, preferred_language: str, request_timeout: Optional[float] = None) -> str:
     key = normalise_language_key(preferred_language)
     if key in {"auto", "english"} or not title:
         return title
@@ -1013,7 +1013,7 @@ def localise_title_if_needed(title: str, preferred_language: str) -> str:
         result = generate_chat([
             {"role": "system", "content": "Translate or localise a short study-note title. Return only the title, no punctuation around it."},
             {"role": "user", "content": f"Translate/localise this title into {language_name}. Keep official legal act names understandable and concise. Never translate the brand name Synapse. Title: {title}"},
-        ], model=TITLE_MODEL, temperature=0, max_tokens=80)
+        ], model=TITLE_MODEL, temperature=0, max_tokens=80, request_timeout=request_timeout)
         return normalise_space(result)[:90] or title
     except Exception:
         return title

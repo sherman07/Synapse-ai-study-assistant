@@ -108,7 +108,7 @@ def visual_asset_url_is_available(url: str) -> bool:
 def filter_browser_visual_gallery(items: List[dict]) -> List[dict]:
     """Keep cached visual metadata only when the browser URL can still render."""
     cleaned: List[dict] = []
-    for item in items or []:
+    for fallback_index, item in enumerate(items or []):
         if not isinstance(item, dict):
             continue
         browser_url = visual_asset_url_for_browser(item.get("url", ""))
@@ -116,8 +116,26 @@ def filter_browser_visual_gallery(items: List[dict]) -> List[dict]:
             continue
         cleaned_item = dict(item)
         cleaned_item["url"] = browser_url
+        if "index" not in cleaned_item:
+            marker_index = visual_marker_index(cleaned_item, fallback_index)
+            if marker_index is not None:
+                cleaned_item["index"] = marker_index
         cleaned.append(cleaned_item)
     return cleaned
+
+
+def visual_marker_index(item: dict, fallback_index: int) -> Optional[int]:
+    for key in ("index", "id"):
+        try:
+            value = item.get(key)
+            if value is None or value == "":
+                continue
+            index = int(value)
+        except Exception:
+            continue
+        if index >= 0:
+            return index
+    return fallback_index
 
 
 def visual_marker_indexes(items: List[dict]) -> set:
@@ -125,10 +143,9 @@ def visual_marker_indexes(items: List[dict]) -> set:
     for fallback_index, item in enumerate(items or []):
         if not isinstance(item, dict):
             continue
-        try:
-            indexes.add(int(item.get("index", fallback_index)))
-        except Exception:
-            indexes.add(fallback_index)
+        marker_index = visual_marker_index(item, fallback_index)
+        if marker_index is not None:
+            indexes.add(marker_index)
     return indexes
 
 

@@ -749,6 +749,7 @@ def generate_ai_mind_map(
     preferred_language: str = "auto",
     depth: str = "detailed",
     prompt_mode: str = DEFAULT_NOTE_PROMPT_MODE,
+    request_timeout: Optional[float] = None,
 ) -> dict:
     """
     Ask the model to design a visual mind map specifically.
@@ -838,14 +839,14 @@ Notes:
         raw = generate_chat([
             {"role": "system", "content": "You create accurate, compact, visual study mind maps as strict JSON. Never use markdown bold or raw LaTeX in mind map labels. Never translate the brand name Synapse."},
             {"role": "user", "content": prompt},
-        ], model=MINDMAP_MODEL, temperature=0, max_tokens=5600)
+        ], model=MINDMAP_MODEL, temperature=0, max_tokens=5600, request_timeout=request_timeout)
         parsed = extract_json_object(raw)
         return normalise_ai_mind_map(parsed or {}, fallback, depth)
     except Exception:
         return fallback
 
 
-def make_notes_title(summary: str, source_title_candidates: List[str]) -> str:
+def make_notes_title(summary: str, source_title_candidates: List[str], request_timeout: Optional[float] = None) -> str:
     picked = choose_best_source_title(source_title_candidates)
     if picked != "Generated Study Notes":
         return picked
@@ -879,7 +880,7 @@ def make_notes_title(summary: str, source_title_candidates: List[str]) -> str:
                     f"Summary excerpt:\n{truncate_text(summary, 6000)}"
                 ),
             },
-        ], model=TITLE_MODEL, temperature=0, max_tokens=80)
+        ], model=TITLE_MODEL, temperature=0, max_tokens=80, request_timeout=request_timeout)
         candidate = normalise_space(raw).strip(" #`'\".:;-")
         if len(candidate) >= 8:
             return candidate[:72]

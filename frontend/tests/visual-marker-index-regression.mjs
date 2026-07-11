@@ -74,4 +74,26 @@ assert.equal(
   "external image URLs should not be rewritten"
 );
 
+assert.equal(
+  helpers.normalizeLearningFigures([{
+    id: 7,
+    url: "http://127.0.0.1:8001/assets/visuals/id-only.png",
+    title: "ID-only source figure"
+  }])[0].index,
+  7,
+  "explicit visual id should map to the marker index when index is absent"
+);
+
+helpers.setVisualGalleryData([{
+  id: 7,
+  url: "http://127.0.0.1:8001/assets/visuals/id-only.png",
+  title: "ID-only source figure"
+}]);
+
+assert.equal(
+  helpers.getLearningFigureByMarker(7)?.title,
+  "ID-only source figure",
+  "id-only visual metadata should render for matching [[VISUAL:id]] markers"
+);
+
 console.log("visual marker index regression passed");

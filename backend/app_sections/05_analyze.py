@@ -321,7 +321,15 @@ async def analyze_materials(
             skipped_optional_stages=skipped_optional_stages,
         )
 
-        generated_summary = enforce_requested_language(generated_summary, preferred_language)
+        generated_summary = enforce_requested_language(
+            generated_summary,
+            preferred_language,
+            request_timeout=analysis_model_call_timeout(
+                analysis_started_at,
+                reserve_seconds=env_int("POST_LANGUAGE_STAGE_BUFFER_SECONDS", 45),
+                default_seconds=env_int("LANGUAGE_REWRITE_TIMEOUT_SECONDS", 60),
+            ),
+        )
         raw_summary = (
             strip_visual_card_pollution(generated_summary)
             if "strip_visual_card_pollution" in globals()
@@ -341,7 +349,14 @@ async def analyze_materials(
         stored_sections = parse_sections(stored_summary)
         await raise_if_analysis_client_disconnected(request, "optional title and mind-map generation")
         if allow_optional_stage("title", env_int("TITLE_STAGE_MIN_SECONDS", 18)):
-            stored_title = make_notes_title(stored_summary, title_candidates)
+            stored_title = make_notes_title(
+                stored_summary,
+                title_candidates,
+                request_timeout=analysis_model_call_timeout(
+                    analysis_started_at,
+                    default_seconds=env_int("TITLE_STAGE_TIMEOUT_SECONDS", 15),
+                ),
+            )
         else:
             stored_title = title_hint if title_hint and title_hint != "Generated Study Notes" else "Generated Study Notes"
         if len(source_units) >= 2:
@@ -349,7 +364,14 @@ async def analyze_materials(
             shared_title_hint = detect_course_or_topic_title(combined_source_text[:5000]) or "Multi-Source Study Synthesis"
             if stored_title in title_candidates or len(stored_title) < 18:
                 stored_title = shared_title_hint
-        stored_title = localise_title_if_needed(stored_title, postprocess_language)
+        stored_title = localise_title_if_needed(
+            stored_title,
+            postprocess_language,
+            request_timeout=analysis_model_call_timeout(
+                analysis_started_at,
+                default_seconds=env_int("TITLE_LOCALISE_TIMEOUT_SECONDS", 12),
+            ),
+        )
         stored_connections = generate_connections_from_sections(stored_sections)
         await raise_if_analysis_client_disconnected(request, "optional mind-map generation")
         if allow_optional_stage("mind_map", env_int("MINDMAP_STAGE_MIN_SECONDS", 35)):
@@ -359,6 +381,10 @@ async def analyze_materials(
                 postprocess_language,
                 depth,
                 selected_prompt_mode,
+                request_timeout=analysis_model_call_timeout(
+                    analysis_started_at,
+                    default_seconds=env_int("MINDMAP_STAGE_TIMEOUT_SECONDS", 30),
+                ),
             )
         else:
             stored_mind_map = generate_mind_map(stored_title, stored_sections, depth)

@@ -486,13 +486,18 @@ function normalizeVisualAssetUrl(url) {
 
 function normalizeLearningFigures(items) {
   return (Array.isArray(items) ? items : [])
-    .map((item, index) => item && typeof item === "object"
-      ? {
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return item;
+      const explicitIndex = Number(item.index);
+      const explicitId = Number(item.id);
+      return {
         ...item,
-        index: Number.isFinite(Number(item.index)) ? Number(item.index) : index,
+        index: Number.isFinite(explicitIndex)
+          ? explicitIndex
+          : (Number.isFinite(explicitId) ? explicitId : index),
         url: normalizeVisualAssetUrl(item.url)
-      }
-      : item)
+      };
+    })
     .filter(item => item && typeof item === "object");
 }
 

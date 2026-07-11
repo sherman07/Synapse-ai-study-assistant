@@ -30,7 +30,7 @@ from backend.app import render_pptx_source_preview_svg_images
 from backend.app import source_preview_image_url
 from backend.app import validate_source_strict_summary
 from backend.core.analysis_cache import AnalysisCacheStore
-from backend.core.visual_assets import visual_asset_url_for_browser
+from backend.core.visual_assets import prune_unavailable_visual_markers, visual_asset_url_for_browser
 
 try:
     from pptx import Presentation
@@ -295,6 +295,56 @@ class ApiShapeTests(unittest.TestCase):
         self.assertEqual(payload["language"], "english")
         self.assertEqual(payload["output_language"], "english")
         self.assertTrue(payload["mind_map"].get("branches"))
+
+    def test_analyze_bounds_optional_post_note_model_timeouts(self):
+        captured_timeouts = {}
+
+        def fake_language_rewrite(summary, preferred_language, **kwargs):
+            captured_timeouts["language"] = kwargs.get("request_timeout")
+            return summary
+
+        def fake_title(summary, candidates, **kwargs):
+            captured_timeouts["title"] = kwargs.get("request_timeout")
+            return "Bounded Optional Title"
+
+        def fake_localise_title(title, preferred_language, **kwargs):
+            captured_timeouts["localise_title"] = kwargs.get("request_timeout")
+            return title
+
+        def fake_mind_map(title, section_map, preferred_language, depth, prompt_mode, **kwargs):
+            captured_timeouts["mind_map"] = kwargs.get("request_timeout")
+            return {"center": title, "branches": [{"label": "Key Ideas", "points": []}]}
+
+        with (
+            patch("backend.app.require_text_ai"),
+            patch("backend.app.cache_get", return_value=None),
+            patch("backend.app.cache_set"),
+            patch("backend.app.should_run_optional_analysis_stage", return_value=True),
+            patch("backend.app.analysis_model_call_timeout", side_effect=[33.0, 12.0, 11.0, 22.0]),
+            patch(
+                "backend.app.generate_reference_style_multisource_notes",
+                return_value="# Overview\n\nTiny source note about slope.\n\n## Key Ideas\n\nSlope compares rise and run.",
+            ),
+            patch("backend.app.enforce_requested_language", side_effect=fake_language_rewrite),
+            patch("backend.app.make_notes_title", side_effect=fake_title),
+            patch("backend.app.localise_title_if_needed", side_effect=fake_localise_title),
+            patch("backend.app.generate_ai_mind_map", side_effect=fake_mind_map),
+        ):
+            payload = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="Tiny note about slope.",
+                preferred_language="english",
+                detail_level="auto",
+                prompt_mode="professor_mode",
+                client_fingerprint="",
+            ))
+
+        self.assertNotIn("error", payload)
+        self.assertEqual(captured_timeouts["language"], 33.0)
+        self.assertEqual(captured_timeouts["title"], 12.0)
+        self.assertEqual(captured_timeouts["localise_title"], 11.0)
+        self.assertEqual(captured_timeouts["mind_map"], 22.0)
 
     def test_analyze_route_returns_http_error_for_empty_request(self):
         with patch("backend.app.require_text_ai"):
@@ -1024,6 +1074,18 @@ class VisualGalleryTests(unittest.TestCase):
 
         self.assertEqual(gallery, [])
 
+    def test_cached_id_only_visual_metadata_preserves_matching_marker(self):
+        summary = "## Notes\n\nUse the evidence table here.\n\n[[VISUAL:7]]\n\nNext point."
+        items = [{
+            "id": 7,
+            "url": "http://127.0.0.1:8001/assets/visuals/id-only.png",
+            "title": "ID-only source figure",
+        }]
+
+        pruned = prune_unavailable_visual_markers(summary, items)
+
+        self.assertIn("[[VISUAL:7]]", pruned)
+
     def test_visual_markers_are_reindexed_after_unrenderable_cards_are_removed(self):
         source_units = [{
             "visual_argument_cards": [
@@ -1139,6 +1201,66 @@ class SourceIdentityTests(unittest.TestCase):
 
 
 class AnalysisCacheTests(unittest.TestCase):
+    def test_tight_analysis_budget_skips_optional_visual_model_filter(self):
+        source_units = [{
+            "display_name": "budget.pdf",
+            "title_candidate": "Budget Control Lecture",
+            "source_identity": "file:budget",
+            "text_excerpt": "This lecture compares evidence tables, diagrams, and revision uses for budget control.",
+            "visual_parts": [
+                {
+                    "type": "text",
+                    "text": (
+                        "IN-TEXT SOURCE FIGURE FROM budget.pdf — PDF page 2. "
+                        "Actual source screenshot selected for its teaching figure/table/data value. "
+                        "Image-count=1; drawing-count=22; visual-score=82. "
+                        "Page text preview: Table comparing concepts, evidence, and study use."
+                    ),
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": (
+                            "data:image/png;base64,"
+                            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+                        ),
+                    },
+                },
+            ],
+        }]
+        started_at = time.monotonic() - (backend_app_module.ANALYSIS_MAX_SECONDS - 100)
+        skipped = []
+        generated_calls = []
+
+        def fake_generate_chat(messages, **kwargs):
+            call_text = json.dumps(messages, default=str)
+            generated_calls.append(call_text)
+            self.assertNotIn("selecting separate source-figure support cards", call_text)
+            return "# Budget-Controlled Study Notes\n\n" + (
+                "This source-grounded note explains the concepts, evidence, diagram, comparison table, "
+                "and revision use without spending an optional visual-filter model call. "
+                * 80
+            )
+
+        with (
+            patch("backend.app.generate_chat", side_effect=fake_generate_chat),
+            patch("backend.app.advanced_notes_quality_flags", return_value=[]),
+            patch("backend.app.markdown_table_count", return_value=3),
+        ):
+            result = generate_reference_style_multisource_notes(
+                source_units,
+                preferred_language="english",
+                depth_plan={"depth": "detailed", "config": backend_app_module.DEPTH_CONFIG["detailed"]},
+                prompt_mode="professor_mode",
+                note_length_mode="standard_notes",
+                analysis_started_at=started_at,
+                skipped_optional_stages=skipped,
+            )
+
+        self.assertIn("Budget-Controlled Study Notes", result)
+        self.assertEqual(len(generated_calls), 1)
+        self.assertIn("visual_card_filter", skipped)
+
     def test_cache_round_trip_and_ttl_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache_path = Path(tmp) / "cache.json"

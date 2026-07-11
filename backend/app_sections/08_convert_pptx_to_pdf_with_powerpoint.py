@@ -730,6 +730,7 @@ def generate_visual_argument_cards(
     source_digest_block: str,
     preferred_language: str,
     allow_model: bool = True,
+    request_timeout: Optional[float] = None,
 ) -> List[dict]:
     """Model filters decorative candidates and keeps only separate teaching-image cards."""
     labels = source_figure_labels(preferred_language)
@@ -821,6 +822,7 @@ Rules:
             model=model_for_depth("detailed"),
             temperature=0,
             max_tokens=CONTROLLED_VISUAL_CARD_TOKENS,
+            request_timeout=request_timeout,
         )
         cards = _v23_parse_relevant_visual_cards(raw, candidate_pool, labels)
     except Exception as error:

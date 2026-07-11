@@ -915,7 +915,13 @@ def ai_call_trace_payload(trace: Optional[List[dict]], provider: str, source: st
 
 
 # Override existing helper. Keeps backwards compatibility with old calls.
-def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: float = 0, max_tokens: int = 4500) -> str:
+def generate_chat(
+    messages: List[dict],
+    model: str = CHAT_MODEL,
+    temperature: float = 0,
+    max_tokens: int = 4500,
+    request_timeout: Optional[float] = None,
+) -> str:
     active_client = text_generation_client()
     provider = active_text_provider() if "active_text_provider" in globals() else AI_TEXT_PROVIDER
     if active_client is None:
@@ -936,6 +942,13 @@ def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: fl
 
     model_name = model or CHAT_MODEL
     optimised_messages = _v21_optimise_messages(messages)
+    request_options = {}
+    if request_timeout is not None:
+        try:
+            timeout_value = max(1.0, float(request_timeout))
+            request_options["timeout"] = timeout_value
+        except Exception:
+            request_options = {}
 
     # Some newer models may reject temperature or prefer max_completion_tokens.
     # Try several compatible payload shapes, preserving the previous robustness.
@@ -943,10 +956,10 @@ def generate_chat(messages: List[dict], model: str = CHAT_MODEL, temperature: fl
     candidate_models = _v21_unique_model_candidates(model_name)
     for model_index, candidate_model in enumerate(candidate_models):
         payloads = [
-            {"model": candidate_model, "messages": optimised_messages, "temperature": temperature, "max_tokens": max_tokens},
-            {"model": candidate_model, "messages": optimised_messages, "max_tokens": max_tokens},
-            {"model": candidate_model, "messages": optimised_messages, "temperature": temperature, "max_completion_tokens": max_tokens},
-            {"model": candidate_model, "messages": optimised_messages, "max_completion_tokens": max_tokens},
+            {"model": candidate_model, "messages": optimised_messages, "temperature": temperature, "max_tokens": max_tokens, **request_options},
+            {"model": candidate_model, "messages": optimised_messages, "max_tokens": max_tokens, **request_options},
+            {"model": candidate_model, "messages": optimised_messages, "temperature": temperature, "max_completion_tokens": max_tokens, **request_options},
+            {"model": candidate_model, "messages": optimised_messages, "max_completion_tokens": max_tokens, **request_options},
         ]
         try_next_model = False
         for kwargs in payloads:

@@ -402,6 +402,42 @@ def record_skipped_analysis_stage(skipped_optional_stages: Optional[List[str]], 
         skipped_optional_stages.append(stage)
 
 
+def analysis_model_call_timeout(
+    analysis_started_at: Optional[float],
+    reserve_seconds: int = 0,
+    default_seconds: Optional[int] = None,
+) -> Optional[float]:
+    try:
+        provider_timeout = max(1.0, float(OPENAI_TIMEOUT_SECONDS))
+    except Exception:
+        provider_timeout = 240.0
+    try:
+        default_timeout = max(1.0, float(default_seconds)) if default_seconds is not None else provider_timeout
+    except Exception:
+        default_timeout = provider_timeout
+    if analysis_started_at is None:
+        return min(provider_timeout, default_timeout)
+    available = analysis_remaining_seconds_since(float(analysis_started_at)) - max(0, int(reserve_seconds or 0))
+    return max(1.0, min(provider_timeout, default_timeout, available))
+
+
+def visual_card_model_budget(analysis_started_at: Optional[float], skipped_optional_stages: Optional[List[str]]) -> Tuple[bool, Optional[float]]:
+    notes_reserve = env_int("MAIN_NOTES_STAGE_MIN_SECONDS", 120)
+    visual_timeout = env_int("VISUAL_CARD_MODEL_TIMEOUT_SECONDS", 45)
+    min_remaining = max(
+        env_int("VISUAL_CARD_STAGE_MIN_SECONDS", 80),
+        notes_reserve + max(1, visual_timeout),
+    )
+    if not analysis_stage_has_budget(analysis_started_at, min_remaining):
+        record_skipped_analysis_stage(skipped_optional_stages, "visual_card_filter")
+        return False, None
+    return True, analysis_model_call_timeout(
+        analysis_started_at,
+        reserve_seconds=notes_reserve,
+        default_seconds=visual_timeout,
+    )
+
+
 PROFESSIONAL_FALLBACK_MAX_POINTS = 7
 
 
@@ -1014,17 +1050,16 @@ def generate_reference_style_multisource_notes(
     allow_note_expansion = note_prompt_mode_allows_expansion(prompt_mode_key) and (
         note_length_mode_allows_expansion(note_length_key) if mode_uses_selected_length else True
     )
-    allow_visual_model = analysis_stage_has_budget(
+    allow_visual_model, visual_model_timeout = visual_card_model_budget(
         analysis_started_at,
-        env_int("VISUAL_CARD_STAGE_MIN_SECONDS", 80),
+        skipped_optional_stages,
     )
-    if not allow_visual_model:
-        record_skipped_analysis_stage(skipped_optional_stages, "visual_card_filter")
     visual_cards = generate_visual_argument_cards(
         source_units,
         source_context,
         generation_language,
         allow_model=allow_visual_model,
+        request_timeout=visual_model_timeout,
     )
     visual_cards = _v23_renderable_visual_cards(visual_cards, browser_urls=False, limit=CONTROLLED_MAX_VISUALS)
     visual_context = _v22_visual_context_for_prompt(visual_cards)
@@ -1050,6 +1085,10 @@ def generate_reference_style_multisource_notes(
             model=model_for_depth("detailed"),
             temperature=0,
             max_tokens=CONTROLLED_OUTPUT_TOKENS,
+            request_timeout=analysis_model_call_timeout(
+                analysis_started_at,
+                reserve_seconds=env_int("POST_NOTES_STAGE_BUFFER_SECONDS", 15),
+            ),
         ).strip()
         if not result or is_refusal_or_useless_response(result):
             raise RuntimeError("Relevant visual notes were too short or unusable.")
