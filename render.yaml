@@ -40,6 +40,20 @@ services:
         value: https://synapse-data-api.onrender.com
       - key: SYNAPSE_INTERNAL_API_TOKEN
         sync: false
+      - key: SYNAPSE_SMTP_HOST
+        sync: false
+      - key: SYNAPSE_SMTP_PORT
+        value: "587"
+      - key: SYNAPSE_SMTP_SECURITY
+        value: starttls
+      - key: SYNAPSE_SMTP_USERNAME
+        sync: false
+      - key: SYNAPSE_SMTP_PASSWORD
+        sync: false
+      - key: SYNAPSE_SMTP_FROM_EMAIL
+        sync: false
+      - key: SYNAPSE_SMTP_FROM_NAME
+        value: Synapse
 
   - type: web
     runtime: node

@@ -67,6 +67,8 @@ assert.ok(verifyPage.includes("data-testid=\"verify-status\""), "Verify page sho
 assert.ok(verifyScript.includes("completeAuthRedirect"), "Verify page should complete Supabase redirect sessions");
 assert.ok(!verifyScript.includes("innerHTML"), "Verify page should render URL-derived auth errors with text nodes");
 assert.ok(forgotPage.includes("Send Reset Link"), "Password recovery page should present a production reset flow");
+assert.ok(authClientScript.includes("/api/auth/request-password-reset"), "Password recovery should use the Synapse backend email endpoint");
+assert.ok(!authClientScript.includes("client.auth.resetPasswordForEmail"), "Password recovery email must not be sent directly by the browser through Supabase");
 assert.ok(authClientScript.includes("absolutePasswordResetUrl"), "Password reset emails should redirect to the dedicated password reset page");
 assert.ok(authClientScript.includes("reset-password.html"), "Auth client should know the dedicated password reset page");
 assert.ok(!authClientScript.includes("resetPasswordForEmail(normalizeEmail(email), {\n      redirectTo: absoluteAppUrl()"), "Password reset must not redirect recovery links to the app homepage");

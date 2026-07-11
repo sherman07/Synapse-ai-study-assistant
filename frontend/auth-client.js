@@ -404,13 +404,15 @@
   }
 
   async function resetPassword(email) {
-    const client = await getSupabaseClient();
-    if (!client) throw new Error("Production auth is not configured.");
-    const { error } = await client.auth.resetPasswordForEmail(normalizeEmail(email), {
-      redirectTo: absolutePasswordResetUrl()
+    if (!isConfigured()) throw new Error("Production auth is not configured.");
+    const response = await publicApiFetch("/api/auth/request-password-reset", {
+      method: "POST",
+      body: JSON.stringify({
+        email: normalizeEmail(email),
+        redirectTo: absolutePasswordResetUrl()
+      })
     });
-    if (error) throw error;
-    return { ok: true };
+    return readAuthApiResponse(response, "Password reset failed.");
   }
 
   async function readCurrentSupabaseSession() {

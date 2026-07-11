@@ -204,6 +204,57 @@ class AuthSignupApiTests(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["state"], "confirmation_resent")
 
+    def test_password_reset_endpoint_requires_synapse_email_delivery_config(self):
+        response = self.client.post(
+            "/api/auth/request-password-reset",
+            json={
+                "email": "student@example.com",
+                "redirectTo": "http://localhost:5176/frontend/reset-password.html",
+            },
+        )
+
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertFalse(data["ok"])
+        self.assertEqual(data["state"], "email_not_configured")
+
+    def test_password_reset_generates_public_recovery_link_and_sends_synapse_email(self):
+        recovery_link = "https://project.supabase.co/auth/v1/verify?token=one-time&type=recovery"
+
+        def fake_post(url, **kwargs):
+            self.assertTrue(url.endswith("/auth/v1/admin/generate_link"))
+            self.assertEqual(kwargs["json"]["type"], "recovery")
+            self.assertEqual(kwargs["json"]["email"], "student@example.com")
+            self.assertEqual(
+                kwargs["json"]["redirect_to"],
+                "https://synapse-ai-study-assistant-tutor.vercel.app/frontend/reset-password.html",
+            )
+            return FakeSupabaseResponse(payload={"action_link": recovery_link})
+
+        with (
+            patch.object(backend_app_module, "SYNAPSE_SMTP_HOST", "smtp.example.com"),
+            patch.object(backend_app_module, "SYNAPSE_SMTP_FROM_EMAIL", "noreply@example.com"),
+            patch.object(backend_app_module, "SYNAPSE_SMTP_SECURITY", "starttls"),
+            patch.object(
+                backend_app_module,
+                "SYNAPSE_FRONTEND_BASE_URL",
+                "https://synapse-ai-study-assistant-tutor.vercel.app/frontend",
+            ),
+            patch("backend.app.requests.post", side_effect=fake_post),
+            patch("backend.app.send_synapse_password_reset_email") as send_email,
+        ):
+            response = self.client.post(
+                "/api/auth/request-password-reset",
+                json={
+                    "email": "student@example.com",
+                    "redirectTo": "https://synapse-ai-study-assistant-tutor.vercel.app/frontend/reset-password.html",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["state"], "password_reset_requested")
+        send_email.assert_called_once_with("student@example.com", recovery_link)
+
 
 if __name__ == "__main__":
     unittest.main()

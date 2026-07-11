@@ -3,6 +3,7 @@ import base64
 import html
 import json
 import mimetypes
+import smtplib
 import ssl
 import os
 import re
@@ -14,6 +15,8 @@ import textwrap
 import time
 import urllib.request
 from datetime import datetime, timezone
+from email.message import EmailMessage
+from email.utils import formataddr
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -294,6 +297,16 @@ SYNAPSE_FRONTEND_BASE_URL = (
     or os.getenv("SYNAPSE_PUBLIC_FRONTEND_URL")
     or "http://127.0.0.1:5175/frontend"
 ).rstrip("/")
+SYNAPSE_SMTP_HOST = auth_env_value("SYNAPSE_SMTP_HOST")
+try:
+    SYNAPSE_SMTP_PORT = int(auth_env_value("SYNAPSE_SMTP_PORT") or "587")
+except ValueError:
+    SYNAPSE_SMTP_PORT = 587
+SYNAPSE_SMTP_USERNAME = auth_env_value("SYNAPSE_SMTP_USERNAME")
+SYNAPSE_SMTP_PASSWORD = auth_env_value("SYNAPSE_SMTP_PASSWORD")
+SYNAPSE_SMTP_FROM_EMAIL = auth_env_value("SYNAPSE_SMTP_FROM_EMAIL") or SYNAPSE_SMTP_USERNAME
+SYNAPSE_SMTP_FROM_NAME = auth_env_value("SYNAPSE_SMTP_FROM_NAME") or "Synapse"
+SYNAPSE_SMTP_SECURITY = (auth_env_value("SYNAPSE_SMTP_SECURITY") or "starttls").lower()
 STRIPE_PRICE_IDS = {
     "starter": (os.getenv("STRIPE_PRICE_STARTER") or os.getenv("SYNAPSE_STRIPE_PRICE_STARTER") or "").strip(),
     "student": (os.getenv("STRIPE_PRICE_STUDENT") or os.getenv("SYNAPSE_STRIPE_PRICE_STUDENT") or "").strip(),
@@ -654,6 +667,23 @@ def supabase_auth_config_error(require_service_role: bool = False) -> Optional[s
     return None
 
 
+def synapse_email_config_error() -> Optional[str]:
+    missing = []
+    if not SUPABASE_URL:
+        missing.append("SUPABASE_URL")
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        missing.append("SUPABASE_SERVICE_ROLE_KEY")
+    if not SYNAPSE_SMTP_HOST:
+        missing.append("SYNAPSE_SMTP_HOST")
+    if not SYNAPSE_SMTP_FROM_EMAIL:
+        missing.append("SYNAPSE_SMTP_FROM_EMAIL")
+    if SYNAPSE_SMTP_SECURITY not in {"starttls", "ssl", "none"}:
+        missing.append("SYNAPSE_SMTP_SECURITY (starttls, ssl, or none)")
+    if missing:
+        return f"Synapse email delivery is not configured. Missing: {', '.join(missing)}."
+    return None
+
+
 def supabase_user_confirmed(user: Dict[str, Any]) -> bool:
     return bool(
         user.get("email_confirmed_at")
@@ -733,6 +763,73 @@ def call_supabase_resend(email: str, redirect_to: str) -> Tuple[bool, Optional[s
     if response.status_code >= 400:
         return False, response.text[:500], response.status_code
     return True, None, response.status_code
+
+
+def password_reset_redirect_to(request: Request, payload: Dict[str, Any]) -> str:
+    raw = str(payload.get("redirectTo") or payload.get("redirect_to") or "").strip()
+    parsed = urlparse(raw)
+    configured_frontend = urlparse(SYNAPSE_FRONTEND_BASE_URL)
+    allowed_hosts = {configured_frontend.netloc} if configured_frontend.netloc else set()
+    configured_is_local = auth_local_dev_host(configured_frontend.hostname or "")
+    if (
+        parsed.scheme in {"http", "https"}
+        and parsed.netloc
+        and parsed.path.endswith("/reset-password.html")
+        and (parsed.netloc in allowed_hosts or (configured_is_local and auth_local_dev_host(parsed.hostname or "")))
+    ):
+        return raw
+    return f"{SYNAPSE_FRONTEND_BASE_URL}/reset-password.html"
+
+
+def call_supabase_generate_recovery_link(email: str, redirect_to: str) -> Tuple[Optional[str], Optional[str], int]:
+    response = requests.post(
+        f"{SUPABASE_URL}/auth/v1/admin/generate_link",
+        headers=supabase_admin_headers(),
+        json={
+            "type": "recovery",
+            "email": email,
+            "redirect_to": redirect_to,
+        },
+        timeout=18,
+    )
+    if response.status_code >= 400:
+        return None, response.text[:500], response.status_code
+    payload = response.json()
+    action_link = payload.get("action_link") if isinstance(payload, dict) else None
+    if not action_link:
+        return None, "Supabase did not return a recovery action link.", 502
+    return str(action_link), None, response.status_code
+
+
+def send_synapse_password_reset_email(email: str, action_link: str) -> None:
+    message = EmailMessage()
+    message["Subject"] = "Reset your Synapse password"
+    message["From"] = formataddr((SYNAPSE_SMTP_FROM_NAME, SYNAPSE_SMTP_FROM_EMAIL))
+    message["To"] = email
+    message.set_content(
+        "We received a request to reset your Synapse password.\n\n"
+        f"Choose a new password here:\n{action_link}\n\n"
+        "This link is single-use. If you did not request this, you can safely ignore this email.\n\n"
+        "Synapse\n"
+    )
+    escaped_link = html.escape(action_link, quote=True)
+    message.add_alternative(
+        "<!doctype html><html><body style=\"font-family:Arial,sans-serif;color:#17233c;line-height:1.6\">"
+        "<h2>Reset your Synapse password</h2>"
+        "<p>We received a request to reset your Synapse password.</p>"
+        f"<p><a href=\"{escaped_link}\" style=\"display:inline-block;padding:12px 18px;background:#4a7cff;color:#fff;text-decoration:none;border-radius:8px\">Choose a new password</a></p>"
+        "<p>This link is single-use. If you did not request this, you can safely ignore this email.</p>"
+        "<p>Synapse</p></body></html>",
+        subtype="html",
+    )
+
+    smtp_class = smtplib.SMTP_SSL if SYNAPSE_SMTP_SECURITY == "ssl" else smtplib.SMTP
+    with smtp_class(SYNAPSE_SMTP_HOST, SYNAPSE_SMTP_PORT, timeout=20) as server:
+        if SYNAPSE_SMTP_SECURITY == "starttls":
+            server.starttls(context=ssl.create_default_context())
+        if SYNAPSE_SMTP_USERNAME:
+            server.login(SYNAPSE_SMTP_USERNAME, SYNAPSE_SMTP_PASSWORD)
+        server.send_message(message)
 
 
 def existing_account_response(email: str, user: Dict[str, Any]) -> Response:
@@ -1004,6 +1101,77 @@ async def resend_signup_confirmation(request: Request) -> Response:
         "Confirmation email sent. Please check your inbox and spam folder.",
         email=email,
         actions=["login"],
+    )
+
+
+@app.post("/api/auth/request-password-reset")
+async def request_password_reset(request: Request) -> Response:
+    payload = await request_json_payload(request)
+    email, errors = validate_resend_payload(payload)
+    email_ref = masked_auth_email(email)
+    if errors:
+        return auth_api_response(
+            False,
+            "validation_error",
+            "Please enter a valid email address.",
+            422,
+            errors=errors,
+        )
+
+    config_error = synapse_email_config_error()
+    if config_error:
+        logger.error("Password reset email blocked by configuration: %s", config_error)
+        return auth_api_response(False, "email_not_configured", config_error, 503)
+
+    redirect_to = password_reset_redirect_to(request, payload)
+    try:
+        action_link, link_error, link_status = await asyncio.to_thread(
+            call_supabase_generate_recovery_link,
+            email,
+            redirect_to,
+        )
+    except Exception as error:
+        logger.exception("Password reset link generation failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "password_reset_failed",
+            "Synapse could not prepare the password reset email. Please try again.",
+            502,
+        )
+
+    if link_error or not action_link:
+        # Keep unknown-account responses indistinguishable from accepted requests.
+        if link_status in {400, 404}:
+            logger.info("Password reset requested for an unavailable account: %s", email_ref)
+            return auth_api_response(
+                True,
+                "password_reset_requested",
+                "If this email belongs to a Synapse account, a reset link will arrive shortly.",
+            )
+        logger.error("Password reset link generation failed for %s: %s", email_ref, link_error or "missing link")
+        return auth_api_response(
+            False,
+            "password_reset_failed",
+            "Synapse could not prepare the password reset email. Please try again.",
+            502,
+        )
+
+    try:
+        await asyncio.to_thread(send_synapse_password_reset_email, email, action_link)
+    except Exception as error:
+        logger.exception("Password reset email delivery failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "password_reset_delivery_failed",
+            "Synapse could not send the password reset email. Please try again later.",
+            502,
+        )
+
+    logger.info("Password reset email sent for %s", email_ref)
+    return auth_api_response(
+        True,
+        "password_reset_requested",
+        "If this email belongs to a Synapse account, a reset link will arrive shortly.",
     )
 
 
