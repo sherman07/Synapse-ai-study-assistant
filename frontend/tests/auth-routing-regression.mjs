@@ -64,6 +64,7 @@ const verifyScript = fs.readFileSync(path.join(repoRoot, "frontend/verify-auth.j
 const forgotPage = fs.readFileSync(path.join(repoRoot, "frontend/forgot-password.html"), "utf8");
 const resetPage = fs.readFileSync(path.join(repoRoot, "frontend/reset-password.html"), "utf8");
 const resetScript = fs.readFileSync(path.join(repoRoot, "frontend/reset-password.js"), "utf8");
+const renderBlueprint = fs.readFileSync(path.join(repoRoot, "render.yaml"), "utf8");
 assert.ok(verifyPage.includes("verify-auth.js"), "Verify page should run the Supabase auth callback controller");
 assert.ok(verifyPage.includes("data-testid=\"verify-status\""), "Verify page should expose a testable status region");
 assert.ok(verifyScript.includes("completeAuthRedirect"), "Verify page should complete Supabase redirect sessions");
@@ -80,12 +81,15 @@ assert.ok(authClientScript.includes("absolutePasswordResetUrl"), "Password reset
 assert.ok(authClientScript.includes("reset-password.html"), "Auth client should know the dedicated password reset page");
 assert.ok(!authClientScript.includes("resetPasswordForEmail(normalizeEmail(email), {\n      redirectTo: absoluteAppUrl()"), "Password reset must not redirect recovery links to the app homepage");
 assert.ok(authClientScript.includes("preparePasswordRecovery"), "Auth client should prepare Supabase recovery sessions before password update");
+assert.ok(authClientScript.includes("client.auth.verifyOtp"), "Password recovery should exchange Synapse token-hash links for a Supabase session");
+assert.ok(authClientScript.includes("token_hash: tokenHash"), "Password recovery should verify the one-time token hash without relying on Supabase redirects");
 assert.ok(authClientScript.includes("updateUser({ password })"), "Auth client should update the Supabase password from the recovery page");
 assert.ok(resetPage.includes("reset-password.js"), "Reset password page should run its dedicated controller");
 assert.ok(resetPage.includes("data-testid=\"reset-password-status\""), "Reset password page should expose a testable status region");
 assert.ok(resetScript.includes("preparePasswordRecovery"), "Reset password page should verify the recovery session");
 assert.ok(resetScript.includes("updatePassword"), "Reset password page should call the auth client's password update helper");
 assert.ok(!resetScript.includes("innerHTML"), "Reset password page should render URL-derived auth errors with text nodes");
+assert.match(renderBlueprint, /key: SYNAPSE_SMTP_PORT\s+value: "2525"/, "Free Render services should use Brevo's unblocked SMTP submission port");
 
 function makeClassList() {
   const values = new Set();

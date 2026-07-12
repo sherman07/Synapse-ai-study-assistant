@@ -474,6 +474,36 @@
       };
     }
 
+    const tokenHash = params.get("token_hash");
+    if (tokenHash) {
+      if (params.get("type") !== "recovery") {
+        return {
+          ok: false,
+          status: "invalid_type",
+          message: "This password reset link is invalid. Request a new Synapse reset email."
+        };
+      }
+
+      const client = await getSupabaseClient();
+      if (!client) throw new Error("Production auth is not configured.");
+      const { data, error } = await client.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "recovery"
+      });
+      if (error) {
+        return {
+          ok: false,
+          status: "invalid_token",
+          message: error.message || "This password reset link is invalid or expired."
+        };
+      }
+      if (data?.session?.user) {
+        const session = saveSession(publicSessionFromSupabase(data.session));
+        window.history?.replaceState?.({}, document.title, window.location.pathname);
+        return { ok: true, status: "ready", session };
+      }
+    }
+
     const session = await waitForRecoverySession();
     if (session?.accountId || session?.email) {
       return { ok: true, status: "ready", session };

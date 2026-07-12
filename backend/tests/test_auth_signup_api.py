@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
@@ -287,7 +288,13 @@ class AuthSignupApiTests(unittest.TestCase):
                 kwargs["json"]["redirect_to"],
                 "https://synapse-ai-study-assistant-tutor.vercel.app/frontend/reset-password.html",
             )
-            return FakeSupabaseResponse(payload={"action_link": recovery_link})
+            return FakeSupabaseResponse(
+                payload={
+                    "action_link": recovery_link,
+                    "hashed_token": "one-time-token-hash",
+                    "verification_type": "recovery",
+                }
+            )
 
         with (
             patch.object(backend_app_module, "SYNAPSE_SMTP_HOST", "smtp.example.com"),
@@ -311,7 +318,19 @@ class AuthSignupApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["state"], "password_reset_requested")
-        send_email.assert_called_once_with("student@example.com", recovery_link)
+        send_email.assert_called_once()
+        recipient, public_link = send_email.call_args.args
+        parsed_link = urlparse(public_link)
+        link_fragment = parse_qs(parsed_link.fragment)
+        self.assertEqual(recipient, "student@example.com")
+        self.assertEqual(
+            f"{parsed_link.scheme}://{parsed_link.netloc}{parsed_link.path}",
+            "https://synapse-ai-study-assistant-tutor.vercel.app/frontend/reset-password.html",
+        )
+        self.assertEqual(parsed_link.query, "")
+        self.assertEqual(link_fragment["token_hash"], ["one-time-token-hash"])
+        self.assertEqual(link_fragment["type"], ["recovery"])
+        self.assertNotIn("project.supabase.co", public_link)
 
 
 if __name__ == "__main__":

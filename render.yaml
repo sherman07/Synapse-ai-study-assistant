@@ -43,7 +43,7 @@ services:
       - key: SYNAPSE_SMTP_HOST
         sync: false
       - key: SYNAPSE_SMTP_PORT
-        value: "587"
+        value: "2525"
       - key: SYNAPSE_SMTP_SECURITY
         value: starttls
       - key: SYNAPSE_SMTP_USERNAME

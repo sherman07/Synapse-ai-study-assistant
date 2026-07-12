@@ -790,6 +790,12 @@ def password_reset_redirect_to(request: Request, payload: Dict[str, Any]) -> str
     return f"{SYNAPSE_FRONTEND_BASE_URL}/reset-password.html"
 
 
+def build_synapse_auth_link(redirect_to: str, token_hash: str, verification_type: str) -> str:
+    parsed = urlparse(redirect_to)
+    fragment = urlencode({"token_hash": token_hash, "type": verification_type})
+    return urlunparse(parsed._replace(fragment=fragment))
+
+
 def call_supabase_generate_recovery_link(email: str, redirect_to: str) -> Tuple[Optional[str], Optional[str], int]:
     response = requests.post(
         f"{SUPABASE_URL}/auth/v1/admin/generate_link",
@@ -804,10 +810,11 @@ def call_supabase_generate_recovery_link(email: str, redirect_to: str) -> Tuple[
     if response.status_code >= 400:
         return None, response.text[:500], response.status_code
     payload = response.json()
-    action_link = payload.get("action_link") if isinstance(payload, dict) else None
-    if not action_link:
-        return None, "Supabase did not return a recovery action link.", 502
-    return str(action_link), None, response.status_code
+    token_hash = payload.get("hashed_token") if isinstance(payload, dict) else None
+    verification_type = payload.get("verification_type") if isinstance(payload, dict) else None
+    if not token_hash or verification_type != "recovery":
+        return None, "Supabase did not return a valid recovery token.", 502
+    return build_synapse_auth_link(redirect_to, str(token_hash), "recovery"), None, response.status_code
 
 
 def call_supabase_generate_invite_link(email: str, redirect_to: str) -> Tuple[Optional[str], Optional[str], int]:
