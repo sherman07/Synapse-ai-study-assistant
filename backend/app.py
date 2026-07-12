@@ -729,12 +729,15 @@ def find_supabase_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def call_supabase_signup(clean_payload: Dict[str, Any], redirect_to: str) -> Tuple[Optional[Dict[str, Any]], Optional[str], int]:
+def call_supabase_generate_signup_link(
+    clean_payload: Dict[str, Any],
+    redirect_to: str,
+) -> Tuple[Optional[str], Optional[Dict[str, Any]], Optional[str], int]:
     response = requests.post(
-        f"{SUPABASE_URL}/auth/v1/signup",
-        headers=supabase_public_headers(),
-        params={"redirect_to": redirect_to},
+        f"{SUPABASE_URL}/auth/v1/admin/generate_link",
+        headers=supabase_admin_headers(),
         json={
+            "type": "signup",
             "email": clean_payload["email"],
             "password": clean_payload["password"],
             "data": {
@@ -744,12 +747,18 @@ def call_supabase_signup(clean_payload: Dict[str, Any], redirect_to: str) -> Tup
                 "plan": "free",
                 "credits": 500,
             },
+            "redirect_to": redirect_to,
         },
         timeout=18,
     )
     if response.status_code >= 400:
-        return None, response.text[:500], response.status_code
-    return response.json(), None, response.status_code
+        return None, None, response.text[:500], response.status_code
+    payload = response.json()
+    action_link = payload.get("action_link") if isinstance(payload, dict) else None
+    if not action_link:
+        return None, None, "Supabase did not return a signup action link.", 502
+    user = payload.get("user") if isinstance(payload, dict) else None
+    return str(action_link), user if isinstance(user, dict) else None, None, response.status_code
 
 
 def call_supabase_resend(email: str, redirect_to: str) -> Tuple[bool, Optional[str], int]:
@@ -801,24 +810,53 @@ def call_supabase_generate_recovery_link(email: str, redirect_to: str) -> Tuple[
     return str(action_link), None, response.status_code
 
 
-def send_synapse_password_reset_email(email: str, action_link: str) -> None:
+def call_supabase_generate_invite_link(email: str, redirect_to: str) -> Tuple[Optional[str], Optional[str], int]:
+    response = requests.post(
+        f"{SUPABASE_URL}/auth/v1/admin/generate_link",
+        headers=supabase_admin_headers(),
+        json={
+            "type": "invite",
+            "email": email,
+            "redirect_to": redirect_to,
+        },
+        timeout=18,
+    )
+    if response.status_code >= 400:
+        return None, response.text[:500], response.status_code
+    payload = response.json()
+    action_link = payload.get("action_link") if isinstance(payload, dict) else None
+    if not action_link:
+        return None, "Supabase did not return a confirmation action link.", 502
+    return str(action_link), None, response.status_code
+
+
+def send_synapse_auth_email(
+    email: str,
+    *,
+    subject: str,
+    heading: str,
+    intro: str,
+    action_label: str,
+    action_link: str,
+    safety_note: str,
+) -> None:
     message = EmailMessage()
-    message["Subject"] = "Reset your Synapse password"
+    message["Subject"] = subject
     message["From"] = formataddr((SYNAPSE_SMTP_FROM_NAME, SYNAPSE_SMTP_FROM_EMAIL))
     message["To"] = email
     message.set_content(
-        "We received a request to reset your Synapse password.\n\n"
-        f"Choose a new password here:\n{action_link}\n\n"
-        "This link is single-use. If you did not request this, you can safely ignore this email.\n\n"
+        f"{intro}\n\n"
+        f"{action_label}:\n{action_link}\n\n"
+        f"{safety_note}\n\n"
         "Synapse\n"
     )
     escaped_link = html.escape(action_link, quote=True)
     message.add_alternative(
         "<!doctype html><html><body style=\"font-family:Arial,sans-serif;color:#17233c;line-height:1.6\">"
-        "<h2>Reset your Synapse password</h2>"
-        "<p>We received a request to reset your Synapse password.</p>"
-        f"<p><a href=\"{escaped_link}\" style=\"display:inline-block;padding:12px 18px;background:#4a7cff;color:#fff;text-decoration:none;border-radius:8px\">Choose a new password</a></p>"
-        "<p>This link is single-use. If you did not request this, you can safely ignore this email.</p>"
+        f"<h2>{html.escape(heading)}</h2>"
+        f"<p>{html.escape(intro)}</p>"
+        f"<p><a href=\"{escaped_link}\" style=\"display:inline-block;padding:12px 18px;background:#4a7cff;color:#fff;text-decoration:none;border-radius:8px\">{html.escape(action_label)}</a></p>"
+        f"<p>{html.escape(safety_note)}</p>"
         "<p>Synapse</p></body></html>",
         subtype="html",
     )
@@ -830,6 +868,30 @@ def send_synapse_password_reset_email(email: str, action_link: str) -> None:
         if SYNAPSE_SMTP_USERNAME:
             server.login(SYNAPSE_SMTP_USERNAME, SYNAPSE_SMTP_PASSWORD)
         server.send_message(message)
+
+
+def send_synapse_password_reset_email(email: str, action_link: str) -> None:
+    send_synapse_auth_email(
+        email,
+        subject="Reset your Synapse password",
+        heading="Reset your Synapse password",
+        intro="We received a request to reset your Synapse password.",
+        action_label="Choose a new password",
+        action_link=action_link,
+        safety_note="This link is single-use. If you did not request this, you can safely ignore this email.",
+    )
+
+
+def send_synapse_signup_confirmation_email(email: str, action_link: str) -> None:
+    send_synapse_auth_email(
+        email,
+        subject="Confirm your Synapse account",
+        heading="Confirm your Synapse account",
+        intro="Your Synapse account is almost ready. Confirm your email address to start studying.",
+        action_label="Confirm email address",
+        action_link=action_link,
+        safety_note="This link is single-use. If you did not create a Synapse account, you can safely ignore this email.",
+    )
 
 
 def existing_account_response(email: str, user: Dict[str, Any]) -> Response:
@@ -957,10 +1019,10 @@ async def signup_account(request: Request) -> Response:
             errors=errors,
         )
 
-    config_error = supabase_auth_config_error(require_service_role=True)
+    config_error = synapse_email_config_error()
     if config_error:
-        logger.error("Signup blocked by Supabase config: %s", config_error)
-        return auth_api_response(False, "auth_not_configured", config_error, 503)
+        logger.error("Signup blocked by auth email configuration: %s", config_error)
+        return auth_api_response(False, "email_not_configured", config_error, 503)
 
     try:
         existing_user = await asyncio.to_thread(find_supabase_user_by_email, email)
@@ -977,8 +1039,8 @@ async def signup_account(request: Request) -> Response:
 
     redirect_to = signup_redirect_to(request, payload)
     try:
-        signup_payload, signup_error, signup_status = await asyncio.to_thread(
-            call_supabase_signup,
+        action_link, user, signup_error, signup_status = await asyncio.to_thread(
+            call_supabase_generate_signup_link,
             clean_payload,
             redirect_to,
         )
@@ -1006,15 +1068,24 @@ async def signup_account(request: Request) -> Response:
             502 if signup_status >= 500 else 400,
         )
 
-    user = (signup_payload or {}).get("user") or {}
-    if (signup_payload or {}).get("session") or supabase_user_confirmed(user):
-        logger.error("Supabase signup for %s returned an immediate session; email confirmation may be disabled", email_ref)
+    if not action_link:
+        logger.error("Supabase signup for %s did not return a confirmation link", email_ref)
         return auth_api_response(
             False,
-            "email_confirmation_disabled",
-            "Account was created, but Supabase email confirmation appears disabled. Enable email confirmations before production launch.",
+            "signup_failed",
+            "Synapse could not prepare the confirmation email. Please try again.",
             502,
-            email=email,
+        )
+
+    try:
+        await asyncio.to_thread(send_synapse_signup_confirmation_email, email, action_link)
+    except Exception as error:
+        logger.exception("Signup confirmation email delivery failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "signup_delivery_failed",
+            "Synapse could not send the confirmation email. Please try again later.",
+            502,
         )
 
     logger.info("Supabase signup accepted for %s; confirmation email requested", email_ref)
@@ -1042,10 +1113,10 @@ async def resend_signup_confirmation(request: Request) -> Response:
             errors=errors,
         )
 
-    config_error = supabase_auth_config_error(require_service_role=True)
+    config_error = synapse_email_config_error()
     if config_error:
-        logger.error("Confirmation resend blocked by Supabase config: %s", config_error)
-        return auth_api_response(False, "auth_not_configured", config_error, 503)
+        logger.error("Confirmation resend blocked by auth email configuration: %s", config_error)
+        return auth_api_response(False, "email_not_configured", config_error, 503)
 
     try:
         existing_user = await asyncio.to_thread(find_supabase_user_by_email, email)
@@ -1071,8 +1142,8 @@ async def resend_signup_confirmation(request: Request) -> Response:
 
     redirect_to = signup_redirect_to(request, payload)
     try:
-        resent, resend_error, resend_status = await asyncio.to_thread(
-            call_supabase_resend,
+        action_link, resend_error, resend_status = await asyncio.to_thread(
+            call_supabase_generate_invite_link,
             email,
             redirect_to,
         )
@@ -1084,13 +1155,25 @@ async def resend_signup_confirmation(request: Request) -> Response:
             "Could not reach Supabase Auth. Please try again.",
             502,
         )
-    if not resent:
+    if resend_error or not action_link:
         logger.error("Supabase confirmation resend error for %s: %s", email_ref, resend_error)
         return auth_api_response(
             False,
             "resend_failed",
             supabase_auth_error_message(resend_error or ""),
             502 if resend_status >= 500 else 400,
+            email=email,
+        )
+
+    try:
+        await asyncio.to_thread(send_synapse_signup_confirmation_email, email, action_link)
+    except Exception as error:
+        logger.exception("Confirmation resend email delivery failed for %s: %s", email_ref, error)
+        return auth_api_response(
+            False,
+            "confirmation_delivery_failed",
+            "Synapse could not send the confirmation email. Please try again later.",
+            502,
             email=email,
         )
 

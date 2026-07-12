@@ -35,26 +35,42 @@ class AuthSignupApiTests(unittest.TestCase):
         self.previous_supabase_url = backend_app_module.SUPABASE_URL
         self.previous_anon_key = backend_app_module.SUPABASE_ANON_KEY
         self.previous_service_key = backend_app_module.SUPABASE_SERVICE_ROLE_KEY
+        self.previous_smtp_host = backend_app_module.SYNAPSE_SMTP_HOST
+        self.previous_smtp_from_email = backend_app_module.SYNAPSE_SMTP_FROM_EMAIL
+        self.previous_smtp_security = backend_app_module.SYNAPSE_SMTP_SECURITY
         backend_app_module.SUPABASE_URL = "https://project.supabase.co"
         backend_app_module.SUPABASE_ANON_KEY = "anon-key"
         backend_app_module.SUPABASE_SERVICE_ROLE_KEY = "service-role-key"
+        backend_app_module.SYNAPSE_SMTP_HOST = "smtp.example.com"
+        backend_app_module.SYNAPSE_SMTP_FROM_EMAIL = "noreply@example.com"
+        backend_app_module.SYNAPSE_SMTP_SECURITY = "starttls"
+        self.mailer_patcher = patch("backend.app.send_synapse_auth_email")
+        self.mailer_mock = self.mailer_patcher.start()
         self.client = TestClient(app)
 
     def tearDown(self):
         backend_app_module.SUPABASE_URL = self.previous_supabase_url
         backend_app_module.SUPABASE_ANON_KEY = self.previous_anon_key
         backend_app_module.SUPABASE_SERVICE_ROLE_KEY = self.previous_service_key
+        backend_app_module.SYNAPSE_SMTP_HOST = self.previous_smtp_host
+        backend_app_module.SYNAPSE_SMTP_FROM_EMAIL = self.previous_smtp_from_email
+        backend_app_module.SYNAPSE_SMTP_SECURITY = self.previous_smtp_security
+        self.mailer_patcher.stop()
 
     def test_new_email_creates_account_and_reports_confirmation_sent(self):
         def fake_get(*args, **kwargs):
             return FakeSupabaseResponse(payload={"users": []})
 
         def fake_post(url, **kwargs):
-            self.assertTrue(url.endswith("/auth/v1/signup"))
+            self.assertTrue(url.endswith("/auth/v1/admin/generate_link"))
+            self.assertEqual(kwargs["json"]["type"], "signup")
             self.assertEqual(kwargs["json"]["email"], "new.user@example.com")
             self.assertEqual(kwargs["json"]["data"]["plan"], "free")
-            self.assertEqual(kwargs["params"]["redirect_to"], "http://localhost:5176/frontend/verify.html")
-            return FakeSupabaseResponse(payload={"user": {"id": "user-1", "email": "new.user@example.com"}})
+            self.assertEqual(kwargs["json"]["redirect_to"], "http://localhost:5176/frontend/verify.html")
+            return FakeSupabaseResponse(payload={
+                "action_link": "https://project.supabase.co/auth/v1/verify?token=signup&type=signup",
+                "user": {"id": "user-1", "email": "new.user@example.com"},
+            })
 
         with patch("backend.app.requests.get", side_effect=fake_get), patch("backend.app.requests.post", side_effect=fake_post):
             response = self.client.post("/api/auth/signup", json=signup_payload())
@@ -64,6 +80,33 @@ class AuthSignupApiTests(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["state"], "created_confirmation_sent")
         self.assertEqual(data["email"], "new.user@example.com")
+
+    def test_new_email_uses_supabase_admin_link_and_synapse_delivery(self):
+        def fake_post(url, **kwargs):
+            self.assertTrue(url.endswith("/auth/v1/admin/generate_link"))
+            self.assertEqual(kwargs["json"]["type"], "signup")
+            self.assertEqual(kwargs["json"]["email"], "new.user@example.com")
+            self.assertEqual(kwargs["json"]["redirect_to"], "http://localhost:5176/frontend/verify.html")
+            return FakeSupabaseResponse(
+                payload={
+                    "action_link": "https://project.supabase.co/auth/v1/verify?token=signup&type=signup",
+                    "user": {"id": "user-1", "email": "new.user@example.com"},
+                }
+            )
+
+        with (
+            patch.object(backend_app_module, "SYNAPSE_SMTP_HOST", "smtp.example.com"),
+            patch.object(backend_app_module, "SYNAPSE_SMTP_FROM_EMAIL", "noreply@example.com"),
+            patch.object(backend_app_module, "SYNAPSE_SMTP_SECURITY", "starttls"),
+            patch("backend.app.requests.get", return_value=FakeSupabaseResponse(payload={"users": []})),
+            patch("backend.app.requests.post", side_effect=fake_post),
+            patch("backend.app.send_synapse_auth_email") as send_email,
+        ):
+            response = self.client.post("/api/auth/signup", json=signup_payload())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["state"], "created_confirmation_sent")
+        send_email.assert_called_once()
 
     def test_existing_confirmed_email_returns_login_action(self):
         existing = {
@@ -129,7 +172,10 @@ class AuthSignupApiTests(unittest.TestCase):
     def test_short_email_name_is_allowed_inside_otherwise_strong_password(self):
         with (
             patch("backend.app.requests.get", return_value=FakeSupabaseResponse(payload={"users": []})),
-            patch("backend.app.requests.post", return_value=FakeSupabaseResponse(payload={"user": {"id": "user-1", "email": "me@example.com"}})),
+            patch("backend.app.requests.post", return_value=FakeSupabaseResponse(payload={
+                "action_link": "https://project.supabase.co/auth/v1/verify?token=signup&type=signup",
+                "user": {"id": "user-1", "email": "me@example.com"},
+            })),
         ):
             response = self.client.post(
                 "/api/auth/signup",
@@ -166,8 +212,12 @@ class AuthSignupApiTests(unittest.TestCase):
         payload["redirectTo"] = "https://evil.example/frontend/verify.html"
 
         def fake_post(url, **kwargs):
-            self.assertEqual(kwargs["params"]["redirect_to"], "http://127.0.0.1:5175/frontend/verify.html")
-            return FakeSupabaseResponse(payload={"user": {"id": "user-1", "email": "new.user@example.com"}})
+            self.assertTrue(url.endswith("/auth/v1/admin/generate_link"))
+            self.assertEqual(kwargs["json"]["redirect_to"], "http://127.0.0.1:5175/frontend/verify.html")
+            return FakeSupabaseResponse(payload={
+                "action_link": "https://project.supabase.co/auth/v1/verify?token=signup&type=signup",
+                "user": {"id": "user-1", "email": "new.user@example.com"},
+            })
 
         with (
             patch("backend.app.requests.get", return_value=FakeSupabaseResponse(payload={"users": []})),
@@ -186,9 +236,13 @@ class AuthSignupApiTests(unittest.TestCase):
         }
 
         def fake_post(url, **kwargs):
-            self.assertTrue(url.endswith("/auth/v1/resend"))
-            self.assertEqual(kwargs["json"], {"type": "signup", "email": "pending@example.com"})
-            return FakeSupabaseResponse(payload={})
+            self.assertTrue(url.endswith("/auth/v1/admin/generate_link"))
+            self.assertEqual(kwargs["json"]["type"], "invite")
+            self.assertEqual(kwargs["json"]["email"], "pending@example.com")
+            self.assertEqual(kwargs["json"]["redirect_to"], "http://localhost:5176/frontend/verify.html")
+            return FakeSupabaseResponse(payload={
+                "action_link": "https://project.supabase.co/auth/v1/verify?token=invite&type=invite",
+            })
 
         with (
             patch("backend.app.requests.get", return_value=FakeSupabaseResponse(payload={"users": [existing]})),
@@ -205,13 +259,17 @@ class AuthSignupApiTests(unittest.TestCase):
         self.assertEqual(data["state"], "confirmation_resent")
 
     def test_password_reset_endpoint_requires_synapse_email_delivery_config(self):
-        response = self.client.post(
-            "/api/auth/request-password-reset",
-            json={
-                "email": "student@example.com",
-                "redirectTo": "http://localhost:5176/frontend/reset-password.html",
-            },
-        )
+        with (
+            patch.object(backend_app_module, "SYNAPSE_SMTP_HOST", ""),
+            patch.object(backend_app_module, "SYNAPSE_SMTP_FROM_EMAIL", ""),
+        ):
+            response = self.client.post(
+                "/api/auth/request-password-reset",
+                json={
+                    "email": "student@example.com",
+                    "redirectTo": "http://localhost:5176/frontend/reset-password.html",
+                },
+            )
 
         self.assertEqual(response.status_code, 503)
         data = response.json()
