@@ -9,6 +9,8 @@ const authScript = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.js
 const authCss = fs.readFileSync(path.join(repoRoot, "frontend/landing-auth.css"), "utf8");
 const authClientScript = fs.readFileSync(path.join(repoRoot, "frontend/auth-client.js"), "utf8");
 const backendAppScript = fs.readFileSync(path.join(repoRoot, "backend/app.py"), "utf8");
+const loginPage = fs.readFileSync(path.join(repoRoot, "frontend/login.html"), "utf8");
+const signupPage = fs.readFileSync(path.join(repoRoot, "frontend/signup.html"), "utf8");
 const accountsKey = "synapse.auth.accounts.v1";
 const sessionKey = "synapse.auth.session.v1";
 
@@ -67,6 +69,11 @@ assert.ok(verifyPage.includes("data-testid=\"verify-status\""), "Verify page sho
 assert.ok(verifyScript.includes("completeAuthRedirect"), "Verify page should complete Supabase redirect sessions");
 assert.ok(!verifyScript.includes("innerHTML"), "Verify page should render URL-derived auth errors with text nodes");
 assert.ok(forgotPage.includes("Send Reset Link"), "Password recovery page should present a production reset flow");
+assert.ok(signupPage.includes("password-strength"), "Sign-up should expose a password strength indicator");
+assert.ok(signupPage.includes("password-requirements"), "Sign-up should expose live password requirements");
+assert.ok(loginPage.includes("data-testid=\"login-status\""), "Login should expose a status region");
+assert.ok(forgotPage.includes("data-testid=\"reset-success\""), "Forgot password should expose a success state");
+assert.ok(resetPage.includes("data-testid=\"reset-password-success\""), "Reset password should expose a success state");
 assert.ok(authClientScript.includes("/api/auth/request-password-reset"), "Password recovery should use the Synapse backend email endpoint");
 assert.ok(!authClientScript.includes("client.auth.resetPasswordForEmail"), "Password recovery email must not be sent directly by the browser through Supabase");
 assert.ok(authClientScript.includes("absolutePasswordResetUrl"), "Password reset emails should redirect to the dedicated password reset page");

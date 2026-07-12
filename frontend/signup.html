@@ -129,6 +129,15 @@
               </button>
             </div>
             <div class="auth-helper" id="signupPasswordHelp">At least 8 characters with a letter and number. Passwords are never stored by the Synapse frontend.</div>
+            <div class="password-strength" id="signupPasswordStrength" aria-live="polite">
+              <div class="password-strength-track" aria-hidden="true"><span></span></div>
+              <span class="password-strength-label">Password strength: waiting</span>
+            </div>
+            <div class="password-requirements" id="signupPasswordRequirements" aria-label="Password requirements">
+              <span data-rule="length"><i class="bi bi-circle"></i> 8+ characters</span>
+              <span data-rule="letter"><i class="bi bi-circle"></i> One letter</span>
+              <span data-rule="number"><i class="bi bi-circle"></i> One number</span>
+            </div>
             <div class="auth-error" id="signupPasswordError" aria-live="polite"></div>
           </div>
           
@@ -165,6 +174,8 @@
           </label>
           <div class="auth-error" id="termsError" aria-live="polite"></div>
         </div>
+
+        <div class="auth-form-status" id="signupStatus" role="status" aria-live="polite"></div>
         
         <button type="submit" class="landing-btn landing-btn-primary landing-btn-block" data-testid="signup-submit-button">
           <i class="bi bi-person-plus"></i>

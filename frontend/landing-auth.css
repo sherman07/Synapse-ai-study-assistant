@@ -2254,6 +2254,92 @@ body::before {
   border: 1px solid #bfdbfe;
 }
 
+.auth-form-status:empty {
+  display: none;
+}
+
+.password-strength {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.password-strength-track {
+  background: #e7edf8;
+  border-radius: 999px;
+  flex: 1 1 auto;
+  height: 7px;
+  overflow: hidden;
+}
+
+.password-strength-track span {
+  background: #cbd5e1;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: background 180ms ease, width 180ms ease;
+  width: 0;
+}
+
+.password-strength-label {
+  color: #71809a;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  min-width: 118px;
+  text-align: right;
+  text-transform: capitalize;
+}
+
+.password-strength[data-strength="weak"] .password-strength-track span {
+  background: #ef4444;
+}
+
+.password-strength[data-strength="fair"] .password-strength-track span {
+  background: #f59e0b;
+}
+
+.password-strength[data-strength="strong"] .password-strength-track span {
+  background: #10b981;
+}
+
+.password-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 13px;
+  margin-top: 9px;
+}
+
+.password-requirements span {
+  color: #7b879c;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.password-requirements span i {
+  margin-right: 4px;
+}
+
+.password-requirements span.is-met {
+  color: #087f5b;
+}
+
+.password-requirements span.is-missing {
+  color: #7b879c;
+}
+
+.auth-success-actions {
+  display: flex;
+  justify-content: center;
+  margin: -4px 0 18px;
+}
+
+.auth-success-actions .auth-status-button {
+  align-items: center;
+  display: inline-flex;
+}
+
 .auth-status-actions {
   display: flex;
   flex-wrap: wrap;

@@ -53,6 +53,34 @@
     return String(password || "").length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
   }
 
+  function updatePasswordGuidance() {
+    const input = getEl("newPassword");
+    const strength = getEl("resetPasswordStrength");
+    const requirements = getEl("resetPasswordRequirements");
+    if (!input || !strength || !requirements) return;
+    const value = String(input.value || "");
+    const checks = {
+      length: value.length >= 8,
+      letter: /[A-Za-z]/.test(value),
+      number: /\d/.test(value)
+    };
+    const score = Object.values(checks).filter(Boolean).length;
+    const labels = ["waiting", "weak", "fair", "strong"];
+    const label = strength.querySelector(".password-strength-label");
+    const track = strength.querySelector(".password-strength-track span");
+    strength.setAttribute("data-strength", labels[score]);
+    strength.classList.toggle("has-value", Boolean(value));
+    if (label) label.textContent = `Password strength: ${labels[score]}`;
+    if (track) track.style.width = `${(score / 3) * 100}%`;
+    requirements.querySelectorAll("[data-rule]").forEach(rule => {
+      const met = Boolean(checks[rule.getAttribute("data-rule")]);
+      rule.classList.toggle("is-met", met);
+      rule.classList.toggle("is-missing", !met);
+      const icon = rule.querySelector("i");
+      if (icon) icon.className = met ? "bi bi-check-circle-fill" : "bi bi-circle";
+    });
+  }
+
   function validatePasswordFields() {
     clearFieldErrors();
     const password = getEl("newPassword")?.value || "";
@@ -166,7 +194,9 @@
     setupPasswordToggle("toggleNewPassword", "newPassword");
     setupPasswordToggle("toggleConfirmNewPassword", "confirmNewPassword");
     getEl("newPassword")?.addEventListener("input", clearFieldErrors);
+    getEl("newPassword")?.addEventListener("input", updatePasswordGuidance);
     getEl("confirmNewPassword")?.addEventListener("input", clearFieldErrors);
+    updatePasswordGuidance();
     getEl("resetPasswordForm")?.addEventListener("submit", handleSubmit);
     prepareRecovery();
   });

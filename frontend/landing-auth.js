@@ -229,6 +229,48 @@
     status.className = `auth-form-status show ${type}`;
   }
 
+  function passwordChecks(password) {
+    const value = String(password || '');
+    return {
+      length: value.length >= 8,
+      letter: /[A-Za-z]/.test(value),
+      number: /\d/.test(value)
+    };
+  }
+
+  function updatePasswordGuidance(input, strength, requirements) {
+    if (!input || !strength || !requirements) return;
+    const checks = passwordChecks(input.value);
+    const score = Object.values(checks).filter(Boolean).length;
+    const label = strength.querySelector('.password-strength-label');
+    const track = strength.querySelector('.password-strength-track span');
+    const labels = ['waiting', 'weak', 'fair', 'strong'];
+
+    strength.setAttribute('data-strength', labels[score]);
+    strength.classList.toggle('has-value', Boolean(input.value));
+    if (label) label.textContent = `Password strength: ${labels[score]}`;
+    if (track) track.style.width = `${(score / 3) * 100}%`;
+
+    requirements.querySelectorAll('[data-rule]').forEach(rule => {
+      const key = rule.getAttribute('data-rule');
+      const met = Boolean(checks[key]);
+      rule.classList.toggle('is-met', met);
+      rule.classList.toggle('is-missing', !met);
+      const icon = rule.querySelector('i');
+      if (icon) icon.className = met ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    });
+  }
+
+  function setupPasswordGuidance(inputId, strengthId, requirementsId) {
+    const input = document.getElementById(inputId);
+    const strength = document.getElementById(strengthId);
+    const requirements = document.getElementById(requirementsId);
+    if (!input || !strength || !requirements) return;
+    const refresh = () => updatePasswordGuidance(input, strength, requirements);
+    input.addEventListener('input', refresh);
+    refresh();
+  }
+
   function emailDomain(email) {
     const address = normalizeEmail(email);
     return address.includes('@') ? address.split('@').pop() : '';
@@ -257,6 +299,14 @@
       return ' This is a Gmail address.';
     }
     return ` This is a ${domain} address, so it will not arrive in Gmail unless that mailbox forwards to Gmail.`;
+  }
+
+  function showResetMailboxAction(email) {
+    const actions = document.getElementById('resetSuccessActions');
+    const target = mailboxTargetForEmail(email);
+    if (!actions || !target) return;
+    actions.textContent = '';
+    actions.appendChild(createStatusLink(target.label, target.href));
   }
 
   function signupConfirmationMessage(email) {
@@ -696,6 +746,8 @@
   if (signupForm) {
     let signupSubmitting = false;
 
+    setupPasswordGuidance('signupPassword', 'signupPasswordStrength', 'signupPasswordRequirements');
+
     // Toggle password visibility for signup
     const toggleSignupPassword = document.getElementById('toggleSignupPassword');
     const signupPassword = document.getElementById('signupPassword');
@@ -921,6 +973,7 @@
           .then(() => {
             const successDiv = document.getElementById('resetSuccess');
             if (successDiv) successDiv.classList.add('show');
+            showResetMailboxAction(email);
             forgotPasswordForm.classList?.add('d-none');
             forgotPasswordForm.closest?.('.auth-card')?.classList.add('reset-complete');
           })
@@ -950,6 +1003,7 @@
         if (successDiv) {
           successDiv.classList.add('show');
         }
+        showResetMailboxAction(email);
         forgotPasswordForm.classList?.add('d-none');
         forgotPasswordForm.closest?.('.auth-card')?.classList.add('reset-complete');
         setButtonLoading(forgotPasswordForm, 'resetSpinner', false);

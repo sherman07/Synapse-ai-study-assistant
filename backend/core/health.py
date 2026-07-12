@@ -18,6 +18,7 @@ class HealthReporter:
 
     def backend_status(self) -> dict:
         max_visual_images = self._get("MAX_VISUAL_IMAGES_PER_SOURCE")
+        email_config_error = self._call("synapse_email_config_error", "not_available")
         return {
             "status": "ok",
             "api_key_loaded": bool(self._call("has_text_ai")),
@@ -45,6 +46,14 @@ class HealthReporter:
             "cache_version": self._get("CACHE_VERSION"),
             "data_api": "mysql",
             "public_backend_base_url": self._get("PUBLIC_BACKEND_BASE_URL"),
+            "supabase_url_loaded": bool(self._get("SUPABASE_URL")),
+            "supabase_anon_key_loaded": bool(self._get("SUPABASE_ANON_KEY")),
+            "supabase_service_role_key_loaded": bool(self._get("SUPABASE_SERVICE_ROLE_KEY")),
+            "supabase_auth_configured": all(
+                bool(self._get(name))
+                for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY")
+            ),
+            "synapse_email_delivery_configured": email_config_error is None,
             "runtime_assets_dir": str(self._get("RUNTIME_ASSETS_DIR", "")),
             "tutor_web_research_enabled": self._get("ENABLE_TUTOR_WEB_RESEARCH"),
             "multi_source_digests_enabled": self._get("ENABLE_MULTI_SOURCE_DIGESTS"),

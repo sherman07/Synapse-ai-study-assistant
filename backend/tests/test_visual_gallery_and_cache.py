@@ -63,6 +63,8 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("visual_image_guide_model", payload)
         self.assertIn("openai_timeout_seconds", payload)
         self.assertIn("public_backend_base_url", payload)
+        self.assertIn("supabase_auth_configured", payload)
+        self.assertIn("synapse_email_delivery_configured", payload)
         self.assertIn("runtime_assets_dir", payload)
         self.assertNotIn("OPENAI_API_KEY", payload)
 
