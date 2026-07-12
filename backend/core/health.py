@@ -54,6 +54,7 @@ class HealthReporter:
                 for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY")
             ),
             "synapse_email_delivery_configured": email_config_error is None,
+            "synapse_email_delivery_issue": email_config_error,
             "runtime_assets_dir": str(self._get("RUNTIME_ASSETS_DIR", "")),
             "tutor_web_research_enabled": self._get("ENABLE_TUTOR_WEB_RESEARCH"),
             "multi_source_digests_enabled": self._get("ENABLE_MULTI_SOURCE_DIGESTS"),
