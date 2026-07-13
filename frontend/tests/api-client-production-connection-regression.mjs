@@ -33,4 +33,24 @@ const healthResponse = await warmingClient.warmup({ attempts: 2, retryDelayMs: 0
 assert.equal(healthResponse.ok, true);
 assert.equal(healthCalls, 2, "hosted health warmup should retry before a real analysis request");
 
+let analysisCalls = 0;
+const renderWakeClient = new SynapseApiClient("https://synapse-ai-backend.example.com", {
+  fetchImpl: () => {
+    analysisCalls += 1;
+    return Promise.resolve({
+      ok: analysisCalls === 3,
+      status: analysisCalls === 3 ? 200 : 503,
+      headers: { get: () => "application/json" }
+    });
+  }
+});
+
+const analysisResponse = await renderWakeClient.fetchWithRetry(
+  "/analyze",
+  { method: "POST", body: "retryable test payload" },
+  { attempts: 3, retryDelayMs: 0 }
+);
+assert.equal(analysisResponse.ok, true, "analysis should recover after Render wake-up 503 responses");
+assert.equal(analysisCalls, 3, "analysis should retry transient Render wake-up responses");
+
 console.log("api client production connection regression passed");

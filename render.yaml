@@ -27,9 +27,13 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: OPENAI_TIMEOUT_SECONDS
-        value: "240"
+        value: "45"
       - key: ANALYSIS_MAX_SECONDS
-        value: "300"
+        value: "55"
+      - key: CONTROLLED_OUTPUT_TOKENS
+        value: "8000"
+      - key: ENABLE_CONDITIONAL_NOTE_EXPANSION
+        value: "false"
       - key: MAX_UPLOAD_BYTES
         value: "104857600"
       - key: MAX_SOURCE_CHARS

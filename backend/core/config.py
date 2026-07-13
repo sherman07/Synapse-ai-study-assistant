@@ -127,7 +127,11 @@ OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_ORG_ID = (os.getenv("OPENAI_ORG_ID") or "").strip() or None
 OPENAI_PROJECT_ID = (os.getenv("OPENAI_PROJECT_ID") or "").strip() or None
 OPENAI_TIMEOUT_SECONDS = max(30.0, env_float("OPENAI_TIMEOUT_SECONDS", 240.0))
-ANALYSIS_MAX_SECONDS = max(60, env_int("ANALYSIS_MAX_SECONDS", 300))
+# Keep the request budget configurable for constrained hosts such as Render's
+# free instance. The request pipeline skips optional stages as the budget runs
+# down, so a shorter explicit budget is safer than letting the platform kill
+# the worker while a long model call is still in flight.
+ANALYSIS_MAX_SECONDS = max(30, env_int("ANALYSIS_MAX_SECONDS", 300))
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip()
 GEMINI_AUTH_MODE = env_str("GEMINI_AUTH_MODE", "api_key" if GEMINI_API_KEY else "adc").lower()
 if GEMINI_AUTH_MODE not in {"api_key", "adc"}:

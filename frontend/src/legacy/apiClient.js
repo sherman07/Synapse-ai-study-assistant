@@ -181,6 +181,26 @@ class SynapseApiClient {
 
     throw lastError || new ApiConnectionError(this.connectionMessage());
   }
+
+  isRetryableResponse(response) {
+    return [502, 503, 504].includes(Number(response?.status));
+  }
+
+  async fetchWithRetry(path, options = {}, { attempts = 3, retryDelayMs = 3000 } = {}) {
+    const totalAttempts = Math.max(1, Math.floor(Number(attempts) || 1));
+    let response = null;
+
+    for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+      response = await this.fetch(path, options);
+      if (!this.isRetryableResponse(response) || attempt === totalAttempts - 1) return response;
+
+      if (retryDelayMs > 0) {
+        await new Promise(resolve => browserWindow().setTimeout(resolve, retryDelayMs));
+      }
+    }
+
+    return response;
+  }
 }
 
 export { ApiConnectionError, SynapseApiClient };

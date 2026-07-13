@@ -128,6 +128,31 @@ test("Render blueprint deploys Python AI backend and Node data API separately", 
   assert.ok(renderYamlSource.includes("startCommand: npm start"), "Node data API should use its package start script");
 });
 
+test("Render AI backend keeps analysis within a safe request budget", () => {
+  const renderYamlSource = fs.readFileSync(path.join(repoRoot, "render.yaml"), "utf8");
+
+  assert.match(
+    renderYamlSource,
+    /^      - key: ANALYSIS_MAX_SECONDS\n        value: "55"/m,
+    "Render analysis should leave headroom before the platform can terminate a long request"
+  );
+  assert.match(
+    renderYamlSource,
+    /^      - key: OPENAI_TIMEOUT_SECONDS\n        value: "45"/m,
+    "OpenAI calls should time out before the Render analysis budget"
+  );
+  assert.match(
+    renderYamlSource,
+    /^      - key: CONTROLLED_OUTPUT_TOKENS\n        value: "8000"/m,
+    "Render should cap generated output so analysis does not exhaust the instance"
+  );
+  assert.match(
+    renderYamlSource,
+    /^      - key: ENABLE_CONDITIONAL_NOTE_EXPANSION\n        value: "false"/m,
+    "Render should skip the optional second expansion call"
+  );
+});
+
 test("stripe billing routes verify webhooks and keep secrets server-side", () => {
   const routeSource = fs.readFileSync(path.join(serverRoot, "src/routes/billing.js"), "utf8");
   const schemaSource = fs.readFileSync(path.join(serverRoot, "src/db/schema.sql"), "utf8");

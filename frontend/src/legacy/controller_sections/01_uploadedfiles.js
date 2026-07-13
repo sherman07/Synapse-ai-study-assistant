@@ -937,8 +937,8 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     });
     await apiClient.warmup({
       signal: abortController?.signal,
-      attempts: 2,
-      retryDelayMs: 1500,
+      attempts: 4,
+      retryDelayMs: 3000,
       timeoutMs: 60000
     });
     upsertGenerationJob({
@@ -947,11 +947,14 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
       progress: 34,
       message: "Generating tutor-style study notes"
     });
-    const response = await apiClient.fetch("/analyze", {
+    const response = await apiClient.fetchWithRetry("/analyze", {
       method: "POST",
       body: formData,
       timeoutMs: ANALYSIS_TIMEOUT_MS,
       signal: abortController?.signal
+    }, {
+      attempts: 3,
+      retryDelayMs: 3000
     });
 
     let data = null;
