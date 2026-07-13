@@ -23,8 +23,8 @@ assert.ok(loadingNotesBlock.includes("margin-left: 300px"));
 assert.ok(loadingNotesBlock.includes("width: calc(100% - 300px)"));
 
 assert.ok(index.includes("style.css?v=ai-broadcast-v7"));
-assert.ok(style.includes("04-section.css?v=ai-broadcast-v7"));
-assert.ok(style.includes("07-section.css?v=ai-broadcast-v7"));
+assert.ok(style.includes('@import url("./styles/04-section.css");'));
+assert.ok(style.includes('@import url("./styles/07-section.css");'));
 assert.ok(historyController.includes('onclick="loadHistoryEntry'));
 
 console.log("loading history navigation regression passed");

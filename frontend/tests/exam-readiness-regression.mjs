@@ -34,7 +34,7 @@ assert.ok(backendStudyPath.includes('"exam_use": "how this task prepares the stu
 assert.ok(backendStudyPath.includes('"source_reference": "section, source, slide, page, figure, or concept this task is grounded in"'), "Study path prompt should require source references");
 
 assert.ok(styles.includes(".exam-readiness-summary"), "Exam Readiness summary styles should be available");
-assert.ok(styleRoot.includes("07-section.css?v=ai-broadcast-v7"), "Root stylesheet should bust cached Exam Readiness styles");
+assert.ok(styleRoot.includes('@import url("./styles/07-section.css");'), "Root stylesheet should import Exam Readiness styles");
 assert.ok(styles.includes(".readiness-next-action"), "Next-action styles should be available");
 
 console.log("exam readiness regression passed");

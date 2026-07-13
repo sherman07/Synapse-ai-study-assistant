@@ -49,7 +49,7 @@ const broadcastAssetVersion = "ai-broadcast-v7";
 assert.ok(rootIndex.includes("frontend/landing.html"), "root index should keep the landing page as the public entry");
 assert.ok(appShim.includes("frontend/index.html"), "app shim should open the study workspace frontend");
 assert.ok(index.includes(broadcastAssetVersion), "workspace HTML should bust cached React shell assets");
-assert.ok(styleRoot.includes(`04-section.css?v=${broadcastAssetVersion}`), "root CSS should bust cached broadcast styles");
+assert.ok(styleRoot.includes('@import url("./styles/04-section.css");'), "root CSS should import broadcast styles");
 assert.ok(main.includes(broadcastAssetVersion), "main module should bust cached React and controller loader imports");
 assert.ok(appShellEntry.includes(broadcastAssetVersion), "React app entry should bust cached AppShell imports");
 assert.ok(appShell.includes(broadcastAssetVersion), "AppShell should bust cached child component imports");
