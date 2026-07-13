@@ -15,7 +15,8 @@
   box-shadow: 0 14px 32px rgba(74, 124, 255, 0.22);
 }
 
-:root {
+.focus-room-surface,
+body.focus-room-standalone {
   --glass-bg: rgba(20, 21, 26, 0.6);
   --glass-bg-strong: rgba(28, 29, 34, 0.74);
   --glass-border: rgba(255, 255, 255, 0.16);

@@ -6,6 +6,10 @@
     return (window.location.pathname || "").includes("/frontend/") ? "index.html" : "frontend/index.html";
   }
 
+  function workspaceUrl() {
+    return window.SynapseAuth?.absoluteAppUrl?.() || appEntryUrl();
+  }
+
   function getEl(id) {
     return document.getElementById(id);
   }
@@ -54,7 +58,7 @@
   function showWorkspaceAction() {
     const button = getEl("openWorkspaceButton");
     if (!button) return;
-    button.href = appEntryUrl();
+    button.href = workspaceUrl();
     button.classList.remove("is-disabled");
     button.removeAttribute("aria-disabled");
   }
@@ -83,7 +87,7 @@
       setStep("workspace", "complete");
       showWorkspaceAction();
       window.setTimeout(() => {
-        window.location.href = appEntryUrl();
+        window.location.href = workspaceUrl();
       }, 1400);
       return;
     }

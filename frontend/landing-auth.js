@@ -206,7 +206,7 @@
   }
 
   function redirectToApp() {
-    window.location.href = appEntryUrl();
+    window.location.href = window.SynapseAuth?.absoluteAppUrl?.() || appEntryUrl();
   }
 
   function realAuthEnabled() {
@@ -532,7 +532,7 @@
     }
 
     window.SynapseAuth.signInWithGoogle({
-      redirectTo: new URL(appEntryUrl(), window.location.href).toString()
+      redirectTo: window.SynapseAuth?.absoluteAppUrl?.() || new URL(appEntryUrl(), window.location.href).toString()
     }).catch(error => {
       showSocialAuthStatus(button, 'error', error.message || 'Google sign-in could not start.');
       if (button) {

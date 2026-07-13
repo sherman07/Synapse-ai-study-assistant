@@ -11,6 +11,7 @@ const authClientScript = fs.readFileSync(path.join(repoRoot, "frontend/auth-clie
 const backendAppScript = fs.readFileSync(path.join(repoRoot, "backend/app.py"), "utf8");
 const loginPage = fs.readFileSync(path.join(repoRoot, "frontend/login.html"), "utf8");
 const signupPage = fs.readFileSync(path.join(repoRoot, "frontend/signup.html"), "utf8");
+const workspacePage = fs.readFileSync(path.join(repoRoot, "frontend/index.html"), "utf8");
 const accountsKey = "synapse.auth.accounts.v1";
 const sessionKey = "synapse.auth.session.v1";
 
@@ -33,6 +34,7 @@ assert.ok(authClientScript.includes('publicApiFetch("/api/auth/signup"'), "Supab
 assert.ok(authClientScript.includes('publicApiFetch("/api/auth/resend-confirmation"'), "Confirmation resend should go through the backend auth endpoint");
 assert.ok(authClientScript.includes("absoluteVerificationUrl"), "Signup confirmation should redirect to a dedicated verification page");
 assert.ok(authClientScript.includes("readAuthApiResponse"), "Auth client should parse structured backend auth responses");
+assert.ok(authClientScript.includes("timeoutMs = 75000"), "Auth requests should tolerate a Render free-tier cold start instead of failing after 20 seconds");
 assert.ok(authScript.includes("existing_confirmed"), "Signup UI should handle confirmed duplicate accounts");
 assert.ok(authScript.includes("existing_unconfirmed"), "Signup UI should handle unconfirmed duplicate accounts");
 assert.ok(authClientScript.includes("completeAuthRedirect"), "Auth client should complete Supabase redirect sessions on the verify page");
@@ -73,6 +75,11 @@ assert.ok(forgotPage.includes("Send Reset Link"), "Password recovery page should
 assert.ok(signupPage.includes("password-strength"), "Sign-up should expose a password strength indicator");
 assert.ok(signupPage.includes("password-requirements"), "Sign-up should expose live password requirements");
 assert.ok(loginPage.includes("data-testid=\"login-status\""), "Login should expose a status region");
+for (const page of [loginPage, signupPage, forgotPage, resetPage, verifyPage, workspacePage]) {
+  assert.ok(page.includes("config.js?v=public-auth-session-v3"), "Public pages must bypass cached pre-fix runtime config");
+  assert.ok(page.includes("auth-client.js?v=public-auth-session-v3"), "Public pages must bypass cached pre-fix auth client code");
+}
+assert.ok(workspacePage.includes("style.css?v=workspace-contrast-v8"), "Workspace should bypass cached pre-fix contrast styles");
 assert.ok(forgotPage.includes("data-testid=\"reset-success\""), "Forgot password should expose a success state");
 assert.ok(resetPage.includes("data-testid=\"reset-password-success\""), "Reset password should expose a success state");
 assert.ok(authClientScript.includes("/api/auth/request-password-reset"), "Password recovery should use the Synapse backend email endpoint");

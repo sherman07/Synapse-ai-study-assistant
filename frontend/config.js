@@ -24,6 +24,28 @@ const SYNAPSE_LOCAL_API_BASE = `http://${SYNAPSE_LOCAL_SERVICE_HOST}:8001`;
 const SYNAPSE_LOCAL_DATA_API_BASE = `http://${SYNAPSE_LOCAL_SERVICE_HOST}:3001`;
 const SYNAPSE_PRODUCTION_API_BASE = "https://synapse-ai-backend-idnc.onrender.com";
 const SYNAPSE_PRODUCTION_DATA_API_BASE = "https://synapse-data-api.onrender.com";
+const SYNAPSE_CANONICAL_PUBLIC_ORIGIN = "https://synapse-ai-study-assistant-tutor.vercel.app";
+const SYNAPSE_CURRENT_ORIGIN = `${window.location.protocol}//${window.location.host}`.replace(/\/+$/, "");
+const SYNAPSE_IS_VERCEL_DEPLOYMENT = String(window.location.hostname || "").toLowerCase().endsWith(".vercel.app");
+const SYNAPSE_CANONICAL_PUBLIC_HOST = new URL(SYNAPSE_CANONICAL_PUBLIC_ORIGIN).hostname;
+
+// Vercel deployment URLs are immutable and therefore have a separate browser session.
+// Always move public visitors to the stable alias before Supabase loads its session.
+window.SYNAPSE_PUBLIC_APP_ORIGIN = window.SYNAPSE_PUBLIC_APP_ORIGIN
+  || (SYNAPSE_IS_LOCAL_HOST
+    ? SYNAPSE_CURRENT_ORIGIN
+    : (SYNAPSE_IS_VERCEL_DEPLOYMENT ? SYNAPSE_CANONICAL_PUBLIC_ORIGIN : SYNAPSE_CURRENT_ORIGIN));
+
+if (
+  !SYNAPSE_IS_LOCAL_HOST
+  && SYNAPSE_IS_VERCEL_DEPLOYMENT
+  && String(window.location.hostname || "").toLowerCase() !== SYNAPSE_CANONICAL_PUBLIC_HOST
+) {
+  const canonicalUrl = new URL(window.location.href);
+  canonicalUrl.protocol = "https:";
+  canonicalUrl.host = SYNAPSE_CANONICAL_PUBLIC_HOST;
+  window.location.replace(canonicalUrl.toString());
+}
 
 window.SYNAPSE_API_BASE = window.SYNAPSE_API_BASE || (SYNAPSE_IS_LOCAL_HOST ? SYNAPSE_LOCAL_API_BASE : SYNAPSE_PRODUCTION_API_BASE);
 window.SYNAPSE_DATA_API_BASE = window.SYNAPSE_DATA_API_BASE || (SYNAPSE_IS_LOCAL_HOST ? SYNAPSE_LOCAL_DATA_API_BASE : SYNAPSE_PRODUCTION_DATA_API_BASE);

@@ -16,6 +16,8 @@ const constantsSource = read("frontend/src/react/constants.js");
 const uploadControllerSource = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
 const uploadStylesPrimary = read("frontend/styles/01-section.css");
 const uploadStylesSecondary = read("frontend/styles/04-section.css");
+const uploadStylesTertiary = read("frontend/styles/08-section.css");
+const focusRoomStyles = read("frontend/styles/09-focus-room.css");
 
 assert.ok(
   uploadStageSource.includes("Choose the language for notes, explanations, image guides, flashcards, and quizzes."),
@@ -72,6 +74,22 @@ assert.ok(
 assert.ok(
   uploadStylesSecondary.includes(".prompt-mode-box"),
   "Prompt mode container styling should remain in place"
+);
+assert.ok(
+  uploadStylesTertiary.includes(".language-note { margin: -4px 0 8px; color: var(--muted);"),
+  "Workspace helper copy should use the workspace muted color token"
+);
+assert.ok(
+  !uploadStylesTertiary.includes("var(--text-muted)"),
+  "Workspace styles must not depend on Focus Room-only muted text tokens"
+);
+assert.ok(
+  !focusRoomStyles.includes(":root {\n  --glass-bg:"),
+  "Focus Room tokens must not leak into the main workspace root"
+);
+assert.ok(
+  focusRoomStyles.includes(".focus-room-surface,\nbody.focus-room-standalone {\n  --glass-bg:"),
+  "Focus Room tokens should be scoped to Focus Room surfaces"
 );
 assert.ok(
   uploadStageSource.includes('id: "noteLengthField", className: "language-box prompt-mode-box note-length-box"'),

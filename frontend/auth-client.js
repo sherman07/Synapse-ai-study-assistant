@@ -104,8 +104,18 @@
     return (window.location.pathname || "").includes("/frontend/") ? "index.html" : "frontend/index.html";
   }
 
+  function publicAppOrigin() {
+    const configured = String(window.SYNAPSE_PUBLIC_APP_ORIGIN || "").trim().replace(/\/+$/, "");
+    if (configured) return configured;
+    return `${window.location.protocol}//${window.location.host}`.replace(/\/+$/, "");
+  }
+
+  function absolutePublicUrl(path) {
+    return new URL(String(path || "").replace(/^\/+/, ""), `${publicAppOrigin()}/`).toString();
+  }
+
   function absoluteAppUrl() {
-    return new URL(appEntryUrl(), window.location.href).toString();
+    return absolutePublicUrl("frontend/index.html");
   }
 
   function verificationUrl() {
@@ -113,7 +123,7 @@
   }
 
   function absoluteVerificationUrl() {
-    return new URL(verificationUrl(), window.location.href).toString();
+    return absolutePublicUrl("frontend/verify.html");
   }
 
   function passwordResetUrl() {
@@ -121,7 +131,7 @@
   }
 
   function absolutePasswordResetUrl() {
-    return new URL(passwordResetUrl(), window.location.href).toString();
+    return absolutePublicUrl("frontend/reset-password.html");
   }
 
   function normalizeEmail(email) {
@@ -598,7 +608,9 @@
     });
   }
 
-  async function publicApiFetch(path, options = {}, timeoutMs = 20000) {
+  // Render's free tier can take roughly a minute to wake after inactivity.
+  // Authentication actions must wait through that cold start rather than report a false failure.
+  async function publicApiFetch(path, options = {}, timeoutMs = 75000) {
     const headers = {
       "Content-Type": "application/json",
       "X-Synapse-Client-Id": cleanHeaderValue(getSynapseClientId(), 160),
@@ -765,6 +777,7 @@
   }
 
   window.SynapseAuth = {
+    absoluteAppUrl,
     apiBase,
     authHeaders,
     clearLocalSynapseData,
