@@ -931,6 +931,18 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     if (abortController) runtimeGenerationJobControllers.set(jobId, abortController);
     upsertGenerationJob({
       jobId,
+      status: "analysing",
+      progress: 26,
+      message: "Connecting to Synapse and preparing your workspace"
+    });
+    await apiClient.warmup({
+      signal: abortController?.signal,
+      attempts: 2,
+      retryDelayMs: 1500,
+      timeoutMs: 60000
+    });
+    upsertGenerationJob({
+      jobId,
       status: "generating",
       progress: 34,
       message: "Generating tutor-style study notes"

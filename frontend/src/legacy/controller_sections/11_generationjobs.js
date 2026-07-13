@@ -211,10 +211,37 @@ function renderGenerationJobProgress(jobId) {
   if (assistant) assistant.classList.add("hidden");
   if (openAssistantBtn) openAssistantBtn.style.display = "none";
 
-  loadingBox.innerHTML = `
+  const activeLoaderMarkup = isActive ? `
+    <section class="generation-job-panel is-active" aria-live="polite">
+      <div class="generation-job-active-loader" aria-hidden="true">
+        <div class="synapse-ai-loader refined-loader">
+          <div class="loader-orbit loader-orbit-one"></div>
+          <div class="loader-orbit loader-orbit-two"></div>
+          <div class="vector-logo-loader">
+            <img class="rotating-vector-logo" src="/logos/synapse_no_spark.png" alt="">
+            <div class="loading-star">
+              <svg viewBox="0 0 24 24" class="synapse-spark"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"></path></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="generation-job-kicker">${escapeHTML(generationJobStatusBadge(job))}</p>
+      <h3>Synapse is analysing your material...</h3>
+      <p>${escapeHTML(job.message || "Reading sources, explaining ideas, and preparing your tutor-style notes.")}</p>
+      ${job.sourceTitle ? `<p class="generation-job-source">${escapeHTML(job.sourceTitle)}</p>` : ""}
+      <div class="generation-progress-track" aria-label="Generation progress">
+        <div style="width:${progress}%"></div>
+      </div>
+      <p class="generation-job-note">You can continue browsing other notes while this generates.</p>
+      <div class="generation-job-actions">
+        <button class="btn btn-outline-primary" type="button" onclick="cancelGenerationJob('${escapeAttr(job.jobId)}')"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+        <button class="btn btn-outline-secondary" type="button" onclick="resetWorkspace()"><i class="bi bi-plus-lg me-1"></i>New upload</button>
+      </div>
+    </section>
+  ` : `
     <section class="generation-job-panel" aria-live="polite">
       <div class="generation-job-icon ${escapeAttr(job.status)}">
-        ${isActive ? `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>` : `<i class="bi ${isFailed ? "bi-exclamation-triangle" : isCancelled ? "bi-x-circle" : "bi-check2"}"></i>`}
+        <i class="bi ${isFailed ? "bi-exclamation-triangle" : isCancelled ? "bi-x-circle" : "bi-check2"}"></i>
       </div>
       <p class="generation-job-kicker">${escapeHTML(generationJobStatusBadge(job))}</p>
       <h3>${escapeHTML(job.sourceTitle || "Generating study notes")}</h3>
@@ -225,12 +252,12 @@ function renderGenerationJobProgress(jobId) {
       ${job.error ? `<div class="generation-job-error">${escapeHTML(job.error)}</div>` : ""}
       <p class="generation-job-note">You can continue browsing other notes while this generates.</p>
       <div class="generation-job-actions">
-        ${isActive ? `<button class="btn btn-outline-primary" type="button" onclick="cancelGenerationJob('${escapeAttr(job.jobId)}')"><i class="bi bi-x-lg me-1"></i>Cancel</button>` : ""}
         ${isFailed || isCancelled ? `<button class="btn btn-primary" type="button" onclick="retryGenerationJob('${escapeAttr(job.jobId)}')"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button>` : ""}
         <button class="btn btn-outline-secondary" type="button" onclick="resetWorkspace()"><i class="bi bi-plus-lg me-1"></i>New upload</button>
       </div>
     </section>
   `;
+  loadingBox.innerHTML = activeLoaderMarkup;
 }
 
 function cancelGenerationJob(jobId) {

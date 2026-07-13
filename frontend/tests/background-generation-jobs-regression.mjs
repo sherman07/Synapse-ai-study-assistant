@@ -84,4 +84,17 @@ assert.ok(styles.includes(".generation-job-panel"), "job progress panel should b
 assert.ok(styles.includes(".history-job-status"), "sidebar job status should be styled");
 assert.ok(styles.includes(".history-job-retry"), "failed sidebar retry action should be styled");
 
+for (const token of [
+  "generation-job-active-loader",
+  "synapse-ai-loader refined-loader",
+  "rotating-vector-logo",
+  "loading-star",
+  "Synapse is analysing your material"
+]) {
+  assert.ok(
+    jobsController.includes(token),
+    `active generation progress should preserve the Synapse loader treatment: ${token}`
+  );
+}
+
 console.log("background generation jobs regression passed");

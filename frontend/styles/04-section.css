@@ -1148,6 +1148,38 @@
   text-align: center;
 }
 
+.generation-job-panel.is-active {
+  padding-top: clamp(32px, 6vw, 54px);
+}
+
+.generation-job-active-loader {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 18px;
+}
+
+.generation-job-active-loader .synapse-ai-loader {
+  width: 150px;
+  height: 150px;
+  border-radius: 32px;
+}
+
+.generation-job-active-loader .vector-logo-loader {
+  width: 108px;
+  height: 108px;
+}
+
+.generation-job-active-loader .rotating-vector-logo {
+  width: 100px;
+  height: 100px;
+}
+
+.generation-job-source {
+  margin-top: 8px !important;
+  color: var(--muted) !important;
+  font-size: 0.82rem;
+}
+
 .generation-job-icon {
   width: 68px;
   height: 68px;

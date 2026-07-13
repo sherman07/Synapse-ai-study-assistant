@@ -69,6 +69,28 @@ class SynapseApiClient {
     return `Synapse backend did not respond within ${seconds} seconds. Try a smaller source set or increase window.SYNAPSE_ANALYSIS_TIMEOUT_MS.`;
   }
 
+  isLocalBackend() {
+    try {
+      const hostname = new URL(this.baseUrl).hostname.toLowerCase();
+      return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+    } catch {
+      return true;
+    }
+  }
+
+  connectionMessage() {
+    if (this.isLocalBackend()) {
+      return [
+        `Cannot reach the Synapse backend at ${this.baseUrl}.`,
+        "Start the local stack with `bash scripts/start_local_stack.sh`, or run `.venv/bin/python run_backend.py` manually, then try again."
+      ].join(" ");
+    }
+    return [
+      `Synapse could not reach its hosted service at ${this.baseUrl}.`,
+      "The service may be waking up. Wait a moment and retry; if this keeps happening, contact Synapse support."
+    ].join(" ");
+  }
+
   async requestHeaders(headers = {}) {
     const win = browserWindow();
     const next = headersToObject(headers);
@@ -124,19 +146,40 @@ class SynapseApiClient {
       if (controller?.signal?.aborted) {
         throw new ApiConnectionError(this.timeoutMessage(timeoutLimit), { cause: error });
       }
-      throw new ApiConnectionError(
-        [
-          `Cannot reach the Synapse backend at ${this.baseUrl}.`,
-          "Start the local stack with `bash scripts/start_local_stack.sh`, or run `.venv/bin/python run_backend.py` manually, then try again."
-        ].join(" "),
-        { cause: error }
-      );
+      throw new ApiConnectionError(this.connectionMessage(), { cause: error });
     } finally {
       if (timeoutId) browserWindow().clearTimeout(timeoutId);
       if (callerSignal && abortFromCaller) {
         callerSignal.removeEventListener("abort", abortFromCaller);
       }
     }
+  }
+
+  async warmup({ attempts = 2, retryDelayMs = 1500, timeoutMs = 60000, signal } = {}) {
+    const totalAttempts = Math.max(1, Math.floor(Number(attempts) || 1));
+    let lastError = null;
+
+    for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+      try {
+        const response = await this.fetch("/health", {
+          method: "GET",
+          signal,
+          timeoutMs
+        });
+        if (response?.ok) return response;
+        lastError = new ApiConnectionError(
+          `Synapse hosted service returned ${response?.status || "an unexpected status"} while preparing your analysis.`
+        );
+      } catch (error) {
+        lastError = error;
+      }
+
+      if (attempt < totalAttempts - 1 && retryDelayMs > 0) {
+        await new Promise(resolve => browserWindow().setTimeout(resolve, retryDelayMs));
+      }
+    }
+
+    throw lastError || new ApiConnectionError(this.connectionMessage());
   }
 }
 
