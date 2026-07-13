@@ -26,6 +26,7 @@ const files = [
 const directories = [
   "assets",
   "logos",
+  "src/legacy",
   "styles"
 ];
 

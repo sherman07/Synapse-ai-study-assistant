@@ -1,11 +1,30 @@
+function frontendRuntimeBaseUrl(pageUrl = window.location.href) {
+  const page = new URL(pageUrl, window.location.origin);
+
+  if (page.pathname.includes("/frontend/")) {
+    return new URL("./", page);
+  }
+
+  return new URL("frontend/", page);
+}
+
 export function loadLegacyController() {
-  if (document.querySelector("script[data-synapse-controller]")) return;
+  const existingController = document.querySelector("script[data-synapse-controller]");
+  if (existingController) return existingController;
 
   const version = "ai-broadcast-v7";
   const controllerScript = document.createElement("script");
   controllerScript.type = "module";
-  controllerScript.src = `${new URL("./controller.js", import.meta.url).href}?v=${version}`;
+  // This must remain a browser-served module URL. Vite turns import.meta-relative
+  // URLs into data URLs here, which prevents controller imports from resolving.
+  controllerScript.src = `${new URL("src/legacy/controller.js", frontendRuntimeBaseUrl()).href}?v=${version}`;
   controllerScript.dataset.synapseController = "true";
   controllerScript.async = false;
+  controllerScript.addEventListener("error", () => {
+    window.dispatchEvent(new CustomEvent("synapse-runtime-failed", {
+      detail: { message: "The Synapse workspace controller could not be loaded." }
+    }));
+  }, { once: true });
   document.body.appendChild(controllerScript);
+  return controllerScript;
 }

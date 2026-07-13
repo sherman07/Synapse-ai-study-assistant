@@ -136,6 +136,13 @@ const controllerLoader = new LegacyControllerLoader({
   version: CONTROLLER_VERSION
 });
 
-controllerLoader.load().catch(error => {
-  console.error("Synapse controller failed to load:", error);
-});
+controllerLoader.load()
+  .then(() => {
+    window.dispatchEvent(new Event("synapse-runtime-ready"));
+  })
+  .catch(error => {
+    console.error("Synapse controller failed to load:", error);
+    window.dispatchEvent(new CustomEvent("synapse-runtime-failed", {
+      detail: { message: "The Synapse workspace controller could not be initialized." }
+    }));
+  });
