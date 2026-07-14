@@ -573,6 +573,9 @@ def extract_pptx(data: bytes, source_name: str = "presentation") -> Tuple[str, L
     if full_slide_parts:
         return "\n\n".join(slide_texts).strip(), full_slide_parts
 
+    if not ENABLE_PPTX_EMBEDDED_IMAGE_EXTRACTION:
+        return "\n\n".join(slide_texts).strip(), []
+
     embedded_candidates: List[dict] = []
     embedded_limit = max(MAX_VISUAL_IMAGES_PER_SOURCE, RELEVANT_VISUAL_POOL_LIMIT)
 

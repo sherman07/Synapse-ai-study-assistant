@@ -72,6 +72,7 @@ class HealthReporter:
             "pptx_slide_render_enabled": self._get("ENABLE_PPTX_SLIDE_RENDER"),
             "pptx_svg_fallback_render_enabled": self._get("ENABLE_PPTX_SVG_FALLBACK_RENDER"),
             "source_pptx_preview_render_enabled": self._get("ENABLE_SOURCE_PPTX_PREVIEW_RENDER"),
+            "pptx_embedded_image_extraction_enabled": self._get("ENABLE_PPTX_EMBEDDED_IMAGE_EXTRACTION"),
             "source_pptx_server_renderer": bool(self._call("find_libreoffice_binary")),
             "source_pptx_local_app_fallback_enabled": self._get("ENABLE_LOCAL_PPTX_APP_RENDER"),
         }

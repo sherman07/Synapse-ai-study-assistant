@@ -153,6 +153,31 @@ test("Render AI backend keeps analysis within a safe request budget", () => {
   );
 });
 
+test("Render AI backend uses a lightweight PPTX path on the free instance", () => {
+  const renderYamlSource = fs.readFileSync(path.join(repoRoot, "render.yaml"), "utf8");
+
+  assert.match(
+    renderYamlSource,
+    /^      - key: ENABLE_PPTX_SLIDE_RENDER\n        value: "false"/m,
+    "Render should skip expensive PPTX slide rendering"
+  );
+  assert.match(
+    renderYamlSource,
+    /^      - key: ENABLE_PPTX_SVG_FALLBACK_RENDER\n        value: "false"/m,
+    "Render should skip the SVG slide fallback"
+  );
+  assert.match(
+    renderYamlSource,
+    /^      - key: ENABLE_SOURCE_PPTX_PREVIEW_RENDER\n        value: "false"/m,
+    "Render should skip on-demand PPTX preview conversion"
+  );
+  assert.match(
+    renderYamlSource,
+    /^      - key: ENABLE_PPTX_EMBEDDED_IMAGE_EXTRACTION\n        value: "false"/m,
+    "Render should avoid embedding every PPTX image in the analysis request"
+  );
+});
+
 test("stripe billing routes verify webhooks and keep secrets server-side", () => {
   const routeSource = fs.readFileSync(path.join(serverRoot, "src/routes/billing.js"), "utf8");
   const schemaSource = fs.readFileSync(path.join(serverRoot, "src/db/schema.sql"), "utf8");

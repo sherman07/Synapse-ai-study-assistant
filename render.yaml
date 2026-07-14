@@ -41,7 +41,13 @@ services:
       - key: ENABLE_LOCAL_PPTX_APP_RENDER
         value: "false"
       - key: ENABLE_SOURCE_PPTX_PREVIEW_RENDER
-        value: "true"
+        value: "false"
+      - key: ENABLE_PPTX_SLIDE_RENDER
+        value: "false"
+      - key: ENABLE_PPTX_SVG_FALLBACK_RENDER
+        value: "false"
+      - key: ENABLE_PPTX_EMBEDDED_IMAGE_EXTRACTION
+        value: "false"
       - key: SYNAPSE_DATA_API_INTERNAL_URL
         value: https://synapse-data-api.onrender.com
       - key: SYNAPSE_INTERNAL_API_TOKEN
