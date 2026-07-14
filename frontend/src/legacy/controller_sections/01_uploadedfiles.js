@@ -937,9 +937,10 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     });
     await apiClient.warmup({
       signal: abortController?.signal,
-      attempts: 4,
-      retryDelayMs: 3000,
-      timeoutMs: 60000
+      attempts: 16,
+      retryDelayMs: 5000,
+      timeoutMs: 75000,
+      maxWaitMs: 90000
     });
     upsertGenerationJob({
       jobId,

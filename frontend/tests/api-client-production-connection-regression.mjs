@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 globalThis.window = {
   fetch: () => Promise.reject(new Error("not used")),
@@ -33,6 +34,28 @@ const healthResponse = await warmingClient.warmup({ attempts: 2, retryDelayMs: 0
 assert.equal(healthResponse.ok, true);
 assert.equal(healthCalls, 2, "hosted health warmup should retry before a real analysis request");
 
+const originalDateNow = Date.now;
+let simulatedNow = 0;
+let cappedWarmupCalls = 0;
+const cappedWarmupClient = new SynapseApiClient("https://synapse-ai-backend.example.com", {
+  fetchImpl: () => {
+    cappedWarmupCalls += 1;
+    simulatedNow = 90000;
+    return Promise.resolve({ ok: false, status: 503 });
+  }
+});
+
+try {
+  Date.now = () => simulatedNow;
+  await assert.rejects(
+    () => cappedWarmupClient.warmup({ attempts: 16, retryDelayMs: 0, timeoutMs: 75000, maxWaitMs: 90000 }),
+    ApiConnectionError
+  );
+  assert.equal(cappedWarmupCalls, 1, "a bounded warmup must stop when its total wait window expires");
+} finally {
+  Date.now = originalDateNow;
+}
+
 let analysisCalls = 0;
 const renderWakeClient = new SynapseApiClient("https://synapse-ai-backend.example.com", {
   fetchImpl: () => {
@@ -52,5 +75,15 @@ const analysisResponse = await renderWakeClient.fetchWithRetry(
 );
 assert.equal(analysisResponse.ok, true, "analysis should recover after Render wake-up 503 responses");
 assert.equal(analysisCalls, 3, "analysis should retry transient Render wake-up responses");
+
+const uploadControllerSource = await readFile(
+  new URL("../src/legacy/controller_sections/01_uploadedfiles.js", import.meta.url),
+  "utf8"
+);
+assert.match(
+  uploadControllerSource,
+  /await apiClient\.warmup\(\{[\s\S]*?attempts: 16,[\s\S]*?retryDelayMs: 5000,[\s\S]*?timeoutMs: 75000,[\s\S]*?maxWaitMs: 90000[\s\S]*?\}\);/,
+  "a cold Render service needs a bounded full wake-up window before the upload is marked failed"
+);
 
 console.log("api client production connection regression passed");

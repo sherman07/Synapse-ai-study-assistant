@@ -34,6 +34,8 @@ services:
         value: "8000"
       - key: ENABLE_CONDITIONAL_NOTE_EXPANSION
         value: "false"
+      - key: ENABLE_PDF_VISUAL_EXTRACTION
+        value: "false"
       - key: MAX_UPLOAD_BYTES
         value: "104857600"
       - key: MAX_SOURCE_CHARS

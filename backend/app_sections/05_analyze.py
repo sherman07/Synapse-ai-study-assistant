@@ -97,10 +97,20 @@ async def analyze_materials(
 
     provider_token = set_request_text_provider(ai_provider)
     trace_token = begin_ai_call_trace() if "begin_ai_call_trace" in globals() else None
+    analysis_started_at = time.monotonic()
+    analysis_stage = "initializing"
+    selected_ai_provider = "unresolved"
+    source_units: List[dict] = []
     try:
         selected_ai_provider = active_text_provider()
-        analysis_started_at = time.monotonic()
         skipped_optional_stages: List[str] = []
+        logger.info(
+            "analysis_event=received provider=%s file_count=%d link_payload_chars=%d free_text_chars=%d",
+            selected_ai_provider,
+            len(files),
+            len(links or ""),
+            len(free_text or ""),
+        )
 
         def ai_diagnostic_payload(source: str = "model") -> dict:
             if "ai_call_trace_payload" not in globals() or "current_ai_call_trace" not in globals():
@@ -120,19 +130,29 @@ async def analyze_materials(
             return False
 
         content_parts: List[dict] = []
-        source_units: List[dict] = []
         title_candidates: List[str] = []
         seen_youtube_sources = set()
 
         for uploaded in files:
+            analysis_stage = "file_read"
             data = await read_upload_bytes(uploaded, MAX_UPLOAD_BYTES, uploaded.filename or "uploaded file")
             if not data:
                 continue
+            analysis_stage = "file_extract"
             content_type = uploaded.content_type or mimetypes.guess_type(uploaded.filename or "")[0] or "application/octet-stream"
             parts, meta = file_to_source_unit(uploaded.filename or "uploaded file", content_type, data)
             content_parts.extend(parts)
             source_units.append(meta)
             title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
+            extension = (uploaded.filename or "").rsplit(".", 1)[-1].lower() if "." in (uploaded.filename or "") else "none"
+            logger.info(
+                "analysis_event=source_extracted source_kind=file extension=%s bytes=%d text_chars=%d visual_count=%d elapsed_seconds=%.2f",
+                extension,
+                len(data),
+                len(meta.get("text_excerpt", "")),
+                len(meta.get("visual_parts", [])),
+                analysis_elapsed_seconds(),
+            )
             embedded_parts, embedded_units, embedded_titles = expand_embedded_youtube_sources(
                 meta.get("text_excerpt", ""),
                 meta,
@@ -198,6 +218,7 @@ async def analyze_materials(
         if not content_parts:
             return analysis_error_response("No readable files, links, or text were provided.", 400)
 
+        analysis_stage = "source_preparation"
         combined_source_text = "\n\n".join(
             part.get("text", "") for part in content_parts
             if isinstance(part, dict) and part.get("type") == "text"
@@ -226,8 +247,22 @@ async def analyze_materials(
             selected_note_length,
             selected_ai_provider,
         )
+        logger.info(
+            "analysis_event=sources_ready provider=%s source_count=%d text_chars=%d elapsed_seconds=%.2f",
+            selected_ai_provider,
+            len(source_units),
+            len(combined_source_text),
+            analysis_elapsed_seconds(),
+        )
         cached_result = cache_get(source_fingerprint)
         if cached_result:
+            analysis_stage = "cache_hit"
+            logger.info(
+                "analysis_event=cache_hit provider=%s source_count=%d elapsed_seconds=%.2f",
+                selected_ai_provider,
+                len(source_units),
+                analysis_elapsed_seconds(),
+            )
             # Rebuild live visual cards from the freshly uploaded files. The cache
             # intentionally does not store large base64 images, but the current
             # request still has the source_units needed to recreate them. Use the
@@ -301,8 +336,21 @@ async def analyze_materials(
             database_record = persist_generated_analysis_result(request, response_payload, client_fingerprint)
             if database_record:
                 response_payload["database_record"] = database_record
+            logger.info(
+                "analysis_event=completed cached=true provider=%s source_count=%d elapsed_seconds=%.2f",
+                selected_ai_provider,
+                len(source_units),
+                analysis_elapsed_seconds(),
+            )
             return response_payload
 
+        analysis_stage = "generation"
+        logger.info(
+            "analysis_event=generation_started provider=%s source_count=%d remaining_seconds=%.2f",
+            selected_ai_provider,
+            len(source_units),
+            analysis_remaining_seconds(),
+        )
         await raise_if_analysis_client_disconnected(request, "fresh study-note generation")
         require_text_ai()
 
@@ -451,9 +499,26 @@ async def analyze_materials(
         database_record = persist_generated_analysis_result(request, result, client_fingerprint)
         if database_record:
             result["database_record"] = database_record
+        analysis_stage = "completed"
+        logger.info(
+            "analysis_event=completed cached=false provider=%s source_count=%d elapsed_seconds=%.2f optional_stages_skipped=%d",
+            selected_ai_provider,
+            len(source_units),
+            analysis_elapsed_seconds(),
+            len(skipped_optional_stages),
+        )
         return result
 
     except Exception as error:
+        logger.error(
+            "analysis_event=failed stage=%s provider=%s source_count=%d elapsed_seconds=%.2f error_type=%s status_code=%d",
+            analysis_stage,
+            selected_ai_provider,
+            len(source_units),
+            analysis_elapsed_seconds_since(analysis_started_at),
+            type(error).__name__,
+            analysis_exception_status(error),
+        )
         return analysis_error_response(str(error), analysis_exception_status(error))
     finally:
         if "reset_ai_call_trace" in globals():

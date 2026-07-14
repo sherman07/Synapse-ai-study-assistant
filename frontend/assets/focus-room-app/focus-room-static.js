@@ -132,26 +132,32 @@ class D_ {
       f && xr().clearTimeout(f), g && m && g.removeEventListener("abort", m);
     }
   }
-  async warmup({ attempts: e = 2, retryDelayMs: n = 1500, timeoutMs: r = 6e4, signal: s } = {}) {
-    const a = Math.max(1, Math.floor(Number(e) || 1));
-    let l = null;
-    for (let c = 0; c < a; c += 1) {
+  async warmup({ attempts: e = 2, retryDelayMs: n = 1500, timeoutMs: r = 6e4, maxWaitMs: s = 0, signal: a } = {}) {
+    const l = Math.max(1, Math.floor(Number(e) || 1)), c = Math.max(0, Number(s) || 0), f = Date.now();
+    let m = null;
+    for (let g = 0; g < l; g += 1) {
+      const d = Date.now() - f, p = c > 0 ? c - d : 0;
+      if (c > 0 && p <= 0) break;
       try {
-        const f = await this.fetch("/health", {
+        const v = await this.fetch("/health", {
           method: "GET",
-          signal: s,
-          timeoutMs: r
+          signal: a,
+          timeoutMs: c > 0 ? Math.min(r, p) : r
         });
-        if (f != null && f.ok) return f;
-        l = new vl(
-          `Synapse hosted service returned ${(f == null ? void 0 : f.status) || "an unexpected status"} while preparing your analysis.`
+        if (v != null && v.ok) return v;
+        m = new vl(
+          `Synapse hosted service returned ${(v == null ? void 0 : v.status) || "an unexpected status"} while preparing your analysis.`
         );
-      } catch (f) {
-        l = f;
+      } catch (v) {
+        m = v;
       }
-      c < a - 1 && n > 0 && await new Promise((f) => xr().setTimeout(f, n));
+      if (g < l - 1 && n > 0) {
+        const v = c > 0 ? c - (Date.now() - f) : n;
+        if (c > 0 && v <= 0) break;
+        await new Promise((w) => xr().setTimeout(w, Math.min(n, v)));
+      }
     }
-    throw l || new vl(this.connectionMessage());
+    throw m || new vl(this.connectionMessage());
   }
   isRetryableResponse(e) {
     return [502, 503, 504].includes(Number(e == null ? void 0 : e.status));

@@ -178,6 +178,16 @@ test("Render AI backend uses a lightweight PPTX path on the free instance", () =
   );
 });
 
+test("Render AI backend skips PDF page rendering on the free instance", () => {
+  const renderYamlSource = fs.readFileSync(path.join(repoRoot, "render.yaml"), "utf8");
+
+  assert.match(
+    renderYamlSource,
+    /^      - key: ENABLE_PDF_VISUAL_EXTRACTION\n        value: "false"/m,
+    "Render should keep PDF generation text-first instead of allocating page images in one request"
+  );
+});
+
 test("stripe billing routes verify webhooks and keep secrets server-side", () => {
   const routeSource = fs.readFileSync(path.join(serverRoot, "src/routes/billing.js"), "utf8");
   const schemaSource = fs.readFileSync(path.join(serverRoot, "src/db/schema.sql"), "utf8");

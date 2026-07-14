@@ -59,7 +59,11 @@ def file_to_source_unit(name: str, content_type: str, data: bytes) -> Tuple[List
                     pass
     elif lower_name.endswith(".pdf") or content_type == "application/pdf":
         text = extract_pdf(data)
-        frame_parts = render_pdf_visual_parts(data, name, MAX_VISUAL_IMAGES_PER_SOURCE)
+        frame_parts = (
+            render_pdf_visual_parts(data, name, MAX_VISUAL_IMAGES_PER_SOURCE)
+            if ENABLE_PDF_VISUAL_EXTRACTION
+            else []
+        )
     elif lower_name.endswith(".pptx"):
         text, frame_parts = extract_pptx(data, name)
     elif lower_name.endswith(".docx"):

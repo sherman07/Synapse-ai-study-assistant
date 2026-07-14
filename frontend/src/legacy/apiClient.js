@@ -155,16 +155,21 @@ class SynapseApiClient {
     }
   }
 
-  async warmup({ attempts = 2, retryDelayMs = 1500, timeoutMs = 60000, signal } = {}) {
+  async warmup({ attempts = 2, retryDelayMs = 1500, timeoutMs = 60000, maxWaitMs = 0, signal } = {}) {
     const totalAttempts = Math.max(1, Math.floor(Number(attempts) || 1));
+    const totalWaitLimit = Math.max(0, Number(maxWaitMs) || 0);
+    const startedAt = Date.now();
     let lastError = null;
 
     for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingMs = totalWaitLimit > 0 ? totalWaitLimit - elapsedMs : 0;
+      if (totalWaitLimit > 0 && remainingMs <= 0) break;
       try {
         const response = await this.fetch("/health", {
           method: "GET",
           signal,
-          timeoutMs
+          timeoutMs: totalWaitLimit > 0 ? Math.min(timeoutMs, remainingMs) : timeoutMs
         });
         if (response?.ok) return response;
         lastError = new ApiConnectionError(
@@ -175,7 +180,9 @@ class SynapseApiClient {
       }
 
       if (attempt < totalAttempts - 1 && retryDelayMs > 0) {
-        await new Promise(resolve => browserWindow().setTimeout(resolve, retryDelayMs));
+        const remainingAfterAttemptMs = totalWaitLimit > 0 ? totalWaitLimit - (Date.now() - startedAt) : retryDelayMs;
+        if (totalWaitLimit > 0 && remainingAfterAttemptMs <= 0) break;
+        await new Promise(resolve => browserWindow().setTimeout(resolve, Math.min(retryDelayMs, remainingAfterAttemptMs)));
       }
     }
 

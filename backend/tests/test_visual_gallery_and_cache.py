@@ -62,6 +62,7 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("title_model", payload)
         self.assertIn("visual_image_guide_model", payload)
         self.assertIn("openai_timeout_seconds", payload)
+        self.assertIn("pdf_visual_extraction_enabled", payload)
         self.assertIn("public_backend_base_url", payload)
         self.assertIn("supabase_auth_configured", payload)
         self.assertIn("synapse_email_delivery_configured", payload)
@@ -863,6 +864,17 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
 
 class VisualGalleryTests(unittest.TestCase):
+    def test_pdf_visual_rendering_can_be_disabled_for_a_constrained_host(self):
+        with (
+            patch.object(backend_app_module, "ENABLE_PDF_VISUAL_EXTRACTION", False, create=True),
+            patch("backend.app.extract_pdf", return_value="Lecture text"),
+            patch("backend.app.render_pdf_visual_parts", side_effect=AssertionError("PDF rendering should be skipped")),
+        ):
+            _, source = file_to_source_unit("lecture.pdf", "application/pdf", b"pdf bytes")
+
+        self.assertEqual(source["text_excerpt"], "Lecture text")
+        self.assertEqual(source["visual_parts"], [])
+
     def test_uploaded_image_source_becomes_inline_visual_candidate_without_model_call(self):
         png_data = base64.b64decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
@@ -1335,6 +1347,47 @@ class AnalysisCacheTests(unittest.TestCase):
         self.assertIn("Cached body", result["summary"])
         require_text_ai.assert_not_called()
         cache_get.assert_called_once()
+
+    def test_analyze_records_safe_stage_diagnostics_for_cache_hit(self):
+        cached_result = {
+            "title": "Cached Study Notes",
+            "summary": "# Cached Study Notes\n\nCached body.",
+            "display_summary": "# Cached Study Notes\n\nCached body.",
+            "sections": {"Cached Study Notes": "Cached body."},
+            "connections": [],
+            "mind_map": {"center": "Cached Study Notes", "branches": []},
+            "source_identity": "text:cached",
+            "primary_source_identity": "text:cached",
+            "visual_gallery": [],
+            "visuals": [],
+        }
+        emitted_events = []
+
+        def capture_event(message, *args, **kwargs):
+            emitted_events.append(message % args if args else message)
+
+        with (
+            patch("backend.app.cache_get", return_value=cached_result),
+            patch("backend.app.persist_generated_analysis_result", return_value={}),
+            patch("backend.app.logger.info", side_effect=capture_event),
+        ):
+            result = asyncio.run(analyze_materials(
+                files=[],
+                links="[]",
+                free_text="A short source about opportunity cost.",
+                preferred_language="english",
+                detail_level="standard",
+                prompt_mode="professor_mode",
+                note_length="standard_notes",
+                ai_provider="openai",
+                client_fingerprint="diagnostic-client",
+                request=None,
+            ))
+
+        self.assertTrue(result["cached"])
+        self.assertTrue(any("analysis_event=received" in event for event in emitted_events))
+        self.assertTrue(any("analysis_event=sources_ready" in event for event in emitted_events))
+        self.assertTrue(any("analysis_event=cache_hit" in event for event in emitted_events))
 
     def test_analyze_stops_before_model_generation_when_client_disconnected(self):
         class DisconnectedRequest:
