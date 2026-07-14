@@ -528,7 +528,7 @@ def fetch_youtube_transcript_api_text(video_id: str) -> str:
 
 
 def fetch_youtube_subtitle_transcript(url: str) -> str:
-    if yt_dlp is None:
+    if not ENABLE_YOUTUBE_YTDLP_FALLBACK or yt_dlp is None:
         return ""
     ydl_opts = {
         "quiet": True,

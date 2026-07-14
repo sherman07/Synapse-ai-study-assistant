@@ -59,6 +59,8 @@ class HealthReporter:
             "tutor_web_research_enabled": self._get("ENABLE_TUTOR_WEB_RESEARCH"),
             "multi_source_digests_enabled": self._get("ENABLE_MULTI_SOURCE_DIGESTS"),
             "pdf_visual_extraction_enabled": self._get("ENABLE_PDF_VISUAL_EXTRACTION"),
+            "embedded_youtube_sources_enabled": self._get("ENABLE_EMBEDDED_YOUTUBE_SOURCES"),
+            "youtube_ytdlp_fallback_enabled": self._get("ENABLE_YOUTUBE_YTDLP_FALLBACK"),
             "max_visual_images_per_source": max_visual_images,
             "max_pdf_visual_candidates_per_source": self._get(
                 "PDF_VISUAL_CANDIDATE_LIMIT",

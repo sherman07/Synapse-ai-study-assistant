@@ -63,6 +63,8 @@ class ApiShapeTests(unittest.TestCase):
         self.assertIn("visual_image_guide_model", payload)
         self.assertIn("openai_timeout_seconds", payload)
         self.assertIn("pdf_visual_extraction_enabled", payload)
+        self.assertIn("embedded_youtube_sources_enabled", payload)
+        self.assertIn("youtube_ytdlp_fallback_enabled", payload)
         self.assertIn("public_backend_base_url", payload)
         self.assertIn("supabase_auth_configured", payload)
         self.assertIn("synapse_email_delivery_configured", payload)
@@ -692,6 +694,44 @@ class ApiShapeTests(unittest.TestCase):
 
         self.assertEqual(result, rewritten)
         self.assertEqual(generate_chat_mock.call_count, 1)
+
+
+class EmbeddedYoutubeSafetyTests(unittest.TestCase):
+    def test_uploaded_file_does_not_expand_embedded_youtube_when_disabled(self):
+        previous_value = getattr(backend_app_module, "ENABLE_EMBEDDED_YOUTUBE_SOURCES", None)
+        backend_app_module.ENABLE_EMBEDDED_YOUTUBE_SOURCES = False
+        try:
+            with patch("backend.app.link_to_source_unit") as link_to_source_unit:
+                result = backend_app_module.expand_embedded_youtube_sources(
+                    "Watch https://www.youtube.com/watch?v=dQw4w9WgXcQ for more context.",
+                    {"display_name": "Lecture handout.pdf"},
+                    set(),
+                )
+
+            self.assertEqual(result, ([], [], []))
+            link_to_source_unit.assert_not_called()
+        finally:
+            if previous_value is None:
+                delattr(backend_app_module, "ENABLE_EMBEDDED_YOUTUBE_SOURCES")
+            else:
+                backend_app_module.ENABLE_EMBEDDED_YOUTUBE_SOURCES = previous_value
+
+    def test_ytdlp_caption_fallback_is_skipped_when_disabled(self):
+        previous_value = getattr(backend_app_module, "ENABLE_YOUTUBE_YTDLP_FALLBACK", None)
+        backend_app_module.ENABLE_YOUTUBE_YTDLP_FALLBACK = False
+        try:
+            with patch.object(backend_app_module, "yt_dlp") as yt_dlp:
+                transcript = backend_app_module.fetch_youtube_subtitle_transcript(
+                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                )
+
+            self.assertEqual(transcript, "")
+            yt_dlp.YoutubeDL.assert_not_called()
+        finally:
+            if previous_value is None:
+                delattr(backend_app_module, "ENABLE_YOUTUBE_YTDLP_FALLBACK")
+            else:
+                backend_app_module.ENABLE_YOUTUBE_YTDLP_FALLBACK = previous_value
 
 
 class SourceStrictNotesTests(unittest.TestCase):

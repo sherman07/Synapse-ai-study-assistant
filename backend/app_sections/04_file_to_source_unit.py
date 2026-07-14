@@ -188,6 +188,9 @@ def youtube_source_key(url: str) -> Optional[str]:
 
 def expand_embedded_youtube_sources(text: str, parent_meta: dict, seen_youtube_sources: set) -> Tuple[List[dict], List[dict], List[str]]:
     """Turn YouTube URLs found inside an uploaded file's extracted text into real source units."""
+    if not ENABLE_EMBEDDED_YOUTUBE_SOURCES:
+        return [], [], []
+
     embedded_parts: List[dict] = []
     embedded_units: List[dict] = []
     embedded_titles: List[str] = []

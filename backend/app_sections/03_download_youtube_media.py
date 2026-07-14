@@ -1,5 +1,5 @@
 def download_youtube_media(url: str) -> Optional[str]:
-    if yt_dlp is None:
+    if not ENABLE_YOUTUBE_YTDLP_FALLBACK or yt_dlp is None:
         return None
     temp_dir = tempfile.mkdtemp(prefix="synapse_yt_")
     output_template = os.path.join(temp_dir, "%(id)s.%(ext)s")

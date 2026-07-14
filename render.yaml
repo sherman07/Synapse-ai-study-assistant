@@ -36,6 +36,10 @@ services:
         value: "false"
       - key: ENABLE_PDF_VISUAL_EXTRACTION
         value: "false"
+      - key: ENABLE_EMBEDDED_YOUTUBE_SOURCES
+        value: "false"
+      - key: ENABLE_YOUTUBE_YTDLP_FALLBACK
+        value: "false"
       - key: MAX_UPLOAD_BYTES
         value: "104857600"
       - key: MAX_SOURCE_CHARS
