@@ -1,5 +1,6 @@
 const MEMORY_ENGINE_STORAGE_KEY = "synapse.memory.engine.v1";
 const MEMORY_ENGINE_LEGACY_KEY = "synapse.mastery.graph.progress.v1";
+const MEMORY_ACTIVITY_LIMIT = 300;
 let activeMemoryFilter = "due";
 
 function clampMemoryPercent(value) {
@@ -62,6 +63,138 @@ function setMemoryEngineNoteRecord(record) {
     updatedAt: new Date().toISOString()
   };
   setMemoryEngineStore(store);
+}
+
+function deleteMemoryEngineNote(historyId = "", sourceFingerprint = "") {
+  const store = getMemoryEngineStore();
+  [historyId, sourceFingerprint].map(value => String(value || "").trim()).filter(Boolean).forEach(key => {
+    delete store[key];
+  });
+  setMemoryEngineStore(store);
+}
+
+const STUDY_ACTIVITY_LABELS = {
+  notes_opened: "Opened generated notes",
+  tool_opened: "Opened study tool",
+  section_opened: "Opened note section",
+  notes_ready: "Generated notes ready",
+  notes_translated: "Translated generated notes",
+  notes_exported: "Exported generated notes",
+  source_opened: "Opened source evidence",
+  mindmap_point_opened: "Opened mind map detail",
+  broadcast_generation_started: "Started AI Broadcast generation",
+  study_path_generated: "Generated Study Path",
+  study_path_task_opened: "Opened Study Path task",
+  study_path_answered: "Answered Study Path question",
+  study_path_task_completed: "Completed Study Path task",
+  study_path_task_reopened: "Reopened Study Path task",
+  quiz_generated: "Generated quiz",
+  quiz_answered: "Answered quiz question",
+  quiz_answer_revealed: "Revealed quiz answer",
+  quiz_submitted: "Submitted quiz",
+  flashcards_generated: "Generated flashcards",
+  flashcard_opened: "Opened flashcard",
+  flashcard_flipped: "Flipped flashcard",
+  flashcard_activity_started: "Started flashcard activity",
+  flashcard_match_completed: "Completed flashcard match",
+  visual_guide_generated: "Generated Image Guide",
+  visual_guide_opened: "Opened Image Guide panel",
+  broadcast_generated: "Generated AI Broadcast",
+  broadcast_opened: "Opened AI Broadcast",
+  broadcast_started: "Started AI Broadcast",
+  broadcast_completed: "Completed AI Broadcast",
+  tutor_started: "Started Voice Tutor",
+  tutor_message: "Asked Voice Tutor",
+  memory_reviewed: "Marked topic reviewed",
+  recall_checked: "Checked recall answer",
+  review_scheduled: "Scheduled spaced review"
+};
+
+function getStudyActivityLabel(kind, fallback = "Study action") {
+  return STUDY_ACTIVITY_LABELS[kind] || fallback;
+}
+
+function cleanStudyActivityMetadata(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).slice(0, 8).map(([key, item]) => {
+    if (typeof item === "number" || typeof item === "boolean") return [key, item];
+    return [key, String(item || "").slice(0, 180)];
+  }));
+}
+
+function recordStudyActivity(kind, details = {}) {
+  const cleanKind = String(kind || "").trim().slice(0, 80);
+  const key = getMemoryEngineNoteKey();
+  if (!cleanKind || !key) return null;
+  const record = getMemoryEngineNoteRecord();
+  const activities = Array.isArray(record.activities) ? record.activities : [];
+  const now = new Date().toISOString();
+  const sectionTitle = String(details.sectionTitle || details.section || "").trim().slice(0, 180);
+  const tool = String(details.tool || activeTool || "workspace").trim().slice(0, 40);
+  const last = activities[0];
+  const lastTime = last?.at ? Date.parse(last.at) : 0;
+  const nowTime = Date.parse(now);
+  if (last && last.kind === cleanKind && last.sectionTitle === sectionTitle && nowTime - lastTime < 900) {
+    return last;
+  }
+  const activity = {
+    id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    kind: cleanKind,
+    label: String(details.label || getStudyActivityLabel(cleanKind)).trim().slice(0, 180),
+    tool,
+    sectionTitle,
+    status: String(details.status || "completed").trim().slice(0, 40),
+    at: now,
+    metadata: cleanStudyActivityMetadata(details.metadata)
+  };
+  record.activities = [activity, ...activities].slice(0, MEMORY_ACTIVITY_LIMIT);
+  setMemoryEngineNoteRecord(record);
+  return activity;
+}
+
+function getStudyActivityList(limit = MEMORY_ACTIVITY_LIMIT) {
+  const record = getMemoryEngineNoteRecord();
+  return (Array.isArray(record.activities) ? record.activities : [])
+    .filter(item => item && typeof item === "object" && item.kind && item.at)
+    .slice(0, Math.max(1, Number(limit) || MEMORY_ACTIVITY_LIMIT));
+}
+
+function formatStudyActivityTime(value) {
+  const time = Date.parse(value || "");
+  if (!Number.isFinite(time)) return "recently";
+  const delta = Math.max(0, Date.now() - time);
+  if (delta < 60_000) return "just now";
+  if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`;
+  if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`;
+  return new Date(time).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function getStudyActivitySummary() {
+  const activities = getStudyActivityList();
+  const byTool = activities.reduce((counts, activity) => {
+    const tool = activity.tool || "workspace";
+    counts[tool] = (counts[tool] || 0) + 1;
+    return counts;
+  }, {});
+  const completedKinds = new Set([
+    "study_path_task_completed",
+    "quiz_submitted",
+    "recall_checked",
+    "flashcard_match_completed",
+    "broadcast_generated",
+    "visual_guide_generated",
+    "flashcards_generated",
+    "quiz_generated",
+    "study_path_generated"
+  ]);
+  return {
+    total: activities.length,
+    completedTasks: activities.filter(activity => completedKinds.has(activity.kind)).length,
+    toolsUsed: Object.keys(byTool).length,
+    byTool,
+    lastAt: activities[0]?.at || "",
+    recent: activities.slice(0, 8)
+  };
 }
 
 function addDays(date, days) {
@@ -335,6 +468,12 @@ function scheduleMemoryReview(title, grade, score = null) {
   }
   next.reps = card.reps + 1;
   setMemoryCardRecord(title, next);
+  recordStudyActivity("review_scheduled", {
+    tool: "masterygraph",
+    sectionTitle: title,
+    label: `${normalizedGrade === "again" ? "Repair" : "Scheduled"} review for ${title}`,
+    metadata: { grade: normalizedGrade, score: next.lastScore, intervalDays: next.intervalDays }
+  });
   renderMasteryGraphPanel();
 }
 
@@ -352,6 +491,12 @@ function checkMemoryRecallAnswer(sectionTitle) {
     status: feedback.score >= 70 ? "checked" : "missed",
     attempts: getMemoryCardRecord(sectionTitle).attempts + 1
   });
+  recordStudyActivity("recall_checked", {
+    tool: "masterygraph",
+    sectionTitle,
+    label: `Checked recall for ${sectionTitle}`,
+    metadata: { score: feedback.score, grade: feedback.grade, answerLength: answer.trim().length }
+  });
   renderMasteryGraphPanel();
 }
 
@@ -364,6 +509,7 @@ function recordMasterySectionOpen(sectionTitle) {
 function markMasteryGraphSectionReviewed(sectionTitle) {
   if (!sectionTitle || !sections[sectionTitle]) return;
   incrementMemoryCard(sectionTitle, "reviewed", 1, 5);
+  recordStudyActivity("memory_reviewed", { tool: "masterygraph", sectionTitle });
   scheduleMemoryReview(sectionTitle, "good", Math.max(70, getMemoryCardRecord(sectionTitle).lastScore || 70));
 }
 
@@ -513,6 +659,7 @@ function getExamReadinessState(cards = buildMemoryCards()) {
   const average = cards.length ? clampMemoryPercent(cards.reduce((sum, card) => sum + card.score, 0) / cards.length) : 0;
   const quiz = getQuizMemoryProgress();
   const timeline = getTimelineMemoryProgress();
+  const activity = getStudyActivitySummary();
   let nextAction = "Generate notes, then Synapse will diagnose your exam readiness.";
   if (missedCards.length) {
     nextAction = `Repair "${missedCards[0].title}" first. It is your highest-friction missed concept.`;
@@ -534,8 +681,43 @@ function getExamReadinessState(cards = buildMemoryCards()) {
     weakCards,
     nextAction,
     quiz,
-    timeline
+    timeline,
+    activity
   };
+}
+
+function renderStudyActivityLedger(activity = getStudyActivitySummary()) {
+  const recent = activity.recent.length
+    ? activity.recent.map(item => `
+      <li class="study-activity-item">
+        <span class="study-activity-icon" aria-hidden="true"><i class="bi ${escapeAttr(item.kind.includes("quiz") ? "bi-patch-question" : item.kind.includes("broadcast") ? "bi-broadcast" : item.kind.includes("flashcard") ? "bi-card-text" : item.kind.includes("path") ? "bi-signpost-split" : item.kind.includes("tutor") ? "bi-mic" : "bi-check2-circle")}"></i></span>
+        <span class="study-activity-copy">
+          <strong>${escapeHTML(item.label || getStudyActivityLabel(item.kind))}</strong>
+          <small>${escapeHTML(item.sectionTitle || item.tool || "Study workspace")} · ${escapeHTML(formatStudyActivityTime(item.at))}</small>
+        </span>
+        <span class="study-activity-status ${item.status === "error" ? "is-error" : ""}">${escapeHTML(item.status || "done")}</span>
+      </li>
+    `).join("")
+    : `<li class="study-activity-empty"><i class="bi bi-activity"></i><span>Your study actions will appear here as you work through this material.</span></li>`;
+  return `
+    <section class="study-activity-panel" aria-labelledby="studyActivityHeading">
+      <div class="study-activity-head">
+        <div>
+          <h5 id="studyActivityHeading">Study activity</h5>
+          <p>Detailed progress for this note, saved on this device.</p>
+        </div>
+        <div class="study-activity-summary" aria-label="Study activity totals">
+          <strong>${activity.total}</strong><span>actions tracked</span>
+        </div>
+      </div>
+      <div class="study-activity-metrics">
+        <span><strong>${activity.completedTasks}</strong> completed tasks</span>
+        <span><strong>${activity.toolsUsed}</strong> tools used</span>
+        <span>Last active <strong>${escapeHTML(formatStudyActivityTime(activity.lastAt))}</strong></span>
+      </div>
+      <ol class="study-activity-list">${recent}</ol>
+    </section>
+  `;
 }
 
 function renderExamReadinessSummary(cards = buildMemoryCards()) {
@@ -558,6 +740,7 @@ function renderExamReadinessSummary(cards = buildMemoryCards()) {
           <span>${state.missedCount} missed concept${state.missedCount === 1 ? "" : "s"}</span>
           <span>${state.quiz.label}</span>
           <span>${state.timeline.done}/${state.timeline.total || 0} path tasks</span>
+          <span>${state.activity.completedTasks} completed task${state.activity.completedTasks === 1 ? "" : "s"}</span>
         </div>
         <div class="readiness-weak-topics">
           <strong>Weak topics</strong>
@@ -630,6 +813,8 @@ function renderMasteryGraphPanel() {
         ${renderMemoryStat("Study Path", `${timeline.done}/${timeline.total || 0}`, "bi-signpost-split")}
         ${renderMemoryStat("Quiz", quiz.label, "bi-patch-question")}
       </div>
+
+      ${renderStudyActivityLedger()}
 
       <div class="memory-filter-row" role="tablist" aria-label="Memory review filters">
         <button class="${activeMemoryFilter === "due" ? "active" : ""}" type="button" onclick="setMemoryFilter('due')">Today</button>

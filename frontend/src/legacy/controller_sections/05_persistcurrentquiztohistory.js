@@ -466,6 +466,11 @@ async function generateQuiz() {
     currentQuiz = normalizeClientQuiz(data);
     activeQuizQuestionIndex = 0;
     persistCurrentQuizToHistory({ isNew: true });
+    if (typeof recordStudyActivity === "function") recordStudyActivity("quiz_generated", {
+      tool: "quiz",
+      label: `Generated quiz with ${currentQuiz.questions.length} questions`,
+      metadata: { questionCount: currentQuiz.questions.length, examMode: currentQuiz.examMode }
+    });
   } catch (error) {
     console.error(error);
     quizError = error.message || "Quiz generation failed.";
@@ -615,7 +620,8 @@ function renderQuizAnswerInput(question) {
   return `
     <textarea class="form-control" rows="${question.type === "essay" ? 6 : 4}"
       placeholder="Type your answer here..."
-      oninput="updateQuizAnswer('${escapeAttr(question.id)}', this.value)">${escapeHTML(quizAnswers[question.id] || "")}</textarea>
+      oninput="updateQuizAnswer('${escapeAttr(question.id)}', this.value)"
+      onblur="recordQuizAnswerActivity('${escapeAttr(question.id)}')">${escapeHTML(quizAnswers[question.id] || "")}</textarea>
   `;
 }
 
@@ -646,6 +652,18 @@ function updateQuizAnswer(questionId, value, shouldRender = false) {
   if (shouldRender) renderQuizPanel();
 }
 
+function recordQuizAnswerActivity(questionId) {
+  const question = currentQuiz?.questions?.find(item => String(item.id) === String(questionId));
+  const answer = quizAnswers[questionId];
+  if (!question || !isQuizAnswered(question) || typeof recordStudyActivity !== "function") return;
+  recordStudyActivity("quiz_answered", {
+    tool: "quiz",
+    sectionTitle: question.sourceReference || question.question,
+    label: `Answered quiz question ${currentQuiz.questions.indexOf(question) + 1}`,
+    metadata: { answerLength: typeof answer === "string" ? answer.trim().length : 1 }
+  });
+}
+
 function updateQuizChoiceAnswer(questionId, optionIndex, inputType, checked) {
   if (inputType === "checkbox") {
     const current = Array.isArray(quizAnswers[questionId]) ? [...quizAnswers[questionId]] : [];
@@ -659,6 +677,11 @@ function updateQuizChoiceAnswer(questionId, optionIndex, inputType, checked) {
     quizAnswers[questionId] = optionIndex;
   }
   persistCurrentQuizToHistory();
+  if (typeof recordStudyActivity === "function") recordStudyActivity("quiz_answered", {
+    tool: "quiz",
+    sectionTitle: currentQuiz?.questions?.find(question => question.id === questionId)?.sourceReference || "",
+    label: `Answered quiz question ${currentQuiz?.questions?.findIndex(question => question.id === questionId) + 1}`
+  });
   recordMasteryGraphQuizProgress();
   renderQuizPanel();
   renderMasteryGraphPanel();
@@ -675,6 +698,11 @@ function isQuizAnswered(question) {
 function revealQuizAnswer(questionId) {
   quizRevealedAnswers.add(questionId);
   persistCurrentQuizToHistory();
+  if (typeof recordStudyActivity === "function") recordStudyActivity("quiz_answer_revealed", {
+    tool: "quiz",
+    sectionTitle: currentQuiz?.questions?.find(question => question.id === questionId)?.sourceReference || "",
+    label: `Revealed answer for quiz question ${(currentQuiz?.questions?.findIndex(question => question.id === questionId) ?? -1) + 1}`
+  });
   renderQuizPanel();
 }
 
@@ -708,6 +736,11 @@ function submitQuiz() {
     currentQuiz.questions.forEach(question => quizRevealedAnswers.add(question.id));
   }
   persistCurrentQuizToHistory();
+  if (typeof recordStudyActivity === "function") recordStudyActivity("quiz_submitted", {
+    tool: "quiz",
+    label: "Submitted quiz and generated report",
+    metadata: { objectivePercent: quizReport.objectivePercent, unanswered: quizReport.unanswered.length }
+  });
   renderQuizPanel();
 }
 

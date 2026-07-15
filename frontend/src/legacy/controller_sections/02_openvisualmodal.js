@@ -164,6 +164,9 @@ function renderSectionNotes(title, options = {}) {
   if (options.countMasteryOpen !== false && typeof recordMasterySectionOpen === "function") {
     recordMasterySectionOpen(title);
   }
+  if (typeof recordStudyActivity === "function") {
+    recordStudyActivity("section_opened", { tool: "notes", sectionTitle: title });
+  }
   renderNotesMarkdown(sections[title], `No notes were generated for ${title}.`);
 }
 
@@ -317,6 +320,10 @@ function downloadNotesPDF() {
   printWindow.document.open();
   printWindow.document.write(buildPrintableNotesHTML());
   printWindow.document.close();
+  if (typeof recordStudyActivity === "function") recordStudyActivity("notes_exported", {
+    tool: "notes",
+    label: "Exported notes as PDF"
+  });
 }
 
 async function translateCurrentNotes(targetLanguage) {
@@ -381,6 +388,11 @@ async function translateCurrentNotes(targetLanguage) {
       await saveVisualGalleryAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint, visualGalleryData);
       await saveSourceAssets(savedEntry.id, savedEntry.sourceFingerprint || currentSourceFingerprint, sourceViewerItems);
     }
+    if (typeof recordStudyActivity === "function") recordStudyActivity("notes_translated", {
+      tool: "notes",
+      label: `Translated notes to ${language}`,
+      metadata: { language }
+    });
   } catch (error) {
     console.error(error);
     alert(`Could not translate notes to ${previousLabel}: ${error.message}`);
@@ -410,6 +422,18 @@ function switchTool(toolName, clickedBtn = null) {
   if (typeof persistStudyToolMemory === "function") persistStudyToolMemory();
   activeTool = toolName;
   if (typeof rememberActiveStudyTool === "function") rememberActiveStudyTool(toolName);
+  if (typeof recordStudyActivity === "function") {
+    const labels = {
+      masterygraph: "Exam Readiness",
+      visualguide: "Image Guide",
+      broadcast: "AI Broadcast",
+      timeline: "Study Path",
+      flashcards: "Flashcards",
+      quiz: "Quiz",
+      mindmap: "Mind Map"
+    };
+    recordStudyActivity("tool_opened", { tool: toolName, label: `Opened ${labels[toolName] || "Study Tool"}` });
+  }
   document.querySelectorAll(".tool-panel").forEach(panel => panel.classList.remove("active"));
   document.querySelectorAll(".tool-switch-btn").forEach(button => {
     if (!button.disabled) button.classList.remove("active");

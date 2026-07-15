@@ -85,6 +85,11 @@ function sendRealtimeTextMessage(text) {
   });
   if (sent) {
     addVoiceTutorMessage("user", value);
+    if (typeof recordStudyActivity === "function") recordStudyActivity("tutor_message", {
+      tool: "tutor",
+      label: "Asked Voice Tutor",
+      metadata: { messageLength: value.length }
+    });
     requestRealtimeTutorResponse(
       `The learner just said: "${value}". Respond as the live tutor for the locked current topic. If this means they do not know the answer, begin teaching the locked topic directly instead of asking what subject they are studying. Keep it conversational and ask one next question.`
     );
@@ -284,6 +289,10 @@ async function startRealtimeVoiceTutor() {
 
   setVoiceTutorBusy(true);
   voiceRealtimeConnecting = true;
+  if (typeof recordStudyActivity === "function") recordStudyActivity("tutor_started", {
+    tool: "tutor",
+    label: "Started Voice Tutor"
+  });
   updateVoiceTutorStatus(voiceTutorLastState);
   try {
     voiceRealtimePeer = new RTCPeerConnection();

@@ -49,6 +49,11 @@ async function generateVisualGuide(force = false) {
     }
     currentVisualGuide = normalizeVisualImageGuide(data);
     persistVisualGuideForCurrentNote();
+    if (typeof recordStudyActivity === "function") recordStudyActivity("visual_guide_generated", {
+      tool: "visualguide",
+      label: "Generated Image Guide",
+      metadata: { model: currentVisualGuide.model, panels: currentVisualGuide.blueprint?.panels?.length || 0 }
+    });
   } catch (error) {
     console.error(error);
     visualGuideError = error.message || "Visual image guide generation failed.";

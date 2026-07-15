@@ -1079,6 +1079,11 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     if (savedEntry && savedEntry.id) {
       currentHistoryId = savedEntry.id;
       safeSetLocalStorage(ACTIVE_HISTORY_KEY, savedEntry.id);
+      if (typeof recordStudyActivity === "function") recordStudyActivity("notes_ready", {
+        tool: "notes",
+        label: `Generated notes with ${Object.keys(sections || {}).length} sections`,
+        metadata: { sectionCount: Object.keys(sections || {}).length, cached: Boolean(data.cached) }
+      });
       upsertGenerationJob({
         jobId,
         status: "completed",

@@ -3,11 +3,21 @@ const SOURCE_PREVIEW_TIMEOUT_MS = Number(window.SYNAPSE_SOURCE_PREVIEW_TIMEOUT_M
 function toggleSourceViewer(force = null) {
   const desired = typeof force === "boolean" ? force : !sourceViewerOpen;
   sourceViewerOpen = desired;
+  if (desired && typeof recordStudyActivity === "function") recordStudyActivity("source_opened", {
+    tool: "notes",
+    label: "Opened source viewer"
+  });
   renderSourceViewer();
 }
 
 function selectSourceItem(id) {
   activeSourceItemId = id;
+  const item = sourceViewerItems.find(entry => entry.id === id);
+  if (item && typeof recordStudyActivity === "function") recordStudyActivity("source_opened", {
+    tool: "notes",
+    sectionTitle: item.name || item.title || item.kind,
+    label: `Opened source: ${item.name || item.title || item.kind || "source"}`
+  });
   renderSourceViewer();
 }
 
@@ -810,6 +820,9 @@ async function deleteHistoryEntry(event, id) {
   if (typeof deleteStudyToolMemory === "function") {
     deleteStudyToolMemory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   }
+  if (typeof deleteMemoryEngineNote === "function") {
+    deleteMemoryEngineNote(id, target?.sourceFingerprint || target?.clientFingerprint || "");
+  }
   renderHistory(historySearch ? historySearch.value : "");
   if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
@@ -828,6 +841,10 @@ async function loadHistoryEntry(id, options = {}) {
   connectionsData = item.connections || [];
   currentSourceFingerprint = item.sourceFingerprint || item.clientFingerprint || "";
   currentHistoryId = item.id;
+  if (typeof recordStudyActivity === "function") recordStudyActivity("notes_opened", {
+    tool: "notes",
+    label: `Opened ${storedTitle}`
+  });
   currentPrimarySourceIdentity = item.primarySourceIdentity || item.primary_source_identity || item.source_identity || "";
   currentPromptMode = item.promptMode || item.prompt_mode || "professor_mode";
   currentPromptModeLabel = item.promptModeLabel || item.prompt_mode_label || "";

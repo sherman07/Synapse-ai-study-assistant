@@ -411,6 +411,12 @@ async function checkStudyPathAnswer(eventId) {
         status: "correct",
         feedback: data.feedback || "Correct. You can mark this task done."
       }, true);
+      if (typeof recordStudyActivity === "function") recordStudyActivity("study_path_answered", {
+        tool: "timeline",
+        sectionTitle: event.section || event.title,
+        label: `Passed Study Path question: ${event.title}`,
+        metadata: { status: "correct" }
+      });
       recordMasteryGraphPathProgress(event.section || event.title || eventId);
       return;
     }
@@ -427,6 +433,13 @@ async function checkStudyPathAnswer(eventId) {
       status: "retry",
       feedback: data.feedback || "Not quite. A new question has been loaded for another try."
     }, true);
+    if (typeof recordStudyActivity === "function") recordStudyActivity("study_path_answered", {
+      tool: "timeline",
+      sectionTitle: event.section || event.title,
+      label: `Retried Study Path question: ${event.title}`,
+      status: "retry",
+      metadata: { status: "retry" }
+    });
   } catch (error) {
     console.error(error);
     setTimelinePracticeState(eventId, {
@@ -453,6 +466,11 @@ function toggleTimelineComplete(eventId) {
   if (!id) return;
   if (timelineCompletedIds.has(id)) {
     timelineCompletedIds.delete(id);
+    if (typeof recordStudyActivity === "function") recordStudyActivity("study_path_task_reopened", {
+      tool: "timeline",
+      sectionTitle: getTimelineEventById(id)?.section || getTimelineEventById(id)?.title || id,
+      label: `Reopened Study Path task: ${getTimelineEventById(id)?.title || id}`
+    });
   } else {
     const answerState = getTimelinePracticeState(id);
     if (answerState.status !== "correct") {
@@ -464,6 +482,11 @@ function toggleTimelineComplete(eventId) {
     }
     timelineCompletedIds.add(id);
     const targetEvent = getTimelineEventById(id);
+    if (typeof recordStudyActivity === "function") recordStudyActivity("study_path_task_completed", {
+      tool: "timeline",
+      sectionTitle: targetEvent?.section || targetEvent?.title || id,
+      label: `Completed Study Path task: ${targetEvent?.title || id}`
+    });
     recordMasteryGraphPathProgress(targetEvent?.section || targetEvent?.title || id);
   }
   persistTimelineForCurrentNote();
@@ -509,6 +532,11 @@ async function generateTimeline(force = false) {
     activeTimelineFilter = "all";
     activeTimelineIndex = 0;
     persistTimelineForCurrentNote();
+    if (typeof recordStudyActivity === "function") recordStudyActivity("study_path_generated", {
+      tool: "timeline",
+      label: `Generated Study Path with ${currentTimeline.events.length} tasks`,
+      metadata: { taskCount: currentTimeline.events.length }
+    });
   } catch (error) {
     console.error(error);
     timelineError = error.message || "Study path generation failed.";
@@ -527,12 +555,22 @@ function getActiveTimelineEvent() {
 function openTimelineEventNotes() {
   const event = getActiveTimelineEvent();
   if (!event) return;
+  if (typeof recordStudyActivity === "function") recordStudyActivity("study_path_task_opened", {
+    tool: "timeline",
+    sectionTitle: event.section || event.title,
+    label: `Opened Study Path task: ${event.title}`
+  });
   activateSectionFromMap(event.section || event.title);
 }
 
 function askTimelineEventTutor() {
   const event = getActiveTimelineEvent();
   if (!event) return;
+  if (typeof recordStudyActivity === "function") recordStudyActivity("tutor_message", {
+    tool: "timeline",
+    sectionTitle: event.section || event.title,
+    label: `Asked Tutor about: ${event.title}`
+  });
   const practicePrompt = event.practiceQuestion?.prompt
     ? `Help me answer this ${getStudyPathQuestionTypeMeta(event.practiceQuestion.type).label.toLowerCase()} study-path question from "${event.title}": ${event.practiceQuestion.prompt}`
     : "";

@@ -309,6 +309,10 @@ function flashcardMatchStatusForPair(pair, state = ensureFlashcardMatchingState(
 function setFlashcardActivityMode(mode) {
   flashcardActivityMode = mode === "matching" ? "matching" : "cards";
   if (flashcardActivityMode === "matching") ensureFlashcardMatchingState();
+  if (typeof recordStudyActivity === "function") recordStudyActivity("flashcard_activity_started", {
+    tool: "flashcards",
+    label: `Started ${flashcardActivityMode === "matching" ? "matching" : "flashcard review"} activity`
+  });
   renderFlashcardPanel();
 }
 
@@ -364,6 +368,11 @@ function validateFlashcardMatches() {
   const pairs = buildFlashcardMatchingPairs();
   state.validated = true;
   state.lastScore = flashcardMatchValidationSummary(pairs, state);
+  if (typeof recordStudyActivity === "function") recordStudyActivity("flashcard_match_completed", {
+    tool: "flashcards",
+    label: `Checked flashcard matching: ${state.lastScore.correct}/${state.lastScore.total} correct`,
+    metadata: { correct: state.lastScore.correct, total: state.lastScore.total }
+  });
   renderFlashcardPanel();
 }
 
@@ -586,6 +595,11 @@ async function generateFlashcards() {
     currentFlashcards = normalizeClientFlashcardDeck(data);
     if (!currentFlashcards.length) throw new Error("No usable flashcards were returned.");
     persistFlashcardsForCurrentNote();
+    if (typeof recordStudyActivity === "function") recordStudyActivity("flashcards_generated", {
+      tool: "flashcards",
+      label: `Generated ${currentFlashcards.length} flashcards`,
+      metadata: { cardCount: currentFlashcards.length }
+    });
   } catch (error) {
     console.error(error);
     flashcardError = error.message || "Flashcard generation failed.";
@@ -604,6 +618,11 @@ function regenerateFlashcards() {
 function flipFlashcard() {
   if (!currentFlashcards.length) return;
   flashcardSide = flashcardSide === "front" ? "back" : "front";
+  if (typeof recordStudyActivity === "function") recordStudyActivity("flashcard_flipped", {
+    tool: "flashcards",
+    sectionTitle: currentFlashcards[activeFlashcardIndex]?.sourceReference || currentFlashcards[activeFlashcardIndex]?.front || "",
+    label: `Flipped flashcard ${activeFlashcardIndex + 1}`
+  });
   renderFlashcardPanel();
 }
 
@@ -611,6 +630,11 @@ function setActiveFlashcard(index) {
   if (!currentFlashcards.length) return;
   activeFlashcardIndex = Math.max(0, Math.min(index, currentFlashcards.length - 1));
   flashcardSide = "front";
+  if (typeof recordStudyActivity === "function") recordStudyActivity("flashcard_opened", {
+    tool: "flashcards",
+    sectionTitle: currentFlashcards[activeFlashcardIndex]?.sourceReference || currentFlashcards[activeFlashcardIndex]?.front || "",
+    label: `Opened flashcard ${activeFlashcardIndex + 1}`
+  });
   renderFlashcardPanel();
 }
 
@@ -1163,6 +1187,11 @@ function selectMindPoint(branchIndex, pointIndex, event) {
   activeMindChildIndex = -1;
   mindDetailPopupOpen = true;
   updateMindDetailPopupPosition(event);
+  if (typeof recordStudyActivity === "function") recordStudyActivity("mindmap_point_opened", {
+    tool: "mindmap",
+    sectionTitle: branch?.section || branch?.label || "",
+    label: `Opened mind map point: ${branch?.points?.[pointIndex]?.label || branch?.label || "point"}`
+  });
   renderMindMap(currentMindMap);
 }
 
@@ -1175,6 +1204,11 @@ function selectMindChild(branchIndex, pointIndex, childIndex, event) {
   activeMindChildIndex = childIndex;
   mindDetailPopupOpen = true;
   updateMindDetailPopupPosition(event);
+  if (typeof recordStudyActivity === "function") recordStudyActivity("mindmap_point_opened", {
+    tool: "mindmap",
+    sectionTitle: branch?.section || branch?.label || "",
+    label: `Opened mind map detail: ${branch?.points?.[pointIndex]?.children?.[childIndex]?.label || "detail"}`
+  });
   renderMindMap(currentMindMap);
 }
 

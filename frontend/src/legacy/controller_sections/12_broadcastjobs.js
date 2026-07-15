@@ -465,6 +465,11 @@ async function generateBroadcastFromSetup() {
   });
   activeBroadcastJobId = job.id;
   safeSetLocalStorage(BROADCAST_ACTIVE_JOB_KEY, job.id);
+  if (typeof recordStudyActivity === "function") recordStudyActivity("broadcast_generation_started", {
+    tool: "broadcast",
+    label: "Started AI Broadcast generation",
+    metadata: { lengthMinutes: setup.lengthMinutes, style: setup.style, depth: setup.depth }
+  });
   openBroadcastJob(job.id);
   if (typeof createBroadcastJobInDataApi === "function") {
     createBroadcastJobInDataApi(job).then(remote => {
@@ -518,6 +523,11 @@ async function completeBroadcastJob(job) {
     progressMessage: "Broadcast ready. Play uses the OpenAI Realtime speaker.",
     ...studioPackage,
     completedAt: new Date().toISOString()
+  });
+  if (typeof recordStudyActivity === "function") recordStudyActivity("broadcast_generated", {
+    tool: "broadcast",
+    label: "AI Broadcast ready to play",
+    metadata: { transcriptLines: studioPackage.transcript?.length || 0, model: job.realtimeModel || BROADCAST_REALTIME_MODEL }
   });
   if (typeof patchBroadcastJobInDataApi === "function") {
     patchBroadcastJobInDataApi(job.id, {
@@ -729,6 +739,10 @@ function openBroadcastJob(jobId) {
   if (!job) return;
   activeBroadcastJobId = job.id;
   safeSetLocalStorage(BROADCAST_ACTIVE_JOB_KEY, job.id);
+  if (typeof recordStudyActivity === "function") recordStudyActivity("broadcast_opened", {
+    tool: "broadcast",
+    label: `Opened broadcast: ${job.broadcastTitle || job.title}`
+  });
   closeMobileNavIfOpen();
   if (typeof switchTool === "function") switchTool("broadcast", document.getElementById("toolBtnBroadcast"));
   renderBroadcastJobProgress(job.id);
@@ -916,6 +930,10 @@ async function toggleBroadcastPlayback(jobId) {
     timer: null,
     utterance: null
   };
+  if (typeof recordStudyActivity === "function") recordStudyActivity("broadcast_started", {
+    tool: "broadcast",
+    label: `Started broadcast: ${job.broadcastTitle || job.title}`
+  });
   updateBroadcastPlaybackUI(job, 0, true);
   try {
     await playBroadcastRealtime(job, 0);
@@ -1286,6 +1304,10 @@ function stopBroadcastPlayback({ ended = false, render = true } = {}) {
   }
   closeBroadcastRealtimeTransport();
   const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+  if (ended && job && typeof recordStudyActivity === "function") recordStudyActivity("broadcast_completed", {
+    tool: "broadcast",
+    label: `Completed broadcast: ${job.broadcastTitle || job.title}`
+  });
   activeBroadcastPlayback = {
     audio: null,
     channel: null,
