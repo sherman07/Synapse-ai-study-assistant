@@ -216,6 +216,8 @@ assert.ok(broadcastController.includes("data-broadcast-line-index"), "transcript
 assert.ok(broadcastController.includes("activeBroadcastPlayback.lastRenderedSeconds"), "the visible playback clock should remain monotonic");
 assert.ok(broadcastController.includes("const seconds = getBroadcastPlaybackElapsedSeconds(job)"), "pause and rate changes should capture the current runtime position");
 assert.ok(broadcastController.includes("const sectionIndex = broadcastPlaybackSectionIndex(job, seconds)"), "resume should resolve the chapter before transport teardown");
+assert.ok(broadcastController.includes("const endedSeconds = ended ? getBroadcastPlaybackElapsedSeconds(job) : 0"), "completion should render the measured final position");
+assert.ok(broadcastController.includes("updateBroadcastPlaybackUI(job, ended ? endedSeconds : 0"), "completion must not jump back to the static estimate");
 assert.ok(broadcastController.includes("peer.__synapseDisconnectTimer"), "transient WebRTC disconnects should have a recovery window");
 assert.ok(!broadcastController.includes('["failed", "closed", "disconnected"].includes(state)'), "transient disconnects must not immediately stop playback");
 assert.ok(!broadcastController.includes("setBroadcastJobs([nextJob]);"), "creating a new broadcast must preserve prior broadcast history");

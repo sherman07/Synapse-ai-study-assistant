@@ -1371,12 +1371,13 @@ function seekBroadcastSection(jobId, seconds = 0, requestedSectionIndex = null) 
 }
 
 function stopBroadcastPlayback({ ended = false, render = true } = {}) {
+  const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+  const endedSeconds = ended ? getBroadcastPlaybackElapsedSeconds(job) : 0;
   if (activeBroadcastPlayback.audio) {
     activeBroadcastPlayback.audio.pause();
     activeBroadcastPlayback.audio.removeAttribute?.("src");
   }
   closeBroadcastRealtimeTransport();
-  const job = getBroadcastJob(activeBroadcastPlayback.jobId);
   if (ended && job && typeof recordStudyActivity === "function") recordStudyActivity("broadcast_completed", {
     tool: "broadcast",
     label: `Completed broadcast: ${job.broadcastTitle || job.title}`
@@ -1402,7 +1403,7 @@ function stopBroadcastPlayback({ ended = false, render = true } = {}) {
     timer: null,
     utterance: null
   };
-  if (render && job) updateBroadcastPlaybackUI(job, ended ? broadcastDuration(job) : 0, false, false);
+  if (render && job) updateBroadcastPlaybackUI(job, ended ? endedSeconds : 0, false, false);
 }
 
 function updateBroadcastPlaybackUI(job, seconds = 0, isPlaying = false, isPaused = false) {
