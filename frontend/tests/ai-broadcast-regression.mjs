@@ -203,6 +203,8 @@ assert.ok(!/response:\s*\{[\s\S]*?\n\s*modalities:\s*\["audio"\]/.test(broadcast
 assert.ok(broadcastController.includes("broadcastScript"), "Realtime playback should carry the generated broadcast script");
 assert.ok(!broadcastController.includes('event.type === "response.done" || event.type === "response.audio.done"'), "audio.done must not end the whole broadcast");
 assert.ok(broadcastController.includes('event.type === "response.done"'), "the full response completion event should advance or end playback");
+assert.ok(broadcastController.includes("peer.__synapseDisconnectTimer"), "transient WebRTC disconnects should have a recovery window");
+assert.ok(!broadcastController.includes('["failed", "closed", "disconnected"].includes(state)'), "transient disconnects must not immediately stop playback");
 assert.ok(!broadcastController.includes("setBroadcastJobs([nextJob]);"), "creating a new broadcast must preserve prior broadcast history");
 assert.ok(!broadcastController.includes("nextJobs.slice(0, 1)"), "boot recovery must preserve the broadcast history limit");
 

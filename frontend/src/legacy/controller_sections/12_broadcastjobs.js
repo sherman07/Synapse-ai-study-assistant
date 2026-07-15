@@ -1097,7 +1097,31 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
   };
   peer.onconnectionstatechange = () => {
     const state = peer.connectionState || "";
-    if (["failed", "closed", "disconnected"].includes(state) && activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) {
+    if (state === "connected") {
+      if (peer.__synapseDisconnectTimer) {
+        window.clearTimeout(peer.__synapseDisconnectTimer);
+        peer.__synapseDisconnectTimer = null;
+      }
+      return;
+    }
+    if (state === "disconnected") {
+      // Chrome can briefly report a disconnected ICE state while the
+      // Realtime response is completing. Do not turn that transient state
+      // into the old five-second broadcast stop; only stop if it remains
+      // disconnected after a recovery window.
+      if (peer.__synapseDisconnectTimer) window.clearTimeout(peer.__synapseDisconnectTimer);
+      peer.__synapseDisconnectTimer = window.setTimeout(() => {
+        if (
+          peer.connectionState === "disconnected" &&
+          activeBroadcastPlayback.jobId === job.id &&
+          !activeBroadcastPlayback.paused
+        ) {
+          stopBroadcastPlayback({ render: false });
+        }
+      }, 15000);
+      return;
+    }
+    if (["failed", "closed"].includes(state) && activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) {
       stopBroadcastPlayback({ render: false });
     }
   };
