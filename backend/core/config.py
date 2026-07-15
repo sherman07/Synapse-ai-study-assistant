@@ -317,8 +317,18 @@ def active_text_provider() -> str:
     return normalise_text_provider(REQUEST_AI_TEXT_PROVIDER.get() or AI_TEXT_PROVIDER)
 
 
+def gemini_request_is_configured() -> bool:
+    """Return whether this deployment can actually serve a Gemini request."""
+    if GEMINI_AUTH_MODE == "api_key":
+        return bool(GEMINI_API_KEY and gemini_client)
+    return bool(GEMINI_PROJECT_ID and google_auth_default and GoogleAuthRequest)
+
+
 def set_request_text_provider(provider: str):
-    return REQUEST_AI_TEXT_PROVIDER.set(normalise_text_provider(provider))
+    selected = normalise_text_provider(provider)
+    if selected == "gemini" and not gemini_request_is_configured() and has_openai():
+        selected = "openai"
+    return REQUEST_AI_TEXT_PROVIDER.set(selected)
 
 
 def reset_request_text_provider(token) -> None:

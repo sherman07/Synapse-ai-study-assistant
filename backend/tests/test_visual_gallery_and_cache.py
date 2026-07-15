@@ -168,6 +168,24 @@ class ApiShapeTests(unittest.TestCase):
             self.assertEqual(core_config.model_for_depth("detailed"), "gemini-detailed")
             self.assertEqual(core_config.model_for_depth("comprehensive"), "gemini-comprehensive")
 
+    def test_unconfigured_gemini_request_falls_back_to_openai(self):
+        with (
+            patch.object(core_config, "AI_TEXT_PROVIDER", "openai"),
+            patch.object(core_config, "OPENAI_API_KEY", "test-openai-key"),
+            patch.object(core_config, "client", object()),
+            patch.object(core_config, "GEMINI_AUTH_MODE", "adc"),
+            patch.object(core_config, "GEMINI_PROJECT_ID", ""),
+        ):
+            token = core_config.set_request_text_provider("gemini")
+            try:
+                self.assertEqual(
+                    core_config.active_text_provider(),
+                    "openai",
+                    "an unavailable optional Gemini selection must not break analysis",
+                )
+            finally:
+                core_config.reset_request_text_provider(token)
+
     def test_generate_chat_uses_gemini_client_when_provider_is_gemini(self):
         class FakeCompletions:
             def __init__(self, content):

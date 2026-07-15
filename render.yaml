@@ -12,6 +12,8 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+      - key: AI_TEXT_PROVIDER
+        value: openai
       - key: SYNAPSE_PUBLIC_BACKEND_URL
         value: https://synapse-ai-backend-idnc.onrender.com
       - key: SYNAPSE_CORS_ALLOW_ORIGINS
