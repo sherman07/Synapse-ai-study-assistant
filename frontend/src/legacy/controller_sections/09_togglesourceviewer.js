@@ -807,6 +807,9 @@ async function deleteHistoryEntry(event, id) {
   deleteQuizHistory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   deleteFlashcardDeck(id, target?.sourceFingerprint || target?.clientFingerprint || "");
   deleteVoiceTutorHistory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
+  if (typeof deleteStudyToolMemory === "function") {
+    deleteStudyToolMemory(id, target?.sourceFingerprint || target?.clientFingerprint || "");
+  }
   renderHistory(historySearch ? historySearch.value : "");
   if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
@@ -849,13 +852,14 @@ async function loadHistoryEntry(id, options = {}) {
   loadQuizHistoryForCurrentNote();
   loadFlashcardsForCurrentNote();
   loadVoiceTutorHistoryForCurrentNote();
+  if (typeof restoreStudyToolMemory === "function") restoreStudyToolMemory();
   renderMasteryGraphPanel();
   activeMindBranchIndex = 0;
   activeMindPointIndex = 0;
   activeMindChildIndex = -1;
   mindDetailPopupOpen = false;
   collapsedMindBranches = new Set();
-  switchTool("mindmap");
+  switchTool(typeof getRememberedStudyTool === "function" ? getRememberedStudyTool() : "mindmap");
   renderMindMap(currentMindMap);
   renderVisualGallery();
   loadTutorChatHistoryForCurrentNote();

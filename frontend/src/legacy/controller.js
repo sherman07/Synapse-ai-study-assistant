@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v10";
+import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v11";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
@@ -13,7 +13,7 @@ import {
   patchBroadcastJobInDataApi,
   persistGeneratedContentToDataApi,
   retryBroadcastJobInDataApi
-} from "./dataApiClient.js?v=ai-broadcast-v10";
+} from "./dataApiClient.js?v=ai-broadcast-v11";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -58,10 +58,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=ai-broadcast-v10";
-import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v10";
+} from "./markdownRenderer.js?v=ai-broadcast-v11";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v11";
 
-const CONTROLLER_VERSION = "ai-broadcast-v10";
+const CONTROLLER_VERSION = "ai-broadcast-v11";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -76,6 +76,7 @@ const CONTROLLER_DEFINITION_FILES = [
   "10_focusroombridge.js",
   "11_generationjobs.js",
   "12_broadcastjobs.js",
+  "13_studytoolmemory.js",
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
 const apiClient = new SynapseApiClient(API_BASE);

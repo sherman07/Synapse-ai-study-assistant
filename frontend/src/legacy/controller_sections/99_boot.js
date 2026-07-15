@@ -138,6 +138,10 @@ Object.assign(window, {
   setupBroadcastTool,
   syncBroadcastJobsWithDataApi,
   renderBroadcastSetupPanel,
+  renderCurrentBroadcastOrSetup,
+  getRememberedStudyTool,
+  persistStudyToolMemory,
+  restoreStudyToolMemory,
 });
 
 if (historySearch) {

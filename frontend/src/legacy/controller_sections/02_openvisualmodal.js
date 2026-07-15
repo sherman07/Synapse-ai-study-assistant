@@ -407,7 +407,9 @@ function getToolPanelId(toolName) {
 }
 
 function switchTool(toolName, clickedBtn = null) {
+  if (typeof persistStudyToolMemory === "function") persistStudyToolMemory();
   activeTool = toolName;
+  if (typeof rememberActiveStudyTool === "function") rememberActiveStudyTool(toolName);
   document.querySelectorAll(".tool-panel").forEach(panel => panel.classList.remove("active"));
   document.querySelectorAll(".tool-switch-btn").forEach(button => {
     if (!button.disabled) button.classList.remove("active");
@@ -450,7 +452,8 @@ function switchTool(toolName, clickedBtn = null) {
   } else if (toolName === "flashcards") {
     renderFlashcardPanel();
   } else if (toolName === "broadcast") {
-    renderBroadcastSetupPanel();
+    if (typeof renderCurrentBroadcastOrSetup === "function") renderCurrentBroadcastOrSetup();
+    else renderBroadcastSetupPanel();
   }
 }
 

@@ -189,6 +189,25 @@ function getBroadcastJob(jobId) {
   return getBroadcastJobs().find(job => job.id === id) || null;
 }
 
+function getBroadcastJobsForCurrentNote() {
+  const historyId = String(currentHistoryId || "");
+  const fingerprint = String(currentSourceFingerprint || "");
+  const jobs = getBroadcastJobs();
+  if (!historyId && !fingerprint) return jobs;
+  return jobs.filter(job => {
+    const jobHistoryId = String(job.noteId || "");
+    const jobFingerprint = String(job.sourceFingerprint || "");
+    return (historyId && jobHistoryId === historyId) || (fingerprint && jobFingerprint === fingerprint);
+  });
+}
+
+function getCurrentBroadcastJob() {
+  const jobs = getBroadcastJobsForCurrentNote();
+  const active = getBroadcastJob(activeBroadcastJobId);
+  if (active && jobs.some(job => job.id === active.id)) return active;
+  return jobs[0] || null;
+}
+
 function upsertBroadcastJob(patch = {}) {
   const jobs = getBroadcastJobs();
   const id = String(patch.id || patch.jobId || broadcastJobId());
@@ -298,7 +317,7 @@ function renderBroadcastSetupPanel() {
   if (!panel) return;
   const sourcePackage = collectBroadcastModeContext();
   const hasEnoughContent = broadcastSourceText(sourcePackage).length >= 800;
-  const currentBroadcast = getBroadcastJobs()[0] || null;
+  const currentBroadcast = getCurrentBroadcastJob();
   panel.innerHTML = `
     <section class="broadcast-setup-card">
       <div class="tool-panel-head">
@@ -330,6 +349,15 @@ function renderBroadcastSetupPanel() {
       </div>
     </section>
   `;
+}
+
+function renderCurrentBroadcastOrSetup() {
+  const currentBroadcast = getCurrentBroadcastJob();
+  if (currentBroadcast) {
+    renderBroadcastJobProgress(currentBroadcast.id);
+    return;
+  }
+  renderBroadcastSetupPanel();
 }
 
 function broadcastSelectHTML(id, label, options, selected) {
