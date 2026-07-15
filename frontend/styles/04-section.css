@@ -1726,6 +1726,12 @@
   background: #f4f7ff;
 }
 
+.broadcast-chapter-list li.is-playing button {
+  border-color: rgba(79, 124, 255, 0.58);
+  background: #eef3ff;
+  box-shadow: 0 8px 20px rgba(79, 124, 255, 0.12);
+}
+
 .broadcast-chapter-list span {
   display: inline-block;
   min-width: 44px;

@@ -174,6 +174,10 @@ for (const token of [
   "toggleBroadcastPlayback",
   "playBroadcastRealtime",
   "buildBroadcastRealtimeFormData",
+  "broadcastPlaybackTimelineStarts",
+  "getBroadcastPlaybackElapsedSeconds",
+  "sectionDurations",
+  "lastRenderedSeconds",
   "requestBroadcastRealtimeSpeech",
   "buildBroadcastRealtimeSegmentInstruction",
   "sectionIndex",
@@ -188,6 +192,7 @@ for (const token of [
   "openai-realtime",
   "restartBroadcastPlayback",
   "seekBroadcastSection",
+  "seekBroadcastChapter",
   "Regenerate Broadcast",
   "Open Current Broadcast",
   "GPT Realtime speaker ready",
@@ -203,6 +208,14 @@ assert.ok(!/response:\s*\{[\s\S]*?\n\s*modalities:\s*\["audio"\]/.test(broadcast
 assert.ok(broadcastController.includes("broadcastScript"), "Realtime playback should carry the generated broadcast script");
 assert.ok(!broadcastController.includes('event.type === "response.done" || event.type === "response.audio.done"'), "audio.done must not end the whole broadcast");
 assert.ok(broadcastController.includes('event.type === "response.done"'), "the full response completion event should advance or end playback");
+assert.ok(broadcastController.includes("const finishedAtSeconds = getBroadcastPlaybackElapsedSeconds(job)"), "chapter completion should use the measured runtime position");
+assert.ok(broadcastController.includes("activeBroadcastPlayback.sectionDurations[finishedSectionIndex] = measuredDuration"), "completed chapters should teach the adaptive timeline their real duration");
+assert.ok(!broadcastController.includes("activeBroadcastPlayback.startSeconds = sections[nextIndex].start"), "chapter transitions must not reset to static estimated timestamps");
+assert.ok(broadcastController.includes("data-broadcast-chapter-index"), "chapter buttons should expose synchronized runtime state");
+assert.ok(broadcastController.includes("data-broadcast-line-index"), "transcript lines should expose synchronized runtime state");
+assert.ok(broadcastController.includes("activeBroadcastPlayback.lastRenderedSeconds"), "the visible playback clock should remain monotonic");
+assert.ok(broadcastController.includes("const seconds = getBroadcastPlaybackElapsedSeconds(job)"), "pause and rate changes should capture the current runtime position");
+assert.ok(broadcastController.includes("const sectionIndex = broadcastPlaybackSectionIndex(job, seconds)"), "resume should resolve the chapter before transport teardown");
 assert.ok(broadcastController.includes("peer.__synapseDisconnectTimer"), "transient WebRTC disconnects should have a recovery window");
 assert.ok(!broadcastController.includes('["failed", "closed", "disconnected"].includes(state)'), "transient disconnects must not immediately stop playback");
 assert.ok(!broadcastController.includes("setBroadcastJobs([nextJob]);"), "creating a new broadcast must preserve prior broadcast history");
@@ -250,5 +263,6 @@ for (const token of [
   assert.ok(styles.includes(token), `broadcast styles should include ${token}`);
 }
 assert.ok(styles.includes(".broadcast-transcript article.is-playing"), "broadcast styles should highlight the active transcript line");
+assert.ok(styles.includes(".broadcast-chapter-list li.is-playing button"), "broadcast styles should highlight the active chapter");
 
 console.log("ai broadcast regression passed");

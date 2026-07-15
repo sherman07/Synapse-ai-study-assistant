@@ -23,6 +23,8 @@ let activeBroadcastPlayback = {
   startSeconds: 0,
   startedAt: 0,
   sectionIndex: 0,
+  sectionDurations: [],
+  lastRenderedSeconds: 0,
   responseActive: false,
   timer: null,
   utterance: null
@@ -820,10 +822,10 @@ function renderBroadcastPlayer(job) {
       <div class="broadcast-player-grid">
         <div>
           <h4>Chapters</h4>
-          <ol class="broadcast-chapter-list">${chapters.map(chapter => `
-            <li>
-              <button type="button" onclick="seekBroadcastSection('${escapeAttr(job.id)}', ${Number(chapter.start || 0)})">
-                <span>${escapeHTML(formatBroadcastTime(chapter.start))}</span>${escapeHTML(chapter.title)}
+          <ol class="broadcast-chapter-list">${chapters.map((chapter, index) => `
+            <li data-broadcast-chapter-index="${index}">
+              <button type="button" onclick="seekBroadcastChapter('${escapeAttr(job.id)}', ${index})">
+                <span data-broadcast-chapter-time="${index}">${escapeHTML(formatBroadcastTime(chapter.start))}</span>${escapeHTML(chapter.title)}
               </button>
             </li>
           `).join("")}</ol>
@@ -836,9 +838,9 @@ function renderBroadcastPlayer(job) {
         </div>
         <div>
           <h4>Full transcript</h4>
-          <div class="broadcast-transcript">${job.transcript.map(line => `
-            <article data-broadcast-line-start="${escapeAttr(line.start)}">
-              <span>${escapeHTML(formatBroadcastTime(line.start))}</span>
+          <div class="broadcast-transcript">${job.transcript.map((line, index) => `
+            <article data-broadcast-line-index="${index}" data-broadcast-line-start="${escapeAttr(line.start)}">
+              <span data-broadcast-line-time="${index}">${escapeHTML(formatBroadcastTime(line.start))}</span>
               <strong>${escapeHTML(line.title || line.speaker)}</strong>
               <p>${escapeHTML(line.text)}</p>
             </article>
@@ -895,7 +897,15 @@ function selectedBroadcastRate() {
 
 function setBroadcastPlaybackRate(value) {
   const rate = Number(String(value || "").replace("x", ""));
-  activeBroadcastPlayback.rate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  const nextRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  if (activeBroadcastPlayback.playing && !activeBroadcastPlayback.paused && activeBroadcastPlayback.jobId) {
+    const job = getBroadcastJob(activeBroadcastPlayback.jobId);
+    const seconds = getBroadcastPlaybackElapsedSeconds(job);
+    activeBroadcastPlayback.startSeconds = seconds;
+    activeBroadcastPlayback.startedAt = Date.now();
+    activeBroadcastPlayback.lastRenderedSeconds = seconds;
+  }
+  activeBroadcastPlayback.rate = nextRate;
   if (activeBroadcastPlayback.audio) activeBroadcastPlayback.audio.playbackRate = activeBroadcastPlayback.rate;
 }
 
@@ -926,6 +936,8 @@ async function toggleBroadcastPlayback(jobId) {
     startSeconds: 0,
     startedAt: Date.now(),
     sectionIndex: 0,
+    sectionDurations: [],
+    lastRenderedSeconds: 0,
     responseActive: false,
     timer: null,
     utterance: null
@@ -1020,12 +1032,41 @@ function broadcastPlaybackSections(job) {
     .filter(section => section.text);
 }
 
+function broadcastPlaybackTimelineStarts(job) {
+  const sections = broadcastPlaybackSections(job);
+  if (!sections.length) return [];
+  const estimatedStarts = sections.map(section => Math.max(0, Number(section.start || 0)));
+  const measuredDurations = activeBroadcastPlayback.jobId === job?.id && Array.isArray(activeBroadcastPlayback.sectionDurations)
+    ? activeBroadcastPlayback.sectionDurations
+    : [];
+  const starts = [0];
+  for (let index = 1; index < sections.length; index += 1) {
+    const estimatedDuration = Math.max(1, estimatedStarts[index] - estimatedStarts[index - 1]);
+    const measuredDuration = Number(measuredDurations[index - 1]);
+    starts[index] = starts[index - 1] + (
+      Number.isFinite(measuredDuration) && measuredDuration > 0
+        ? measuredDuration
+        : estimatedDuration
+    );
+  }
+  return starts;
+}
+
+function getBroadcastPlaybackElapsedSeconds(job) {
+  if (!job || activeBroadcastPlayback.jobId !== job.id) return 0;
+  const elapsed = Number(activeBroadcastPlayback.startSeconds || 0) + (
+    Math.max(0, Date.now() - Number(activeBroadcastPlayback.startedAt || Date.now())) / 1000
+  ) * Number(activeBroadcastPlayback.rate || 1);
+  return Math.max(Number(activeBroadcastPlayback.startSeconds || 0), elapsed);
+}
+
 function broadcastPlaybackSectionIndex(job, startSeconds = 0) {
   const target = Math.max(0, Number(startSeconds) || 0);
   const sections = broadcastPlaybackSections(job);
+  const starts = broadcastPlaybackTimelineStarts(job);
   let index = 0;
   sections.forEach((section, candidateIndex) => {
-    if (section.start <= target) index = candidateIndex;
+    if ((starts[candidateIndex] ?? section.start) <= target) index = candidateIndex;
   });
   return Math.min(index, Math.max(0, sections.length - 1));
 }
@@ -1044,7 +1085,7 @@ function buildBroadcastRealtimeSegmentInstruction(job, startSeconds = 0, section
   if (!section) {
     return `Read the exact generated Synapse Broadcast script below from ${formatBroadcastTime(target)} to the end. Do not summarize it or stop after an introduction.\n\n${script}`;
   }
-  return `Read the exact generated Synapse Broadcast chapter below. This is chapter ${safeIndex + 1} of ${sections.length}, beginning at ${formatBroadcastTime(section.start || target)}. Speak every sentence in this chapter naturally, without summarizing, skipping, or asking a question. When this chapter is fully spoken, stop so Synapse can send the next chapter.\n\nBroadcast title: ${job.broadcastTitle || job.title || "AI Broadcast"}\nChapter: ${section.title}\nGenerated script chapter:\n${section.text}`;
+  return `Read the exact generated Synapse Broadcast chapter below. This is chapter ${safeIndex + 1} of ${sections.length}, beginning at ${formatBroadcastTime(target)} on the adaptive playback timeline. Speak every sentence in this chapter naturally, without summarizing, skipping, or asking a question. When this chapter is fully spoken, stop so Synapse can send the next chapter.\n\nBroadcast title: ${job.broadcastTitle || job.title || "AI Broadcast"}\nChapter: ${section.title}\nGenerated script chapter:\n${section.text}`;
 }
 
 function sendBroadcastRealtimeEvent(event) {
@@ -1090,7 +1131,7 @@ function handleBroadcastRealtimeEvent(messageEvent) {
     return;
   }
   if (event.type === "response.audio_transcript.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.output_text.delta") {
-    const elapsed = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
+    const elapsed = getBroadcastPlaybackElapsedSeconds(job);
     updateBroadcastPlaybackUI(job, elapsed, true, false);
     return;
   }
@@ -1107,13 +1148,23 @@ function handleBroadcastRealtimeEvent(messageEvent) {
       return;
     }
     const sections = broadcastPlaybackSections(job);
-    const nextIndex = activeBroadcastPlayback.sectionIndex + 1;
+    const finishedSectionIndex = activeBroadcastPlayback.sectionIndex;
+    const finishedAtSeconds = getBroadcastPlaybackElapsedSeconds(job);
+    const measuredDuration = finishedAtSeconds - Number(activeBroadcastPlayback.startSeconds || 0);
+    if (Number.isFinite(measuredDuration) && measuredDuration > 0.25) {
+      activeBroadcastPlayback.sectionDurations[finishedSectionIndex] = measuredDuration;
+    }
+    updateBroadcastPlaybackUI(job, finishedAtSeconds, true, false);
+    const nextIndex = finishedSectionIndex + 1;
     if (sections[nextIndex]) {
+      const timelineStarts = broadcastPlaybackTimelineStarts(job);
+      const nextStart = Math.max(finishedAtSeconds, timelineStarts[nextIndex] || finishedAtSeconds);
       activeBroadcastPlayback.sectionIndex = nextIndex;
-      activeBroadcastPlayback.startSeconds = sections[nextIndex].start;
+      activeBroadcastPlayback.startSeconds = nextStart;
       activeBroadcastPlayback.startedAt = Date.now();
-      requestBroadcastRealtimeSpeech(job, sections[nextIndex].start, nextIndex);
-      updateBroadcastPlaybackUI(job, sections[nextIndex].start, true, false);
+      activeBroadcastPlayback.lastRenderedSeconds = nextStart;
+      requestBroadcastRealtimeSpeech(job, nextStart, nextIndex);
+      updateBroadcastPlaybackUI(job, nextStart, true, false);
       return;
     }
     stopBroadcastPlayback({ ended: true });
@@ -1203,7 +1254,7 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
   if (activeBroadcastPlayback.timer) window.clearInterval(activeBroadcastPlayback.timer);
   activeBroadcastPlayback.timer = window.setInterval(() => {
     if (!activeBroadcastPlayback.playing || activeBroadcastPlayback.paused || activeBroadcastPlayback.jobId !== job.id) return;
-    const elapsed = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
+    const elapsed = getBroadcastPlaybackElapsedSeconds(job);
     updateBroadcastPlaybackUI(job, elapsed, true, false);
   }, 500);
 }
@@ -1212,9 +1263,12 @@ function pauseBroadcastPlayback() {
   const job = getBroadcastJob(activeBroadcastPlayback.jobId);
   if (!job || !activeBroadcastPlayback.playing) return;
   if (activeBroadcastPlayback.audio) activeBroadcastPlayback.audio.pause();
-  const seconds = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
+  const seconds = getBroadcastPlaybackElapsedSeconds(job);
   activeBroadcastPlayback.paused = true;
+  activeBroadcastPlayback.startSeconds = seconds;
+  activeBroadcastPlayback.startedAt = Date.now();
   activeBroadcastPlayback.pausedAtSeconds = seconds;
+  activeBroadcastPlayback.lastRenderedSeconds = seconds;
   closeBroadcastRealtimeTransport();
   updateBroadcastPlaybackUI(job, seconds, true, true);
 }
@@ -1224,6 +1278,8 @@ async function resumeBroadcastPlayback() {
   if (!job || !activeBroadcastPlayback.playing) return;
   activeBroadcastPlayback.paused = false;
   const seconds = activeBroadcastPlayback.pausedAtSeconds || activeBroadcastPlayback.startSeconds || 0;
+  const sectionIndex = broadcastPlaybackSectionIndex(job, seconds);
+  const sectionDurations = Array.isArray(activeBroadcastPlayback.sectionDurations) ? [...activeBroadcastPlayback.sectionDurations] : [];
   stopBroadcastPlayback({ render: false });
   activeBroadcastPlayback = {
     audio: null,
@@ -1239,7 +1295,9 @@ async function resumeBroadcastPlayback() {
     remoteAudio: null,
     startSeconds: seconds,
     startedAt: Date.now(),
-    sectionIndex: broadcastPlaybackSectionIndex(job, seconds),
+    sectionIndex,
+    sectionDurations,
+    lastRenderedSeconds: seconds,
     responseActive: false,
     timer: null,
     utterance: null
@@ -1261,11 +1319,24 @@ function restartBroadcastPlayback(jobId) {
   toggleBroadcastPlayback(job.id);
 }
 
-function seekBroadcastSection(jobId, seconds = 0) {
+function seekBroadcastChapter(jobId, sectionIndex = 0) {
+  const job = getBroadcastJob(jobId);
+  if (!job) return;
+  const chapters = Array.isArray(job.keyMoments) && job.keyMoments.length ? job.keyMoments : job.chapters || [];
+  const index = Math.max(0, Number(sectionIndex) || 0);
+  const target = broadcastPlaybackTimelineStarts(job)[index] ?? Number(chapters[index]?.start || 0);
+  seekBroadcastSection(jobId, target, index);
+}
+
+function seekBroadcastSection(jobId, seconds = 0, requestedSectionIndex = null) {
   const job = getBroadcastJob(jobId);
   if (!job) return;
   const target = Math.max(0, Number(seconds) || 0);
+  const sectionIndex = Number.isInteger(requestedSectionIndex)
+    ? requestedSectionIndex
+    : broadcastPlaybackSectionIndex(job, target);
   if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.mode === "realtime") {
+    const sectionDurations = Array.isArray(activeBroadcastPlayback.sectionDurations) ? [...activeBroadcastPlayback.sectionDurations] : [];
     stopBroadcastPlayback({ render: false });
     activeBroadcastPlayback = {
       audio: null,
@@ -1281,7 +1352,9 @@ function seekBroadcastSection(jobId, seconds = 0) {
       remoteAudio: null,
       startSeconds: target,
       startedAt: Date.now(),
-      sectionIndex: broadcastPlaybackSectionIndex(job, target),
+      sectionIndex,
+      sectionDurations,
+      lastRenderedSeconds: target,
       responseActive: false,
       timer: null,
       utterance: null
@@ -1323,6 +1396,8 @@ function stopBroadcastPlayback({ ended = false, render = true } = {}) {
     startSeconds: 0,
     startedAt: 0,
     sectionIndex: 0,
+    sectionDurations: [],
+    lastRenderedSeconds: 0,
     responseActive: false,
     timer: null,
     utterance: null
@@ -1331,14 +1406,20 @@ function stopBroadcastPlayback({ ended = false, render = true } = {}) {
 }
 
 function updateBroadcastPlaybackUI(job, seconds = 0, isPlaying = false, isPaused = false) {
+  const adaptiveStarts = broadcastPlaybackTimelineStarts(job);
+  let displaySeconds = Math.max(0, Number(seconds) || 0);
+  if (activeBroadcastPlayback.jobId === job?.id && isPlaying) {
+    displaySeconds = Math.max(displaySeconds, Number(activeBroadcastPlayback.lastRenderedSeconds || 0));
+    activeBroadcastPlayback.lastRenderedSeconds = displaySeconds;
+  }
   const duration = broadcastDuration(job);
-  const percent = Math.max(0, Math.min(100, duration ? (Number(seconds) / duration) * 100 : 0));
+  const percent = Math.max(0, Math.min(100, duration ? (displaySeconds / duration) * 100 : 0));
   const fill = document.getElementById("broadcastSeekFill");
   const time = document.getElementById("broadcastCurrentTime");
   const shell = document.getElementById("broadcastAudioShell");
   const button = document.getElementById("broadcastPlayButton");
   if (fill) fill.style.width = `${percent}%`;
-  if (time) time.textContent = formatBroadcastTime(seconds);
+  if (time) time.textContent = formatBroadcastTime(displaySeconds);
   if (shell) {
     shell.classList.toggle("is-playing", Boolean(isPlaying && !isPaused));
     shell.classList.toggle("is-paused", Boolean(isPaused));
@@ -1350,11 +1431,21 @@ function updateBroadcastPlaybackUI(job, seconds = 0, isPlaying = false, isPaused
     if (icon) icon.className = `bi ${isPlaying && !isPaused ? "bi-pause-fill" : "bi-play-fill"} me-1`;
     if (label) label.textContent = isPlaying && !isPaused ? "Pause" : isPaused ? "Resume" : "Play";
   }
+  document.querySelectorAll("[data-broadcast-chapter-index]").forEach(chapter => {
+    const index = Number(chapter.getAttribute("data-broadcast-chapter-index"));
+    const start = adaptiveStarts[index] ?? 0;
+    chapter.classList.toggle("is-playing", Boolean(isPlaying && start <= displaySeconds && (index === adaptiveStarts.length - 1 || (adaptiveStarts[index + 1] ?? Infinity) > displaySeconds)));
+    const timeNode = chapter.querySelector("[data-broadcast-chapter-time]");
+    if (timeNode) timeNode.textContent = formatBroadcastTime(start);
+  });
   const lines = Array.from(document.querySelectorAll("[data-broadcast-line-start]"));
   let activeLine = null;
   lines.forEach(line => {
-    const start = Number(line.getAttribute("data-broadcast-line-start") || 0);
-    if (start <= seconds) activeLine = line;
+    const index = Number(line.getAttribute("data-broadcast-line-index"));
+    const start = adaptiveStarts[index] ?? Number(line.getAttribute("data-broadcast-line-start") || 0);
+    const timeNode = line.querySelector("[data-broadcast-line-time]");
+    if (timeNode) timeNode.textContent = formatBroadcastTime(start);
+    if (start <= displaySeconds) activeLine = line;
     line.classList.remove("is-playing");
   });
   if (isPlaying && activeLine) activeLine.classList.add("is-playing");
