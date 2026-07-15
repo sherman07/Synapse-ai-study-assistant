@@ -4,6 +4,12 @@ from core.health import HealthReporter
 health_reporter = HealthReporter(globals())
 
 
+@app.get("/healthz")
+def healthz():
+    """Minimal liveness response for Render's five-second health check."""
+    return Response(content="ok", media_type="text/plain")
+
+
 @app.get("/health")
 def health():
     return health_reporter.backend_status()

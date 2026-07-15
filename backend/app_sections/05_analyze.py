@@ -140,7 +140,12 @@ async def analyze_materials(
                 continue
             analysis_stage = "file_extract"
             content_type = uploaded.content_type or mimetypes.guess_type(uploaded.filename or "")[0] or "application/octet-stream"
-            parts, meta = file_to_source_unit(uploaded.filename or "uploaded file", content_type, data)
+            parts, meta = await run_blocking(
+                file_to_source_unit,
+                uploaded.filename or "uploaded file",
+                content_type,
+                data,
+            )
             content_parts.extend(parts)
             source_units.append(meta)
             title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
@@ -153,7 +158,8 @@ async def analyze_materials(
                 len(meta.get("visual_parts", [])),
                 analysis_elapsed_seconds(),
             )
-            embedded_parts, embedded_units, embedded_titles = expand_embedded_youtube_sources(
+            embedded_parts, embedded_units, embedded_titles = await run_blocking(
+                expand_embedded_youtube_sources,
                 meta.get("text_excerpt", ""),
                 meta,
                 seen_youtube_sources,
@@ -178,7 +184,7 @@ async def analyze_materials(
                 if key in seen_youtube_sources:
                     continue
                 seen_youtube_sources.add(key)
-            parts, meta = link_to_source_unit(cleaned_url)
+            parts, meta = await run_blocking(link_to_source_unit, cleaned_url)
             content_parts.extend(parts)
             source_units.append(meta)
             title_candidates.append(meta.get("title_candidate") or meta.get("display_name") or "")
@@ -188,7 +194,7 @@ async def analyze_materials(
             if not key or key in seen_youtube_sources:
                 continue
             seen_youtube_sources.add(key)
-            parts, meta = link_to_source_unit(url)
+            parts, meta = await run_blocking(link_to_source_unit, url)
             meta["display_name"] = f"YouTube link from pasted text: {meta.get('title_candidate') or url}"
             content_parts.extend(parts)
             source_units.append(meta)
@@ -268,7 +274,7 @@ async def analyze_materials(
             # request still has the source_units needed to recreate them. Use the
             # deterministic selector here so cache hits do not make fresh model calls.
             if "rebuild_cached_visual_argument_cards" in globals():
-                rebuild_cached_visual_argument_cards(source_units, postprocess_language)
+                await run_blocking(rebuild_cached_visual_argument_cards, source_units, postprocess_language)
             cached_raw_summary = (
                 cached_result.get("raw_summary")
                 or cached_result.get("display_summary")
@@ -276,7 +282,8 @@ async def analyze_materials(
             )
             if "strip_visual_card_pollution" in globals():
                 cached_raw_summary = strip_visual_card_pollution(cached_raw_summary)
-            cached_summary = finalize_generated_summary(
+            cached_summary = await run_blocking(
+                finalize_generated_summary,
                 cached_result.get("display_summary") or cached_result.get("summary", "") or cached_raw_summary,
                 requested_language=preferred_language,
                 generation_language=postprocess_language,
@@ -287,7 +294,7 @@ async def analyze_materials(
                 prompt_mode=selected_prompt_mode,
                 note_length_mode=selected_note_length,
             )
-            live_visual_gallery = build_visual_gallery(source_units)
+            live_visual_gallery = await run_blocking(build_visual_gallery, source_units)
             from core.visual_assets import filter_browser_visual_gallery, prune_unavailable_visual_markers
             cached_visual_gallery = filter_browser_visual_gallery(
                 cached_result.get("visual_gallery")
@@ -333,7 +340,12 @@ async def analyze_materials(
                 "optional_stages_skipped": [],
             }
             response_payload.update(ai_diagnostic_payload("cache"))
-            database_record = persist_generated_analysis_result(request, response_payload, client_fingerprint)
+            database_record = await run_blocking(
+                persist_generated_analysis_result,
+                request,
+                response_payload,
+                client_fingerprint,
+            )
             if database_record:
                 response_payload["database_record"] = database_record
             logger.info(
@@ -359,7 +371,8 @@ async def analyze_materials(
         # multi-source uploads. This avoids an expensive source-digest prepass
         # and prevents the old single-source path from producing thin notes that
         # need visual cards patched on afterward.
-        generated_summary = generate_reference_style_multisource_notes(
+        generated_summary = await run_blocking(
+            generate_reference_style_multisource_notes,
             source_units,
             preferred_language,
             depth_plan,
@@ -369,7 +382,8 @@ async def analyze_materials(
             skipped_optional_stages=skipped_optional_stages,
         )
 
-        generated_summary = enforce_requested_language(
+        generated_summary = await run_blocking(
+            enforce_requested_language,
             generated_summary,
             preferred_language,
             request_timeout=analysis_model_call_timeout(
@@ -397,7 +411,8 @@ async def analyze_materials(
         stored_sections = parse_sections(stored_summary)
         await raise_if_analysis_client_disconnected(request, "optional title and mind-map generation")
         if allow_optional_stage("title", env_int("TITLE_STAGE_MIN_SECONDS", 18)):
-            stored_title = make_notes_title(
+            stored_title = await run_blocking(
+                make_notes_title,
                 stored_summary,
                 title_candidates,
                 request_timeout=analysis_model_call_timeout(
@@ -412,7 +427,8 @@ async def analyze_materials(
             shared_title_hint = detect_course_or_topic_title(combined_source_text[:5000]) or "Multi-Source Study Synthesis"
             if stored_title in title_candidates or len(stored_title) < 18:
                 stored_title = shared_title_hint
-        stored_title = localise_title_if_needed(
+        stored_title = await run_blocking(
+            localise_title_if_needed,
             stored_title,
             postprocess_language,
             request_timeout=analysis_model_call_timeout(
@@ -423,7 +439,8 @@ async def analyze_materials(
         stored_connections = generate_connections_from_sections(stored_sections)
         await raise_if_analysis_client_disconnected(request, "optional mind-map generation")
         if allow_optional_stage("mind_map", env_int("MINDMAP_STAGE_MIN_SECONDS", 35)):
-            stored_mind_map = generate_ai_mind_map(
+            stored_mind_map = await run_blocking(
+                generate_ai_mind_map,
                 stored_title,
                 stored_sections,
                 postprocess_language,
@@ -438,7 +455,7 @@ async def analyze_materials(
             stored_mind_map = generate_mind_map(stored_title, stored_sections, depth)
         stored_source_identity = source_units[0].get("source_identity", "") if source_units else ""
 
-        visual_gallery = build_visual_gallery(source_units)
+        visual_gallery = await run_blocking(build_visual_gallery, source_units)
         result = {
             "title": stored_title,
             "raw_summary": raw_summary,
@@ -496,7 +513,12 @@ async def analyze_materials(
             "figure_cards": visual_gallery,
         }
         cache_set(source_fingerprint, cache_result)
-        database_record = persist_generated_analysis_result(request, result, client_fingerprint)
+        database_record = await run_blocking(
+            persist_generated_analysis_result,
+            request,
+            result,
+            client_fingerprint,
+        )
         if database_record:
             result["database_record"] = database_record
         analysis_stage = "completed"

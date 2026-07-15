@@ -139,7 +139,7 @@ class D_ {
       const d = Date.now() - f, p = c > 0 ? c - d : 0;
       if (c > 0 && p <= 0) break;
       try {
-        const v = await this.fetch("/health", {
+        const v = await this.fetch("/healthz", {
           method: "GET",
           signal: a,
           timeoutMs: c > 0 ? Math.min(r, p) : r

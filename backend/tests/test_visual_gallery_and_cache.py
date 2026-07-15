@@ -50,6 +50,13 @@ def assert_served_visual_asset(test_case, url: str, expected_content_type: str =
 
 
 class ApiShapeTests(unittest.TestCase):
+    def test_liveness_endpoint_is_minimal_for_platform_health_checks(self):
+        response = TestClient(app).get("/healthz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "ok")
+        self.assertLess(len(response.content), 32)
+
     def test_health_response_shape(self):
         response = TestClient(app).get("/health")
 

@@ -166,7 +166,7 @@ class SynapseApiClient {
       const remainingMs = totalWaitLimit > 0 ? totalWaitLimit - elapsedMs : 0;
       if (totalWaitLimit > 0 && remainingMs <= 0) break;
       try {
-        const response = await this.fetch("/health", {
+        const response = await this.fetch("/healthz", {
           method: "GET",
           signal,
           timeoutMs: totalWaitLimit > 0 ? Math.min(timeoutMs, remainingMs) : timeoutMs

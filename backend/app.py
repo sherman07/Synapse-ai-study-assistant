@@ -17,6 +17,7 @@ import urllib.request
 from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.utils import formataddr
+from functools import partial
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -256,6 +257,11 @@ app.add_middleware(
 )
 RUNTIME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/assets", StaticFiles(directory=str(RUNTIME_ASSETS_DIR)), name="synapse_assets")
+
+
+async def run_blocking(func, *args, **kwargs):
+    """Run synchronous parsing/model/persistence work without blocking Uvicorn."""
+    return await asyncio.to_thread(partial(func, *args, **kwargs))
 
 APP_SECTION_FILES = (
     "01_health.py",

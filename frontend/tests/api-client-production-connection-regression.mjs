@@ -23,8 +23,10 @@ await assert.rejects(
 );
 
 let healthCalls = 0;
+let warmupUrl = "";
 const warmingClient = new SynapseApiClient("https://synapse-ai-backend.example.com", {
-  fetchImpl: () => {
+  fetchImpl: url => {
+    warmupUrl = url;
     healthCalls += 1;
     return Promise.resolve({ ok: healthCalls > 1, status: healthCalls > 1 ? 200 : 503 });
   }
@@ -33,6 +35,7 @@ const warmingClient = new SynapseApiClient("https://synapse-ai-backend.example.c
 const healthResponse = await warmingClient.warmup({ attempts: 2, retryDelayMs: 0, timeoutMs: 0 });
 assert.equal(healthResponse.ok, true);
 assert.equal(healthCalls, 2, "hosted health warmup should retry before a real analysis request");
+assert.match(warmupUrl, /\/healthz$/, "warmup must use the lightweight liveness endpoint");
 
 const originalDateNow = Date.now;
 let simulatedNow = 0;
