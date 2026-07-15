@@ -1,10 +1,10 @@
 import { Fragment, h } from "../runtime.js";
-import { MobileNavigation } from "./MobileNavigation.js?v=ai-broadcast-v7";
-import { HistoryNavigation } from "./HistoryNavigation.js?v=ai-broadcast-v7";
-import { SummaryNavigation } from "./SummaryNavigation.js?v=ai-broadcast-v7";
-import { UploadStage } from "./UploadStage.js?v=ai-broadcast-v7";
-import { AnalysisStage } from "./AnalysisStage.js?v=ai-broadcast-v7";
-import { AssistantPanel, OpenAssistantButton } from "./AssistantPanel.js?v=ai-broadcast-v7";
+import { MobileNavigation } from "./MobileNavigation.js?v=ai-broadcast-v8";
+import { HistoryNavigation } from "./HistoryNavigation.js?v=ai-broadcast-v8";
+import { SummaryNavigation } from "./SummaryNavigation.js?v=ai-broadcast-v8";
+import { UploadStage } from "./UploadStage.js?v=ai-broadcast-v8";
+import { AnalysisStage } from "./AnalysisStage.js?v=ai-broadcast-v8";
+import { AssistantPanel, OpenAssistantButton } from "./AssistantPanel.js?v=ai-broadcast-v8";
 
 export function AppShell() {
   return h(

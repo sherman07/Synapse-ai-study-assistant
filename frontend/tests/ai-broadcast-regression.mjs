@@ -44,7 +44,7 @@ const styles = read("frontend/styles/04-section.css");
 const serverEnvExample = read("server/.env.example");
 const backendEnvExample = read("backend/.env.example");
 const geminiEnvExample = read("backend/.env.gemini.example");
-const broadcastAssetVersion = "ai-broadcast-v7";
+const broadcastAssetVersion = "ai-broadcast-v8";
 
 assert.ok(rootIndex.includes("frontend/landing.html"), "root index should keep the landing page as the public entry");
 assert.ok(appShim.includes("frontend/index.html"), "app shim should open the study workspace frontend");
@@ -171,6 +171,7 @@ for (const token of [
   "playBroadcastRealtime",
   "buildBroadcastRealtimeFormData",
   "requestBroadcastRealtimeSpeech",
+  "output_modalities: [\"audio\"]",
   "handleBroadcastRealtimeEvent",
   "RTCPeerConnection",
   "openai-realtime",
@@ -187,6 +188,7 @@ for (const token of [
 ]) {
   assert.ok(broadcastController.includes(token), `broadcast controller should include ${token}`);
 }
+assert.ok(!/response:\s*\{[\s\S]*?\n\s*modalities:\s*\["audio"\]/.test(broadcastController), "broadcast response events must use the current Realtime output_modalities field");
 
 assert.ok(studyTools.includes("toolBtnBroadcast"), "Study tools should include AI Broadcast tab button");
 assert.ok(studyTools.includes("toolPanelBroadcast"), "Study tools should include AI Broadcast panel");

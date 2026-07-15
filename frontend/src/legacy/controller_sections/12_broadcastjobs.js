@@ -870,7 +870,7 @@ function requestBroadcastRealtimeSpeech(job, startSeconds = 0) {
   sendBroadcastRealtimeEvent({
     type: "response.create",
     response: {
-      modalities: ["audio"],
+      output_modalities: ["audio"],
       instructions: buildBroadcastRealtimeStartInstruction(job, startSeconds)
     }
   });
