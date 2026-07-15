@@ -5,6 +5,7 @@ const BROADCAST_TTS_MODEL = "gpt-4o-mini-tts";
 const BROADCAST_TTS_PROVIDER = "openai";
 const BROADCAST_REALTIME_MODEL = "gpt-realtime-2";
 const BROADCAST_REALTIME_VOICE = "marin";
+const BROADCAST_HISTORY_LIMIT = 20;
 const BROADCAST_ACTIVE_STATUSES = new Set(["queued", "extracting_source", "planning", "scripting", "validating", "generating_audio", "building_audio"]);
 let activeBroadcastJobId = safeGetLocalStorage(BROADCAST_ACTIVE_JOB_KEY, "");
 let activeBroadcastPlayback = {
@@ -21,6 +22,8 @@ let activeBroadcastPlayback = {
   remoteAudio: null,
   startSeconds: 0,
   startedAt: 0,
+  sectionIndex: 0,
+  responseActive: false,
   timer: null,
   utterance: null
 };
@@ -82,6 +85,11 @@ function broadcastJobId() {
 function normaliseBroadcastJob(job = {}) {
   const now = new Date().toISOString();
   const status = String(job.status || "queued");
+  const rawScript = job.script && typeof job.script === "object" ? job.script : {};
+  const rawScriptMetadata = job.scriptMetadata || job.script_metadata || rawScript.metadata || {};
+  const rawBroadcastScript = String(job.broadcastScript || job.broadcast_script || rawScript.broadcastScript || rawScript.broadcast_script || "");
+  const rawBroadcastTitle = String(job.broadcastTitle || job.broadcast_title || rawScript.broadcastTitle || rawScript.broadcast_title || job.title || "AI Broadcast");
+  const rawSpeakerInstructions = String(job.speakerInstructions || job.speaker_instructions || rawScript.speakerInstructions || rawScript.speaker_instructions || "");
   const progressMessage = String(job.progressMessage || job.progress_message || broadcastStatusLabel(status))
     .replace(/Gemini TTS/gi, "OpenAI TTS")
     .replace(/Gemini voices/gi, "OpenAI voice")
@@ -114,7 +122,15 @@ function normaliseBroadcastJob(job = {}) {
     realtimeModel: String(job.realtimeModel || job.realtime_model || BROADCAST_REALTIME_MODEL),
     realtimeVoice: String(job.realtimeVoice || job.realtime_voice || BROADCAST_REALTIME_VOICE),
     plan: job.plan && typeof job.plan === "object" ? job.plan : {},
-    script: job.script && typeof job.script === "object" ? job.script : {},
+    script: {
+      ...rawScript,
+      broadcastTitle: rawBroadcastTitle,
+      broadcastScript: rawBroadcastScript,
+      speakerInstructions: rawSpeakerInstructions,
+      estimatedDuration: String(job.estimatedDuration || job.estimated_duration || rawScript.estimatedDuration || ""),
+      metadata: rawScriptMetadata
+    },
+    scriptMetadata: rawScriptMetadata,
     validation: job.validation && typeof job.validation === "object" ? job.validation : {},
     transcript: Array.isArray(job.transcript) ? job.transcript : [],
     chapters: Array.isArray(job.chapters) ? job.chapters : [],
@@ -126,10 +142,11 @@ function normaliseBroadcastJob(job = {}) {
     createdAt: job.createdAt || job.created_at || now,
     updatedAt: job.updatedAt || job.updated_at || now,
     completedAt: job.completedAt || job.completed_at || "",
-    broadcastTitle: String(job.broadcastTitle || job.broadcast_title || job.title || "AI Broadcast").slice(0, 180),
-    broadcastScript: String(job.broadcastScript || job.broadcast_script || ""),
-    speakerInstructions: String(job.speakerInstructions || job.speaker_instructions || ""),
-    estimatedDuration: String(job.estimatedDuration || job.estimated_duration || ""),
+    broadcastTitle: rawBroadcastTitle.slice(0, 180),
+    broadcastScript: rawBroadcastScript,
+    speakerInstructions: rawSpeakerInstructions,
+    estimatedDuration: String(job.estimatedDuration || job.estimated_duration || rawScript.estimatedDuration || ""),
+    estimatedSeconds: Math.max(0, Number(job.estimatedSeconds || job.estimated_seconds || rawScript.estimatedSeconds || 0)),
     sections: Array.isArray(job.sections) ? job.sections : [],
     keyMoments: Array.isArray(job.keyMoments || job.key_moments) ? (job.keyMoments || job.key_moments) : [],
     qualityChecks: job.qualityChecks || job.quality_checks || {},
@@ -141,20 +158,30 @@ function normaliseBroadcastJob(job = {}) {
 function getBroadcastJobs() {
   const parsed = safeReadJSONStorage(BROADCAST_JOBS_STORAGE_KEY, []);
   return Array.isArray(parsed)
-    ? parsed
-      .map(normaliseBroadcastJob)
+    ? dedupeBroadcastJobs(parsed)
       .sort((left, right) => new Date(right.updatedAt || right.createdAt) - new Date(left.updatedAt || left.createdAt))
-      .slice(0, 1)
+      .slice(0, BROADCAST_HISTORY_LIMIT)
     : [];
 }
 
 function setBroadcastJobs(jobs) {
-  const nextJobs = (Array.isArray(jobs) ? jobs : [])
-    .map(normaliseBroadcastJob)
+  const nextJobs = dedupeBroadcastJobs(jobs)
     .sort((left, right) => new Date(right.updatedAt || right.createdAt) - new Date(left.updatedAt || left.createdAt))
-    .slice(0, 1);
+    .slice(0, BROADCAST_HISTORY_LIMIT);
   safeWriteJSONStorage(BROADCAST_JOBS_STORAGE_KEY, nextJobs);
   return nextJobs;
+}
+
+function dedupeBroadcastJobs(jobs) {
+  const byId = new Map();
+  (Array.isArray(jobs) ? jobs : []).forEach(job => {
+    const normalised = normaliseBroadcastJob(job);
+    const existing = byId.get(normalised.id);
+    if (!existing || new Date(normalised.updatedAt || normalised.createdAt) >= new Date(existing.updatedAt || existing.createdAt)) {
+      byId.set(normalised.id, normalised);
+    }
+  });
+  return Array.from(byId.values());
 }
 
 function getBroadcastJob(jobId) {
@@ -176,9 +203,37 @@ function upsertBroadcastJob(patch = {}) {
 
 function replaceBroadcastJob(job = {}) {
   const nextJob = normaliseBroadcastJob(job);
-  setBroadcastJobs([nextJob]);
+  const existingJobs = getBroadcastJobs().filter(item => item.id !== nextJob.id);
+  setBroadcastJobs([nextJob, ...existingJobs]);
   refreshBroadcastViews(nextJob.id);
   return nextJob;
+}
+
+async function syncBroadcastJobsWithDataApi(limit = BROADCAST_HISTORY_LIMIT) {
+  if (typeof fetchBroadcastJobsFromDataApi !== "function") return getBroadcastJobs();
+  let remoteJobs = [];
+  try {
+    remoteJobs = await fetchBroadcastJobsFromDataApi(limit);
+  } catch (error) {
+    console.warn("Could not sync AI Broadcast history from the data API:", error);
+    return getBroadcastJobs();
+  }
+  if (!Array.isArray(remoteJobs) || !remoteJobs.length) return getBroadcastJobs();
+  const localJobs = getBroadcastJobs();
+  const localById = new Map(localJobs.map(job => [job.id, job]));
+  const merged = remoteJobs.map(remoteJob => {
+    const localJob = localById.get(String(remoteJob.id || ""));
+    // The browser copy can contain the completed script while the remote row is
+    // still only a queued progress record. Keep the richer copy when available.
+    return normaliseBroadcastJob(localJob ? { ...remoteJob, ...localJob } : remoteJob);
+  });
+  localJobs.forEach(localJob => {
+    if (!merged.some(job => job.id === localJob.id)) merged.push(localJob);
+  });
+  setBroadcastJobs(merged);
+  renderHistory(historySearch ? historySearch.value : "");
+  if (activeBroadcastJobId) renderBroadcastJobProgress(activeBroadcastJobId);
+  return getBroadcastJobs();
 }
 
 function broadcastStatusLabel(status) {
@@ -436,6 +491,18 @@ async function completeBroadcastJob(job) {
     ...studioPackage,
     completedAt: new Date().toISOString()
   });
+  if (typeof patchBroadcastJobInDataApi === "function") {
+    patchBroadcastJobInDataApi(job.id, {
+      ...job,
+      ...studioPackage,
+      status: "completed",
+      progressPercent: 100,
+      progressMessage: "Broadcast ready. Play uses the OpenAI Realtime speaker.",
+      completedAt: new Date().toISOString()
+    }).then(remote => {
+      if (remote) upsertBroadcastJob({ ...remote, ...studioPackage, id: job.id, remoteSynced: true });
+    }).catch(error => console.warn("Broadcast job completion sync failed:", error));
+  }
 }
 
 async function requestBroadcastModePackage(job) {
@@ -496,7 +563,25 @@ function normaliseBroadcastModePackage(data = {}, job = {}) {
     script: {
       model: data.scriptModel || BROADCAST_SCRIPT_MODEL,
       voiceFormat: job.voiceFormat,
-      scenes: fallbackTranscript
+      scenes: fallbackTranscript,
+      broadcastTitle: String(data.broadcastTitle || job.title || "AI Broadcast"),
+      broadcastScript,
+      speakerInstructions: String(data.speakerInstructions || ""),
+      estimatedDuration: String(data.estimatedDuration || ""),
+      estimatedSeconds: Number(data.estimatedSeconds || 0),
+      metadata: {
+        model: data.scriptModel || BROADCAST_SCRIPT_MODEL,
+        promptVersion: String(data.promptVersion || "broadcast-script-v3"),
+        sourceGrounded: true,
+        generatedAt: String(data.generatedAt || "")
+      }
+    },
+    scriptMetadata: {
+      model: data.scriptModel || BROADCAST_SCRIPT_MODEL,
+      promptVersion: String(data.promptVersion || "broadcast-script-v3"),
+      sourceGrounded: true,
+      generatedAt: String(data.generatedAt || ""),
+      sourceFingerprint: String(data.sourceFingerprint || "")
     },
     validation: {
       passed: !data.qualityChecks || Object.values(data.qualityChecks).every(Boolean),
@@ -516,6 +601,7 @@ function normaliseBroadcastModePackage(data = {}, job = {}) {
       voice: data.realtimeVoice || BROADCAST_REALTIME_VOICE,
       speakerInstructions: data.speakerInstructions || ""
     },
+    estimatedSeconds: Number(data.estimatedSeconds || 0),
     realtimeProvider: data.realtimeProvider || "openai-realtime",
     realtimeModel: data.realtimeModel || BROADCAST_REALTIME_MODEL,
     realtimeVoice: data.realtimeVoice || BROADCAST_REALTIME_VOICE,
@@ -704,6 +790,7 @@ function renderBroadcastPlayer(job) {
           ${job.speakerInstructions ? `<h4>Voice direction</h4><p class="broadcast-voice-direction">${escapeHTML(job.speakerInstructions)}</p>` : ""}
           <h4>Source references</h4>
           <div class="broadcast-source-list">${job.sourceReferences.map(item => `<article><strong>${escapeHTML(item.label)}</strong><p>${escapeHTML(item.detail)}</p></article>`).join("")}</div>
+          ${renderBroadcastScriptQualityHTML(job)}
         </div>
         <div>
           <h4>Full transcript</h4>
@@ -728,10 +815,34 @@ function renderBroadcastPlayer(job) {
   `;
 }
 
+function renderBroadcastScriptQualityHTML(job) {
+  const script = String(job.broadcastScript || "").trim();
+  const metadata = job.scriptMetadata && typeof job.scriptMetadata === "object" ? job.scriptMetadata : {};
+  const checks = job.qualityChecks && typeof job.qualityChecks === "object" ? job.qualityChecks : {};
+  const passedChecks = Object.values(checks).filter(Boolean).length;
+  const totalChecks = Object.keys(checks).length;
+  const wordCount = script ? script.split(/\s+/).filter(Boolean).length : 0;
+  const generatedAt = metadata.generatedAt ? new Date(metadata.generatedAt).toLocaleString() : "This session";
+  return `
+    <details class="broadcast-script-quality" open>
+      <summary><span>Script generation recipe</span><strong>${totalChecks ? `${passedChecks}/${totalChecks} quality checks passed` : "Source-grounded workflow"}</strong></summary>
+      <p>Synapse used the generated notes and available study tools as evidence, then asked ${escapeHTML(metadata.model || job.scriptModel || BROADCAST_SCRIPT_MODEL)} to write a spoken teaching script. The realtime voice is instructed to read each generated chapter in order.</p>
+      <div class="broadcast-quality-grid">
+        <span><strong>Source grounding</strong>${metadata.sourceGrounded === false ? "Needs review" : "Generated content first"}</span>
+        <span><strong>Prompt recipe</strong>${escapeHTML(metadata.promptVersion || "broadcast-script-v3")}</span>
+        <span><strong>Script length</strong>${wordCount.toLocaleString()} words</span>
+        <span><strong>Generated</strong>${escapeHTML(generatedAt)}</span>
+      </div>
+      <p class="broadcast-quality-note">The prompt explicitly requires: use the actual generated material, explain connections and common misunderstandings, avoid unsupported facts, and return chapters with source references.</p>
+    </details>
+  `;
+}
+
 function broadcastDuration(job) {
   const lines = Array.isArray(job?.transcript) ? job.transcript : [];
   const lastLine = lines.length ? lines[lines.length - 1] : null;
-  return Math.max(30, Number(lastLine?.start || 0) + Math.max(20, Math.ceil(String(lastLine?.text || "").length / 12)));
+  const transcriptEstimate = Number(lastLine?.start || 0) + Math.max(20, Math.ceil(String(lastLine?.text || "").length / 12));
+  return Math.max(30, Number(job?.estimatedSeconds || 0), transcriptEstimate);
 }
 
 function selectedBroadcastRate() {
@@ -772,6 +883,8 @@ async function toggleBroadcastPlayback(jobId) {
     remoteAudio: null,
     startSeconds: 0,
     startedAt: Date.now(),
+    sectionIndex: 0,
+    responseActive: false,
     timer: null,
     utterance: null
   };
@@ -849,14 +962,43 @@ function buildBroadcastRealtimeFormData(job, sdp, startSeconds = 0) {
   return formData;
 }
 
+function broadcastPlaybackSections(job) {
+  const source = Array.isArray(job?.sections) && job.sections.length ? job.sections : job?.transcript;
+  return (Array.isArray(source) ? source : [])
+    .map((section, index) => ({
+      ...section,
+      start: Math.max(0, Number(section?.start || 0)),
+      title: String(section?.title || section?.speaker || `Section ${index + 1}`),
+      text: String(section?.text || "").trim()
+    }))
+    .filter(section => section.text);
+}
+
+function broadcastPlaybackSectionIndex(job, startSeconds = 0) {
+  const target = Math.max(0, Number(startSeconds) || 0);
+  const sections = broadcastPlaybackSections(job);
+  let index = 0;
+  sections.forEach((section, candidateIndex) => {
+    if (section.start <= target) index = candidateIndex;
+  });
+  return Math.min(index, Math.max(0, sections.length - 1));
+}
+
 function buildBroadcastRealtimeStartInstruction(job, startSeconds = 0) {
   const target = Math.max(0, Number(startSeconds) || 0);
-  const line = (job.transcript || []).find((item, index, rows) => {
-    const next = rows[index + 1];
-    return Number(item.start || 0) <= target && (!next || Number(next.start || 0) > target);
-  });
-  const title = line?.title || "Opening";
-  return `Begin the Synapse Broadcast now from ${formatBroadcastTime(target)} (${title}). Speak the prepared broadcast naturally using the session instructions. Do not ask the learner a question unless the script says to.`;
+  return buildBroadcastRealtimeSegmentInstruction(job, target, broadcastPlaybackSectionIndex(job, target));
+}
+
+function buildBroadcastRealtimeSegmentInstruction(job, startSeconds = 0, sectionIndex = 0) {
+  const sections = broadcastPlaybackSections(job);
+  const safeIndex = Math.min(Math.max(0, Number(sectionIndex) || 0), Math.max(0, sections.length - 1));
+  const section = sections[safeIndex];
+  const target = Math.max(0, Number(startSeconds) || 0);
+  const script = String(job?.broadcastScript || job?.script?.broadcastScript || "").trim();
+  if (!section) {
+    return `Read the exact generated Synapse Broadcast script below from ${formatBroadcastTime(target)} to the end. Do not summarize it or stop after an introduction.\n\n${script}`;
+  }
+  return `Read the exact generated Synapse Broadcast chapter below. This is chapter ${safeIndex + 1} of ${sections.length}, beginning at ${formatBroadcastTime(section.start || target)}. Speak every sentence in this chapter naturally, without summarizing, skipping, or asking a question. When this chapter is fully spoken, stop so Synapse can send the next chapter.\n\nBroadcast title: ${job.broadcastTitle || job.title || "AI Broadcast"}\nChapter: ${section.title}\nGenerated script chapter:\n${section.text}`;
 }
 
 function sendBroadcastRealtimeEvent(event) {
@@ -866,12 +1008,17 @@ function sendBroadcastRealtimeEvent(event) {
   return true;
 }
 
-function requestBroadcastRealtimeSpeech(job, startSeconds = 0) {
+function requestBroadcastRealtimeSpeech(job, startSeconds = 0, requestedSectionIndex = null) {
+  const sectionIndex = Number.isInteger(requestedSectionIndex)
+    ? requestedSectionIndex
+    : broadcastPlaybackSectionIndex(job, startSeconds);
+  activeBroadcastPlayback.sectionIndex = sectionIndex;
+  activeBroadcastPlayback.responseActive = true;
   sendBroadcastRealtimeEvent({
     type: "response.create",
     response: {
       output_modalities: ["audio"],
-      instructions: buildBroadcastRealtimeStartInstruction(job, startSeconds)
+      instructions: buildBroadcastRealtimeSegmentInstruction(job, startSeconds, sectionIndex)
     }
   });
 }
@@ -893,14 +1040,36 @@ function handleBroadcastRealtimeEvent(messageEvent) {
   }
   if (event.type === "response.created") {
     activeBroadcastPlayback.startedAt = Date.now();
+    activeBroadcastPlayback.responseActive = true;
     return;
   }
-  if (event.type === "response.audio_transcript.delta" || event.type === "response.output_text.delta") {
+  if (event.type === "response.audio_transcript.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.output_text.delta") {
     const elapsed = activeBroadcastPlayback.startSeconds + Math.max(0, (Date.now() - activeBroadcastPlayback.startedAt) / 1000) * activeBroadcastPlayback.rate;
     updateBroadcastPlaybackUI(job, elapsed, true, false);
     return;
   }
-  if (event.type === "response.done" || event.type === "response.audio.done") {
+  // response.audio.done only closes the current audio item. The Realtime
+  // response can still be completing, and the next generated chapter may
+  // still need to be requested. Only response.done advances the episode.
+  if (event.type === "response.audio.done" || event.type === "response.output_audio.done" || event.type === "response.audio_transcript.done" || event.type === "response.output_audio_transcript.done") {
+    return;
+  }
+  if (event.type === "response.done") {
+    activeBroadcastPlayback.responseActive = false;
+    if (event.response?.status === "failed") {
+      stopBroadcastPlayback({ render: false });
+      return;
+    }
+    const sections = broadcastPlaybackSections(job);
+    const nextIndex = activeBroadcastPlayback.sectionIndex + 1;
+    if (sections[nextIndex]) {
+      activeBroadcastPlayback.sectionIndex = nextIndex;
+      activeBroadcastPlayback.startSeconds = sections[nextIndex].start;
+      activeBroadcastPlayback.startedAt = Date.now();
+      requestBroadcastRealtimeSpeech(job, sections[nextIndex].start, nextIndex);
+      updateBroadcastPlaybackUI(job, sections[nextIndex].start, true, false);
+      return;
+    }
     stopBroadcastPlayback({ ended: true });
   }
 }
@@ -1000,6 +1169,8 @@ async function resumeBroadcastPlayback() {
     remoteAudio: null,
     startSeconds: seconds,
     startedAt: Date.now(),
+    sectionIndex: broadcastPlaybackSectionIndex(job, seconds),
+    responseActive: false,
     timer: null,
     utterance: null
   };
@@ -1040,6 +1211,8 @@ function seekBroadcastSection(jobId, seconds = 0) {
       remoteAudio: null,
       startSeconds: target,
       startedAt: Date.now(),
+      sectionIndex: broadcastPlaybackSectionIndex(job, target),
+      responseActive: false,
       timer: null,
       utterance: null
     };
@@ -1075,6 +1248,8 @@ function stopBroadcastPlayback({ ended = false, render = true } = {}) {
     remoteAudio: null,
     startSeconds: 0,
     startedAt: 0,
+    sectionIndex: 0,
+    responseActive: false,
     timer: null,
     utterance: null
   };
@@ -1181,8 +1356,8 @@ function recoverBroadcastJobsOnBoot() {
       progressPercent: Math.max(job.progressPercent, 100)
     });
   });
-  const prunedJobs = nextJobs.slice(0, 1);
-  if (changed || safeReadJSONStorage(BROADCAST_JOBS_STORAGE_KEY, []).length > 1) setBroadcastJobs(prunedJobs);
+  const prunedJobs = nextJobs.slice(0, BROADCAST_HISTORY_LIMIT);
+  if (changed || safeReadJSONStorage(BROADCAST_JOBS_STORAGE_KEY, []).length > BROADCAST_HISTORY_LIMIT) setBroadcastJobs(prunedJobs);
   return getBroadcastJobs();
 }
 

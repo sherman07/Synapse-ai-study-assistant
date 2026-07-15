@@ -44,7 +44,7 @@ const styles = read("frontend/styles/04-section.css");
 const serverEnvExample = read("server/.env.example");
 const backendEnvExample = read("backend/.env.example");
 const geminiEnvExample = read("backend/.env.gemini.example");
-const broadcastAssetVersion = "ai-broadcast-v8";
+const broadcastAssetVersion = "ai-broadcast-v9";
 
 assert.ok(rootIndex.includes("frontend/landing.html"), "root index should keep the landing page as the public entry");
 assert.ok(appShim.includes("frontend/index.html"), "app shim should open the study workspace frontend");
@@ -103,6 +103,7 @@ for (const token of [
   'router.post("/",',
   'router.get("/",',
   'router.get("/:id",',
+  'router.patch("/:id",',
   'router.post("/:id/cancel",',
   'router.post("/:id/retry",',
   'router.delete("/:id",'
@@ -116,7 +117,8 @@ for (const token of [
   "fetchBroadcastJobFromDataApi",
   "cancelBroadcastJobInDataApi",
   "retryBroadcastJobInDataApi",
-  "deleteBroadcastJobFromDataApi"
+  "deleteBroadcastJobFromDataApi",
+  "patchBroadcastJobInDataApi"
 ]) {
   assert.ok(dataClient.includes(token), `data API client should export ${token}`);
 }
@@ -135,7 +137,8 @@ for (const token of [
   "recoverBroadcastJobsOnBoot",
   "setupBroadcastTool",
   "restartBroadcastPlayback",
-  "seekBroadcastSection"
+  "seekBroadcastSection",
+  "syncBroadcastJobsWithDataApi"
 ]) {
   assert.ok(boot.includes(token), `boot should expose ${token}`);
 }
@@ -145,6 +148,7 @@ assert.ok(reset.includes("setupBroadcastTool();"), "workspace reset should resto
 
 for (const token of [
   "BROADCAST_JOBS_STORAGE_KEY",
+  "BROADCAST_HISTORY_LIMIT",
   "AI Broadcast",
   "function setupBroadcastTool()",
   "toolBtnBroadcast",
@@ -159,7 +163,7 @@ for (const token of [
   "collectBroadcastModeContext",
   "requestBroadcastModePackage",
   "replaceBroadcastJob",
-  ".slice(0, 1)",
+  ".slice(0, BROADCAST_HISTORY_LIMIT)",
   'apiClient.fetch("/broadcast/generate"',
   'apiClient.fetch("/broadcast/realtime-call"',
   "speakerInstructions",
@@ -171,8 +175,15 @@ for (const token of [
   "playBroadcastRealtime",
   "buildBroadcastRealtimeFormData",
   "requestBroadcastRealtimeSpeech",
+  "buildBroadcastRealtimeSegmentInstruction",
+  "sectionIndex",
   "output_modalities: [\"audio\"]",
   "handleBroadcastRealtimeEvent",
+  "response.done",
+  "response.audio.done",
+  "Script generation recipe",
+  "scriptMetadata",
+  "syncBroadcastJobsWithDataApi",
   "RTCPeerConnection",
   "openai-realtime",
   "restartBroadcastPlayback",
@@ -189,6 +200,11 @@ for (const token of [
   assert.ok(broadcastController.includes(token), `broadcast controller should include ${token}`);
 }
 assert.ok(!/response:\s*\{[\s\S]*?\n\s*modalities:\s*\["audio"\]/.test(broadcastController), "broadcast response events must use the current Realtime output_modalities field");
+assert.ok(broadcastController.includes("broadcastScript"), "Realtime playback should carry the generated broadcast script");
+assert.ok(!broadcastController.includes('event.type === "response.done" || event.type === "response.audio.done"'), "audio.done must not end the whole broadcast");
+assert.ok(broadcastController.includes('event.type === "response.done"'), "the full response completion event should advance or end playback");
+assert.ok(!broadcastController.includes("setBroadcastJobs([nextJob]);"), "creating a new broadcast must preserve prior broadcast history");
+assert.ok(!broadcastController.includes("nextJobs.slice(0, 1)"), "boot recovery must preserve the broadcast history limit");
 
 assert.ok(studyTools.includes("toolBtnBroadcast"), "Study tools should include AI Broadcast tab button");
 assert.ok(studyTools.includes("toolPanelBroadcast"), "Study tools should include AI Broadcast panel");

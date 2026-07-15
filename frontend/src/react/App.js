@@ -1,5 +1,5 @@
 import { h } from "./runtime.js";
-import { AppShell } from "./components/AppShell.js?v=ai-broadcast-v8";
+import { AppShell } from "./components/AppShell.js?v=ai-broadcast-v9";
 
 export function App() {
   return h(AppShell);

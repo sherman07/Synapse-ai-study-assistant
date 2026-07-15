@@ -11,6 +11,7 @@ BROADCAST_SPEAKER_INSTRUCTIONS = (
     "and clear. Use a medium speaking speed. Add slight pauses between sections. "
     "Emphasise key concepts naturally. Do not sound robotic, dramatic, or like reading a list."
 )
+BROADCAST_SCRIPT_PROMPT_VERSION = "broadcast-script-v3"
 
 
 def clean_broadcast_string(value, fallback: str = "") -> str:
@@ -169,7 +170,10 @@ def build_broadcast_realtime_instructions(
         if section_start >= start_seconds:
             section_lines.append(f"- {broadcast_seconds_to_label(section_start)} {section_title}")
     section_outline = "\n".join(section_lines) or "Start from the beginning."
-    script_excerpt = truncate_text(script, env_int("BROADCAST_REALTIME_CONTEXT_CHARS", 18000))
+    # Keep enough context for long generated episodes. Playback also sends the
+    # current chapter explicitly, so this session-level copy is a resilient
+    # source-of-truth fallback rather than the only script handoff.
+    script_excerpt = truncate_text(script, env_int("BROADCAST_REALTIME_CONTEXT_CHARS", 50000))
     return f"""
 You are Synapse AI Broadcast, a high-quality realtime educational speaker.
 
@@ -533,6 +537,15 @@ Generated Synapse content package:
         package["toneLabel"] = tone_label
         package["sourceFingerprint"] = clean_broadcast_string(payload.get("sourceFingerprint") or payload.get("source_fingerprint"))
         package["generatedAt"] = utc_timestamp("microseconds")
+        package["promptVersion"] = BROADCAST_SCRIPT_PROMPT_VERSION
+        package["scriptMetadata"] = {
+            "model": BROADCAST_SCRIPT_MODEL,
+            "promptVersion": BROADCAST_SCRIPT_PROMPT_VERSION,
+            "sourceGrounded": True,
+            "sourceContextChars": len(context),
+            "generatedAt": package["generatedAt"],
+            "sourceFingerprint": package["sourceFingerprint"],
+        }
         logger.info("broadcast_generate_completed title=%s sections=%s duration=%s", title[:80], len(package["sections"]), package["estimatedDuration"])
         return package
     except Exception as error:

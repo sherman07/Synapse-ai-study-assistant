@@ -1,5 +1,5 @@
 import { SynapseApiClient } from "./apiClient.js";
-import { DATA_API_BASE } from "./dataApiConfig.js?v=ai-broadcast-v8";
+import { DATA_API_BASE } from "./dataApiConfig.js?v=ai-broadcast-v9";
 
 const dataApiClient = new SynapseApiClient(DATA_API_BASE);
 const configuredTimeoutMs = Number((globalThis.window || globalThis).SYNAPSE_DATA_API_TIMEOUT_MS || 6000);
@@ -58,6 +58,20 @@ async function createBroadcastJobInDataApi(job) {
     return payload.item || null;
   } catch (error) {
     warnDataApiSkip("Synapse data API broadcast-job create skipped:", error);
+    return null;
+  }
+}
+
+async function patchBroadcastJobInDataApi(jobId, patch) {
+  try {
+    const payload = await dataApiFetch(`/api/broadcast-jobs/${encodeURIComponent(jobId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch || {})
+    });
+    return payload.item || null;
+  } catch (error) {
+    warnDataApiSkip("Synapse data API broadcast-job update skipped:", error);
     return null;
   }
 }
@@ -132,6 +146,7 @@ export {
   fetchFocusSessionsFromDataApi,
   fetchGeneratedContentFromDataApi,
   persistGeneratedContentToDataApi,
+  patchBroadcastJobInDataApi,
   retryBroadcastJobInDataApi,
   saveFocusSessionToDataApi
 };

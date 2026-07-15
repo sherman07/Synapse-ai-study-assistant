@@ -1,7 +1,7 @@
 import { h, icon, legacyAction } from "../runtime.js";
-import { NotesToolbar } from "./NotesToolbar.js?v=ai-broadcast-v8";
-import { SourceViewerPanel } from "./SourceViewerPanel.js?v=ai-broadcast-v8";
-import { StudyTools } from "./StudyTools.js?v=ai-broadcast-v8";
+import { NotesToolbar } from "./NotesToolbar.js?v=ai-broadcast-v9";
+import { SourceViewerPanel } from "./SourceViewerPanel.js?v=ai-broadcast-v9";
+import { StudyTools } from "./StudyTools.js?v=ai-broadcast-v9";
 
 export function AnalysisStage() {
   return h(

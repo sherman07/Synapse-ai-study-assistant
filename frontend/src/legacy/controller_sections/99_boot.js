@@ -136,6 +136,7 @@ Object.assign(window, {
   generateFlashcardsFromBroadcast,
   openBroadcastAsStudyMaterial,
   setupBroadcastTool,
+  syncBroadcastJobsWithDataApi,
   renderBroadcastSetupPanel,
 });
 
@@ -162,6 +163,11 @@ renderHistory();
 if (typeof syncHistoryWithDataApi === "function") {
   syncHistoryWithDataApi().catch(error => {
     console.warn("Could not load synced generated note history:", error);
+  });
+}
+if (typeof syncBroadcastJobsWithDataApi === "function") {
+  syncBroadcastJobsWithDataApi().catch(error => {
+    console.warn("Could not load synced AI Broadcast history:", error);
   });
 }
 if (typeof renderFocusRoomWorkspaceActions === "function") {

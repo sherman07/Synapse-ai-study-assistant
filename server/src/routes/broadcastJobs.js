@@ -8,6 +8,7 @@ import {
   deleteBroadcastJob,
   getBroadcastJob,
   listBroadcastJobs,
+  patchBroadcastJob,
   retryBroadcastJob
 } from "../repositories/broadcastJobsRepository.js";
 
@@ -25,6 +26,12 @@ router.get("/", requireUser, asyncRoute(async (req, res) => {
 
 router.get("/:id", requireUser, asyncRoute(async (req, res) => {
   const item = await getBroadcastJob(req.user.id, req.params.id);
+  if (!item) return sendNotFound(res, "Broadcast job not found.");
+  res.json({ ok: true, item });
+}));
+
+router.patch("/:id", requireUser, asyncRoute(async (req, res) => {
+  const item = await patchBroadcastJob(req.user.id, req.params.id, req.body || {});
   if (!item) return sendNotFound(res, "Broadcast job not found.");
   res.json({ ok: true, item });
 }));

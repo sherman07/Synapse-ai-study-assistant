@@ -12,6 +12,18 @@ from backend.app import app
 
 
 class BroadcastModeApiTests(unittest.TestCase):
+    def test_realtime_instructions_keep_long_script_context(self):
+        long_script = "Opening\n" + ("Generated teaching sentence. " * 1400) + "\nFinal generated chapter."
+        instructions = backend_app_module.build_broadcast_realtime_instructions(
+            title="Long Broadcast",
+            script=long_script,
+            speaker_instructions="Speak clearly.",
+            sections=[{"title": "Opening", "start": 0, "text": "Generated teaching sentence."}],
+        )
+
+        self.assertIn("Generated teaching sentence.", instructions)
+        self.assertIn("Final generated chapter.", instructions)
+
     def test_generate_requires_generated_synapse_content(self):
         with (
             patch("backend.app.require_text_ai"),
@@ -115,6 +127,8 @@ class BroadcastModeApiTests(unittest.TestCase):
         self.assertEqual(result["broadcastTitle"], "Infant Memory Broadcast")
         self.assertEqual(result["sections"][0]["title"], "Opening")
         self.assertEqual(result["ttsModel"], "gpt-4o-mini-tts")
+        self.assertEqual(result["scriptMetadata"]["promptVersion"], backend_app_module.BROADCAST_SCRIPT_PROMPT_VERSION)
+        self.assertTrue(result["scriptMetadata"]["sourceGrounded"])
         self.assertEqual(captured["kwargs"]["model"], backend_app_module.BROADCAST_SCRIPT_MODEL)
 
     def test_generate_forces_openai_provider_for_broadcast_script(self):
@@ -214,6 +228,7 @@ class BroadcastModeApiTests(unittest.TestCase):
         self.assertEqual(captured["headers"]["Authorization"], "Bearer sk-test")
         session = json.loads(captured["files"]["session"][1])
         self.assertEqual(session["model"], backend_app_module.REALTIME_MODEL)
+        self.assertEqual(session["output_modalities"], ["audio"])
         self.assertEqual(session["audio"]["output"]["voice"], backend_app_module.REALTIME_VOICE)
         self.assertIn("Infant Memory Broadcast", session["instructions"])
         self.assertIn("Today we explain the generated Synapse notes", session["instructions"])
