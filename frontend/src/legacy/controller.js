@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v12";
+import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v13";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
@@ -13,7 +13,7 @@ import {
   patchBroadcastJobInDataApi,
   persistGeneratedContentToDataApi,
   retryBroadcastJobInDataApi
-} from "./dataApiClient.js?v=ai-broadcast-v12";
+} from "./dataApiClient.js?v=ai-broadcast-v13";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -58,10 +58,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=ai-broadcast-v12";
-import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v12";
+} from "./markdownRenderer.js?v=ai-broadcast-v13";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v13";
 
-const CONTROLLER_VERSION = "ai-broadcast-v12";
+const CONTROLLER_VERSION = "ai-broadcast-v13";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
