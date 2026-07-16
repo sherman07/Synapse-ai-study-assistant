@@ -18,14 +18,17 @@ let activeBroadcastPlayback = {
   pausedAtSeconds: 0,
   peer: null,
   playing: false,
+  connecting: false,
   rate: 1,
   remoteAudio: null,
   startSeconds: 0,
   startedAt: 0,
   sectionIndex: 0,
-  sectionDurations: [],
   lastRenderedSeconds: 0,
   responseActive: false,
+  responseFinished: false,
+  startupTimer: null,
+  completionTimer: null,
   timer: null,
   utterance: null
 };
@@ -931,14 +934,17 @@ async function toggleBroadcastPlayback(jobId) {
     pausedAtSeconds: 0,
     peer: null,
     playing: true,
+    connecting: true,
     rate: selectedBroadcastRate(),
     remoteAudio: null,
     startSeconds: 0,
-    startedAt: Date.now(),
+    startedAt: 0,
     sectionIndex: 0,
-    sectionDurations: [],
     lastRenderedSeconds: 0,
     responseActive: false,
+    responseFinished: false,
+    startupTimer: null,
+    completionTimer: null,
     timer: null,
     utterance: null
   };
@@ -974,6 +980,10 @@ function broadcastRealtimeResponseErrorMessage(body, response) {
   try {
     const parsed = JSON.parse(String(body || ""));
     if (parsed?.error) return parsed.error;
+    if (Array.isArray(parsed?.detail)) {
+      return parsed.detail.map(item => item?.msg || item?.message || String(item || "")).filter(Boolean).join(". ");
+    }
+    if (parsed?.detail) return String(parsed.detail);
   } catch {}
   return `Realtime Broadcast failed (${response?.status || "network"}).`;
 }
@@ -1006,6 +1016,14 @@ function closeBroadcastRealtimeTransport() {
     window.clearInterval(activeBroadcastPlayback.timer);
     activeBroadcastPlayback.timer = null;
   }
+  if (activeBroadcastPlayback.startupTimer) {
+    window.clearTimeout(activeBroadcastPlayback.startupTimer);
+    activeBroadcastPlayback.startupTimer = null;
+  }
+  if (activeBroadcastPlayback.completionTimer) {
+    window.clearTimeout(activeBroadcastPlayback.completionTimer);
+    activeBroadcastPlayback.completionTimer = null;
+  }
 }
 
 function buildBroadcastRealtimeFormData(job, sdp, startSeconds = 0) {
@@ -1015,7 +1033,9 @@ function buildBroadcastRealtimeFormData(job, sdp, startSeconds = 0) {
   formData.append("broadcast_script", job.broadcastScript || "");
   formData.append("speaker_instructions", job.speakerInstructions || "");
   formData.append("sections", JSON.stringify(Array.isArray(job.sections) && job.sections.length ? job.sections : job.transcript || []));
-  formData.append("start_seconds", String(Math.max(0, Number(startSeconds) || 0)));
+  // Form values are strings. Send whole seconds so the browser's fractional
+  // elapsed clock cannot cause FastAPI request validation to return 422.
+  formData.append("start_seconds", String(Math.round(Math.max(0, Number(startSeconds) || 0))));
   formData.append("rate", `${selectedBroadcastRate()}x`);
   return formData;
 }
@@ -1033,27 +1053,32 @@ function broadcastPlaybackSections(job) {
 }
 
 function broadcastPlaybackTimelineStarts(job) {
+  return weightedBroadcastTimelineStarts(job);
+}
+
+function weightedBroadcastTimelineStarts(job) {
   const sections = broadcastPlaybackSections(job);
   if (!sections.length) return [];
-  const estimatedStarts = sections.map(section => Math.max(0, Number(section.start || 0)));
-  const measuredDurations = activeBroadcastPlayback.jobId === job?.id && Array.isArray(activeBroadcastPlayback.sectionDurations)
-    ? activeBroadcastPlayback.sectionDurations
-    : [];
-  const starts = [0];
-  for (let index = 1; index < sections.length; index += 1) {
-    const estimatedDuration = Math.max(1, estimatedStarts[index] - estimatedStarts[index - 1]);
-    const measuredDuration = Number(measuredDurations[index - 1]);
-    starts[index] = starts[index - 1] + (
-      Number.isFinite(measuredDuration) && measuredDuration > 0
-        ? measuredDuration
-        : estimatedDuration
-    );
-  }
+  // response.done means generation has finished; it does not mean buffered
+  // WebRTC audio has been heard. Do not let it rewrite chapter starts. Instead,
+  // distribute the episode duration by the real generated chapter word counts.
+  const weights = sections.map(section => Math.max(12, section.text.split(/\s+/).filter(Boolean).length));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || sections.length;
+  const duration = Math.max(sections.length * 12, broadcastDuration(job));
+  let consumedWeight = 0;
+  const starts = weights.map(weight => {
+    const start = Math.round((consumedWeight / totalWeight) * duration);
+    consumedWeight += weight;
+    return start;
+  });
   return starts;
 }
 
 function getBroadcastPlaybackElapsedSeconds(job) {
   if (!job || activeBroadcastPlayback.jobId !== job.id) return 0;
+  if (activeBroadcastPlayback.connecting || !activeBroadcastPlayback.startedAt) {
+    return Math.max(0, Number(activeBroadcastPlayback.startSeconds || 0));
+  }
   const elapsed = Number(activeBroadcastPlayback.startSeconds || 0) + (
     Math.max(0, Date.now() - Number(activeBroadcastPlayback.startedAt || Date.now())) / 1000
   ) * Number(activeBroadcastPlayback.rate || 1);
@@ -1073,7 +1098,14 @@ function broadcastPlaybackSectionIndex(job, startSeconds = 0) {
 
 function buildBroadcastRealtimeStartInstruction(job, startSeconds = 0) {
   const target = Math.max(0, Number(startSeconds) || 0);
-  return buildBroadcastRealtimeSegmentInstruction(job, target, broadcastPlaybackSectionIndex(job, target));
+  const sections = broadcastPlaybackSections(job);
+  const sectionIndex = broadcastPlaybackSectionIndex(job, target);
+  const remainingSections = sections.slice(sectionIndex);
+  if (!remainingSections.length) return buildBroadcastRealtimeSegmentInstruction(job, target, sectionIndex);
+  const chapterScript = remainingSections.map((section, index) => (
+    `Chapter ${sectionIndex + index + 1}: ${section.title}\n${section.text}`
+  )).join("\n\n");
+  return `Read the exact generated Synapse Broadcast chapters below from ${formatBroadcastTime(target)} to the end. Speak every sentence naturally and in order. Do not summarize, skip content, stop after an introduction, or ask the listener questions. Keep going through every chapter until the final recap is complete.\n\nBroadcast title: ${job.broadcastTitle || job.title || "AI Broadcast"}\n\n${chapterScript}`;
 }
 
 function buildBroadcastRealtimeSegmentInstruction(job, startSeconds = 0, sectionIndex = 0) {
@@ -1105,7 +1137,9 @@ function requestBroadcastRealtimeSpeech(job, startSeconds = 0, requestedSectionI
     type: "response.create",
     response: {
       output_modalities: ["audio"],
-      instructions: buildBroadcastRealtimeSegmentInstruction(job, startSeconds, sectionIndex)
+      // Send the remaining script in one response so buffered audio cannot be
+      // cut off between per-section response completions.
+      instructions: buildBroadcastRealtimeStartInstruction(job, startSeconds)
     }
   });
 }
@@ -1126,7 +1160,6 @@ function handleBroadcastRealtimeEvent(messageEvent) {
     return;
   }
   if (event.type === "response.created") {
-    activeBroadcastPlayback.startedAt = Date.now();
     activeBroadcastPlayback.responseActive = true;
     return;
   }
@@ -1147,27 +1180,18 @@ function handleBroadcastRealtimeEvent(messageEvent) {
       stopBroadcastPlayback({ render: false });
       return;
     }
-    const sections = broadcastPlaybackSections(job);
-    const finishedSectionIndex = activeBroadcastPlayback.sectionIndex;
-    const finishedAtSeconds = getBroadcastPlaybackElapsedSeconds(job);
-    const measuredDuration = finishedAtSeconds - Number(activeBroadcastPlayback.startSeconds || 0);
-    if (Number.isFinite(measuredDuration) && measuredDuration > 0.25) {
-      activeBroadcastPlayback.sectionDurations[finishedSectionIndex] = measuredDuration;
-    }
-    updateBroadcastPlaybackUI(job, finishedAtSeconds, true, false);
-    const nextIndex = finishedSectionIndex + 1;
-    if (sections[nextIndex]) {
-      const timelineStarts = broadcastPlaybackTimelineStarts(job);
-      const nextStart = Math.max(finishedAtSeconds, timelineStarts[nextIndex] || finishedAtSeconds);
-      activeBroadcastPlayback.sectionIndex = nextIndex;
-      activeBroadcastPlayback.startSeconds = nextStart;
-      activeBroadcastPlayback.startedAt = Date.now();
-      activeBroadcastPlayback.lastRenderedSeconds = nextStart;
-      requestBroadcastRealtimeSpeech(job, nextStart, nextIndex);
-      updateBroadcastPlaybackUI(job, nextStart, true, false);
-      return;
-    }
-    stopBroadcastPlayback({ ended: true });
+    // This event signals that the model has generated the response. It can
+    // arrive far ahead of the remote audio playback buffer, so closing the
+    // peer here previously cut broadcasts off after a few seconds. Leave the
+    // audio transport open until the planned narration has drained.
+    activeBroadcastPlayback.responseFinished = true;
+    const remainingSeconds = Math.max(1, broadcastDuration(job) - getBroadcastPlaybackElapsedSeconds(job));
+    if (activeBroadcastPlayback.completionTimer) window.clearTimeout(activeBroadcastPlayback.completionTimer);
+    activeBroadcastPlayback.completionTimer = window.setTimeout(() => {
+      if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.responseFinished) {
+        stopBroadcastPlayback({ ended: true });
+      }
+    }, Math.ceil((remainingSeconds / Math.max(0.5, activeBroadcastPlayback.rate || 1)) * 1000) + 1500);
   }
 }
 
@@ -1183,13 +1207,35 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
   activeBroadcastPlayback.peer = peer;
   activeBroadcastPlayback.remoteAudio = audio;
   activeBroadcastPlayback.startSeconds = Math.max(0, Number(startSeconds) || 0);
-  activeBroadcastPlayback.startedAt = Date.now();
+  activeBroadcastPlayback.startedAt = 0;
+  activeBroadcastPlayback.connecting = true;
   peer.addTransceiver("audio", { direction: "recvonly" });
+  audio.addEventListener("playing", () => {
+    if (activeBroadcastPlayback.jobId !== job.id || activeBroadcastPlayback.paused) return;
+    if (activeBroadcastPlayback.connecting) {
+      activeBroadcastPlayback.connecting = false;
+      activeBroadcastPlayback.startedAt = Date.now();
+      activeBroadcastPlayback.lastRenderedSeconds = activeBroadcastPlayback.startSeconds;
+      if (activeBroadcastPlayback.startupTimer) {
+        window.clearTimeout(activeBroadcastPlayback.startupTimer);
+        activeBroadcastPlayback.startupTimer = null;
+      }
+      updateBroadcastPlaybackUI(job, activeBroadcastPlayback.startSeconds, true, false);
+    }
+  });
   peer.ontrack = event => {
     const [stream] = event.streams;
     if (stream) {
       audio.srcObject = stream;
       audio.play().catch(() => {});
+      const track = stream.getAudioTracks?.()[0];
+      if (track) {
+        track.addEventListener("ended", () => {
+          if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.responseFinished) {
+            stopBroadcastPlayback({ ended: true });
+          }
+        }, { once: true });
+      }
     }
   };
   peer.onconnectionstatechange = () => {
@@ -1218,7 +1264,7 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
       }, 15000);
       return;
     }
-    if (["failed", "closed"].includes(state) && activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) {
+    if (["failed", "closed"].includes(state) && activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused && !activeBroadcastPlayback.responseFinished) {
       stopBroadcastPlayback({ render: false });
     }
   };
@@ -1226,11 +1272,12 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
   activeBroadcastPlayback.channel = channel;
   channel.onmessage = handleBroadcastRealtimeEvent;
   channel.onopen = () => {
-    activeBroadcastPlayback.startedAt = Date.now();
     requestBroadcastRealtimeSpeech(job, startSeconds);
   };
   channel.onclose = () => {
-    if (activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused) activeBroadcastPlayback.playing = false;
+    if (activeBroadcastPlayback.jobId === job.id && !activeBroadcastPlayback.paused && !activeBroadcastPlayback.responseFinished) {
+      activeBroadcastPlayback.playing = false;
+    }
   };
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
@@ -1251,6 +1298,12 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
     throw new Error("Realtime voice service returned an invalid SDP answer. Check the OpenAI Realtime model and API key, then restart the backend.");
   }
   await peer.setRemoteDescription({ type: "answer", sdp: answerSdp });
+  activeBroadcastPlayback.startupTimer = window.setTimeout(() => {
+    if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.connecting && !activeBroadcastPlayback.paused) {
+      stopBroadcastPlayback({ render: false });
+      alert("Realtime Broadcast connected but no audio started. Please try Play again.");
+    }
+  }, 25000);
   if (activeBroadcastPlayback.timer) window.clearInterval(activeBroadcastPlayback.timer);
   activeBroadcastPlayback.timer = window.setInterval(() => {
     if (!activeBroadcastPlayback.playing || activeBroadcastPlayback.paused || activeBroadcastPlayback.jobId !== job.id) return;
@@ -1279,7 +1332,6 @@ async function resumeBroadcastPlayback() {
   activeBroadcastPlayback.paused = false;
   const seconds = activeBroadcastPlayback.pausedAtSeconds || activeBroadcastPlayback.startSeconds || 0;
   const sectionIndex = broadcastPlaybackSectionIndex(job, seconds);
-  const sectionDurations = Array.isArray(activeBroadcastPlayback.sectionDurations) ? [...activeBroadcastPlayback.sectionDurations] : [];
   stopBroadcastPlayback({ render: false });
   activeBroadcastPlayback = {
     audio: null,
@@ -1291,14 +1343,17 @@ async function resumeBroadcastPlayback() {
     pausedAtSeconds: 0,
     peer: null,
     playing: true,
+    connecting: true,
     rate: selectedBroadcastRate(),
     remoteAudio: null,
     startSeconds: seconds,
-    startedAt: Date.now(),
+    startedAt: 0,
     sectionIndex,
-    sectionDurations,
     lastRenderedSeconds: seconds,
     responseActive: false,
+    responseFinished: false,
+    startupTimer: null,
+    completionTimer: null,
     timer: null,
     utterance: null
   };
@@ -1336,7 +1391,6 @@ function seekBroadcastSection(jobId, seconds = 0, requestedSectionIndex = null) 
     ? requestedSectionIndex
     : broadcastPlaybackSectionIndex(job, target);
   if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.mode === "realtime") {
-    const sectionDurations = Array.isArray(activeBroadcastPlayback.sectionDurations) ? [...activeBroadcastPlayback.sectionDurations] : [];
     stopBroadcastPlayback({ render: false });
     activeBroadcastPlayback = {
       audio: null,
@@ -1348,14 +1402,17 @@ function seekBroadcastSection(jobId, seconds = 0, requestedSectionIndex = null) 
       pausedAtSeconds: 0,
       peer: null,
       playing: true,
+      connecting: true,
       rate: selectedBroadcastRate(),
       remoteAudio: null,
       startSeconds: target,
-      startedAt: Date.now(),
+      startedAt: 0,
       sectionIndex,
-      sectionDurations,
       lastRenderedSeconds: target,
       responseActive: false,
+      responseFinished: false,
+      startupTimer: null,
+      completionTimer: null,
       timer: null,
       utterance: null
     };
@@ -1392,14 +1449,17 @@ function stopBroadcastPlayback({ ended = false, render = true } = {}) {
     pausedAtSeconds: 0,
     peer: null,
     playing: false,
+    connecting: false,
     rate: selectedBroadcastRate(),
     remoteAudio: null,
     startSeconds: 0,
     startedAt: 0,
     sectionIndex: 0,
-    sectionDurations: [],
     lastRenderedSeconds: 0,
     responseActive: false,
+    responseFinished: false,
+    startupTimer: null,
+    completionTimer: null,
     timer: null,
     utterance: null
   };
@@ -1419,18 +1479,21 @@ function updateBroadcastPlaybackUI(job, seconds = 0, isPlaying = false, isPaused
   const time = document.getElementById("broadcastCurrentTime");
   const shell = document.getElementById("broadcastAudioShell");
   const button = document.getElementById("broadcastPlayButton");
+  const isConnecting = Boolean(activeBroadcastPlayback.jobId === job?.id && activeBroadcastPlayback.connecting && isPlaying && !isPaused);
   if (fill) fill.style.width = `${percent}%`;
   if (time) time.textContent = formatBroadcastTime(displaySeconds);
   if (shell) {
-    shell.classList.toggle("is-playing", Boolean(isPlaying && !isPaused));
+    shell.classList.toggle("is-playing", Boolean(isPlaying && !isPaused && !isConnecting));
+    shell.classList.toggle("is-connecting", isConnecting);
     shell.classList.toggle("is-paused", Boolean(isPaused));
   }
   if (button) {
-    button.classList.toggle("is-playing", Boolean(isPlaying && !isPaused));
+    button.classList.toggle("is-playing", Boolean(isPlaying && !isPaused && !isConnecting));
+    button.classList.toggle("is-connecting", isConnecting);
     const icon = button.querySelector("i");
     const label = button.querySelector("span");
-    if (icon) icon.className = `bi ${isPlaying && !isPaused ? "bi-pause-fill" : "bi-play-fill"} me-1`;
-    if (label) label.textContent = isPlaying && !isPaused ? "Pause" : isPaused ? "Resume" : "Play";
+    if (icon) icon.className = `bi ${isConnecting ? "bi-hourglass-split" : isPlaying && !isPaused ? "bi-pause-fill" : "bi-play-fill"} me-1`;
+    if (label) label.textContent = isConnecting ? "Connecting…" : isPlaying && !isPaused ? "Pause" : isPaused ? "Resume" : "Play";
   }
   document.querySelectorAll("[data-broadcast-chapter-index]").forEach(chapter => {
     const index = Number(chapter.getAttribute("data-broadcast-chapter-index"));

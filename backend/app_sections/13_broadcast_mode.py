@@ -170,14 +170,10 @@ def build_broadcast_realtime_instructions(
         if section_start >= start_seconds:
             section_lines.append(f"- {broadcast_seconds_to_label(section_start)} {section_title}")
     section_outline = "\n".join(section_lines) or "Start from the beginning."
-    # Keep enough context for long generated episodes. Playback also sends the
-    # current chapter explicitly, so this session-level copy is a resilient
-    # source-of-truth fallback rather than the only script handoff.
-    script_excerpt = truncate_text(script, env_int("BROADCAST_REALTIME_CONTEXT_CHARS", 50000))
     return f"""
 You are Synapse AI Broadcast, a high-quality realtime educational speaker.
 
-Use the exact broadcast script below as the source of truth. Speak it naturally as an educational explanation, not as a robotic read-aloud. You may add tiny connective phrases or pauses for flow, but do not add unsupported facts.
+The browser will provide the exact generated broadcast text in each response request. Treat that text as the source of truth: speak it naturally as an educational explanation, without unsupported additions or a robotic read-aloud.
 
 Voice style:
 {speaker_instructions}
@@ -197,9 +193,6 @@ Section navigation from this start point:
 
 Broadcast title:
 {clean_broadcast_string(title, "Synapse Broadcast")}
-
-Broadcast script:
-{script_excerpt}
 """.strip()
 
 
@@ -224,7 +217,7 @@ def broadcast_realtime_provider_error_message(response) -> str:
     if status_code == 403:
         return "OpenAI Realtime access is not enabled for this API key or project."
     if status_code == 404:
-        return f"OpenAI could not find realtime model {REALTIME_MODEL}. Check OPENAI_REALTIME_MODEL."
+        return f"OpenAI could not find realtime model {BROADCAST_REALTIME_MODEL}. Check BROADCAST_REALTIME_MODEL."
     return detail or "OpenAI Realtime could not start the Broadcast speaker."
 
 
@@ -352,7 +345,7 @@ def normalise_broadcast_package(raw: dict, *, title: str, context: str, tone: st
         "ttsProvider": BROADCAST_TTS_PROVIDER,
         "ttsModel": BROADCAST_TTS_MODEL,
         "realtimeProvider": "openai-realtime",
-        "realtimeModel": REALTIME_MODEL,
+        "realtimeModel": BROADCAST_REALTIME_MODEL,
         "realtimeVoice": REALTIME_VOICE,
     }
 
@@ -604,7 +597,10 @@ async def broadcast_realtime_call(
     broadcast_script: str = Form(default=""),
     speaker_instructions: str = Form(default=""),
     sections: str = Form(default="[]"),
-    start_seconds: int = Form(default=0),
+    # Browser elapsed positions are fractional seconds. Accept them at the API
+    # boundary and normalize below so a seek/resume never fails FastAPI
+    # validation before the OpenAI request is attempted.
+    start_seconds: float = Form(default=0),
     rate: str = Form(default="1x"),
 ):
     try:
@@ -622,17 +618,18 @@ async def broadcast_realtime_call(
             parsed_sections = []
         if not isinstance(parsed_sections, list):
             parsed_sections = []
+        safe_start_seconds = max(0, int(float(start_seconds or 0)))
         instructions = build_broadcast_realtime_instructions(
             title=title,
             script=script,
             speaker_instructions=clean_broadcast_string(speaker_instructions, BROADCAST_SPEAKER_INSTRUCTIONS),
             sections=parsed_sections,
-            start_seconds=start_seconds,
+            start_seconds=safe_start_seconds,
             rate=rate,
         )
         session_config = {
             "type": "realtime",
-            "model": REALTIME_MODEL,
+            "model": BROADCAST_REALTIME_MODEL,
             "output_modalities": ["audio"],
             "instructions": instructions,
             "audio": {
@@ -657,14 +654,16 @@ async def broadcast_realtime_call(
             session_config["model"],
             REALTIME_VOICE,
             len(script),
-            start_seconds,
+            safe_start_seconds,
         )
         response = requests.post(
             "https://api.openai.com/v1/realtime/calls",
             headers=headers,
             files={
-                "sdp": (None, sdp),
-                "session": (None, json.dumps(session_config)),
+                # The Realtime WebRTC endpoint expects an SDP offer plus a
+                # JSON session part. Explicit types match OpenAI's contract.
+                "sdp": ("offer.sdp", sdp, "application/sdp"),
+                "session": ("session.json", json.dumps(session_config), "application/json"),
             },
             timeout=30,
         )

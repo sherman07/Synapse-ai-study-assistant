@@ -12,7 +12,7 @@ from backend.app import app
 
 
 class BroadcastModeApiTests(unittest.TestCase):
-    def test_realtime_instructions_keep_long_script_context(self):
+    def test_realtime_session_does_not_duplicate_long_script_context(self):
         long_script = "Opening\n" + ("Generated teaching sentence. " * 1400) + "\nFinal generated chapter."
         instructions = backend_app_module.build_broadcast_realtime_instructions(
             title="Long Broadcast",
@@ -21,8 +21,9 @@ class BroadcastModeApiTests(unittest.TestCase):
             sections=[{"title": "Opening", "start": 0, "text": "Generated teaching sentence."}],
         )
 
-        self.assertIn("Generated teaching sentence.", instructions)
-        self.assertIn("Final generated chapter.", instructions)
+        self.assertNotIn("Generated teaching sentence.", instructions)
+        self.assertNotIn("Final generated chapter.", instructions)
+        self.assertIn("browser will provide the exact generated broadcast text", instructions)
 
     def test_generate_requires_generated_synapse_content(self):
         with (
@@ -217,7 +218,10 @@ class BroadcastModeApiTests(unittest.TestCase):
                     "broadcast_script": "Opening\nToday we explain the generated Synapse notes.",
                     "speaker_instructions": "Speak warmly and clearly.",
                     "sections": json.dumps([{"title": "Opening", "start": 0, "text": "Today we explain."}]),
-                    "start_seconds": "0",
+                    # Chapter seeking can land at a fractional elapsed position.
+                    # The API must accept it instead of returning FastAPI's 422
+                    # validation error before it can create a realtime call.
+                    "start_seconds": "3.5",
                     "rate": "1x",
                 },
             )
@@ -227,11 +231,13 @@ class BroadcastModeApiTests(unittest.TestCase):
         self.assertEqual(captured["url"], "https://api.openai.com/v1/realtime/calls")
         self.assertEqual(captured["headers"]["Authorization"], "Bearer sk-test")
         session = json.loads(captured["files"]["session"][1])
-        self.assertEqual(session["model"], backend_app_module.REALTIME_MODEL)
+        self.assertEqual(session["model"], backend_app_module.BROADCAST_REALTIME_MODEL)
         self.assertEqual(session["output_modalities"], ["audio"])
         self.assertEqual(session["audio"]["output"]["voice"], backend_app_module.REALTIME_VOICE)
         self.assertIn("Infant Memory Broadcast", session["instructions"])
-        self.assertIn("Today we explain the generated Synapse notes", session["instructions"])
+        self.assertNotIn("Today we explain the generated Synapse notes", session["instructions"])
+        self.assertIn("browser will provide the exact generated broadcast text", session["instructions"])
+        self.assertIn("0:03", session["instructions"])
 
     def test_realtime_call_rejects_missing_script(self):
         with patch("backend.app.requests.post", side_effect=AssertionError("Realtime should not be called without a script")):

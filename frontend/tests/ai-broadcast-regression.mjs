@@ -176,7 +176,6 @@ for (const token of [
   "buildBroadcastRealtimeFormData",
   "broadcastPlaybackTimelineStarts",
   "getBroadcastPlaybackElapsedSeconds",
-  "sectionDurations",
   "lastRenderedSeconds",
   "requestBroadcastRealtimeSpeech",
   "buildBroadcastRealtimeSegmentInstruction",
@@ -208,9 +207,11 @@ assert.ok(!/response:\s*\{[\s\S]*?\n\s*modalities:\s*\["audio"\]/.test(broadcast
 assert.ok(broadcastController.includes("broadcastScript"), "Realtime playback should carry the generated broadcast script");
 assert.ok(!broadcastController.includes('event.type === "response.done" || event.type === "response.audio.done"'), "audio.done must not end the whole broadcast");
 assert.ok(broadcastController.includes('event.type === "response.done"'), "the full response completion event should advance or end playback");
-assert.ok(broadcastController.includes("const finishedAtSeconds = getBroadcastPlaybackElapsedSeconds(job)"), "chapter completion should use the measured runtime position");
-assert.ok(broadcastController.includes("activeBroadcastPlayback.sectionDurations[finishedSectionIndex] = measuredDuration"), "completed chapters should teach the adaptive timeline their real duration");
-assert.ok(!broadcastController.includes("activeBroadcastPlayback.startSeconds = sections[nextIndex].start"), "chapter transitions must not reset to static estimated timestamps");
+assert.ok(broadcastController.includes("function weightedBroadcastTimelineStarts(job)"), "chapter timing should be derived from the generated chapter scripts");
+assert.ok(!broadcastController.includes("sectionDurations"), "response completion timing must not rewrite chapter positions before buffered audio is heard");
+assert.ok(broadcastController.includes('formData.append("start_seconds", String(Math.round('), "the frontend should send integer WebRTC seek positions");
+assert.ok(broadcastController.includes('audio.addEventListener("playing"'), "the visible playback clock must begin only when remote audio is actually audible");
+assert.ok(broadcastController.includes('activeBroadcastPlayback.connecting'), "the player should distinguish connecting from audible playback");
 assert.ok(broadcastController.includes("data-broadcast-chapter-index"), "chapter buttons should expose synchronized runtime state");
 assert.ok(broadcastController.includes("data-broadcast-line-index"), "transcript lines should expose synchronized runtime state");
 assert.ok(broadcastController.includes("activeBroadcastPlayback.lastRenderedSeconds"), "the visible playback clock should remain monotonic");
