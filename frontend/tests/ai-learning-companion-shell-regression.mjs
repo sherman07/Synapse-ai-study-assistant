@@ -8,6 +8,7 @@ const read = file => fs.readFileSync(path.join(repoRoot, file), "utf8");
 
 const appShell = read("frontend/src/react/components/AppShell.js");
 const switcher = read("frontend/src/react/components/LearningModeSwitcher.js");
+const historyNavigation = read("frontend/src/react/components/HistoryNavigation.js");
 const controller = read("frontend/src/legacy/controller.js");
 const modeSection = read("frontend/src/legacy/controller_sections/14_learningcompanion.js");
 const companionWorkspace = read("frontend/src/react/components/CompanionWorkspace.js");
@@ -17,6 +18,10 @@ const styles = read("frontend/styles/01-section.css");
 
 assert.ok(appShell.includes("LearningModeSwitcher"));
 assert.ok(appShell.includes("CompanionWorkspace"));
+assert.ok(historyNavigation.includes("dark-learning-rail"));
+assert.ok(historyNavigation.includes("learning-rail-new-chat"));
+assert.ok(historyNavigation.includes("learning-rail-materials"));
+assert.ok(historyNavigation.includes("history-account-rail"));
 assert.ok(switcher.includes("learning-mode-switcher-compact"));
 assert.ok(!switcher.includes("How would you like to study right now?"));
 assert.ok(controller.includes('"14_learningcompanion.js"'));
@@ -44,5 +49,7 @@ assert.ok(uploadStage.includes("Start with AI tutor"));
 assert.ok(uploadStage.includes('legacyAction("setLearningExperienceMode", "companion")'));
 assert.ok(styles.includes(".companion-launch-btn"));
 assert.ok(styles.includes(".learning-mode-switcher-compact"));
+assert.ok(styles.includes(".dark-learning-rail"));
+assert.ok(styles.includes(".learning-rail-actions"));
 
 console.log("ai learning companion shell regression passed");

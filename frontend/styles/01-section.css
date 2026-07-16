@@ -1263,3 +1263,261 @@ body.mobile-assistant-open::before {
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+/* Dark learning workspace: scoped to the existing history-backed initial shell. */
+.app-layout:has(.dark-learning-rail) {
+  background: #212121;
+}
+
+.history-nav.dark-learning-rail {
+  background: #171717;
+  border-right: 1px solid #303030;
+  color: #ececec;
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 18px 12px;
+  position: fixed;
+  width: 280px;
+}
+
+.dark-learning-rail .history-header {
+  margin: 0 0 14px;
+  padding: 4px 8px;
+}
+
+.dark-learning-rail .nav-logo {
+  margin: 0;
+}
+
+.dark-learning-rail .nav-logo-icon {
+  background: #272727;
+  border: 1px solid #363636;
+}
+
+.dark-learning-rail .nav-logo-text {
+  color: #f7f7f7;
+  font-size: 1.2rem;
+}
+
+.learning-rail-actions {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.learning-rail-action {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  color: #d8d8d8;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 650;
+  gap: 11px;
+  padding: 10px 11px;
+  text-align: left;
+  transition: background 0.16s ease, color 0.16s ease;
+  width: 100%;
+}
+
+.learning-rail-action:hover,
+.learning-rail-action:focus-visible {
+  background: #2a2a2a;
+  color: #fff;
+  outline: none;
+}
+
+.learning-rail-new-chat {
+  background: #2b2b2b;
+  color: #fff;
+}
+
+.learning-rail-new-chat:hover,
+.learning-rail-new-chat:focus-visible {
+  background: #363636;
+}
+
+.dark-learning-rail .history-search-wrap {
+  background: #252525;
+  border-color: #383838;
+  margin: 0 0 12px;
+}
+
+.dark-learning-rail .history-search-wrap i,
+.dark-learning-rail .history-search-wrap input,
+.dark-learning-rail .history-search-wrap input::placeholder {
+  color: #a8a8a8;
+}
+
+.dark-learning-rail .history-section-title {
+  color: #9a9a9a;
+  margin: 12px 8px 9px;
+}
+
+.dark-learning-rail .history-list {
+  gap: 3px;
+  overflow-y: auto;
+  padding: 0 3px 82px;
+}
+
+.dark-learning-rail .history-item {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 9px;
+  box-shadow: none;
+  padding: 10px 9px;
+}
+
+.dark-learning-rail .history-item:hover {
+  background: #2a2a2a;
+  border-color: transparent;
+  transform: none;
+}
+
+.dark-learning-rail .history-item-title {
+  color: #e7e7e7;
+  font-weight: 650;
+}
+
+.dark-learning-rail .history-item-meta,
+.dark-learning-rail .history-empty {
+  color: #969696;
+}
+
+.dark-learning-rail .history-account-rail {
+  background: #171717;
+  border-top: 1px solid #303030;
+  bottom: 0;
+  left: 0;
+  padding: 12px 15px;
+  position: absolute;
+  right: 0;
+}
+
+.dark-learning-rail .history-account-btn {
+  color: #f1f1f1;
+  padding: 4px;
+}
+
+.dark-learning-rail .history-account-btn:hover,
+.dark-learning-rail .history-account-btn:focus-visible {
+  background: #2a2a2a;
+}
+
+.dark-learning-rail .history-account-plan {
+  color: #a8a8a8;
+}
+
+.dark-learning-rail .account-popover {
+  background: #242424;
+  border-color: #3b3b3b;
+  bottom: calc(100% + 10px);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.35);
+  color: #eee;
+  top: auto;
+}
+
+.dark-learning-rail .account-popover-profile strong,
+.dark-learning-rail .account-menu-item {
+  color: #ececec;
+}
+
+.dark-learning-rail .account-popover-profile p,
+.dark-learning-rail .account-plan-row {
+  color: #aaa;
+}
+
+.dark-learning-rail .account-plan-row {
+  background: #2b2b2b;
+  border-color: #3b3b3b;
+}
+
+.dark-learning-rail .account-menu-item:hover {
+  background: #333;
+  color: #fff;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .notes-area {
+  background: #212121 !important;
+  color: #ececec;
+  margin-left: 280px !important;
+  width: calc(100% - 280px) !important;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .learning-experience-shell {
+  width: min(920px, 100%);
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .learning-mode-switcher-compact {
+  background: #2a2a2a;
+  border-color: #3d3d3d;
+  box-shadow: none;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .learning-mode-switcher-compact .learning-mode-btn {
+  color: #ddd;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .learning-mode-switcher-compact .learning-mode-btn.active {
+  background: #ececec;
+  color: #202020;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .companion-workspace-card,
+.app-layout.initial-state:has(.dark-learning-rail) .premium-upload-card {
+  background: #212121;
+  border-color: #373737;
+  box-shadow: none;
+  color: #ededed;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .companion-workspace-intro,
+.app-layout.initial-state:has(.dark-learning-rail) .hero-copy p,
+.app-layout.initial-state:has(.dark-learning-rail) .source-helper {
+  color: #a8a8a8;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .companion-message-assistant {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: #ededed;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .companion-message-user {
+  background: #2b2b2b;
+  border-color: #3b3b3b;
+  color: #f4f4f4;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .companion-composer {
+  background: #2a2a2a;
+  border-color: #424242;
+  box-shadow: none;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .companion-composer textarea,
+.app-layout.initial-state:has(.dark-learning-rail) .companion-workspace-card h1,
+.app-layout.initial-state:has(.dark-learning-rail) .companion-message-role {
+  color: #f3f3f3;
+}
+
+.app-layout.initial-state:has(.dark-learning-rail) .drop-zone {
+  background: #252525;
+  border-color: #4a4a4a;
+}
+
+@media (max-width: 850px) {
+  .history-nav.dark-learning-rail {
+    display: none !important;
+  }
+
+  .app-layout.initial-state:has(.dark-learning-rail) .notes-area {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}

@@ -3,7 +3,7 @@ import { h, icon, legacyAction } from "../runtime.js";
 export function HistoryNavigation() {
   return h(
     "aside",
-    { id: "historyNav", className: "history-nav", "aria-label": "Generated notes history" },
+    { id: "historyNav", className: "history-nav dark-learning-rail", "aria-label": "Synapse learning navigation" },
     h(
       "div",
       { className: "history-header" },
@@ -20,7 +20,7 @@ export function HistoryNavigation() {
       h(
         "div",
         {
-          className: "account-menu",
+          className: "account-menu history-account-rail",
           onMouseEnter: legacyAction("renderAccountMenu"),
           onFocus: legacyAction("renderAccountMenu"),
         },
@@ -103,6 +103,28 @@ export function HistoryNavigation() {
       )
     ),
     h(
+      "nav",
+      { className: "learning-rail-actions", "aria-label": "Learning workspace" },
+      h(
+        "button",
+        { className: "learning-rail-action learning-rail-new-chat", type: "button", onClick: legacyAction("resetWorkspace") },
+        icon("bi-pencil-square"),
+        h("span", null, "New chat")
+      ),
+      h(
+        "button",
+        { className: "learning-rail-action learning-rail-materials", type: "button", onClick: legacyAction("setLearningExperienceMode", "materials") },
+        icon("bi-collection"),
+        h("span", null, "Materials")
+      ),
+      h(
+        "button",
+        { className: "learning-rail-action", type: "button", onClick: legacyAction("setLearningExperienceMode", "companion") },
+        icon("bi-chat-dots"),
+        h("span", null, "Learning companion")
+      )
+    ),
+    h(
       "div",
       { className: "history-search-wrap" },
       icon("bi-search"),
@@ -113,7 +135,7 @@ export function HistoryNavigation() {
         "aria-label": "Search generated notes history",
       })
     ),
-    h("div", { className: "history-section-title" }, "Recent Generated Notes"),
+    h("div", { className: "history-section-title" }, "Recent learning"),
     h(
       "div",
       { id: "historyList", className: "history-list" },
