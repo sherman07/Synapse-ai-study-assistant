@@ -1,207 +1,172 @@
 import { React, h, icon } from "../runtime.js";
-import { buildLearningJourney } from "../learningJourney.js?v=ai-learning-companion-v1";
 import {
-  appendLearningMessage,
-  createLearningSession,
-  createLearningSubject,
-  createLearningEvidence,
-  fetchLearningEvidence,
-  fetchLearningMessages,
-  fetchLearningSubjects,
-  requestLearningCompanionDecision,
-} from "../../legacy/learningCompanionClient.js?v=ai-learning-companion-v1";
+  appendLearningCompanionMessage,
+  createLearningCompanionThread,
+  loadLearningCompanionThread,
+  resetLearningCompanionThread,
+  saveLearningCompanionThread,
+} from "../../legacy/learningCompanionChatStore.js?v=ai-learning-companion-v1";
+import { requestLearningCompanionDecision } from "../../legacy/learningCompanionClient.js?v=ai-learning-companion-v1";
 
-const INTENTIONS = [
-  ["hobby", "Explore a hobby"],
-  ["skill", "Build a skill"],
-  ["project", "Finish a project"],
-  ["assessment", "Prepare for assessment"],
-];
+const MAX_CONTEXT_MESSAGES = 24;
+const WELCOME_MESSAGE = {
+  id: "assistant-welcome",
+  role: "assistant",
+  content: "Hi, I’m Synapse. Tell me what you want to learn, what’s confusing, or what you’re trying to finish, and we’ll work through the next step together.",
+};
 
-function turnKey(prefix = "turn") {
+function createMessageId(prefix = "message") {
   const uuid = globalThis.crypto?.randomUUID?.();
   return `${prefix}-${uuid || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+}
+
+function getLocalStorage() {
+  return globalThis.localStorage;
+}
+
+function focusComposer(ref) {
+  const run = () => ref.current?.focus();
+  if (typeof globalThis.requestAnimationFrame === "function") {
+    globalThis.requestAnimationFrame(run);
+    return;
+  }
+  globalThis.setTimeout?.(run, 0);
+}
+
+function toConversation(messages = []) {
+  return messages.slice(-MAX_CONTEXT_MESSAGES).map(message => ({
+    role: message.role,
+    content: message.content,
+  }));
+}
+
+function sourceCountText(decision) {
+  const count = Array.isArray(decision?.research_sources) ? decision.research_sources.length : 0;
+  return count ? `Used ${count} current source${count === 1 ? "" : "s"}.` : "This answer needed current sources, but none were available.";
 }
 
 function messageBubble(message) {
   const isLearner = message.role === "user";
   return h(
     "article",
-    { key: message.id || `${message.role}-${message.sequence}`, className: `companion-message ${isLearner ? "companion-message-user" : "companion-message-assistant"}` },
+    {
+      key: message.id || `${message.role}-${message.content}`,
+      className: `companion-message ${isLearner ? "companion-message-user" : "companion-message-assistant"}`,
+    },
     h("p", { className: "companion-message-role" }, isLearner ? "You" : "Synapse"),
     h("p", null, message.content),
-    !isLearner && message.decision?.next_prompt
-      ? h("p", { className: "companion-message-next" }, `Next: ${message.decision.next_prompt}`)
-      : null,
     !isLearner && message.decision?.requires_research
-      ? h("p", { className: "companion-message-research" }, message.decision.research_sources?.length ? `Used ${message.decision.research_sources.length} current source${message.decision.research_sources.length === 1 ? "" : "s"}.` : "This question needs current sources; none were available." )
+      ? h("p", { className: "companion-message-research" }, sourceCountText(message.decision))
       : null,
   );
 }
 
-function subjectOption(subject) {
-  return h("option", { key: subject.id, value: subject.id }, subject.title);
-}
-
-function latestTutorText(messages) {
-  const latest = [...messages].reverse().find(item => item.role === "assistant");
-  return latest?.decision?.next_prompt || latest?.content || "";
-}
-
 export function CompanionWorkspace() {
-  const [subjects, setSubjects] = React.useState([]);
-  const [subject, setSubject] = React.useState(null);
-  const [session, setSession] = React.useState(null);
-  const [messages, setMessages] = React.useState([]);
-  const [evidence, setEvidence] = React.useState([]);
+  const composerRef = React.useRef(null);
+  const [thread, setThread] = React.useState(() => loadLearningCompanionThread(getLocalStorage()));
   const [draft, setDraft] = React.useState("");
-  const [title, setTitle] = React.useState("");
-  const [goal, setGoal] = React.useState("");
-  const [intention, setIntention] = React.useState("skill");
-  const [availableTime, setAvailableTime] = React.useState(20);
+  const [pendingMessage, setPendingMessage] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState("");
+  const [failure, setFailure] = React.useState("");
 
-  const loadSubjects = React.useCallback(async () => {
-    try {
-      const items = await fetchLearningSubjects();
-      setSubjects(items);
-      if (!subject && items[0]) setSubject(items[0]);
-    } catch (loadError) {
-      setError(loadError.message || "Your learning subjects could not be loaded.");
-    }
-  }, [subject]);
+  React.useEffect(() => {
+    setThread(loadLearningCompanionThread(getLocalStorage()));
+    focusComposer(composerRef);
+  }, []);
 
-  React.useEffect(() => { loadSubjects(); }, [loadSubjects]);
+  const visibleMessages = thread.messages.length ? thread.messages : [WELCOME_MESSAGE];
 
-  const openSubject = async nextSubject => {
-    setError("");
-    setSubject(nextSubject);
-    const currentSession = nextSubject.currentSessionId ? { id: nextSubject.currentSessionId } : null;
-    setSession(currentSession);
-    if (!currentSession) {
-      setMessages([]);
-      try {
-        setEvidence(await fetchLearningEvidence(nextSubject.id));
-      } catch (loadError) {
-        setError(loadError.message || "This learning evidence could not be loaded.");
-      }
-      return;
-    }
-    try {
-      const [loadedMessages, loadedEvidence] = await Promise.all([
-        fetchLearningMessages(currentSession.id),
-        fetchLearningEvidence(nextSubject.id),
-      ]);
-      setMessages(loadedMessages);
-      setEvidence(loadedEvidence);
-    } catch (loadError) {
-      setError(loadError.message || "This learning conversation could not be loaded.");
-    }
-  };
+  const persistThread = React.useCallback(nextThread => {
+    saveLearningCompanionThread(nextThread, getLocalStorage());
+    setThread(nextThread);
+    return nextThread;
+  }, []);
 
-  const beginSession = async nextSubject => {
-    const createdSession = await createLearningSession(nextSubject.id, { availableTimeMinutes: availableTime });
+  const handleTutorReply = React.useCallback(async learnerMessage => {
+    const activeThread = loadLearningCompanionThread(getLocalStorage());
+    const history = toConversation(activeThread.messages);
     const decision = await requestLearningCompanionDecision({
-      subject: nextSubject,
-      availableTimeMinutes: availableTime,
-      messages: [],
-      message: "",
+      message: learnerMessage.content,
+      messages: history,
     });
-    const opening = await appendLearningMessage(createdSession.id, {
+    const assistantMessage = {
+      id: createMessageId("assistant"),
       role: "assistant",
-      content: decision.reply,
+      content: decision?.reply || "Synapse could not reply right now.",
       decision,
-      idempotencyKey: `${createdSession.id}-opening`,
-    });
-    const updatedSubject = { ...nextSubject, currentSessionId: createdSession.id };
-    setSubjects(previous => previous.map(item => item.id === nextSubject.id ? updatedSubject : item));
-    setSubject(updatedSubject);
-    setSession(createdSession);
-    setMessages([opening]);
-  };
+    };
+    persistThread(appendLearningCompanionMessage(activeThread, assistantMessage));
+    setPendingMessage(null);
+    setFailure("");
+    focusComposer(composerRef);
+  }, [persistThread]);
 
-  const handleCreate = async event => {
-    event.preventDefault();
-    if (!title.trim()) {
-      setError("Name the subject you want to learn first.");
-      return;
-    }
+  const sendDraft = React.useCallback(async () => {
+    const content = draft.trim();
+    if (!content || busy) return;
+
+    const learnerMessage = {
+      id: createMessageId("user"),
+      role: "user",
+      content,
+    };
+
     setBusy(true);
-    setError("");
+    setFailure("");
+    setPendingMessage(null);
+
     try {
-      const created = await createLearningSubject({ title, goal, intention });
-      setSubjects(previous => [created, ...previous]);
-      setEvidence([]);
-      await beginSession(created);
-      setTitle("");
-      setGoal("");
-    } catch (createError) {
-      setError(createError.message || "Synapse could not start this learning subject.");
+      const nextThread = appendLearningCompanionMessage(thread, learnerMessage);
+      persistThread(nextThread);
+      setDraft("");
+      setPendingMessage(learnerMessage);
+      await handleTutorReply(learnerMessage);
+    } catch (error) {
+      setPendingMessage(learnerMessage);
+      setFailure(error?.message || "Synapse could not reply right now.");
+      focusComposer(composerRef);
     } finally {
       setBusy(false);
     }
-  };
-
-  const recordEvidence = async () => {
-    if (!subject || busy) return;
-    const latestTutor = [...messages].reverse().find(item => item.role === "assistant");
-    setBusy(true);
-    setError("");
-    try {
-      const item = await createLearningEvidence(subject.id, {
-        sessionId: session?.id || null,
-        evidenceType: "self_check",
-        label: latestTutor?.decision?.next_prompt || `Self-check for ${subject.title}`,
-        payload: { messageId: latestTutor?.id || null, intention: subject.intention },
-      });
-      setEvidence(previous => [item, ...previous]);
-    } catch (evidenceError) {
-      setError(evidenceError.message || "Synapse could not save that self-check.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const journey = buildLearningJourney({ intention: subject?.intention, hasSession: Boolean(session), evidence });
+  }, [busy, draft, handleTutorReply, persistThread, thread]);
 
   const handleSend = async event => {
     event.preventDefault();
-    const content = draft.trim();
-    if (!content || !subject || busy) return;
+    await sendDraft();
+  };
+
+  const handleComposerKeyDown = event => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    void sendDraft();
+  };
+
+  const handleRetry = async () => {
+    if (!pendingMessage || busy) return;
     setBusy(true);
-    setError("");
+    setFailure("");
     try {
-      if (!session) {
-        await beginSession(subject);
-        return;
-      }
-      const learnerMessage = await appendLearningMessage(session.id, {
-        role: "user",
-        content,
-        idempotencyKey: turnKey("learner"),
-      });
-      const history = [...messages, learnerMessage].map(item => ({ role: item.role, content: item.content }));
-      setMessages(previous => [...previous, learnerMessage]);
-      setDraft("");
-      const decision = await requestLearningCompanionDecision({
-        subject,
-        availableTimeMinutes: availableTime,
-        messages: history,
-        message: content,
-      });
-      const tutorMessage = await appendLearningMessage(session.id, {
-        role: "assistant",
-        content: decision.reply,
-        decision,
-        idempotencyKey: turnKey("tutor"),
-      });
-      setMessages(previous => [...previous, tutorMessage]);
-    } catch (sendError) {
-      setError(sendError.message || "Synapse could not send that learning turn.");
+      await handleTutorReply(pendingMessage);
+    } catch (error) {
+      setFailure(error?.message || "Synapse could not reply right now.");
+      focusComposer(composerRef);
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleNewChat = () => {
+    if (busy) return;
+    const confirmReset = typeof globalThis.window?.confirm === "function"
+      ? globalThis.window.confirm("Start a new chat? Your current local conversation will be cleared.")
+      : true;
+    if (!confirmReset) return;
+    const nextThread = resetLearningCompanionThread(createLearningCompanionThread(), getLocalStorage());
+    setThread(nextThread);
+    setDraft("");
+    setPendingMessage(null);
+    setFailure("");
+    focusComposer(composerRef);
   };
 
   return h(
@@ -209,33 +174,77 @@ export function CompanionWorkspace() {
     { id: "companionWorkspace", className: "companion-workspace", "aria-labelledby": "companionWorkspaceTitle" },
     h(
       "div",
-      { className: "companion-workspace-card" },
-      h("p", { className: "learning-mode-switcher-eyebrow" }, "AI Learning Companion"),
-      h("h1", { id: "companionWorkspaceTitle" }, subject ? subject.title : "What would you like to learn?"),
-      h("p", { className: "companion-workspace-intro" }, subject ? "A continuing conversation that adapts to your goal, evidence, and available time." : "Start a learning thread and Synapse will guide the next small step—not hand you a generic resource dashboard."),
-      error ? h("p", { className: "companion-status companion-status-error", role: "alert" }, error) : null,
-      subjects.length > 0
-        ? h("label", { className: "companion-subject-picker" }, "Continue learning", h("select", { value: subject?.id || "", onChange: event => openSubject(subjects.find(item => item.id === event.target.value) || null) }, subjects.map(subjectOption)))
-        : null,
-      !subject
-        ? h(
-          "form",
-          { className: "companion-start-form", onSubmit: handleCreate },
-          h("label", null, "Subject", h("input", { value: title, onChange: event => setTitle(event.target.value), placeholder: "e.g. Digital photography", disabled: busy, "data-learning-companion-create-subject": "true" })),
-          h("label", null, "Why are you learning it?", h("select", { value: intention, onChange: event => setIntention(event.target.value), disabled: busy }, INTENTIONS.map(([value, label]) => h("option", { key: value, value }, label)))),
-          h("label", null, "Goal (optional)", h("input", { value: goal, onChange: event => setGoal(event.target.value), placeholder: "e.g. Take sharper action photos", disabled: busy })),
-          h("label", null, "Time available now", h("select", { value: availableTime, onChange: event => setAvailableTime(Number(event.target.value)), disabled: busy }, [5, 10, 20, 30, 45, 60].map(minutes => h("option", { key: minutes, value: minutes }, `${minutes} minutes`)))),
-          h("button", { type: "submit", className: "btn btn-primary", disabled: busy }, busy ? "Starting…" : "Start learning"),
-        )
-        : h(
+      { className: "companion-workspace-card companion-chat" },
+      h(
+        "div",
+        { className: "companion-session-meta" },
+        h(
           "div",
-          { className: "companion-session" },
-          h("div", { className: "companion-session-meta" }, h("span", null, `${subject.intention} learning`), h("label", null, "Time now", h("select", { value: availableTime, onChange: event => setAvailableTime(Number(event.target.value)), disabled: busy }, [5, 10, 20, 30, 45, 60].map(minutes => h("option", { key: minutes, value: minutes }, `${minutes} min`))))),
-          h("aside", { className: "companion-journey", "aria-label": "Learning journey" }, h("div", null, h("p", { className: "companion-journey-label" }, "Learning journey"), h("strong", null, evidence.length ? `${evidence.length} evidence ${evidence.length === 1 ? "check" : "checks"}` : "First evidence check"), h("p", null, latestTutorText(messages) || "Start a session to identify your next focused step.")), h("button", { type: "button", className: "btn btn-outline-primary", onClick: recordEvidence, disabled: busy, "data-learning-companion-record-evidence": "true" }, icon("bi-check2-circle", "me-2"), "I can explain this")),
-          h("ol", { className: "companion-journey-stages" }, journey.map(stage => h("li", { key: stage.id, className: stage.complete ? "complete" : "" }, h("span", { "aria-hidden": "true" }, stage.complete ? "✓" : "•"), stage.label))),
-          h("div", { className: "companion-messages", "aria-live": "polite" }, messages.length ? messages.map(messageBubble) : h("p", { className: "companion-empty" }, "Start this session when you are ready. Synapse will ask one useful first question.")),
-          h("form", { className: "companion-compose", onSubmit: handleSend }, h("label", { className: "visually-hidden", htmlFor: "companionMessage" }, "Message Synapse"), h("textarea", { id: "companionMessage", value: draft, onChange: event => setDraft(event.target.value), placeholder: session ? "Write your answer or ask for help…" : "Start this session…", disabled: busy, rows: 3 }), h("button", { type: "submit", className: "btn btn-primary", disabled: busy, "data-learning-companion-send": "true" }, busy ? "Thinking…" : h(React.Fragment, null, icon("bi-send", "me-2"), session ? "Send" : "Begin session"))),
+          null,
+          h("p", { className: "learning-mode-switcher-eyebrow" }, "Learning companion"),
+          h("h1", { id: "companionWorkspaceTitle" }, "Synapse"),
+          h("p", { className: "companion-workspace-intro" }, "A local-first conversation workspace for focused tutoring."),
         ),
+        h(
+          "button",
+          {
+            type: "button",
+            className: "btn btn-outline-primary",
+            onClick: handleNewChat,
+            disabled: busy,
+            "data-learning-companion-new-chat": "true",
+          },
+          "New chat",
+        ),
+      ),
+      h(
+        "div",
+        { className: "companion-messages companion-chat-thread", "aria-live": "polite" },
+        visibleMessages.map(messageBubble),
+        failure
+          ? h(
+            "div",
+            { className: "companion-status companion-status-error companion-turn-failure", role: "alert" },
+            h("p", null, failure),
+            h(
+              "button",
+              {
+                type: "button",
+                className: "btn btn-outline-primary",
+                onClick: handleRetry,
+                disabled: busy || !pendingMessage,
+                "data-learning-companion-retry": "true",
+              },
+              busy ? "Retrying…" : "Retry",
+            ),
+          )
+          : null,
+      ),
+      h(
+        "form",
+        { className: "companion-compose companion-composer", onSubmit: handleSend },
+        h("label", { className: "visually-hidden", htmlFor: "companionMessage" }, "Message Synapse"),
+        h("textarea", {
+          id: "companionMessage",
+          ref: composerRef,
+          value: draft,
+          onChange: event => setDraft(event.target.value),
+          onKeyDown: handleComposerKeyDown,
+          placeholder: "Ask a question, describe your goal, or paste what you want help understanding…",
+          disabled: busy,
+          rows: 4,
+        }),
+        h(
+          "button",
+          {
+            type: "submit",
+            className: "btn btn-primary",
+            disabled: busy || !draft.trim(),
+            "data-learning-companion-send": "true",
+          },
+          busy ? "Thinking…" : h(React.Fragment, null, icon("bi-send", "me-2"), "Send"),
+        ),
+      ),
     ),
   );
 }
