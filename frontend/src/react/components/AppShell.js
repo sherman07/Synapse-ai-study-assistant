@@ -2,7 +2,9 @@ import { Fragment, h } from "../runtime.js";
 import { MobileNavigation } from "./MobileNavigation.js?v=ai-broadcast-v13";
 import { HistoryNavigation } from "./HistoryNavigation.js?v=ai-broadcast-v13";
 import { SummaryNavigation } from "./SummaryNavigation.js?v=ai-broadcast-v13";
+import { LearningModeSwitcher } from "./LearningModeSwitcher.js?v=ai-broadcast-v13";
 import { UploadStage } from "./UploadStage.js?v=ai-broadcast-v13";
+import { CompanionWorkspace } from "./CompanionWorkspace.js?v=ai-broadcast-v13";
 import { AnalysisStage } from "./AnalysisStage.js?v=ai-broadcast-v13";
 import { AssistantPanel, OpenAssistantButton } from "./AssistantPanel.js?v=ai-broadcast-v13";
 
@@ -13,13 +15,19 @@ export function AppShell() {
     h(MobileNavigation),
     h(
       "div",
-      { id: "appLayout", className: "app-layout initial-state" },
+      { id: "appLayout", className: "app-layout initial-state", "data-learning-experience-mode": "materials" },
       h(HistoryNavigation),
       h(SummaryNavigation),
       h(
         "main",
         { id: "mainNotes", className: "notes-area" },
-        h(UploadStage),
+        h(
+          "div",
+          { className: "learning-experience-shell" },
+          h(LearningModeSwitcher),
+          h(UploadStage),
+          h(CompanionWorkspace)
+        ),
         h(AnalysisStage)
       ),
       h(AssistantPanel)

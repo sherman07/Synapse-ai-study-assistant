@@ -77,6 +77,7 @@ const CONTROLLER_DEFINITION_FILES = [
   "11_generationjobs.js",
   "12_broadcastjobs.js",
   "13_studytoolmemory.js",
+  "14_learningcompanion.js",
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
 const apiClient = new SynapseApiClient(API_BASE);
