@@ -2463,6 +2463,31 @@ html[data-theme="light"] .auth-modal-overlay {
   }
 }
 
+@media (max-width: 639px) {
+  .landing-container,
+  .landing-nav-container {
+    width: auto;
+    margin-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+  }
+
+  .landing-nav-container {
+    padding-inline: 0;
+  }
+
+  .landing-nav-menu {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+  }
+
+  .section {
+    padding-block: 56px;
+  }
+
+  .hero-section {
+    padding-top: calc(56px + env(safe-area-inset-top));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

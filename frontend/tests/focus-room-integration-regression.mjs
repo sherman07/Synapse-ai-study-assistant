@@ -174,8 +174,8 @@ assert.ok(
   "Standalone Focus Room page should not boot the loader unconditionally while disabled"
 );
 assert.ok(
-  focusRoomHtml.includes("styles/09-focus-room.css?v=focus-room-glass-v8"),
-  "Focus Room HTML should cache-bust the CSS after portal stacking fixes"
+  focusRoomHtml.includes("styles/09-focus-room.css?v=focus-room-responsive-v1"),
+  "Focus Room HTML should cache-bust the CSS after responsive layout fixes"
 );
 assert.ok(
   focusRoomHtml.includes("static-compatible-loader.js?v=focus-room-loader-v7"),

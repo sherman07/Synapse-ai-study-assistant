@@ -297,3 +297,31 @@ a {
     padding-top: 54px;
   }
 }
+
+@media (max-width: 639px) {
+  .billing-nav {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .billing-nav-inner,
+  .billing-container {
+    width: auto;
+    margin-inline: max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-right));
+  }
+
+  .billing-hero {
+    padding-top: 40px;
+  }
+
+  .plan-card,
+  .billing-result-card,
+  .billing-status-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .billing-result-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

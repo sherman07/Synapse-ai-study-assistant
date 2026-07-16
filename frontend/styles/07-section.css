@@ -2132,3 +2132,38 @@
     display: none;
   }
 }
+
+@media (max-width: 639px) {
+  .broadcast-workspace {
+    gap: 14px;
+  }
+
+  .broadcast-setup-card,
+  .broadcast-player-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .broadcast-actions,
+  .broadcast-player-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .broadcast-actions .btn,
+  .broadcast-player-controls .btn,
+  .broadcast-player-controls select {
+    width: 100%;
+  }
+
+  .broadcast-setup-summary {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .broadcast-chapter-list,
+  .broadcast-key-ideas {
+    padding-left: 0;
+    list-style-position: inside;
+  }
+}

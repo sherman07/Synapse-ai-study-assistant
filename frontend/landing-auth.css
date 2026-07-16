@@ -3059,6 +3059,30 @@ body::before {
   }
 }
 
+@media (max-width: 639px) {
+  .landing-nav-container {
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+  }
+
+  .landing-nav-menu {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+  }
+
+  .auth-page,
+  .legal-page,
+  .not-found-page {
+    padding: calc(20px + env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+
+  .auth-card,
+  .legal-card,
+  .not-found-card {
+    width: 100%;
+    padding: 24px 18px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

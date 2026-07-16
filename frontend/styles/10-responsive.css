@@ -1,0 +1,50 @@
+/* Shared responsive safeguards. Route-specific layouts remain in their feature stylesheets. */
+:root {
+  --safe-inline-start: max(14px, env(safe-area-inset-left));
+  --safe-inline-end: max(14px, env(safe-area-inset-right));
+  --safe-block-end: max(14px, env(safe-area-inset-bottom));
+}
+
+html {
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+:where(.notes-area, .summary-content, .tool-panel, .assistant-panel, .focus-room, .landing-page) {
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  :where(button, [role="button"], input[type="button"], input[type="submit"], select) {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  :where(a, input, textarea) {
+    touch-action: manipulation;
+  }
+}
+
+@media (max-width: 639px) {
+  :where(.summary-content, .tool-panel, .notes-card, .brainstorm-card) {
+    overflow-wrap: anywhere;
+  }
+
+  :where(.summary-content, .tool-panel) :where(table, pre) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

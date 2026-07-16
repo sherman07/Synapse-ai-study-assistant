@@ -1117,6 +1117,43 @@ body.focus-room-standalone #focusRoomRoot {
   }
 }
 
+@media (max-width: 639px) {
+  .focus-room-surface {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .top-nav {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+  }
+
+  .focus-setup-stage,
+  .history-stage {
+    width: auto;
+    margin-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+
+  .focus-session-stage {
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    padding-bottom: calc(170px + env(safe-area-inset-bottom));
+  }
+
+  .focus-tool-panel {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left));
+    width: auto;
+  }
+
+  .top-nav-actions,
+  .focus-button-row,
+  .timer-actions {
+    gap: 8px;
+  }
+}
+
 .liquid-glass-lite {
   background: rgba(31, 33, 39, 0.58);
   border-color: rgba(255, 255, 255, 0.12);
