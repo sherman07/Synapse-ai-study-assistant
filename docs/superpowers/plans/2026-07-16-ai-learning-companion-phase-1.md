@@ -151,6 +151,7 @@ git commit -m "feat: persist learning companion subjects and sessions"
 
 **Files:**
 - Create: `backend/core/learning_companion.py`
+- Create: `backend/core/learning_data.py`
 - Create: `backend/prompts/learning_companion/identity.md`
 - Create: `backend/prompts/learning_companion/teaching-behaviour.md`
 - Create: `backend/prompts/learning_companion/memory-policy.md`
@@ -166,6 +167,7 @@ git commit -m "feat: persist learning companion subjects and sessions"
 - `LearningTurnRequest(subject_id, session_id, message, available_time_minutes, idempotency_key)`.
 - `TutorDecision(intent, learning_intention, active_objective, response_strategy, needs_diagnosis, needs_understanding_check, suggested_action, evidence_candidates, journey_patch)`.
 - `build_learning_messages(request, context)` and `validate_tutor_decision(value)`.
+- `LearningDataClient.load_context(subject_id, session_id)` and `LearningDataClient.append_turn(session_id, payload)` use the existing internal data-API configuration and never trust browser-supplied learner memory.
 
 - [ ] **Step 1: Write failing tutor-quality tests**
 
@@ -192,7 +194,7 @@ Expected: failure because `backend.core.learning_companion` does not exist.
 
 - [ ] **Step 3: Implement constrained decision and prompt builder**
 
-Use Pydantic models for the request and internal decision. Load exactly four common Companion prompts, one intention prompt, and one action-specific instruction. The helper must select only bounded recent conversation, subject summary, active unit, relevant evidence, and learner preferences.
+Use Pydantic models for the request and internal decision. `learning_data.py` wraps the internal Express API calls needed to load a user-owned subject/session context and append turns; it forwards the authenticated request identity and never accepts learner memory from the browser as authority. Load exactly four common Companion prompts, one intention prompt, and one action-specific instruction. The helper must select only bounded recent conversation, subject summary, active unit, relevant evidence, and learner preferences.
 
 `/learning/turn/stream` accepts only Companion fields, rejects system roles, writes a user turn through the internal data API, requests a structured decision, streams `text_delta` events, then writes a validated assistant turn and state patch. Existing `/ask` remains unchanged.
 
@@ -205,7 +207,7 @@ Expected: all selected tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/core/learning_companion.py backend/prompts/learning_companion backend/app_sections/05_analyze.py backend/tests/test_learning_companion.py
+git add backend/core/learning_companion.py backend/core/learning_data.py backend/prompts/learning_companion backend/app_sections/05_analyze.py backend/tests/test_learning_companion.py
 git commit -m "feat: add isolated learning companion tutor turns"
 ```
 
