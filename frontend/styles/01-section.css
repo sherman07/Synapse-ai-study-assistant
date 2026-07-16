@@ -456,7 +456,6 @@ body.mobile-assistant-open::before {
   padding: 11px 19px;
 }
 
-.learning-mode-switcher,
 .companion-workspace-card {
   background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(20px);
@@ -465,13 +464,6 @@ body.mobile-assistant-open::before {
   box-shadow: var(--shadow-card);
 }
 
-.learning-mode-switcher {
-  display: grid;
-  gap: 18px;
-  padding: 24px;
-}
-
-.learning-mode-switcher-copy h2,
 .companion-workspace-card h1 {
   margin: 0 0 10px;
   font-size: clamp(2rem, 4vw, 3rem);
@@ -479,7 +471,6 @@ body.mobile-assistant-open::before {
   letter-spacing: -0.05em;
 }
 
-.learning-mode-switcher-copy p:last-child,
 .companion-workspace-intro {
   margin: 0;
   color: var(--muted);
@@ -504,6 +495,31 @@ body.mobile-assistant-open::before {
   border-radius: 999px;
   font-weight: 800;
   min-width: 132px;
+}
+
+.learning-mode-switcher-compact {
+  align-items: center;
+  align-self: start;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-blue);
+  border-radius: 999px;
+  box-shadow: 0 10px 26px rgba(74, 124, 255, 0.12);
+  display: flex;
+  justify-self: end;
+  padding: 4px;
+  position: relative;
+  z-index: 2;
+}
+
+.learning-mode-switcher-compact .learning-mode-switcher-group {
+  gap: 2px;
+}
+
+.learning-mode-switcher-compact .learning-mode-btn {
+  border-radius: 999px;
+  min-width: 0;
+  padding: 8px 14px;
 }
 
 .companion-workspace {
@@ -1059,6 +1075,14 @@ body.mobile-assistant-open::before {
 }
 
 @media (max-width: 720px) {
+  .learning-mode-switcher-compact {
+    justify-self: end;
+  }
+
+  .learning-mode-switcher-compact .learning-mode-btn {
+    padding-inline: 12px;
+  }
+
   .companion-chat {
     min-height: calc(100vh - 120px);
     padding: 18px;

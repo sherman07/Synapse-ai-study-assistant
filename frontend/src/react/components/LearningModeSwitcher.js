@@ -17,14 +17,8 @@ function modeButton(mode, label, pressed) {
 export function LearningModeSwitcher() {
   return h(
     "section",
-    { className: "learning-mode-switcher", "aria-labelledby": "learningModeSwitcherLabel" },
-    h(
-      "div",
-      { className: "learning-mode-switcher-copy" },
-      h("p", { className: "learning-mode-switcher-eyebrow" }, "Choose your workspace"),
-      h("h2", { id: "learningModeSwitcherLabel" }, "How would you like to study right now?"),
-      h("p", null, "Stay in materials to upload and generate notes, or switch to companion for guided study support.")
-    ),
+    { className: "learning-mode-switcher learning-mode-switcher-compact", "aria-labelledby": "learningModeSwitcherLabel" },
+    h("span", { id: "learningModeSwitcherLabel", className: "visually-hidden" }, "Learning workspace"),
     h(
       "div",
       {
