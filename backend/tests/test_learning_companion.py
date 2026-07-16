@@ -7,17 +7,18 @@ from backend.app import app
 
 
 class LearningCompanionEndpointTests(unittest.TestCase):
-    def test_companion_accepts_a_first_free_text_message_without_a_subject(self):
+    def test_companion_defaults_blank_intention_to_skill_when_subject_title_is_present(self):
         model_reply = '{"reply":"What kind of photos do you want to make?","state":"diagnose","mastery":0}'
         with patch("backend.app.require_text_ai"), patch("backend.app.generate_chat", return_value=model_reply):
             response = TestClient(app).post("/learning-companion/respond", json={
-                "message": "I want to learn photography",
+                "subject": {"title": "Photography"},
+                "message": "Teach me aperture",
                 "messages": [],
             })
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["intention"], "skill")
-        self.assertIn("photo", response.json()["subject_title"].lower())
+        self.assertEqual(response.json()["subject_title"], "Photography")
 
     def test_companion_returns_a_typed_tutor_decision_without_web_research_by_default(self):
         model_reply = '''{

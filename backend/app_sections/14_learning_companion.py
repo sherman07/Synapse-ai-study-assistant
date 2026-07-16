@@ -54,6 +54,8 @@ async def learning_companion_respond(data: dict):
         if not title:
             title, inferred_intention = learning_companion_defaults(message, history)
             intention = intention or inferred_intention
+        if not intention:
+            intention = "skill"
 
         try:
             available_time_minutes = int(data.get("available_time_minutes") or data.get("availableTimeMinutes") or 0)
