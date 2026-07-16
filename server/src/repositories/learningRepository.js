@@ -1,4 +1,5 @@
 import { allowedValue, cleanString } from "../utils/validators.js";
+import { randomId } from "../utils/ids.js";
 
 const LEARNING_INTENTIONS = ["hobby", "skill", "project", "assessment"];
 const MESSAGE_ROLES = ["user", "assistant"];
@@ -14,7 +15,7 @@ function normalizeSubject(input = {}, userId) {
   if (!intention) throw new Error("Learning intention is invalid.");
 
   return {
-    id: requiredString(input.id, "Subject id", 120),
+    id: cleanString(input.id, 120) || randomId("subject"),
     userId: requiredString(userId, "User id", 120),
     title: requiredString(input.title, "Subject title"),
     intention,

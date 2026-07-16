@@ -24,3 +24,8 @@ test("learning subjects reject unknown intentions", () => {
     /intention/i
   );
 });
+
+test("learning subjects generate one stable write id when a caller omits it", () => {
+  const subject = normalizeSubject({ title: "Photography", intention: "hobby" }, "user-1");
+  assert.match(subject.id, /^subject_/);
+});
