@@ -985,6 +985,11 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     connectionsData = data.connections || [];
     currentMindMap = data.mind_map || data.mindMap || data.brainstorm || null;
     visualGalleryData = normalizeLearningFigures(data.visual_gallery || data.source_evidence_cards || data.figure_cards || data.visuals || []);
+    fullSummary = pruneUnavailableVisualMarkers(fullSummary, visualGalleryData);
+    sections = Object.fromEntries(Object.entries(sections).map(([title, markdown]) => [
+      title,
+      pruneUnavailableVisualMarkers(markdown, visualGalleryData)
+    ]));
     currentPrimarySourceIdentity = data.primary_source_identity || data.source_identity || "";
     currentPromptMode = data.prompt_mode || promptModeValue;
     currentPromptModeLabel = data.prompt_mode_label || "";

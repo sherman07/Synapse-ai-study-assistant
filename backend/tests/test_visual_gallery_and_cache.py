@@ -30,6 +30,7 @@ from backend.app import render_pptx_source_preview_svg_images
 from backend.app import source_preview_image_url
 from backend.app import validate_source_strict_summary
 from backend.core.analysis_cache import AnalysisCacheStore
+from backend.core import visual_assets
 from backend.core.visual_assets import prune_unavailable_visual_markers, visual_asset_url_for_browser
 
 try:
@@ -1106,6 +1107,50 @@ class VisualGalleryTests(unittest.TestCase):
         self.assertEqual(len(gallery), 1)
         self.assertFalse(gallery[0]["url"].startswith("data:"))
         assert_served_visual_asset(self, gallery[0]["url"], "image/png")
+
+    def test_visual_asset_mirrors_new_data_url_to_durable_storage(self):
+        png_data = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
+        data_url = "data:image/png;base64," + base64.b64encode(png_data).decode("ascii")
+
+        with (
+            patch.object(visual_assets, "durable_visual_storage_enabled", return_value=True),
+            patch.object(visual_assets, "persist_visual_asset_to_durable_storage", return_value=True) as persist,
+        ):
+            url = visual_asset_url_for_browser(data_url)
+
+        self.assertTrue(url.endswith(".png"))
+        persist.assert_called_once()
+        asset_name, content_type, stored_data = persist.call_args.args
+        self.assertTrue(asset_name.endswith(".png"))
+        self.assertEqual(content_type, "image/png")
+        self.assertEqual(stored_data, png_data)
+
+    def test_visual_asset_route_recovers_missing_runtime_file_from_durable_storage(self):
+        asset_name = "durable-test-visual.png"
+        asset_path = backend_app_module.RUNTIME_ASSETS_DIR / "visuals" / asset_name
+        asset_path.unlink(missing_ok=True)
+        png_data = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
+
+        try:
+            with patch.object(
+                backend_app_module,
+                "fetch_visual_asset_from_durable_storage",
+                return_value=(png_data, "image/png"),
+            ) as fetch:
+                response = TestClient(app).get(f"/assets/visuals/{asset_name}")
+        finally:
+            asset_path.unlink(missing_ok=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("content-type"), "image/png")
+        self.assertEqual(response.content, png_data)
+        fetch.assert_called_once_with(asset_name)
 
     def test_source_preview_image_url_serves_runtime_asset_when_requested(self):
         png_data = base64.b64decode(

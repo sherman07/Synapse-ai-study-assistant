@@ -27,7 +27,7 @@ import requests
 from dotenv import dotenv_values
 from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 BACKEND_PACKAGE_DIR = Path(__file__).resolve().parent
 if str(BACKEND_PACKAGE_DIR) not in sys.path:
@@ -131,6 +131,10 @@ from core.config import (
 from core.database import synapse_database
 from core.request_limits import read_upload_bytes
 from core.section_loader import AppSectionLoader
+from core.visual_assets import (
+    fetch_visual_asset_from_durable_storage,
+    runtime_asset_path_for_relative_path,
+)
 from core.note_prompt_modes import (
     DEFAULT_NOTE_LENGTH_MODE,
     DEFAULT_NOTE_PROMPT_MODE,
@@ -256,7 +260,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 RUNTIME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/assets", StaticFiles(directory=str(RUNTIME_ASSETS_DIR)), name="synapse_assets")
 
 
 async def run_blocking(func, *args, **kwargs):
@@ -281,6 +284,36 @@ APP_SECTION_FILES = (
 )
 
 AppSectionLoader(BACKEND_PACKAGE_DIR, APP_SECTION_FILES).load(globals())
+
+
+@app.get("/assets/visuals/{asset_name}")
+def serve_visual_asset(asset_name: str):
+    """Serve a local visual or restore it from private durable storage."""
+    asset_path = runtime_asset_path_for_relative_path(f"visuals/{asset_name}")
+    if asset_path and asset_path.is_file():
+        return FileResponse(asset_path)
+
+    restored = fetch_visual_asset_from_durable_storage(asset_name)
+    if not restored:
+        return Response(status_code=404)
+
+    content, content_type = restored
+    if asset_path:
+        try:
+            asset_path.parent.mkdir(parents=True, exist_ok=True)
+            asset_path.write_bytes(content)
+        except OSError:
+            pass
+    return Response(content=content, media_type=content_type)
+
+
+@app.get("/assets/{asset_path:path}")
+def serve_runtime_asset(asset_path: str):
+    """Keep existing runtime audio and preview URLs working without static mounts."""
+    path = runtime_asset_path_for_relative_path(asset_path)
+    if not path or not path.is_file():
+        return Response(status_code=404)
+    return FileResponse(path)
 
 SERVER_ENV_VALUES = dotenv_values(BACKEND_PACKAGE_DIR.parent / "server" / ".env")
 

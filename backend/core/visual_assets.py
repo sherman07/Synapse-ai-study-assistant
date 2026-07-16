@@ -1,9 +1,13 @@
 import base64
 import hashlib
+import os
 import re
+import threading
 from pathlib import Path
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
+
+import requests
 
 try:
     from core.config import PUBLIC_BACKEND_BASE_URL, RUNTIME_ASSETS_DIR
@@ -24,6 +28,126 @@ LOCAL_FILESYSTEM_URL_RE = re.compile(
     r"^(?:file:|[A-Za-z]:[\\/]|\\\\|/(?:Users|home|var|tmp|private|Volumes|Applications|opt|usr)/)",
     re.I,
 )
+VISUAL_ASSET_BUCKET_DEFAULT = "synapse-visual-assets"
+_storage_bucket_ready = False
+_storage_bucket_lock = threading.Lock()
+
+
+def durable_visual_storage_enabled() -> bool:
+    return str(os.getenv("SYNAPSE_VISUAL_ASSET_STORAGE_ENABLED", "false")).strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+
+def durable_visual_storage_settings() -> Optional[Tuple[str, str, str]]:
+    if not durable_visual_storage_enabled():
+        return None
+    supabase_url = str(os.getenv("SUPABASE_URL") or os.getenv("SYNAPSE_SUPABASE_URL") or "").rstrip("/")
+    service_role_key = str(
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or os.getenv("SYNAPSE_SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
+    bucket = str(os.getenv("SYNAPSE_VISUAL_ASSET_BUCKET") or VISUAL_ASSET_BUCKET_DEFAULT).strip()
+    if not supabase_url or not service_role_key or not bucket:
+        return None
+    return supabase_url, service_role_key, bucket
+
+
+def durable_visual_storage_headers(service_role_key: str, content_type: str = "") -> dict:
+    headers = {
+        "Authorization": f"Bearer {service_role_key}",
+        "apikey": service_role_key,
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def ensure_durable_visual_asset_bucket() -> bool:
+    global _storage_bucket_ready
+    settings = durable_visual_storage_settings()
+    if not settings:
+        return False
+    if _storage_bucket_ready:
+        return True
+    supabase_url, service_role_key, bucket = settings
+    with _storage_bucket_lock:
+        if _storage_bucket_ready:
+            return True
+        try:
+            response = requests.post(
+                f"{supabase_url}/storage/v1/bucket",
+                headers=durable_visual_storage_headers(service_role_key, "application/json"),
+                json={"id": bucket, "name": bucket, "public": False},
+                timeout=4,
+            )
+            if response.status_code not in {200, 201, 409}:
+                return False
+        except requests.RequestException:
+            return False
+        _storage_bucket_ready = True
+    return True
+
+
+def durable_visual_asset_object_url(supabase_url: str, bucket: str, asset_name: str) -> str:
+    return f"{supabase_url}/storage/v1/object/{bucket}/visuals/{asset_name}"
+
+
+def persist_visual_asset_to_durable_storage(asset_name: str, content_type: str, data: bytes) -> bool:
+    """Mirror source visuals to private Supabase Storage when production enables it."""
+    settings = durable_visual_storage_settings()
+    if not settings or not asset_name or not data or not ensure_durable_visual_asset_bucket():
+        return False
+    supabase_url, service_role_key, bucket = settings
+    try:
+        response = requests.post(
+            durable_visual_asset_object_url(supabase_url, bucket, asset_name),
+            headers={
+                **durable_visual_storage_headers(service_role_key, content_type),
+                "x-upsert": "true",
+            },
+            data=data,
+            timeout=6,
+        )
+        return response.status_code in {200, 201}
+    except requests.RequestException:
+        return False
+
+
+def fetch_visual_asset_from_durable_storage(asset_name: str) -> Optional[Tuple[bytes, str]]:
+    settings = durable_visual_storage_settings()
+    if not settings or not asset_name:
+        return None
+    supabase_url, service_role_key, bucket = settings
+    try:
+        response = requests.get(
+            durable_visual_asset_object_url(supabase_url, bucket, asset_name),
+            headers=durable_visual_storage_headers(service_role_key),
+            timeout=6,
+        )
+    except requests.RequestException:
+        return None
+    if response.status_code != 200 or not response.content:
+        return None
+    content_type = response.headers.get("content-type", "application/octet-stream").split(";", 1)[0]
+    return response.content, content_type
+
+
+def durable_visual_asset_exists(asset_name: str) -> bool:
+    settings = durable_visual_storage_settings()
+    if not settings or not asset_name:
+        return False
+    supabase_url, service_role_key, bucket = settings
+    try:
+        response = requests.head(
+            durable_visual_asset_object_url(supabase_url, bucket, asset_name),
+            headers=durable_visual_storage_headers(service_role_key),
+            timeout=4,
+        )
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
 
 
 def parse_image_data_url(url: str) -> Optional[Tuple[str, bytes]]:
@@ -66,6 +190,9 @@ def visual_asset_url_for_browser(url: str) -> str:
         asset_dir.mkdir(parents=True, exist_ok=True)
         if not asset_path.exists():
             asset_path.write_bytes(data)
+        # Render's local disk is temporary. Production mirrors these private
+        # source figures to Supabase and restores them through the same URL.
+        persist_visual_asset_to_durable_storage(asset_path.name, content_type, data)
         return f"{PUBLIC_BACKEND_BASE_URL}/assets/visuals/{asset_path.name}"
     except Exception:
         return url
@@ -92,6 +219,20 @@ def runtime_visual_asset_path_for_browser_url(url: str) -> Optional[Path]:
     return RUNTIME_ASSETS_DIR / "visuals" / asset_name
 
 
+def runtime_asset_path_for_relative_path(asset_path: str) -> Optional[Path]:
+    relative_path = str(asset_path or "").lstrip("/")
+    if not relative_path:
+        return None
+    try:
+        root = RUNTIME_ASSETS_DIR.resolve()
+        candidate = (root / relative_path).resolve()
+    except Exception:
+        return None
+    if candidate == root or root not in candidate.parents:
+        return None
+    return candidate
+
+
 def visual_asset_url_is_available(url: str) -> bool:
     browser_url = visual_asset_url_for_browser(url)
     if not browser_url:
@@ -100,7 +241,7 @@ def visual_asset_url_is_available(url: str) -> bool:
     if asset_path is None:
         return True
     try:
-        return asset_path.is_file()
+        return asset_path.is_file() or durable_visual_asset_exists(asset_path.name)
     except Exception:
         return False
 

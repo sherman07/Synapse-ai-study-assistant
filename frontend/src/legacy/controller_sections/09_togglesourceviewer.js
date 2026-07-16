@@ -852,6 +852,11 @@ async function loadHistoryEntry(id, options = {}) {
   const localVisuals = Array.isArray(item.visualGallery) ? item.visualGallery : [];
   const restoredVisuals = await loadVisualGalleryAssets(id, currentSourceFingerprint);
   visualGalleryData = normalizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);
+  fullSummary = pruneUnavailableVisualMarkers(fullSummary, visualGalleryData);
+  sections = Object.fromEntries(Object.entries(sections).map(([title, markdown]) => [
+    title,
+    pruneUnavailableVisualMarkers(markdown, visualGalleryData)
+  ]));
   const restoredSources = await loadSourceAssets(id, currentSourceFingerprint);
   restoreSourceViewerItems(restoredSources.length ? restoredSources : (item.sourceItems || item.sources || []));
 

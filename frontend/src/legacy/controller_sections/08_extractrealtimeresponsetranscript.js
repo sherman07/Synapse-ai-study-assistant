@@ -1066,7 +1066,8 @@ function transactVisualStore(mode, callback) {
 
 function compactVisualGalleryForStorage(items) {
   return normalizeLearningFigures(items)
-    .filter(item => item && (isCompactVisualUrl(item.url) || item.title || item.caption || item.what_shows))
+    // Never keep a marker-only record. It would restore as a broken inline figure.
+    .filter(item => item && isCompactVisualUrl(item.url))
     .map(item => ({
       index: item.index,
       source_index: item.source_index,
@@ -1074,7 +1075,7 @@ function compactVisualGalleryForStorage(items) {
       location: item.location || "",
       visual_kind: item.visual_kind || "",
       caption: item.caption || "",
-      url: isCompactVisualUrl(item.url) ? item.url : "",
+      url: String(item.url || "").trim(),
       title: item.title || "",
       what_shows: item.what_shows || "",
       why_relevant: item.why_relevant || "",
@@ -1088,6 +1089,25 @@ function compactVisualGalleryForStorage(items) {
 function isCompactVisualUrl(value) {
   const url = String(value || "").trim();
   return Boolean(url && !url.toLowerCase().startsWith("data:image/"));
+}
+
+function pruneUnavailableVisualMarkers(summary, items) {
+  const availableIndexes = new Set(
+    normalizeLearningFigures(items)
+      .filter(item => isCompactVisualUrl(item?.url))
+      .map(item => Number(item.index))
+      .filter(Number.isFinite)
+  );
+  const text = String(summary || "");
+  if (!text) return text;
+  return text
+    .replace(/\[\[VISUAL:(\d+)\]\]/g, (marker, rawIndex) => (
+      availableIndexes.has(Number(rawIndex)) ? marker : ""
+    ))
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 async function pruneVisualGalleryAssets(limit = VISUAL_HISTORY_LIMIT) {

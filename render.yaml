@@ -56,6 +56,10 @@ services:
         value: "false"
       - key: ENABLE_PPTX_EMBEDDED_IMAGE_EXTRACTION
         value: "false"
+      - key: SYNAPSE_VISUAL_ASSET_STORAGE_ENABLED
+        value: "true"
+      - key: SYNAPSE_VISUAL_ASSET_BUCKET
+        value: synapse-visual-assets
       - key: SYNAPSE_DATA_API_INTERNAL_URL
         value: https://synapse-data-api.onrender.com
       - key: SYNAPSE_INTERNAL_API_TOKEN
