@@ -7,6 +7,18 @@ from backend.app import app
 
 
 class LearningCompanionEndpointTests(unittest.TestCase):
+    def test_companion_accepts_a_first_free_text_message_without_a_subject(self):
+        model_reply = '{"reply":"What kind of photos do you want to make?","state":"diagnose","mastery":0}'
+        with patch("backend.app.require_text_ai"), patch("backend.app.generate_chat", return_value=model_reply):
+            response = TestClient(app).post("/learning-companion/respond", json={
+                "message": "I want to learn photography",
+                "messages": [],
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["intention"], "skill")
+        self.assertIn("photo", response.json()["subject_title"].lower())
+
     def test_companion_returns_a_typed_tutor_decision_without_web_research_by_default(self):
         model_reply = '''{
           "reply": "Great choice. In one sentence, what do you think aperture changes in a photo?",
@@ -25,7 +37,7 @@ class LearningCompanionEndpointTests(unittest.TestCase):
             response = TestClient(app).post("/learning-companion/respond", json={
                 "subject": {"title": "Photography", "intention": "hobby", "goal": "Control motion and light"},
                 "available_time_minutes": 20,
-                "message": "",
+                "message": "Teach me aperture in plain English.",
                 "messages": [],
             })
 

@@ -23,6 +23,11 @@ def learning_companion_intent_guidance(intention: str) -> str:
     }[intention]
 
 
+def learning_companion_defaults(message: str, history: List[dict]) -> Tuple[str, str]:
+    topic = normalise_space(message) or normalise_space(history[-1]["text"] if history else "") or "your learning goal"
+    return truncate_text(topic, 120), "skill"
+
+
 def learning_companion_research_request(message: str, subject_title: str) -> Tuple[bool, str]:
     """Signal a research need without silently searching on the learner's behalf."""
     lowered = message.lower()
@@ -40,18 +45,21 @@ async def learning_companion_respond(data: dict):
         title = normalise_space(str(subject.get("title") or ""))
         intention = normalise_space(str(subject.get("intention") or "")).lower()
         goal = normalise_space(str(subject.get("goal") or ""))
-        if not title:
-            return analysis_error_response("A learning subject title is required.", 400)
-        if intention not in LEARNING_COMPANION_INTENTIONS:
+        history = learning_companion_history(data.get("messages"))
+        message = normalise_space(str(data.get("message") or ""))
+        if not message:
+            return analysis_error_response("Write a message for Synapse first.", 400)
+        if intention and intention not in LEARNING_COMPANION_INTENTIONS:
             return analysis_error_response("Learning intention must be hobby, skill, project, or assessment.", 400)
+        if not title:
+            title, inferred_intention = learning_companion_defaults(message, history)
+            intention = intention or inferred_intention
 
         try:
             available_time_minutes = int(data.get("available_time_minutes") or data.get("availableTimeMinutes") or 0)
         except (TypeError, ValueError):
             available_time_minutes = 0
         available_time_minutes = max(0, min(available_time_minutes, 480))
-        message = normalise_space(str(data.get("message") or ""))
-        history = learning_companion_history(data.get("messages"))
         is_opening_turn = not message and not history
         requires_research, research_query = learning_companion_research_request(message, title)
         research_context = ""
@@ -67,7 +75,7 @@ async def learning_companion_respond(data: dict):
         current_instruction = (
             "Open warmly, explain how this companion will help with this subject, and ask exactly one brief diagnostic question."
             if is_opening_turn else
-            "Respond to the learner's latest message, then end with exactly one next action that fits the available time."
+            "Respond directly to the learner's latest message. Diagnose their goal or level briefly, teach only the smallest useful next step, and ask exactly one follow-up only when it is needed to continue."
         )
         history_text = "\n".join(f"{turn['role']}: {turn['text']}" for turn in history) or "No previous turns."
         time_guidance = (
@@ -95,9 +103,12 @@ Sourced research context:
 
 Companion rules:
 - Keep one continuing thread for this subject. Do not ask the learner to restate their goal.
+- On a first free-text turn without a preselected subject, infer the likely learning topic from the learner's own words and respond to that topic directly.
 - Adapt to their answer: diagnose first, teach only the smallest useful idea, then invite an attempt.
+- Follow a compact coaching loop: clarify the learner's practical goal, aim for one observable subskill, and prefer a single discriminating follow-up over a broad questionnaire.
 - Never present a permanent menu of generic resources.
 - Be concise, warm, practical, and honest about uncertainty.
+- Keep any internal diagnosis private. Do not mention hidden state, mastery scoring, or diagnosis labels in the learner-facing reply.
 - For time-sensitive questions, use only the sourced research context above and say when no source was available. Do not invent citations or claim a source says more than it does.
 - End with exactly one clear next action unless the learner has demonstrated stable mastery.
 
