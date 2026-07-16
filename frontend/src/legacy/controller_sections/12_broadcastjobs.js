@@ -303,6 +303,12 @@ function renderBroadcastJobHistoryItemHTML(job) {
       ` : isCompleted ? `
         <button class="history-job-retry" type="button" onclick="event.preventDefault(); event.stopPropagation(); retryBroadcastJob('${escapeAttr(safeJob.id)}')">Regenerate</button>
       ` : ""}
+      <button class="history-delete-btn" type="button"
+              title="Remove this broadcast"
+              aria-label="Remove ${escapeAttr(safeJob.title || "AI Broadcast")}"
+              onclick="event.preventDefault(); event.stopPropagation(); deleteBroadcastJob('${escapeAttr(safeJob.id)}')">
+        <i class="bi bi-trash3"></i>
+      </button>
     </div>
   `;
 }

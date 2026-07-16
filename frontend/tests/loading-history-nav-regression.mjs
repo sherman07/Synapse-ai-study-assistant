@@ -8,6 +8,8 @@ const css = fs.readFileSync(path.join(repoRoot, "frontend/styles/04-section.css"
 const index = fs.readFileSync(path.join(repoRoot, "frontend/index.html"), "utf8");
 const style = fs.readFileSync(path.join(repoRoot, "frontend/style.css"), "utf8");
 const historyController = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/09_togglesourceviewer.js"), "utf8");
+const generationJobs = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/11_generationjobs.js"), "utf8");
+const broadcastJobs = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/12_broadcastjobs.js"), "utf8");
 
 assert.ok(css.includes(".app-layout.loading-state .history-nav"));
 
@@ -26,5 +28,10 @@ assert.ok(index.includes("style.css?v=workspace-contrast-v8"));
 assert.ok(style.includes('@import url("./styles/04-section.css");'));
 assert.ok(style.includes('@import url("./styles/07-section.css");'));
 assert.ok(historyController.includes('onclick="loadHistoryEntry'));
+assert.ok(generationJobs.includes("function deleteGenerationJob(jobId)"));
+assert.ok(generationJobs.includes("deleteGenerationJob('"));
+assert.ok(broadcastJobs.includes("deleteBroadcastJob('"));
+assert.ok(css.includes(".history-delete-btn {"));
+assert.ok(css.includes("opacity: 1"));
 
 console.log("loading history navigation regression passed");

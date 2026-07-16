@@ -126,6 +126,7 @@ Object.assign(window, {
   renderFlashcardMatchLines,
   returnFromFocusRoomToWorkspace,
   cancelGenerationJob,
+  deleteGenerationJob,
   retryGenerationJob,
   generateBroadcastFromSetup,
   cancelBroadcastJob,

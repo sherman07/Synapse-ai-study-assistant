@@ -155,6 +155,12 @@ function renderGenerationJobHistoryItemHTML(job) {
           Retry
         </button>
       ` : ""}
+      <button class="history-delete-btn" type="button"
+              title="Remove this generation"
+              aria-label="Remove ${escapeAttr(safeJob.sourceTitle || "generation")}"
+              onclick="event.preventDefault(); event.stopPropagation(); deleteGenerationJob('${escapeAttr(safeJob.jobId)}')">
+        <i class="bi bi-trash3"></i>
+      </button>
     </div>
   `;
 }
@@ -186,6 +192,21 @@ function openGenerationJob(jobId) {
 
 function clearActiveGenerationJob() {
   activeGenerationJobId = "";
+}
+
+function deleteGenerationJob(jobId) {
+  const id = String(jobId || "");
+  if (!id) return;
+  const controller = runtimeGenerationJobControllers.get(id);
+  if (controller) controller.abort();
+  runtimeGenerationJobControllers.delete(id);
+  runtimeGenerationJobContexts.delete(id);
+  setGenerationJobs(getGenerationJobs().filter(job => job.jobId !== id));
+  if (activeGenerationJobId === id) {
+    clearActiveGenerationJob();
+    if (typeof resetWorkspace === "function") resetWorkspace();
+  }
+  refreshGenerationJobViews();
 }
 
 function generationJobProgressPercent(job) {
