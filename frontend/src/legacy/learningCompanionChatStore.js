@@ -16,8 +16,6 @@ const CONTEXT_STRING_KEYS = new Set([
   "source_fingerprint",
 ]);
 const CONTEXT_ARRAY_KEYS = new Set(["misconceptions", "review_candidates", "selected_source_ids"]);
-const PATH_STRING_KEYS = new Set(["current", "next"]);
-const PATH_ARRAY_KEYS = new Set(["steps"]);
 
 function getDefaultNow() {
   return new Date().toISOString();
@@ -55,23 +53,6 @@ function normalizeContextArray(value) {
   return items.length ? items : null;
 }
 
-function normalizeContextPath(path) {
-  if (!path || typeof path !== "object" || Array.isArray(path)) return null;
-  const normalized = {};
-  for (const [key, value] of Object.entries(path)) {
-    if (PATH_STRING_KEYS.has(key)) {
-      const text = normalizeContextText(value, MAX_CONTEXT_ARRAY_TEXT_LENGTH);
-      if (text) normalized[key] = text;
-      continue;
-    }
-    if (PATH_ARRAY_KEYS.has(key)) {
-      const items = normalizeContextArray(value);
-      if (items) normalized[key] = items;
-    }
-  }
-  return Object.keys(normalized).length ? normalized : null;
-}
-
 function normalizeLearningContext(learningContext) {
   if (!learningContext || typeof learningContext !== "object" || Array.isArray(learningContext)) return {};
   const normalized = {};
@@ -82,7 +63,7 @@ function normalizeLearningContext(learningContext) {
       continue;
     }
     if (key === "permanent_daily_minutes") {
-      if (Number.isInteger(value) && value >= 0 && value <= 1440) normalized[key] = value;
+      if (Number.isInteger(value) && value >= 0 && value <= 480) normalized[key] = value;
       continue;
     }
     if (CONTEXT_ARRAY_KEYS.has(key)) {
@@ -90,19 +71,18 @@ function normalizeLearningContext(learningContext) {
       if (items) normalized[key] = items;
       continue;
     }
-    if (key === "path") {
-      const path = normalizeContextPath(value);
-      if (path) normalized[key] = path;
+    if (key === "path_levels") {
+      const pathLevels = normalizeContextArray(value);
+      if (pathLevels) normalized[key] = pathLevels;
     }
   }
 
   while (JSON.stringify(normalized).length > MAX_CONTEXT_SERIALIZED_BYTES) {
     const arrayHolder = Object.entries(normalized)
       .find(([, value]) => Array.isArray(value) && value.length)
-      || (normalized.path?.steps?.length ? ["path", normalized.path] : null);
+      || null;
     if (arrayHolder) {
-      if (arrayHolder[0] === "path") arrayHolder[1].steps.pop();
-      else arrayHolder[1].pop();
+      arrayHolder[1].pop();
       continue;
     }
     const lastKey = Object.keys(normalized).pop();

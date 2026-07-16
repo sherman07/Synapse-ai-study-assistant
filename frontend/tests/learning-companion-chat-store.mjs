@@ -70,12 +70,10 @@ const contextualized = updateLearningCompanionThreadContext(
     misconceptions: ["product rule", "quotient rule", "chain rule", "limits", "graphs", "derivatives", "integrals", "series", "discard me"],
     review_candidates: ["practice-1", "practice-2"],
     selected_source_ids: ["source-1", "source-2"],
-    path: {
-      current: "overview",
-      next: "practice",
-      steps: ["overview", "practice", "review", "checkpoint", "exam", "reflection", "revision", "mastery", "discard me"],
-      leaked_note: "This nested unknown field must not survive.",
-    },
+    path_levels: ["overview", "practice", "review", "checkpoint", "exam", "reflection", "revision", "mastery", "discard me"],
+    level: "old provisional level",
+    session: "old provisional session",
+    path: { current: "old provisional nested path" },
     strengths: ["This unknown array key must not survive."],
     sourceExcerpt: "A raw source excerpt must never be persisted.",
     note: "A raw note must never be persisted.",
@@ -101,15 +99,13 @@ assert.deepEqual(contextualized.learningContext, {
   misconceptions: ["product rule", "quotient rule", "chain rule", "limits", "graphs", "derivatives", "integrals", "series"],
   review_candidates: ["practice-1", "practice-2"],
   selected_source_ids: ["source-1", "source-2"],
-  path: {
-    current: "overview",
-    next: "practice",
-    steps: ["overview", "practice", "review", "checkpoint", "exam", "reflection", "revision", "mastery"],
-  },
+  path_levels: ["overview", "practice", "review", "checkpoint", "exam", "reflection", "revision", "mastery"],
 });
 assert.equal(Object.hasOwn(contextualized.learningContext, "strengths"), false);
 assert.equal(Object.hasOwn(contextualized.learningContext, "sourceExcerpt"), false);
-assert.equal(Object.hasOwn(contextualized.learningContext.path, "leaked_note"), false);
+assert.equal(Object.hasOwn(contextualized.learningContext, "level"), false);
+assert.equal(Object.hasOwn(contextualized.learningContext, "session"), false);
+assert.equal(Object.hasOwn(contextualized.learningContext, "path"), false);
 assert.equal(Object.hasOwn(contextualized.learningContext, "nested"), false);
 assert.ok(JSON.stringify(contextualized.learningContext).length <= 2048);
 
@@ -120,12 +116,12 @@ const excessive = updateLearningCompanionThreadContext(saved, {
   misconceptions: Array.from({ length: 8 }, () => "m".repeat(80)),
   review_candidates: Array.from({ length: 8 }, () => "r".repeat(80)),
   selected_source_ids: Array.from({ length: 8 }, () => "s".repeat(80)),
-  path: { current: "c".repeat(161), steps: [{ raw: "nested object" }, "p".repeat(80)] },
+  path_levels: [{ raw: "nested object" }, "p".repeat(80)],
 });
 assert.equal(Object.hasOwn(excessive.learningContext, "topic"), false);
 assert.equal(Object.hasOwn(excessive.learningContext, "goal"), false);
 assert.equal(Object.hasOwn(excessive.learningContext, "permanent_daily_minutes"), false);
-assert.deepEqual(excessive.learningContext.path, { steps: ["p".repeat(80)] });
+assert.deepEqual(excessive.learningContext.path_levels, ["p".repeat(80)]);
 assert.ok(excessive.learningContext.misconceptions.length <= 8);
 assert.ok(excessive.learningContext.review_candidates.length <= 8);
 assert.ok(excessive.learningContext.selected_source_ids.length <= 8);
