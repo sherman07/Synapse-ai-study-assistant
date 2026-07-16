@@ -11,6 +11,7 @@ const controller = read("frontend/src/legacy/controller.js");
 const modeSection = read("frontend/src/legacy/controller_sections/14_learningcompanion.js");
 const companionWorkspace = read("frontend/src/react/components/CompanionWorkspace.js");
 const companionClient = read("frontend/src/legacy/learningCompanionClient.js");
+const uploadStage = read("frontend/src/react/components/UploadStage.js");
 const styles = read("frontend/styles/01-section.css");
 
 assert.ok(appShell.includes("LearningModeSwitcher"));
@@ -29,5 +30,8 @@ assert.ok(companionClient.includes('"/api/learning/subjects"'));
 assert.ok(companionClient.includes("/evidence"));
 assert.ok(companionClient.includes('"/learning-companion/respond"'));
 assert.ok(styles.includes('[data-learning-experience-mode="companion"] .learning-experience-shell'));
+assert.ok(uploadStage.includes("Start with AI tutor"));
+assert.ok(uploadStage.includes('legacyAction("setLearningExperienceMode", "companion")'));
+assert.ok(styles.includes(".companion-launch-btn"));
 
 console.log("ai learning companion shell regression passed");

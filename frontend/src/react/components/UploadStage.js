@@ -49,6 +49,20 @@ export function UploadStage() {
       h("p", null, "Your private tutor for readings, notes, images, and links.")
     ),
     h(
+      "div",
+      { className: "companion-launch-row" },
+      h(
+        "button",
+        {
+          type: "button",
+          className: "btn btn-outline-primary companion-launch-btn",
+          onClick: legacyAction("setLearningExperienceMode", "companion"),
+        },
+        icon("bi-chat-heart", "me-2"),
+        "Start with AI tutor"
+      )
+    ),
+    h(
       "section",
       { className: "premium-upload-card" },
       h(

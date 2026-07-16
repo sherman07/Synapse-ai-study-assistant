@@ -442,6 +442,20 @@ body.mobile-assistant-open::before {
 
 .upload-stage { width: min(980px, 100%); }
 
+.companion-launch-row {
+  display: flex;
+  justify-content: center;
+  margin: -8px 0 4px;
+}
+
+.companion-launch-btn {
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(74, 124, 255, 0.14);
+  font-weight: 850;
+  padding: 11px 19px;
+}
+
 .learning-mode-switcher,
 .companion-workspace-card {
   background: rgba(255, 255, 255, 0.82);
