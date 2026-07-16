@@ -5,6 +5,7 @@ import {
   loadLearningCompanionThread,
   resetLearningCompanionThread,
   saveLearningCompanionThread,
+  updateLearningCompanionThreadContext,
 } from "../src/legacy/learningCompanionChatStore.js";
 
 const storage = new Map();
@@ -27,6 +28,17 @@ const loadedWithNonStringId = loadLearningCompanionThread(storage);
 assert.equal(typeof loadedWithNonStringId.id, "string");
 assert.notEqual(loadedWithNonStringId.id.trim().length, 0);
 
+const migrated = loadLearningCompanionThread({
+  getItem: () => JSON.stringify({
+    version: 1,
+    id: "old",
+    updatedAt: "2026-07-16T00:00:00.000Z",
+    messages: [],
+  }),
+});
+assert.equal(migrated.version, 2);
+assert.deepEqual(migrated.learningContext, {});
+
 const thread = createLearningCompanionThread({
   id: "thread-1",
   now: () => "2026-07-16T00:00:00.000Z",
@@ -42,6 +54,33 @@ assert.equal(typeof saved.id, "string");
 assert.notEqual(saved.id.trim().length, 0);
 saveLearningCompanionThread(saved, storage);
 assert.deepEqual(loadLearningCompanionThread(storage), saved);
+
+const contextualized = updateLearningCompanionThreadContext(
+  saved,
+  {
+    topic: "calculus",
+    goal: "pass my test",
+    deadline: "Friday",
+    level: "beginner",
+    session: "review",
+    strengths: ["limits", "graphs", "derivatives", "integrals", "series", "proofs", "vectors", "matrices", "discard me"],
+    path: ["overview", "practice", "review", "checkpoint", "exam", "reflection", "revision", "mastery", "discard me"],
+    sourceExcerpt: "A raw source excerpt must never be persisted.",
+  },
+  { now: () => "2026-07-16T00:03:00.000Z" },
+);
+assert.equal(contextualized.version, 2);
+assert.equal(contextualized.updatedAt, "2026-07-16T00:03:00.000Z");
+assert.equal(contextualized.messages, saved.messages);
+assert.deepEqual(contextualized.learningContext, {
+  topic: "calculus",
+  goal: "pass my test",
+  deadline: "Friday",
+  level: "beginner",
+  session: "review",
+  strengths: ["limits", "graphs", "derivatives", "integrals", "series", "proofs", "vectors", "matrices"],
+  path: ["overview", "practice", "review", "checkpoint", "exam", "reflection", "revision", "mastery"],
+});
 assert.deepEqual(
   resetLearningCompanionThread(
     { id: "thread-2", now: () => "2026-07-16T00:02:00.000Z" },

@@ -3,19 +3,19 @@ import { SynapseApiClient } from "./apiClient.js?v=ai-learning-companion-v1";
 
 const companionApiClient = new SynapseApiClient(API_BASE);
 
-async function requestLearningCompanionDecision({ message, messages = [], availableTimeMinutes = null } = {}) {
-  const response = await companionApiClient.fetch("/learning-companion/respond", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, messages, availableTimeMinutes }),
-    timeoutMs: 45000,
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.error) throw new Error(body?.error || "Synapse could not reply right now.");
-  if (typeof body?.reply !== "string" || !body.reply.trim()) {
-    throw new Error("Synapse returned an incomplete tutor reply. Please retry.");
-  }
-  return body;
+export function createLearningCompanionRequester(apiClient = companionApiClient) {
+  return async function requestLearningCompanionDecision({ message, messages = [], learningContext = {}, sourceBundle = { fingerprint: "", sources: [] }, availableTimeMinutes = null } = {}) {
+    const response = await apiClient.fetch("/learning-companion/respond", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, messages, availableTimeMinutes, learning_context: learningContext, source_bundle: sourceBundle }),
+      timeoutMs: 45000,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body?.error) throw new Error(body?.error || "Synapse could not reply right now.");
+    if (typeof body?.reply !== "string" || !body.reply.trim()) throw new Error("Synapse returned an incomplete tutor reply. Please retry.");
+    return body;
+  };
 }
 
-export { requestLearningCompanionDecision };
+export const requestLearningCompanionDecision = createLearningCompanionRequester();

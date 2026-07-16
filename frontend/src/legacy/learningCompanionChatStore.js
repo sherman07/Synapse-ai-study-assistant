@@ -1,5 +1,11 @@
 const CHAT_STORAGE_KEY = "synapse.learning.companion.chat.v1";
 const MAX_MESSAGES = 80;
+const THREAD_VERSION = 2;
+const MAX_CONTEXT_TEXT_LENGTH = 160;
+const MAX_CONTEXT_ARRAY_ITEMS = 8;
+const MAX_CONTEXT_ARRAY_TEXT_LENGTH = 80;
+const CONTEXT_SCALAR_KEYS = new Set(["topic", "goal", "deadline", "level", "session"]);
+const CONTEXT_BLOCKED_KEYS = /(?:source|excerpt|content|text|raw)/i;
 
 function getDefaultNow() {
   return new Date().toISOString();
@@ -22,12 +28,42 @@ function normalizeThreadId(id) {
   return normalized || createThreadId();
 }
 
+function normalizeContextText(value, maxLength = MAX_CONTEXT_TEXT_LENGTH) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, maxLength) : null;
+}
+
+function normalizeLearningContext(learningContext) {
+  if (!learningContext || typeof learningContext !== "object" || Array.isArray(learningContext)) {
+    return {};
+  }
+
+  const normalized = {};
+  for (const [key, value] of Object.entries(learningContext)) {
+    if (CONTEXT_BLOCKED_KEYS.test(key)) continue;
+    if (CONTEXT_SCALAR_KEYS.has(key)) {
+      const text = normalizeContextText(value);
+      if (text) normalized[key] = text;
+      continue;
+    }
+    if (!Array.isArray(value)) continue;
+    const items = value
+      .map(item => normalizeContextText(item, MAX_CONTEXT_ARRAY_TEXT_LENGTH))
+      .filter(Boolean)
+      .slice(0, MAX_CONTEXT_ARRAY_ITEMS);
+    if (items.length) normalized[key] = items;
+  }
+  return normalized;
+}
+
 function createEmptyThread({ id, now = getDefaultNow } = {}) {
   return {
-    version: 1,
+    version: THREAD_VERSION,
     id: normalizeThreadId(id),
     updatedAt: now(),
     messages: [],
+    learningContext: {},
   };
 }
 
@@ -50,7 +86,7 @@ function isValidThread(thread) {
   return (
     thread &&
     typeof thread === "object" &&
-    thread.version === 1 &&
+    (thread.version === 1 || thread.version === THREAD_VERSION) &&
     isNonEmptyString(thread.id) &&
     isNonEmptyString(thread.updatedAt) &&
     Array.isArray(thread.messages)
@@ -106,14 +142,32 @@ export function appendLearningCompanionMessage(thread, message, { now = getDefau
   const messages = normalizeMessages([...(base.messages || []), message]);
   return {
     ...base,
-    version: 1,
+    version: THREAD_VERSION,
     messages,
+    learningContext: normalizeLearningContext(base.learningContext),
+    updatedAt: now(),
+  };
+}
+
+export function updateLearningCompanionThreadContext(thread, learningContext, { now = getDefaultNow } = {}) {
+  const base = isValidThread(thread) ? thread : createEmptyThread({ id: thread?.id, now });
+  return {
+    ...base,
+    version: THREAD_VERSION,
+    learningContext: normalizeLearningContext(learningContext),
     updatedAt: now(),
   };
 }
 
 export function saveLearningCompanionThread(thread, storage) {
-  const safeThread = isValidThread(thread) ? { ...thread, messages: normalizeMessages(thread.messages) } : createEmptyThread();
+  const safeThread = isValidThread(thread)
+    ? {
+      ...thread,
+      version: THREAD_VERSION,
+      messages: normalizeMessages(thread.messages),
+      learningContext: normalizeLearningContext(thread.learningContext),
+    }
+    : createEmptyThread();
   try {
     const payload = JSON.stringify(safeThread);
     return writeStorageValue(storage, CHAT_STORAGE_KEY, payload);
@@ -135,10 +189,13 @@ export function loadLearningCompanionThread(storage) {
     }
 
     return {
-      version: 1,
+      version: THREAD_VERSION,
       id: normalizeThreadId(parsed.id),
       updatedAt: parsed.updatedAt,
       messages: normalizeMessages(parsed.messages),
+      learningContext: parsed.version === THREAD_VERSION
+        ? normalizeLearningContext(parsed.learningContext)
+        : {},
     };
   } catch {
     return createEmptyThread();
