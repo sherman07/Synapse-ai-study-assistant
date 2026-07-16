@@ -545,6 +545,79 @@ body.mobile-assistant-open::before {
   margin-top: 22px;
 }
 
+.companion-start-form,
+.companion-compose {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.companion-start-form label,
+.companion-subject-picker,
+.companion-session-meta label {
+  display: grid;
+  gap: 7px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.companion-start-form input,
+.companion-start-form select,
+.companion-subject-picker select,
+.companion-session-meta select,
+.companion-compose textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.companion-session {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.companion-session-meta {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  color: var(--primary);
+  font-weight: 850;
+}
+
+.companion-session-meta label { width: 130px; }
+
+.companion-messages {
+  display: grid;
+  gap: 12px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.companion-message {
+  border: 1px solid var(--border-blue);
+  border-radius: 16px;
+  max-width: min(720px, 92%);
+  padding: 14px 16px;
+}
+
+.companion-message-assistant { background: rgba(238, 244, 255, 0.82); }
+.companion-message-user { background: rgba(255, 255, 255, 0.9); justify-self: end; }
+.companion-message p { margin: 0; white-space: pre-wrap; }
+.companion-message-role { color: var(--primary); font-size: 0.77rem; font-weight: 900; margin-bottom: 5px !important; text-transform: uppercase; }
+.companion-message-next { color: var(--muted); font-size: 0.86rem; margin-top: 10px !important; }
+.companion-message-research { color: var(--muted); font-size: 0.8rem; margin-top: 9px !important; }
+.companion-empty { color: var(--muted); margin: 20px 0; text-align: center; }
+.companion-status { margin: 16px 0 0; }
+.companion-status-error { color: #b42318; }
+
 #companionWorkspace {
   display: none;
 }
@@ -567,6 +640,10 @@ body.mobile-assistant-open::before {
 
 .app-layout:not(.initial-state) .learning-experience-shell {
   display: none;
+}
+
+.app-layout:not(.initial-state)[data-learning-experience-mode="companion"] .learning-experience-shell {
+  display: grid;
 }
 
 .hero-copy h1 {

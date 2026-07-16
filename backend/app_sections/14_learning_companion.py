@@ -1,0 +1,149 @@
+LEARNING_COMPANION_INTENTIONS = {"hobby", "skill", "project", "assessment"}
+
+
+def learning_companion_history(items: Any) -> List[dict]:
+    history: List[dict] = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        role = normalise_space(str(item.get("role") or "")).lower()
+        content = normalise_space(str(item.get("content") or item.get("text") or ""))
+        if role not in {"user", "assistant"} or not content:
+            continue
+        history.append({"role": role, "text": truncate_text(content, 1400)})
+    return history[-12:]
+
+
+def learning_companion_intent_guidance(intention: str) -> str:
+    return {
+        "hobby": "Prioritise curiosity, enjoyment, clear mental models, and a low-pressure invitation to try something.",
+        "skill": "Use deliberate practice: one observable subskill, a worked example when needed, and feedback on the learner's attempt.",
+        "project": "Work backward from a concrete deliverable. Help the learner choose the next smallest useful project action and name a checkpoint.",
+        "assessment": "Use retrieval practice and exam-like application. Diagnose gaps, ask one discriminating question, and distinguish confidence from evidence.",
+    }[intention]
+
+
+def learning_companion_research_request(message: str, subject_title: str) -> Tuple[bool, str]:
+    """Signal a research need without silently searching on the learner's behalf."""
+    lowered = message.lower()
+    time_sensitive_terms = ("latest", "current", "today", "recent", "newest", "up to date")
+    requires_research = any(term in lowered for term in time_sensitive_terms)
+    if not requires_research:
+        return False, ""
+    return True, truncate_text(normalise_space(f"{subject_title} {message}"), 280)
+
+
+@app.post("/learning-companion/respond")
+async def learning_companion_respond(data: dict):
+    try:
+        subject = data.get("subject") if isinstance(data.get("subject"), dict) else {}
+        title = normalise_space(str(subject.get("title") or ""))
+        intention = normalise_space(str(subject.get("intention") or "")).lower()
+        goal = normalise_space(str(subject.get("goal") or ""))
+        if not title:
+            return analysis_error_response("A learning subject title is required.", 400)
+        if intention not in LEARNING_COMPANION_INTENTIONS:
+            return analysis_error_response("Learning intention must be hobby, skill, project, or assessment.", 400)
+
+        try:
+            available_time_minutes = int(data.get("available_time_minutes") or data.get("availableTimeMinutes") or 0)
+        except (TypeError, ValueError):
+            available_time_minutes = 0
+        available_time_minutes = max(0, min(available_time_minutes, 480))
+        message = normalise_space(str(data.get("message") or ""))
+        history = learning_companion_history(data.get("messages"))
+        is_opening_turn = not message and not history
+        requires_research, research_query = learning_companion_research_request(message, title)
+        research_context = ""
+        research_results: List[dict] = []
+        if requires_research:
+            research_context, research_results = await run_blocking(
+                gather_tutor_web_research,
+                question=message,
+                selected_section="",
+                source_identity="",
+                title=title,
+            )
+        current_instruction = (
+            "Open warmly, explain how this companion will help with this subject, and ask exactly one brief diagnostic question."
+            if is_opening_turn else
+            "Respond to the learner's latest message, then end with exactly one next action that fits the available time."
+        )
+        history_text = "\n".join(f"{turn['role']}: {turn['text']}" for turn in history) or "No previous turns."
+        time_guidance = (
+            f"The learner has about {available_time_minutes} minutes. Keep the next step small enough to complete now."
+            if available_time_minutes else
+            "The learner has not chosen a time limit. Offer a small next step and let them set the pace."
+        )
+        prompt = f"""
+You are Synapse Learning Companion, a patient long-term tutor. You are not a generic chatbot.
+
+Subject: {title}
+Learning intention: {intention}
+Learner goal: {goal or 'Not stated yet'}
+Intent-specific teaching approach: {learning_companion_intent_guidance(intention)}
+{time_guidance}
+
+Conversation so far:
+{history_text}
+
+Latest learner message:
+{message or '[Opening turn: no learner message yet]'}
+
+Sourced research context:
+{research_context[:MAX_TUTOR_RESEARCH_CHARS] if research_context else 'No current research source was available. Say so plainly instead of guessing.'}
+
+Companion rules:
+- Keep one continuing thread for this subject. Do not ask the learner to restate their goal.
+- Adapt to their answer: diagnose first, teach only the smallest useful idea, then invite an attempt.
+- Never present a permanent menu of generic resources.
+- Be concise, warm, practical, and honest about uncertainty.
+- For time-sensitive questions, use only the sourced research context above and say when no source was available. Do not invent citations or claim a source says more than it does.
+- End with exactly one clear next action unless the learner has demonstrated stable mastery.
+
+Current instruction: {current_instruction}
+
+Return JSON only:
+{{
+  "reply": "learner-facing response",
+  "state": "diagnose | teach | practice | hint | review | mastered",
+  "mastery": 0,
+  "student_level": "unclear | beginner | developing | secure | strong",
+  "diagnosis": "brief private-facing diagnosis",
+  "next_prompt": "the one next question or action, empty only when mastered",
+  "hint": "short hint if useful",
+  "exercise": {{"type":"short_answer | explain | example | compare | apply | correct_mistake","question":"...","expected_answer":"..."}},
+  "can_end": false,
+  "suggested_actions": ["Give me a hint", "Ask a simpler question", "Give me an example"]
+}}
+"""
+        require_text_ai()
+        raw = generate_chat(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT + "\n\nYou are running a companion tutoring loop. Return compact JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            model=CHAT_MODEL,
+            temperature=0.25,
+            max_tokens=VOICE_TUTOR_TOKENS,
+        )
+        try:
+            parsed = extract_json_object(raw)
+        except Exception:
+            parsed = {}
+        fallback = f"Let's begin with {title}. What do you already understand about it, in your own words?"
+        decision = normalise_voice_tutor_json(parsed, fallback, message, history)
+        decision.update({
+            "subject_title": title,
+            "intention": intention,
+            "available_time_minutes": available_time_minutes,
+            "requires_research": requires_research,
+            "research_query": research_query,
+            "research_sources": [
+                {"title": item.get("title"), "url": item.get("url")}
+                for item in research_results[:MAX_TUTOR_SEARCH_RESULTS]
+            ],
+        })
+        return decision
+    except Exception as error:
+        return analysis_error_response(str(error), analysis_exception_status(error))

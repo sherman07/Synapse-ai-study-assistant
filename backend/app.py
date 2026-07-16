@@ -277,6 +277,7 @@ APP_SECTION_FILES = (
     "11_timeline_generate.py",
     "12_flashcards_generate.py",
     "13_broadcast_mode.py",
+    "14_learning_companion.py",
 )
 
 AppSectionLoader(BACKEND_PACKAGE_DIR, APP_SECTION_FILES).load(globals())
