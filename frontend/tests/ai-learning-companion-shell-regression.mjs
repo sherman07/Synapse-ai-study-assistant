@@ -31,6 +31,10 @@ assert.ok(!companionWorkspace.includes("data-learning-companion-create-subject")
 assert.ok(!companionClient.includes('"/api/learning/subjects"'));
 assert.ok(companionClient.includes('"/learning-companion/respond"'));
 assert.ok(styles.includes('[data-learning-experience-mode="companion"] .learning-experience-shell'));
+assert.ok(styles.includes(".companion-chat-thread"));
+assert.ok(styles.includes(".companion-composer"));
+assert.ok(styles.includes(".companion-turn-failure"));
+assert.ok(!styles.includes(".companion-start-form"));
 assert.ok(uploadStage.includes("Start with AI tutor"));
 assert.ok(uploadStage.includes('legacyAction("setLearningExperienceMode", "companion")'));
 assert.ok(styles.includes(".companion-launch-btn"));
