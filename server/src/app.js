@@ -9,6 +9,7 @@ import { broadcastJobsRouter } from "./routes/broadcastJobs.js";
 import { cardsRouter, decksRouter } from "./routes/flashcards.js";
 import { focusSessionsRouter } from "./routes/focusSessions.js";
 import { generatedContentRouter, internalGeneratedContentRouter } from "./routes/generatedContent.js";
+import { learningRouter } from "./routes/learning.js";
 import { progressRouter } from "./routes/progress.js";
 import { studyRoomsRouter } from "./routes/studyRooms.js";
 import { usersRouter } from "./routes/users.js";
@@ -98,6 +99,7 @@ function createApp() {
   app.use("/api/broadcast-jobs", broadcastJobsRouter);
   app.use("/api/flashcard-decks", decksRouter);
   app.use("/api/flashcards", cardsRouter);
+  app.use("/api/learning", learningRouter);
   app.use("/api/progress", progressRouter);
 
   app.use(notFound);

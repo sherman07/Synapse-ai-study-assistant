@@ -197,3 +197,59 @@ CREATE TABLE IF NOT EXISTS progress_records (
   CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_progress_room FOREIGN KEY (study_room_id) REFERENCES study_rooms(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS learner_profiles (
+  user_id VARCHAR(80) PRIMARY KEY,
+  memory_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  preferences_json JSON NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_learner_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS learning_subjects (
+  id VARCHAR(120) PRIMARY KEY,
+  user_id VARCHAR(80) NOT NULL,
+  title VARCHAR(240) NOT NULL,
+  intention ENUM('hobby', 'skill', 'project', 'assessment') NOT NULL,
+  goal TEXT NULL,
+  status ENUM('active', 'paused', 'completed', 'archived') NOT NULL DEFAULT 'active',
+  summary TEXT NULL,
+  current_session_id VARCHAR(120) NULL,
+  current_unit_id VARCHAR(120) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_learning_subjects_user_updated (user_id, updated_at),
+  CONSTRAINT fk_learning_subjects_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS learning_sessions (
+  id VARCHAR(120) PRIMARY KEY,
+  user_id VARCHAR(80) NOT NULL,
+  subject_id VARCHAR(120) NOT NULL,
+  available_time_minutes INT NOT NULL DEFAULT 0,
+  active_objective VARCHAR(1000) NULL,
+  status ENUM('active', 'completed', 'abandoned') NOT NULL DEFAULT 'active',
+  summary TEXT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_learning_sessions_subject_updated (subject_id, updated_at),
+  KEY idx_learning_sessions_user_updated (user_id, updated_at),
+  CONSTRAINT fk_learning_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_learning_sessions_subject FOREIGN KEY (subject_id) REFERENCES learning_subjects(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS learning_messages (
+  id VARCHAR(120) PRIMARY KEY,
+  session_id VARCHAR(120) NOT NULL,
+  sequence_number INT NOT NULL,
+  role ENUM('user', 'assistant') NOT NULL,
+  content TEXT NOT NULL,
+  turn_status ENUM('complete', 'pending', 'failed') NOT NULL DEFAULT 'complete',
+  idempotency_key VARCHAR(120) NULL,
+  decision_json JSON NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_learning_messages_session_sequence (session_id, sequence_number),
+  UNIQUE KEY uq_learning_messages_session_idempotency (session_id, idempotency_key),
+  CONSTRAINT fk_learning_messages_session FOREIGN KEY (session_id) REFERENCES learning_sessions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

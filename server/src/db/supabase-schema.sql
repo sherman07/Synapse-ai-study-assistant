@@ -533,3 +533,97 @@ with check (
       and u.auth_subject = (select auth.uid())::text
   )
 );
+
+create table if not exists public.learner_profiles (
+  user_id text primary key references public.users(id) on delete cascade,
+  memory_enabled boolean not null default true,
+  preferences_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.learning_subjects (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  title text not null,
+  intention text not null check (intention in ('hobby', 'skill', 'project', 'assessment')),
+  goal text,
+  status text not null default 'active' check (status in ('active', 'paused', 'completed', 'archived')),
+  summary text,
+  current_session_id text,
+  current_unit_id text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists learning_subjects_user_updated_idx
+  on public.learning_subjects (user_id, updated_at desc);
+
+create table if not exists public.learning_sessions (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  subject_id text not null references public.learning_subjects(id) on delete cascade,
+  available_time_minutes integer not null default 0 check (available_time_minutes between 0 and 480),
+  active_objective text,
+  status text not null default 'active' check (status in ('active', 'completed', 'abandoned')),
+  summary text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists learning_sessions_subject_updated_idx
+  on public.learning_sessions (subject_id, updated_at desc);
+
+create index if not exists learning_sessions_user_updated_idx
+  on public.learning_sessions (user_id, updated_at desc);
+
+create table if not exists public.learning_messages (
+  id text primary key,
+  session_id text not null references public.learning_sessions(id) on delete cascade,
+  sequence_number integer not null,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  turn_status text not null default 'complete' check (turn_status in ('complete', 'pending', 'failed')),
+  idempotency_key text,
+  decision_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  unique (session_id, sequence_number),
+  unique (session_id, idempotency_key)
+);
+
+drop trigger if exists learner_profiles_set_updated_at on public.learner_profiles;
+create trigger learner_profiles_set_updated_at before update on public.learner_profiles
+for each row execute function public.synapse_set_updated_at();
+
+drop trigger if exists learning_subjects_set_updated_at on public.learning_subjects;
+create trigger learning_subjects_set_updated_at before update on public.learning_subjects
+for each row execute function public.synapse_set_updated_at();
+
+drop trigger if exists learning_sessions_set_updated_at on public.learning_sessions;
+create trigger learning_sessions_set_updated_at before update on public.learning_sessions
+for each row execute function public.synapse_set_updated_at();
+
+alter table public.learner_profiles enable row level security;
+alter table public.learning_subjects enable row level security;
+alter table public.learning_sessions enable row level security;
+alter table public.learning_messages enable row level security;
+
+drop policy if exists learner_profiles_owner_access on public.learner_profiles;
+create policy learner_profiles_owner_access on public.learner_profiles to authenticated
+using (exists (select 1 from public.users u where u.id = learner_profiles.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text))
+with check (exists (select 1 from public.users u where u.id = learner_profiles.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text));
+
+drop policy if exists learning_subjects_owner_access on public.learning_subjects;
+create policy learning_subjects_owner_access on public.learning_subjects to authenticated
+using (exists (select 1 from public.users u where u.id = learning_subjects.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text))
+with check (exists (select 1 from public.users u where u.id = learning_subjects.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text));
+
+drop policy if exists learning_sessions_owner_access on public.learning_sessions;
+create policy learning_sessions_owner_access on public.learning_sessions to authenticated
+using (exists (select 1 from public.users u where u.id = learning_sessions.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text))
+with check (exists (select 1 from public.users u where u.id = learning_sessions.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text));
+
+drop policy if exists learning_messages_session_owner_access on public.learning_messages;
+create policy learning_messages_session_owner_access on public.learning_messages to authenticated
+using (exists (select 1 from public.learning_sessions s join public.users u on u.id = s.user_id where s.id = learning_messages.session_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text))
+with check (exists (select 1 from public.learning_sessions s join public.users u on u.id = s.user_id where s.id = learning_messages.session_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text));
