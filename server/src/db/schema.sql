@@ -253,3 +253,21 @@ CREATE TABLE IF NOT EXISTS learning_messages (
   UNIQUE KEY uq_learning_messages_session_idempotency (session_id, idempotency_key),
   CONSTRAINT fk_learning_messages_session FOREIGN KEY (session_id) REFERENCES learning_sessions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS learning_evidence (
+  id VARCHAR(120) PRIMARY KEY,
+  user_id VARCHAR(80) NOT NULL,
+  subject_id VARCHAR(120) NOT NULL,
+  session_id VARCHAR(120) NULL,
+  evidence_type ENUM('self_check', 'practice', 'project', 'assessment') NOT NULL,
+  status ENUM('recorded', 'verified') NOT NULL DEFAULT 'recorded',
+  label VARCHAR(1000) NOT NULL,
+  score INT NULL,
+  payload_json JSON NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_learning_evidence_subject_created (subject_id, created_at),
+  KEY idx_learning_evidence_user_created (user_id, created_at),
+  CONSTRAINT fk_learning_evidence_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_learning_evidence_subject FOREIGN KEY (subject_id) REFERENCES learning_subjects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_learning_evidence_session FOREIGN KEY (session_id) REFERENCES learning_sessions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

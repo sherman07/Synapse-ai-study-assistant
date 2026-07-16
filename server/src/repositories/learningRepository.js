@@ -7,6 +7,8 @@ const LEARNING_INTENTIONS = ["hobby", "skill", "project", "assessment"];
 const MESSAGE_ROLES = ["user", "assistant"];
 const SUBJECT_STATUSES = ["active", "paused", "completed", "archived"];
 const SESSION_STATUSES = ["active", "completed", "abandoned"];
+const EVIDENCE_TYPES = ["self_check", "practice", "project", "assessment"];
+const EVIDENCE_STATUSES = ["recorded", "verified"];
 
 function requiredString(value, field, limit = 240) {
   const cleaned = cleanString(value, limit);
@@ -57,6 +59,25 @@ function normalizeSession(input = {}, userId, subjectId) {
   };
 }
 
+function normalizeEvidence(input = {}, userId) {
+  const evidenceType = allowedValue(input.evidenceType || input.evidence_type, EVIDENCE_TYPES, "");
+  if (!evidenceType) throw new Error("Learning evidence type is invalid.");
+  const score = input.score === null || input.score === undefined || input.score === ""
+    ? null
+    : Math.max(0, Math.min(intValue(input.score, 0), 100));
+  return {
+    id: cleanString(input.id, 120) || randomId("learning_evidence"),
+    userId: requiredString(userId, "User id", 120),
+    subjectId: requiredString(input.subjectId || input.subject_id, "Subject id", 120),
+    sessionId: nullableString(input.sessionId || input.session_id, 120),
+    evidenceType,
+    status: allowedValue(input.status, EVIDENCE_STATUSES, "recorded"),
+    label: requiredString(input.label, "Evidence label", 1000),
+    score,
+    payload: input.payload || input.payload_json || {},
+  };
+}
+
 function mapSubject(row = {}) {
   return {
     id: row.id,
@@ -101,6 +122,21 @@ function mapMessage(row = {}) {
   };
 }
 
+function mapEvidence(row = {}) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    subjectId: row.subject_id,
+    sessionId: row.session_id || null,
+    evidenceType: row.evidence_type,
+    status: row.status || "recorded",
+    label: row.label || "",
+    score: row.score === null || row.score === undefined ? null : Number(row.score),
+    payload: jsonValue(row.payload_json, {}),
+    createdAt: row.created_at,
+  };
+}
+
 function subjectRow(subject) {
   return {
     id: subject.id,
@@ -124,6 +160,20 @@ function sessionRow(session) {
     active_objective: session.activeObjective || null,
     status: session.status,
     summary: session.summary || null,
+  };
+}
+
+function evidenceRow(evidence) {
+  return {
+    id: evidence.id,
+    user_id: evidence.userId,
+    subject_id: evidence.subjectId,
+    session_id: evidence.sessionId,
+    evidence_type: evidence.evidenceType,
+    status: evidence.status,
+    label: evidence.label,
+    score: evidence.score,
+    payload_json: evidence.payload,
   };
 }
 
@@ -209,6 +259,29 @@ async function mysqlListMessages(userId, sessionId, limit = 100) {
   return rows.map(mapMessage);
 }
 
+async function mysqlCreateEvidence(userId, payload = {}) {
+  const evidence = normalizeEvidence(payload, userId);
+  if (!(await mysqlGetSubject(userId, evidence.subjectId))) return null;
+  const row = evidenceRow(evidence);
+  await createPool().execute(
+    `INSERT INTO learning_evidence (id, user_id, subject_id, session_id, evidence_type, status, label, score, payload_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE status = VALUES(status), label = VALUES(label), score = VALUES(score), payload_json = VALUES(payload_json)`,
+    [row.id, row.user_id, row.subject_id, row.session_id, row.evidence_type, row.status, row.label, row.score, jsonString(row.payload_json, {})]
+  );
+  const [rows] = await createPool().execute("SELECT * FROM learning_evidence WHERE id = ? AND user_id = ? LIMIT 1", [evidence.id, userId]);
+  return rows[0] ? mapEvidence(rows[0]) : null;
+}
+
+async function mysqlListEvidence(userId, subjectId, limit = 50) {
+  const safeLimit = limitValue(limit, 50, 100);
+  const [rows] = await createPool().execute(
+    `SELECT * FROM learning_evidence WHERE user_id = ? AND subject_id = ? ORDER BY created_at DESC LIMIT ${safeLimit}`,
+    [cleanString(userId, 120), cleanString(subjectId, 120)]
+  );
+  return rows.map(mapEvidence);
+}
+
 async function mysqlAppendMessage(userId, sessionId, payload = {}) {
   const [sessions] = await createPool().execute("SELECT id FROM learning_sessions WHERE id = ? AND user_id = ? LIMIT 1", [sessionId, userId]);
   if (!sessions[0]) return null;
@@ -284,6 +357,31 @@ async function supabaseListMessages(userId, sessionId, limit = 100) {
   return Array.isArray(rows) ? rows.map(mapMessage) : [];
 }
 
+async function supabaseCreateEvidence(userId, payload = {}) {
+  const evidence = normalizeEvidence(payload, userId);
+  if (!(await supabaseGetSubject(userId, evidence.subjectId))) return null;
+  const saved = await supabaseRequest("POST", "learning_evidence", {
+    query: { on_conflict: "id" },
+    body: [evidenceRow(evidence)],
+    prefer: "resolution=merge-duplicates,return=representation",
+  });
+  return mapEvidence(firstSupabaseRow(saved) || evidenceRow(evidence));
+}
+
+async function supabaseListEvidence(userId, subjectId, limit = 50) {
+  if (!(await supabaseGetSubject(userId, subjectId))) return [];
+  const rows = await supabaseRequest("GET", "learning_evidence", {
+    query: {
+      select: "*",
+      user_id: `eq.${cleanString(userId, 120)}`,
+      subject_id: `eq.${cleanString(subjectId, 120)}`,
+      order: "created_at.desc",
+      limit: limitValue(limit, 50, 100),
+    },
+  });
+  return Array.isArray(rows) ? rows.map(mapEvidence) : [];
+}
+
 async function supabaseAppendMessage(userId, sessionId, payload = {}) {
   const sessionRows = await supabaseRequest("GET", "learning_sessions", { query: { select: "id", id: `eq.${cleanString(sessionId, 120)}`, user_id: `eq.${cleanString(userId, 120)}`, limit: 1 } });
   if (!firstSupabaseRow(sessionRows)) return null;
@@ -343,13 +441,30 @@ async function appendLearningMessage(userId, sessionId, payload = {}) {
   return item;
 }
 
+async function createLearningEvidence(userId, payload = {}) {
+  if (!supabaseStorageEnabled()) return mysqlCreateEvidence(userId, payload);
+  const item = await supabaseCreateEvidence(userId, payload);
+  if (item) await mirrorMysql(() => mysqlCreateEvidence(userId, { ...payload, id: item.id }), "learning evidence upsert");
+  return item;
+}
+
+async function listLearningEvidence(userId, subjectId, limit = 50) {
+  if (supabaseStorageEnabled()) {
+    try { return await supabaseListEvidence(userId, subjectId, limit); } catch (error) { console.warn(`[storage] Supabase learning evidence list failed: ${error.message}`); }
+  }
+  return mysqlListEvidence(userId, subjectId, limit);
+}
+
 export {
   LEARNING_INTENTIONS,
   MESSAGE_ROLES,
+  normalizeEvidence,
   appendLearningMessage,
+  createLearningEvidence,
   createLearningSession,
   createLearningSubject,
   listLearningMessages,
+  listLearningEvidence,
   listLearningSessions,
   listLearningSubjects,
   normalizeMessage,

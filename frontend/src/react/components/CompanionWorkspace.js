@@ -3,6 +3,8 @@ import {
   appendLearningMessage,
   createLearningSession,
   createLearningSubject,
+  createLearningEvidence,
+  fetchLearningEvidence,
   fetchLearningMessages,
   fetchLearningSubjects,
   requestLearningCompanionDecision,
@@ -40,11 +42,17 @@ function subjectOption(subject) {
   return h("option", { key: subject.id, value: subject.id }, subject.title);
 }
 
+function latestTutorText(messages) {
+  const latest = [...messages].reverse().find(item => item.role === "assistant");
+  return latest?.decision?.next_prompt || latest?.content || "";
+}
+
 export function CompanionWorkspace() {
   const [subjects, setSubjects] = React.useState([]);
   const [subject, setSubject] = React.useState(null);
   const [session, setSession] = React.useState(null);
   const [messages, setMessages] = React.useState([]);
+  const [evidence, setEvidence] = React.useState([]);
   const [draft, setDraft] = React.useState("");
   const [title, setTitle] = React.useState("");
   const [goal, setGoal] = React.useState("");
@@ -72,10 +80,20 @@ export function CompanionWorkspace() {
     setSession(currentSession);
     if (!currentSession) {
       setMessages([]);
+      try {
+        setEvidence(await fetchLearningEvidence(nextSubject.id));
+      } catch (loadError) {
+        setError(loadError.message || "This learning evidence could not be loaded.");
+      }
       return;
     }
     try {
-      setMessages(await fetchLearningMessages(currentSession.id));
+      const [loadedMessages, loadedEvidence] = await Promise.all([
+        fetchLearningMessages(currentSession.id),
+        fetchLearningEvidence(nextSubject.id),
+      ]);
+      setMessages(loadedMessages);
+      setEvidence(loadedEvidence);
     } catch (loadError) {
       setError(loadError.message || "This learning conversation could not be loaded.");
     }
@@ -113,11 +131,32 @@ export function CompanionWorkspace() {
     try {
       const created = await createLearningSubject({ title, goal, intention });
       setSubjects(previous => [created, ...previous]);
+      setEvidence([]);
       await beginSession(created);
       setTitle("");
       setGoal("");
     } catch (createError) {
       setError(createError.message || "Synapse could not start this learning subject.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const recordEvidence = async () => {
+    if (!subject || busy) return;
+    const latestTutor = [...messages].reverse().find(item => item.role === "assistant");
+    setBusy(true);
+    setError("");
+    try {
+      const item = await createLearningEvidence(subject.id, {
+        sessionId: session?.id || null,
+        evidenceType: "self_check",
+        label: latestTutor?.decision?.next_prompt || `Self-check for ${subject.title}`,
+        payload: { messageId: latestTutor?.id || null, intention: subject.intention },
+      });
+      setEvidence(previous => [item, ...previous]);
+    } catch (evidenceError) {
+      setError(evidenceError.message || "Synapse could not save that self-check.");
     } finally {
       setBusy(false);
     }
@@ -189,6 +228,7 @@ export function CompanionWorkspace() {
           "div",
           { className: "companion-session" },
           h("div", { className: "companion-session-meta" }, h("span", null, `${subject.intention} learning`), h("label", null, "Time now", h("select", { value: availableTime, onChange: event => setAvailableTime(Number(event.target.value)), disabled: busy }, [5, 10, 20, 30, 45, 60].map(minutes => h("option", { key: minutes, value: minutes }, `${minutes} min`))))),
+          h("aside", { className: "companion-journey", "aria-label": "Learning journey" }, h("div", null, h("p", { className: "companion-journey-label" }, "Learning journey"), h("strong", null, evidence.length ? `${evidence.length} evidence ${evidence.length === 1 ? "check" : "checks"}` : "First evidence check"), h("p", null, latestTutorText(messages) || "Start a session to identify your next focused step.")), h("button", { type: "button", className: "btn btn-outline-primary", onClick: recordEvidence, disabled: busy, "data-learning-companion-record-evidence": "true" }, icon("bi-check2-circle", "me-2"), "I can explain this")),
           h("div", { className: "companion-messages", "aria-live": "polite" }, messages.length ? messages.map(messageBubble) : h("p", { className: "companion-empty" }, "Start this session when you are ready. Synapse will ask one useful first question.")),
           h("form", { className: "companion-compose", onSubmit: handleSend }, h("label", { className: "visually-hidden", htmlFor: "companionMessage" }, "Message Synapse"), h("textarea", { id: "companionMessage", value: draft, onChange: event => setDraft(event.target.value), placeholder: session ? "Write your answer or ask for help…" : "Start this session…", disabled: busy, rows: 3 }), h("button", { type: "submit", className: "btn btn-primary", disabled: busy, "data-learning-companion-send": "true" }, busy ? "Thinking…" : h(React.Fragment, null, icon("bi-send", "me-2"), session ? "Send" : "Begin session"))),
         ),

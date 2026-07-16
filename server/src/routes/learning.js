@@ -2,9 +2,11 @@ import { Router } from "express";
 import { requireUser } from "../middleware/auth.js";
 import {
   appendLearningMessage,
+  createLearningEvidence,
   createLearningSession,
   createLearningSubject,
   listLearningMessages,
+  listLearningEvidence,
   listLearningSessions,
   listLearningSubjects,
 } from "../repositories/learningRepository.js";
@@ -42,6 +44,20 @@ router.post("/subjects/:subjectId/sessions", requireUser, asyncRoute(async (req,
 
 router.get("/subjects/:subjectId/sessions", requireUser, asyncRoute(async (req, res) => {
   res.json({ ok: true, items: await listLearningSessions(req.user.id, req.params.subjectId, limitValue(req.query.limit, 50, 100)) });
+}));
+
+router.get("/subjects/:subjectId/evidence", requireUser, asyncRoute(async (req, res) => {
+  res.json({ ok: true, items: await listLearningEvidence(req.user.id, req.params.subjectId, limitValue(req.query.limit, 50, 100)) });
+}));
+
+router.post("/subjects/:subjectId/evidence", requireUser, asyncRoute(async (req, res) => {
+  try {
+    const item = await createLearningEvidence(req.user.id, { ...(req.body || {}), subjectId: req.params.subjectId });
+    if (!item) return sendNotFound(res, "Learning subject not found.");
+    return res.status(201).json({ ok: true, item });
+  } catch (error) {
+    return invalidRequest(res, error.message);
+  }
 }));
 
 router.get("/sessions/:sessionId/messages", requireUser, asyncRoute(async (req, res) => {

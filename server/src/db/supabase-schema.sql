@@ -591,6 +591,25 @@ create table if not exists public.learning_messages (
   unique (session_id, idempotency_key)
 );
 
+create table if not exists public.learning_evidence (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  subject_id text not null references public.learning_subjects(id) on delete cascade,
+  session_id text references public.learning_sessions(id) on delete set null,
+  evidence_type text not null check (evidence_type in ('self_check', 'practice', 'project', 'assessment')),
+  status text not null default 'recorded' check (status in ('recorded', 'verified')),
+  label text not null,
+  score integer check (score between 0 and 100),
+  payload_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists learning_evidence_subject_created_idx
+  on public.learning_evidence (subject_id, created_at desc);
+
+create index if not exists learning_evidence_user_created_idx
+  on public.learning_evidence (user_id, created_at desc);
+
 drop trigger if exists learner_profiles_set_updated_at on public.learner_profiles;
 create trigger learner_profiles_set_updated_at before update on public.learner_profiles
 for each row execute function public.synapse_set_updated_at();
@@ -607,6 +626,7 @@ alter table public.learner_profiles enable row level security;
 alter table public.learning_subjects enable row level security;
 alter table public.learning_sessions enable row level security;
 alter table public.learning_messages enable row level security;
+alter table public.learning_evidence enable row level security;
 
 drop policy if exists learner_profiles_owner_access on public.learner_profiles;
 create policy learner_profiles_owner_access on public.learner_profiles to authenticated
@@ -627,3 +647,8 @@ drop policy if exists learning_messages_session_owner_access on public.learning_
 create policy learning_messages_session_owner_access on public.learning_messages to authenticated
 using (exists (select 1 from public.learning_sessions s join public.users u on u.id = s.user_id where s.id = learning_messages.session_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text))
 with check (exists (select 1 from public.learning_sessions s join public.users u on u.id = s.user_id where s.id = learning_messages.session_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text));
+
+drop policy if exists learning_evidence_owner_access on public.learning_evidence;
+create policy learning_evidence_owner_access on public.learning_evidence to authenticated
+using (exists (select 1 from public.users u where u.id = learning_evidence.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text))
+with check (exists (select 1 from public.users u where u.id = learning_evidence.user_id and u.auth_provider = 'supabase' and u.auth_subject = (select auth.uid())::text));

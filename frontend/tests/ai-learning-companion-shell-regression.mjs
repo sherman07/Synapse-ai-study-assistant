@@ -23,8 +23,10 @@ assert.ok(modeSection.includes("appLayout.dataset.learningExperienceMode"));
 assert.ok(styles.includes('[data-learning-experience-mode="companion"]'));
 assert.ok(companionWorkspace.includes("data-learning-companion-create-subject"));
 assert.ok(companionWorkspace.includes("data-learning-companion-send"));
+assert.ok(companionWorkspace.includes("data-learning-companion-record-evidence"));
 assert.ok(companionWorkspace.includes("requestLearningCompanionDecision"));
 assert.ok(companionClient.includes('"/api/learning/subjects"'));
+assert.ok(companionClient.includes("/evidence"));
 assert.ok(companionClient.includes('"/learning-companion/respond"'));
 assert.ok(styles.includes('[data-learning-experience-mode="companion"] .learning-experience-shell'));
 

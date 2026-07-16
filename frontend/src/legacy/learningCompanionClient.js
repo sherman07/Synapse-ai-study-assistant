@@ -41,6 +41,20 @@ async function appendLearningMessage(sessionId, message) {
   return payload.item;
 }
 
+async function fetchLearningEvidence(subjectId, limit = 50) {
+  const payload = await dataApiFetch(`/api/learning/subjects/${encodeURIComponent(subjectId)}/evidence?limit=${encodeURIComponent(limit)}`);
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
+async function createLearningEvidence(subjectId, evidence) {
+  const payload = await dataApiFetch(`/api/learning/subjects/${encodeURIComponent(subjectId)}/evidence`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(evidence || {}),
+  });
+  return payload.item;
+}
+
 async function requestLearningCompanionDecision(payload) {
   const response = await companionApiClient.fetch("/learning-companion/respond", {
     method: "POST",
@@ -59,6 +73,8 @@ export {
   appendLearningMessage,
   createLearningSession,
   createLearningSubject,
+  createLearningEvidence,
+  fetchLearningEvidence,
   fetchLearningMessages,
   fetchLearningSubjects,
   requestLearningCompanionDecision,
