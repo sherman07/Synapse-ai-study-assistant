@@ -12,6 +12,9 @@ async function requestLearningCompanionDecision({ message, messages = [], availa
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.error) throw new Error(body?.error || "Synapse could not reply right now.");
+  if (typeof body?.reply !== "string" || !body.reply.trim()) {
+    throw new Error("Synapse returned an incomplete tutor reply. Please retry.");
+  }
   return body;
 }
 

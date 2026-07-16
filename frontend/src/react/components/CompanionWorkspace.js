@@ -77,9 +77,9 @@ export function CompanionWorkspace() {
   const visibleMessages = thread.messages.length ? thread.messages : [WELCOME_MESSAGE];
 
   const persistThread = React.useCallback(nextThread => {
-    saveLearningCompanionThread(nextThread, getLocalStorage());
-    setThread(nextThread);
-    return nextThread;
+    const saved = saveLearningCompanionThread(nextThread, getLocalStorage());
+    if (saved) setThread(nextThread);
+    return saved;
   }, []);
 
   const handleTutorReply = React.useCallback(async learnerMessage => {
@@ -95,7 +95,10 @@ export function CompanionWorkspace() {
       content: decision?.reply || "Synapse could not reply right now.",
       decision,
     };
-    persistThread(appendLearningCompanionMessage(activeThread, assistantMessage));
+    const nextThread = appendLearningCompanionMessage(activeThread, assistantMessage);
+    if (!persistThread(nextThread)) {
+      throw new Error("Synapse could not save this reply locally. Please retry.");
+    }
     setPendingMessage(null);
     setFailure("");
     focusComposer(composerRef);
@@ -117,7 +120,9 @@ export function CompanionWorkspace() {
 
     try {
       const nextThread = appendLearningCompanionMessage(thread, learnerMessage);
-      persistThread(nextThread);
+      if (!persistThread(nextThread)) {
+        throw new Error("Synapse could not save your message locally. Please retry.");
+      }
       setDraft("");
       setPendingMessage(learnerMessage);
       await handleTutorReply(learnerMessage);
@@ -146,6 +151,14 @@ export function CompanionWorkspace() {
     setBusy(true);
     setFailure("");
     try {
+      const storedThread = loadLearningCompanionThread(getLocalStorage());
+      const alreadyStored = storedThread.messages.some(message => message.id === pendingMessage.id);
+      if (!alreadyStored) {
+        const nextThread = appendLearningCompanionMessage(storedThread, pendingMessage);
+        if (!persistThread(nextThread)) {
+          throw new Error("Synapse could not save your message locally. Please retry.");
+        }
+      }
       await handleTutorReply(pendingMessage);
     } catch (error) {
       setFailure(error?.message || "Synapse could not reply right now.");
