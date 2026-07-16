@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v13";
+import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v14";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
@@ -13,7 +13,7 @@ import {
   patchBroadcastJobInDataApi,
   persistGeneratedContentToDataApi,
   retryBroadcastJobInDataApi
-} from "./dataApiClient.js?v=ai-broadcast-v13";
+} from "./dataApiClient.js?v=ai-broadcast-v14";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -48,6 +48,7 @@ import {
   renderStudyNotesSurface,
   shouldCollapseSecondarySections
 } from "./notesSurface.js";
+import { buildGeneratedNoteNavigation } from "./notesNavigation.js";
 import {
   cleanMindText,
   configureMarkdownRenderer,
@@ -58,10 +59,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=ai-broadcast-v13";
-import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v13";
+} from "./markdownRenderer.js?v=ai-broadcast-v14";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v14";
 
-const CONTROLLER_VERSION = "ai-broadcast-v13";
+const CONTROLLER_VERSION = "ai-broadcast-v14";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -106,6 +107,7 @@ const controllerLoader = new LegacyControllerLoader({
     getYoutubeTranscriptState,
     hydrateSectionsFromSummary,
     inlineMarkdownHTML,
+    buildGeneratedNoteNavigation,
     loadFirstCacheItems,
     markdownToHTML,
     pruneCacheRecords,

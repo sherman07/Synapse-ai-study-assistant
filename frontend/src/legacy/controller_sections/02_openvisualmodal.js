@@ -110,19 +110,28 @@ function renderSections() {
   const mobileSectionsContainer = document.getElementById("mobileSections");
   if (mobileSectionsContainer) mobileSectionsContainer.innerHTML = "";
 
-  const titles = Object.keys(sections);
+  const navigationEntries = typeof buildGeneratedNoteNavigation === "function"
+    ? buildGeneratedNoteNavigation(fullSummary, sections)
+    : Object.entries(sections).map(([title, markdown]) => ({ title, markdown }));
+  const summaryNavDescription = document.getElementById("summaryNavDescription");
 
-  if (titles.length === 0) {
+  if (navigationEntries.length === 0) {
     const empty = `<div class="text-secondary small">No sections generated yet.</div>`;
     sectionsContainer.innerHTML = empty;
     if (mobileSectionsContainer) mobileSectionsContainer.innerHTML = empty;
+    if (summaryNavDescription) summaryNavDescription.textContent = "No generated headings are available for this note yet.";
     return;
   }
 
-  titles.forEach(title => {
-    sectionsContainer.appendChild(createSectionButton(title, false));
+  if (summaryNavDescription) {
+    const count = navigationEntries.length;
+    summaryNavDescription.textContent = `${count} generated section${count === 1 ? "" : "s"} from this note.`;
+  }
+
+  navigationEntries.forEach(entry => {
+    sectionsContainer.appendChild(createSectionButton(entry, false));
     if (mobileSectionsContainer) {
-      mobileSectionsContainer.appendChild(createSectionButton(title, true));
+      mobileSectionsContainer.appendChild(createSectionButton(entry, true));
     }
   });
 }
@@ -167,21 +176,25 @@ function renderSectionNotes(title, options = {}) {
   if (typeof recordStudyActivity === "function") {
     recordStudyActivity("section_opened", { tool: "notes", sectionTitle: title });
   }
-  renderNotesMarkdown(sections[title], `No notes were generated for ${title}.`);
+  const sectionMarkdown = String(options.markdown || sections[title] || "").trim();
+  renderNotesMarkdown(sectionMarkdown, `No notes were generated for ${title}.`);
 }
 
-function createSectionButton(title, isMobile = false) {
+function createSectionButton(entry, isMobile = false) {
+  const title = String(entry?.title || "").trim();
+  const markdown = String(entry?.markdown || "").trim();
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "section-btn";
   btn.title = title;
+  btn.dataset.sectionTitle = title;
   btn.innerHTML = `<i class="bi bi-chevron-right"></i><span>${escapeHTML(title)}</span>`;
 
   btn.addEventListener("click", () => {
-    renderSectionNotes(title);
+    renderSectionNotes(title, { markdown });
 
     document.querySelectorAll(".section-btn").forEach(button => {
-      const label = button.querySelector("span")?.textContent?.trim() || button.textContent.trim();
+      const label = button.dataset.sectionTitle || button.querySelector("span")?.textContent?.trim() || button.textContent.trim();
       button.classList.toggle("active", label === title);
     });
 

@@ -242,7 +242,7 @@ body.mobile-assistant-open::before {
   min-height: 100vh;
   height: auto;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 420px;
+  grid-template-columns: clamp(232px, 16vw, 280px) minmax(560px, 1fr) clamp(330px, 22vw, 400px);
   background: var(--bg);
 }
 
@@ -251,11 +251,11 @@ body.mobile-assistant-open::before {
 }
 
 .app-layout.assistant-closed {
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: clamp(232px, 16vw, 280px) minmax(0, 1fr);
 }
 
 .app-layout.summary-collapsed {
-  grid-template-columns: 76px minmax(0, 1fr) 420px;
+  grid-template-columns: 76px minmax(560px, 1fr) clamp(330px, 22vw, 400px);
 }
 
 .app-layout.assistant-closed.summary-collapsed {
@@ -281,8 +281,8 @@ body.mobile-assistant-open::before {
 
 /* Left navigation */
 .summary-nav {
-  width: 300px;
-  min-width: 300px;
+  width: 100%;
+  min-width: 0;
   height: 100vh;
   position: sticky;
   top: 0;
@@ -350,7 +350,11 @@ body.mobile-assistant-open::before {
   line-height: 1.5;
 }
 
-.section-list { margin-top: 20px; }
+.section-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
 
 .section-btn {
   width: 100%;
@@ -366,7 +370,7 @@ body.mobile-assistant-open::before {
   border: 1px solid var(--border-blue);
   padding: 12px 14px;
   border-radius: var(--radius-sm);
-  margin-bottom: 10px;
+  margin-bottom: 0;
   font-weight: 650;
   font-size: 0.8rem;
   cursor: pointer;

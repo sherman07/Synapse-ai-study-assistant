@@ -30,7 +30,7 @@ export function SummaryNavigation() {
           icon("bi-chevron-double-left")
         )
       ),
-      h("p", null, "Generated headings will appear here after analysis.")
+      h("p", { id: "summaryNavDescription" }, "Your generated study outline will appear here after analysis.")
     ),
     h("div", { id: "sections", className: "section-list" })
   );

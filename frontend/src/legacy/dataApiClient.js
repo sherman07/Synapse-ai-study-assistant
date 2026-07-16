@@ -1,5 +1,5 @@
 import { SynapseApiClient } from "./apiClient.js";
-import { DATA_API_BASE } from "./dataApiConfig.js?v=ai-broadcast-v13";
+import { DATA_API_BASE } from "./dataApiConfig.js?v=ai-broadcast-v14";
 
 const dataApiClient = new SynapseApiClient(DATA_API_BASE);
 const configuredTimeoutMs = Number((globalThis.window || globalThis).SYNAPSE_DATA_API_TIMEOUT_MS || 6000);
