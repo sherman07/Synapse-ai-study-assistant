@@ -9,10 +9,23 @@ function createThreadId() {
   return globalThis.crypto?.randomUUID?.() || `thread-${Date.now()}`;
 }
 
+function normalizeThreadId(id) {
+  if (typeof id === "string") {
+    return id.trim() || createThreadId();
+  }
+
+  if (id === undefined || id === null) {
+    return createThreadId();
+  }
+
+  const normalized = String(id).trim();
+  return normalized || createThreadId();
+}
+
 function createEmptyThread({ id, now = getDefaultNow } = {}) {
   return {
     version: 1,
-    id: id || createThreadId(),
+    id: normalizeThreadId(id),
     updatedAt: now(),
     messages: [],
   };
@@ -123,7 +136,7 @@ export function loadLearningCompanionThread(storage) {
 
     return {
       version: 1,
-      id: parsed.id,
+      id: normalizeThreadId(parsed.id),
       updatedAt: parsed.updatedAt,
       messages: normalizeMessages(parsed.messages),
     };
@@ -138,4 +151,3 @@ export function resetLearningCompanionThread({ id, now = getDefaultNow } = {}, s
   saveLearningCompanionThread(thread, storage);
   return thread;
 }
-
