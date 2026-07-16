@@ -4,8 +4,20 @@ const THREAD_VERSION = 2;
 const MAX_CONTEXT_TEXT_LENGTH = 160;
 const MAX_CONTEXT_ARRAY_ITEMS = 8;
 const MAX_CONTEXT_ARRAY_TEXT_LENGTH = 80;
-const CONTEXT_SCALAR_KEYS = new Set(["topic", "goal", "deadline", "level", "session"]);
-const CONTEXT_BLOCKED_KEYS = /(?:source|excerpt|content|text|raw)/i;
+const MAX_CONTEXT_SERIALIZED_BYTES = 2048;
+const CONTEXT_STRING_KEYS = new Set([
+  "topic",
+  "goal",
+  "deadline",
+  "student_level",
+  "current_level_id",
+  "current_session",
+  "active_subskill",
+  "source_fingerprint",
+]);
+const CONTEXT_ARRAY_KEYS = new Set(["misconceptions", "review_candidates", "selected_source_ids"]);
+const PATH_STRING_KEYS = new Set(["current", "next"]);
+const PATH_ARRAY_KEYS = new Set(["steps"]);
 
 function getDefaultNow() {
   return new Date().toISOString();
@@ -31,28 +43,71 @@ function normalizeThreadId(id) {
 function normalizeContextText(value, maxLength = MAX_CONTEXT_TEXT_LENGTH) {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
-  return normalized ? normalized.slice(0, maxLength) : null;
+  return normalized && normalized.length <= maxLength ? normalized : null;
+}
+
+function normalizeContextArray(value) {
+  if (!Array.isArray(value)) return null;
+  const items = value
+    .map(item => normalizeContextText(item, MAX_CONTEXT_ARRAY_TEXT_LENGTH))
+    .filter(Boolean)
+    .slice(0, MAX_CONTEXT_ARRAY_ITEMS);
+  return items.length ? items : null;
+}
+
+function normalizeContextPath(path) {
+  if (!path || typeof path !== "object" || Array.isArray(path)) return null;
+  const normalized = {};
+  for (const [key, value] of Object.entries(path)) {
+    if (PATH_STRING_KEYS.has(key)) {
+      const text = normalizeContextText(value, MAX_CONTEXT_ARRAY_TEXT_LENGTH);
+      if (text) normalized[key] = text;
+      continue;
+    }
+    if (PATH_ARRAY_KEYS.has(key)) {
+      const items = normalizeContextArray(value);
+      if (items) normalized[key] = items;
+    }
+  }
+  return Object.keys(normalized).length ? normalized : null;
 }
 
 function normalizeLearningContext(learningContext) {
-  if (!learningContext || typeof learningContext !== "object" || Array.isArray(learningContext)) {
-    return {};
-  }
-
+  if (!learningContext || typeof learningContext !== "object" || Array.isArray(learningContext)) return {};
   const normalized = {};
   for (const [key, value] of Object.entries(learningContext)) {
-    if (CONTEXT_BLOCKED_KEYS.test(key)) continue;
-    if (CONTEXT_SCALAR_KEYS.has(key)) {
+    if (CONTEXT_STRING_KEYS.has(key)) {
       const text = normalizeContextText(value);
       if (text) normalized[key] = text;
       continue;
     }
-    if (!Array.isArray(value)) continue;
-    const items = value
-      .map(item => normalizeContextText(item, MAX_CONTEXT_ARRAY_TEXT_LENGTH))
-      .filter(Boolean)
-      .slice(0, MAX_CONTEXT_ARRAY_ITEMS);
-    if (items.length) normalized[key] = items;
+    if (key === "permanent_daily_minutes") {
+      if (Number.isInteger(value) && value >= 0 && value <= 1440) normalized[key] = value;
+      continue;
+    }
+    if (CONTEXT_ARRAY_KEYS.has(key)) {
+      const items = normalizeContextArray(value);
+      if (items) normalized[key] = items;
+      continue;
+    }
+    if (key === "path") {
+      const path = normalizeContextPath(value);
+      if (path) normalized[key] = path;
+    }
+  }
+
+  while (JSON.stringify(normalized).length > MAX_CONTEXT_SERIALIZED_BYTES) {
+    const arrayHolder = Object.entries(normalized)
+      .find(([, value]) => Array.isArray(value) && value.length)
+      || (normalized.path?.steps?.length ? ["path", normalized.path] : null);
+    if (arrayHolder) {
+      if (arrayHolder[0] === "path") arrayHolder[1].steps.pop();
+      else arrayHolder[1].pop();
+      continue;
+    }
+    const lastKey = Object.keys(normalized).pop();
+    if (!lastKey) break;
+    delete normalized[lastKey];
   }
   return normalized;
 }
