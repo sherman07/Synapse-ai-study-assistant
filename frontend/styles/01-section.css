@@ -607,6 +607,25 @@ body.mobile-assistant-open::before {
 .companion-journey p { color: var(--muted); font-size: 0.88rem; margin: 4px 0 0; }
 .companion-journey-label { color: var(--primary) !important; font-size: 0.75rem !important; font-weight: 900; letter-spacing: 0.07em; margin: 0 !important; text-transform: uppercase; }
 
+.companion-journey-stages {
+  display: flex;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.companion-journey-stages li {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.82rem;
+  font-weight: 750;
+  gap: 5px;
+}
+
+.companion-journey-stages li.complete { color: #177245; }
+
 .companion-messages {
   display: grid;
   gap: 12px;

@@ -1,4 +1,5 @@
 import { React, h, icon } from "../runtime.js";
+import { buildLearningJourney } from "../learningJourney.js?v=ai-learning-companion-v1";
 import {
   appendLearningMessage,
   createLearningSession,
@@ -162,6 +163,8 @@ export function CompanionWorkspace() {
     }
   };
 
+  const journey = buildLearningJourney({ intention: subject?.intention, hasSession: Boolean(session), evidence });
+
   const handleSend = async event => {
     event.preventDefault();
     const content = draft.trim();
@@ -229,6 +232,7 @@ export function CompanionWorkspace() {
           { className: "companion-session" },
           h("div", { className: "companion-session-meta" }, h("span", null, `${subject.intention} learning`), h("label", null, "Time now", h("select", { value: availableTime, onChange: event => setAvailableTime(Number(event.target.value)), disabled: busy }, [5, 10, 20, 30, 45, 60].map(minutes => h("option", { key: minutes, value: minutes }, `${minutes} min`))))),
           h("aside", { className: "companion-journey", "aria-label": "Learning journey" }, h("div", null, h("p", { className: "companion-journey-label" }, "Learning journey"), h("strong", null, evidence.length ? `${evidence.length} evidence ${evidence.length === 1 ? "check" : "checks"}` : "First evidence check"), h("p", null, latestTutorText(messages) || "Start a session to identify your next focused step.")), h("button", { type: "button", className: "btn btn-outline-primary", onClick: recordEvidence, disabled: busy, "data-learning-companion-record-evidence": "true" }, icon("bi-check2-circle", "me-2"), "I can explain this")),
+          h("ol", { className: "companion-journey-stages" }, journey.map(stage => h("li", { key: stage.id, className: stage.complete ? "complete" : "" }, h("span", { "aria-hidden": "true" }, stage.complete ? "✓" : "•"), stage.label))),
           h("div", { className: "companion-messages", "aria-live": "polite" }, messages.length ? messages.map(messageBubble) : h("p", { className: "companion-empty" }, "Start this session when you are ready. Synapse will ask one useful first question.")),
           h("form", { className: "companion-compose", onSubmit: handleSend }, h("label", { className: "visually-hidden", htmlFor: "companionMessage" }, "Message Synapse"), h("textarea", { id: "companionMessage", value: draft, onChange: event => setDraft(event.target.value), placeholder: session ? "Write your answer or ask for help…" : "Start this session…", disabled: busy, rows: 3 }), h("button", { type: "submit", className: "btn btn-primary", disabled: busy, "data-learning-companion-send": "true" }, busy ? "Thinking…" : h(React.Fragment, null, icon("bi-send", "me-2"), session ? "Send" : "Begin session"))),
         ),
