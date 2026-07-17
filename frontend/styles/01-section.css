@@ -1363,7 +1363,9 @@ body.mobile-assistant-open::before {
 }
 
 .dark-learning-rail .history-list {
+  flex: 1 1 auto;
   gap: 3px;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 3px 82px;
 }
@@ -1400,6 +1402,7 @@ body.mobile-assistant-open::before {
   padding: 12px 15px;
   position: absolute;
   right: 0;
+  z-index: 2;
 }
 
 .dark-learning-rail .history-account-btn {

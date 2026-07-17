@@ -679,7 +679,9 @@
 }
 
 .account-panel-card {
-  width: min(460px, 100%);
+  width: min(560px, 100%);
+  max-height: min(760px, calc(100dvh - 48px));
+  overflow: auto;
   border-radius: 24px;
   border: 1px solid rgba(216, 230, 255, 0.92);
   background: #fff;
@@ -700,6 +702,15 @@
   font-size: 1.18rem;
   font-weight: 950;
   color: var(--text);
+}
+
+.account-panel-eyebrow {
+  margin: 0 0 4px;
+  color: var(--primary);
+  font-size: .74rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
 .account-panel-close {
@@ -740,6 +751,321 @@
   display: grid;
   gap: 12px;
   margin-top: 18px;
+}
+
+.account-settings-layout {
+  display: grid;
+  grid-template-columns: 156px minmax(0, 1fr);
+  gap: 20px;
+}
+
+.account-settings-nav {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding-right: 16px;
+  border-right: 1px solid var(--border-blue);
+}
+
+.account-settings-nav-item {
+  align-items: center;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: flex;
+  gap: 9px;
+  font: inherit;
+  font-size: .86rem;
+  font-weight: 780;
+  padding: 10px;
+  text-align: left;
+}
+
+.account-settings-nav-item:hover,
+.account-settings-nav-item:focus-visible,
+.account-settings-nav-item.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  outline: none;
+}
+
+.account-settings-nav-item i { width: 15px; text-align: center; }
+
+.account-settings-content { min-width: 0; }
+
+.account-settings-section h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.account-settings-kicker {
+  margin: 0 0 6px;
+  color: var(--primary);
+  font-size: .73rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.account-section-copy {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: .88rem;
+  font-weight: 620;
+  line-height: 1.5;
+}
+
+.account-settings-fields { display: grid; gap: 12px; }
+
+.account-setting-field {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid var(--border-blue);
+  border-radius: 15px;
+  background: rgba(248, 251, 255, .86);
+}
+
+.account-setting-field span { display: grid; gap: 3px; }
+.account-setting-field strong { color: var(--text); font-size: .88rem; }
+.account-setting-field small { color: var(--muted); font-weight: 600; line-height: 1.35; }
+.account-setting-field select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border-blue);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 720;
+  padding: 0 10px;
+}
+
+.account-theme-choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.account-theme-choice button {
+  align-items: center;
+  border: 1px solid var(--border-blue);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--text-soft);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 800;
+  gap: 7px;
+  justify-content: center;
+  min-height: 74px;
+}
+
+.account-theme-choice button:hover,
+.account-theme-choice button:focus-visible,
+.account-theme-choice button.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  outline: none;
+}
+
+.account-preference-note {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 620;
+  line-height: 1.4;
+}
+.account-preference-note i { color: var(--primary); }
+
+.synapse-confirmation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(8, 13, 27, .52);
+  backdrop-filter: blur(5px);
+}
+
+.synapse-confirmation-card {
+  width: min(440px, 100%);
+  border: 1px solid var(--border-blue);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: 0 30px 80px rgba(15, 23, 42, .28);
+  padding: 24px;
+}
+.synapse-confirmation-icon { color: #dc2626; font-size: 1.35rem; }
+.synapse-confirmation-card h3 { margin: 8px 0; color: var(--text); font-size: 1.18rem; font-weight: 920; }
+.synapse-confirmation-card > p:not(.account-settings-kicker):not(.synapse-confirmation-error) { color: var(--text-soft); font-weight: 620; line-height: 1.5; }
+.synapse-confirmation-input { display: grid; gap: 8px; margin-top: 18px; color: var(--text-soft); font-size: .86rem; font-weight: 650; }
+.synapse-confirmation-input input { min-height: 44px; border: 1px solid var(--border-blue); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; padding: 0 12px; }
+.synapse-confirmation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.synapse-confirmation-actions .account-secondary-action,
+.synapse-confirmation-actions .account-danger-action { justify-content: center; }
+.synapse-confirmation-error { margin: 14px 0 0; color: #b91c1c; font-weight: 750; }
+
+html[data-theme="dark"] {
+  --bg: #212121;
+  --hero-start: #212121;
+  --hero-mid: #212121;
+  --hero-end: #212121;
+  --surface: #242424;
+  --text: #f4f4f5;
+  --text-soft: #dedee3;
+  --muted: #a9a9b3;
+  --muted-light: #85858e;
+  --border: #393939;
+  --border-blue: #3a3a3e;
+  --primary-soft: rgba(87, 125, 255, .16);
+  --shadow-card: 0 18px 60px rgba(0, 0, 0, .26);
+  --shadow-panel: 0 20px 60px rgba(0, 0, 0, .3);
+}
+
+html[data-theme="dark"] .account-panel-card,
+html[data-theme="dark"] .account-secondary-action,
+html[data-theme="dark"] .account-plan-action,
+html[data-theme="dark"] .account-setting-field,
+html[data-theme="dark"] .account-theme-choice button,
+html[data-theme="dark"] .synapse-confirmation-card {
+  background: #242424;
+}
+
+html[data-theme="dark"] .account-panel-close,
+html[data-theme="dark"] .account-setting-field select,
+html[data-theme="dark"] .synapse-confirmation-input input {
+  background: #2b2b2b;
+  color: var(--text);
+}
+
+/* The study outline is a separate shell from the learning rail. Keep its
+   navigation readable when the account preference turns the app dark. */
+html[data-theme="dark"] .summary-nav {
+  background: #171717;
+  border-color: #303030;
+}
+
+html[data-theme="dark"] .summary-nav .nav-logo-icon {
+  background: #272727;
+  border-color: #3a3a3a;
+}
+
+html[data-theme="dark"] .summary-nav .nav-logo-text {
+  color: #f5f5f5;
+}
+
+html[data-theme="dark"] .summary-nav-toggle {
+  background: #242424;
+  border-color: #3b3b3b;
+  color: #93b0ff;
+}
+
+html[data-theme="dark"] .summary-nav-toggle:hover {
+  background: #303030;
+  border-color: #5b7fff;
+}
+
+html[data-theme="dark"] .summary-nav .nav-header p {
+  color: #a6a6af;
+}
+
+html[data-theme="dark"] .section-btn {
+  background: #242424;
+  border-color: #3b3b3b;
+  color: #e8e8ed;
+}
+
+html[data-theme="dark"] .section-btn:hover {
+  background: #2d3344;
+  border-color: #5b7fff;
+  color: #f7f8ff;
+}
+
+html[data-theme="dark"] .section-btn.active {
+  background: var(--button-gradient);
+  border-color: transparent;
+  color: #fff;
+}
+
+html[data-theme="dark"] .premium-upload-card,
+html[data-theme="dark"] .companion-workspace-card {
+  background: #212121;
+  border-color: #373737;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .drop-zone {
+  background: #252525;
+  border-color: #4a4a4a;
+}
+
+html[data-theme="dark"] .drop-zone:hover,
+html[data-theme="dark"] .drop-zone.drag-over {
+  background: #2b2b2b;
+  border-color: #5b7fff;
+}
+
+html[data-theme="dark"] .drop-zone h2,
+html[data-theme="dark"] .companion-workspace-card h1 {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .learning-mode-switcher-compact,
+html[data-theme="dark"] .brand-pill,
+html[data-theme="dark"] .companion-launch-btn {
+  background: #2a2a2a;
+  border-color: #3d3d3d;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .learning-mode-switcher-compact .learning-mode-btn {
+  color: #dedee3;
+}
+
+html[data-theme="dark"] .learning-mode-switcher-compact .learning-mode-btn.active {
+  background: #f1f1f1;
+  color: #202020;
+}
+
+html[data-theme="dark"] .mobile-topbar {
+  background: rgba(23, 23, 23, .92);
+  border-color: #303030;
+}
+
+html[data-theme="dark"] .mobile-brand {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .mobile-menu-btn {
+  background: #272727;
+  border-color: #3d3d3d;
+  color: #a8bdff;
+}
+
+@media (max-width: 620px) {
+  .account-panel-overlay { padding: 12px; align-items: end; }
+  .account-panel-card { width: 100%; max-height: min(86dvh, 760px); border-radius: 22px 22px 16px 16px; padding: 18px; }
+  .account-settings-layout { grid-template-columns: 1fr; gap: 14px; }
+  .account-settings-nav { grid-template-columns: repeat(5, minmax(max-content, 1fr)); overflow-x: auto; padding: 0 0 8px; border-right: 0; border-bottom: 1px solid var(--border-blue); }
+  .account-settings-nav-item { justify-content: center; white-space: nowrap; }
+  .account-settings-nav-item span { font-size: .76rem; }
+  .account-theme-choice { gap: 6px; }
+  .synapse-confirmation-overlay { padding: 12px; align-items: end; }
+  .synapse-confirmation-card { border-radius: 22px 22px 16px 16px; padding: 20px; }
 }
 
 .account-plan-grid {
