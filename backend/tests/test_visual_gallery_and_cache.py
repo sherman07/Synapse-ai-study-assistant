@@ -930,6 +930,41 @@ The lecture uses Jacobson v. Massachusetts to illustrate necessity and proportio
 
 
 class VisualGalleryTests(unittest.TestCase):
+    def test_pptx_svg_visual_rendering_respects_requested_slide_limit(self):
+        slide_texts = [
+            "Slide 1 table data comparison",
+            "Slide 2 chart results",
+            "Slide 3 agenda",
+            "Slide 4 references",
+        ]
+        rendered = {
+            1: "data:image/png;base64,AA==",
+            2: "data:image/png;base64,AA==",
+            3: "data:image/png;base64,AA==",
+            4: "data:image/png;base64,AA==",
+        }
+
+        with (
+            patch.object(backend_app_module, "ENABLE_PPTX_SLIDE_RENDER", False, create=True),
+            patch.object(backend_app_module, "ENABLE_PPTX_SVG_FALLBACK_RENDER", True, create=True),
+            patch.object(backend_app_module, "CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE", 6, create=True),
+            patch.object(backend_app_module, "MAX_VISUAL_IMAGES_PER_SOURCE", 2, create=True),
+            patch.object(backend_app_module, "Presentation", return_value=SimpleNamespace(slides=[]), create=True),
+            patch.object(backend_app_module, "render_pptx_source_preview_svg_images", return_value=rendered),
+            patch.object(backend_app_module, "selected_indices_by_score", return_value=[0, 1, 2, 3]),
+        ):
+            parts = backend_app_module.render_pptx_slide_screenshots(
+                b"pptx bytes",
+                "lecture.pptx",
+                slide_texts,
+                max_slides=2,
+            )
+
+        self.assertEqual(len(parts), 4)
+        self.assertIn("PPT slide 1", parts[0]["text"])
+        self.assertIn("PPT slide 2", parts[2]["text"])
+        self.assertNotIn("PPT slide 3", json.dumps(parts))
+
     def test_pdf_visual_rendering_can_be_disabled_for_a_constrained_host(self):
         with (
             patch.object(backend_app_module, "ENABLE_PDF_VISUAL_EXTRACTION", False, create=True),

@@ -78,8 +78,15 @@ def render_pptx_slide_screenshots(data: bytes, source_name: str, slide_texts: Li
     """
     if not ENABLE_PPTX_SLIDE_RENDER and not ENABLE_PPTX_SVG_FALLBACK_RENDER:
         return []
-    requested_slides = int(max_slides or MAX_VISUAL_IMAGES_PER_SOURCE)
-    max_slides = min(max(requested_slides, CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE), CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE)
+    try:
+        requested_slides = MAX_VISUAL_IMAGES_PER_SOURCE if max_slides is None else int(max_slides)
+    except Exception:
+        requested_slides = MAX_VISUAL_IMAGES_PER_SOURCE
+    try:
+        controlled_cap = int(CONTROLLED_MAX_PPTX_SLIDES_PER_SOURCE)
+    except Exception:
+        controlled_cap = MAX_VISUAL_IMAGES_PER_SOURCE
+    max_slides = min(max(0, requested_slides), max(0, controlled_cap))
     if max_slides <= 0:
         return []
 
