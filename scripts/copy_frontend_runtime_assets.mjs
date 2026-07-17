@@ -18,6 +18,7 @@ const files = [
   "robots.txt",
   "site.webmanifest",
   "style.css",
+  "theme-bootstrap.js",
   "synapse-selects.css",
   "synapse-selects.js",
   "verify-auth.js"

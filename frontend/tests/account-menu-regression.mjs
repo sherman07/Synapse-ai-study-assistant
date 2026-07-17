@@ -46,6 +46,7 @@ assert.ok(accountController.includes("function openAccountPanel"));
 assert.ok(accountController.includes("function refreshAccountSessionFromProvider()"), "workspace boot should resync Supabase auth before trusting account UI");
 assert.ok(boot.includes("refreshAccountSessionFromProvider()"), "boot should refresh the account menu after Supabase session sync");
 assert.ok(accountController.includes('ACCOUNT_PREFERENCES_STORAGE_KEY = "synapse.account.preferences.v1"'), "account preferences should use a namespaced persistent key");
+assert.ok(accountController.includes("window.SynapseTheme?.setPreference"), "account settings should delegate root appearance updates to the shared theme manager");
 assert.ok(accountController.includes("function applyAccountTheme"), "settings should apply a saved appearance preference");
 assert.ok(accountController.includes("account-settings-nav"), "settings should have clear section navigation instead of a read-only status list");
 assert.ok(accountController.includes("openHistoryDeletionDialog"), "history deletion should use the Synapse confirmation dialog");

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,18 +18,9 @@
   <link rel="icon" type="image/png" href="/logos/synapse.png">
   <link rel="apple-touch-icon" href="/logos/synapse.png">
   <link rel="manifest" href="site.webmanifest">
-  <script>
-    (() => {
-      try {
-        const theme = window.localStorage.getItem("synapse-theme") === "dark" ? "dark" : "light";
-        document.documentElement.dataset.theme = theme;
-        document.documentElement.style.colorScheme = theme;
-      } catch (error) {
-        document.documentElement.dataset.theme = "light";
-      }
-    })();
-  </script>
+  <script src="theme-bootstrap.js?v=theme-system-v1"></script>
   <link rel="stylesheet" href="synapse-selects.css?v=synapse-selects-v2">
+  <link rel="stylesheet" href="styles/00-theme.css?v=theme-system-v1">
 </head>
 <body>
   <div id="landing-root">

@@ -52,19 +52,15 @@ const footerHighlights = [
   "Start free, then upgrade when your study load grows."
 ];
 
-const THEME_STORAGE_KEY = "synapse-theme";
-
-function getInitialTheme() {
-  if (typeof window === "undefined") return "light";
-  return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+function getInitialThemePreference() {
+  if (typeof window === "undefined") return "system";
+  return window.SynapseTheme?.getPreference?.() || "system";
 }
 
-function applyTheme(theme) {
-  if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (themeMeta) themeMeta.setAttribute("content", theme === "dark" ? "#07111f" : "#eaf4ff");
+function resolveLandingTheme(preference) {
+  if (typeof window === "undefined") return "light";
+  return window.SynapseTheme?.resolve?.(preference)
+    || (preference === "dark" ? "dark" : "light");
 }
 
 function scrollToId(id) {
@@ -105,8 +101,8 @@ function AuthModal({ open, onClose }) {
   );
 }
 
-function ThemeToggle({ onToggleTheme, theme }) {
-  const isDark = theme === "dark";
+function ThemeToggle({ onToggleTheme, preference }) {
+  const isDark = resolveLandingTheme(preference) === "dark";
 
   return (
     <button
@@ -122,7 +118,7 @@ function ThemeToggle({ onToggleTheme, theme }) {
   );
 }
 
-function Navigation({ onGetStarted, onToggleTheme, theme }) {
+function Navigation({ onGetStarted, onToggleTheme, preference }) {
   const [open, setOpen] = useState(false);
 
   function handleAnchorClick(event, href) {
@@ -145,7 +141,7 @@ function Navigation({ onGetStarted, onToggleTheme, theme }) {
             </a>
           ))}
         </div>
-        <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
+        <ThemeToggle preference={preference} onToggleTheme={onToggleTheme} />
         <div className="landing-nav-actions">
           <a className="button button-ghost" href="login.html">Login</a>
           <Magnet strength={0.12}>
@@ -254,12 +250,20 @@ function Footer() {
 
 export function LandingPage() {
   const [authOpen, setAuthOpen] = useState(false);
-  const [theme, setTheme] = useState(getInitialTheme);
+  const [themePreference, setThemePreference] = useState(getInitialThemePreference);
 
   useEffect(() => {
-    applyTheme(theme);
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+    const theme = window.SynapseTheme;
+    if (!theme) return undefined;
+    theme.apply(theme.getPreference(), { silent: true });
+    return theme.subscribe(({ preference }) => setThemePreference(preference));
+  }, []);
+
+  function toggleTheme() {
+    const next = resolveLandingTheme(themePreference) === "dark" ? "light" : "dark";
+    if (window.SynapseTheme?.setPreference) window.SynapseTheme.setPreference(next);
+    else setThemePreference(next);
+  }
 
   function handleGetStarted() {
     setAuthOpen(true);
@@ -273,7 +277,7 @@ export function LandingPage() {
     <>
       <LandingAtmosphere />
       <a href="#main-content" className="skip-link">Skip to content</a>
-      <Navigation onGetStarted={handleGetStarted} onToggleTheme={() => setTheme((value) => value === "dark" ? "light" : "dark")} theme={theme} />
+      <Navigation onGetStarted={handleGetStarted} onToggleTheme={toggleTheme} preference={themePreference} />
       <main id="main-content">
         <HeroSection onGetStarted={handleGetStarted} onViewDemo={handleViewDemo} />
         <ProductDemoSection />

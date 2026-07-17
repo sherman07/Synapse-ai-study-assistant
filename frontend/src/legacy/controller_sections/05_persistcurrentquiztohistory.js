@@ -130,9 +130,7 @@ function openQuizHistoryModal() {
   document.getElementById("quizHistoryOverlay")?.remove();
   const overlay = document.createElement("div");
   overlay.id = "quizHistoryOverlay";
-  overlay.className = "visual-modal";
-  overlay.style.background = "rgba(248, 250, 252, 0.78)";
-  overlay.style.backdropFilter = "blur(12px)";
+  overlay.className = "visual-modal synapse-themed-modal";
   const rows = quizHistory.length
     ? quizHistory.map(record => `
       <div class="quiz-history-row ${record.id === activeQuizHistoryId ? "active" : ""}">
@@ -239,11 +237,9 @@ function openQuizSettingsModal() {
   document.getElementById("quizSettingsOverlay")?.remove();
   const overlay = document.createElement("div");
   overlay.id = "quizSettingsOverlay";
-  overlay.className = "visual-modal";
-  overlay.style.background = "rgba(248, 250, 252, 0.78)";
-  overlay.style.backdropFilter = "blur(12px)";
+  overlay.className = "visual-modal synapse-themed-modal";
   overlay.innerHTML = `
-    <div class="visual-modal-content" style="width:min(760px, 94vw); background:#f7f8fc; border:1px solid #d9e1f0;">
+    <div class="visual-modal-content quiz-settings-modal">
       <button class="visual-modal-close" type="button" aria-label="Close quiz settings" onclick="closeQuizSettingsModal()">
         <i class="bi bi-x-lg"></i>
       </button>

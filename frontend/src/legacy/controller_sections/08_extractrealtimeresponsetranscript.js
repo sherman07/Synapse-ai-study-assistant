@@ -615,6 +615,7 @@ const ACCOUNT_PREFERENCES_STORAGE_KEY = "synapse.account.preferences.v1";
 const ACCOUNT_THEME_VALUES = new Set(["system", "light", "dark"]);
 
 function readAccountPreferences() {
+  if (window.SynapseTheme?.readPreferences) return window.SynapseTheme.readPreferences();
   try {
     const parsed = JSON.parse(window.localStorage.getItem(ACCOUNT_PREFERENCES_STORAGE_KEY) || "{}");
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -624,17 +625,23 @@ function readAccountPreferences() {
 }
 
 function writeAccountPreferences(next) {
+  if (window.SynapseTheme?.STORAGE_KEY) {
+    try { window.localStorage.setItem(window.SynapseTheme.STORAGE_KEY, JSON.stringify(next)); } catch {}
+    return;
+  }
   try {
     window.localStorage.setItem(ACCOUNT_PREFERENCES_STORAGE_KEY, JSON.stringify(next));
   } catch {}
 }
 
 function resolveAccountTheme(preference = "system") {
+  if (window.SynapseTheme?.resolve) return window.SynapseTheme.resolve(preference);
   if (preference === "dark" || preference === "light") return preference;
   return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
 }
 
 function applyAccountTheme(preference = readAccountPreferences().appearance || "system") {
+  if (window.SynapseTheme?.apply) return window.SynapseTheme.apply(preference);
   const selected = ACCOUNT_THEME_VALUES.has(preference) ? preference : "system";
   const resolved = resolveAccountTheme(selected);
   document.documentElement.dataset.theme = resolved;
@@ -670,7 +677,8 @@ function setAccountPreference(key, value) {
   const nextValue = key === "appearance" && !ACCOUNT_THEME_VALUES.has(value) ? "system" : String(value || "");
   writeAccountPreferences({ ...preferences, [key]: nextValue });
   if (key === "appearance") {
-    applyAccountTheme(nextValue);
+    if (window.SynapseTheme?.setPreference) window.SynapseTheme.setPreference(nextValue);
+    else applyAccountTheme(nextValue);
     document.querySelectorAll("[data-account-theme]").forEach(button => {
       const active = button.dataset.accountTheme === nextValue;
       button.classList.toggle("is-selected", active);
@@ -684,6 +692,18 @@ function setAccountPreference(key, value) {
 
 function initialiseAccountPreferences() {
   applyAccountTheme();
+  if (window.SynapseTheme?.subscribe) {
+    if (!window.__synapseThemePreferenceSubscription) {
+      window.__synapseThemePreferenceSubscription = window.SynapseTheme.subscribe(({ preference }) => {
+        document.querySelectorAll("[data-account-theme]").forEach(button => {
+          const active = button.dataset.accountTheme === preference;
+          button.classList.toggle("is-selected", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
+      });
+    }
+    return;
+  }
   if (!window.__synapseThemeListenerInstalled && window.matchMedia) {
     window.__synapseThemeListenerInstalled = true;
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
