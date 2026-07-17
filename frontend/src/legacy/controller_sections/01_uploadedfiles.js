@@ -1198,13 +1198,16 @@ function retryGenerationJobFromUpload(job = {}) {
 
 
 function showAnalysisView({ scrollToTop = false } = {}) {
+  if (typeof setLearningExperienceMode === "function") {
+    setLearningExperienceMode("materials");
+  }
   if (uploadStage) uploadStage.classList.add("d-none");
   if (analysisStage) analysisStage.classList.remove("d-none");
   if (loadingBox) loadingBox.classList.add("d-none");
   if (resultGrid) resultGrid.classList.remove("d-none");
 
   appLayout.classList.remove("initial-state", "loading-state");
-  appLayout.classList.add("analysis-ready", "assistant-closed");
+  appLayout.classList.add("analysis-ready", "assistant-closed", "generated-notes-state");
   if (assistant) assistant.classList.add("hidden");
   if (openAssistantBtn) openAssistantBtn.style.display = "block";
   renderSourceViewer();

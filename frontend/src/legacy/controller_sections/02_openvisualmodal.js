@@ -136,6 +136,22 @@ function renderSections() {
   });
 }
 
+function syncGeneratedHeadingAnchors(navigationEntries = []) {
+  if (!summaryContent) return;
+  const entryByTitle = new Map(navigationEntries.map(entry => [String(entry.title || "").toLowerCase(), entry]));
+  summaryContent.querySelectorAll("[data-section-title]").forEach(section => {
+    const entry = entryByTitle.get(String(section.dataset.sectionTitle || "").toLowerCase());
+    if (entry?.anchor) section.id = entry.anchor;
+  });
+  summaryContent.querySelectorAll("h3, h4").forEach(heading => {
+    const title = String(heading.textContent || "").trim().toLowerCase();
+    const child = navigationEntries
+      .flatMap(entry => entry.children || [])
+      .find(candidate => String(candidate.title || "").toLowerCase() === title);
+    if (child?.anchor) heading.id = child.anchor;
+  });
+}
+
 function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are available for this section.") {
   if (!summaryContent) return;
   const source = String(markdown || "").trim();
@@ -152,7 +168,13 @@ function renderNotesMarkdown(markdown, emptyMessage = "No generated notes are av
       })
       : renderedHtml;
     const noticeHtml = typeof renderAiGenerationNotice === "function" ? renderAiGenerationNotice() : "";
-    typeInto(summaryContent, `${noticeHtml}${surfaceHtml}`, renderMath);
+    typeInto(summaryContent, `${noticeHtml}${surfaceHtml}`, () => {
+      renderMath();
+      const navigationEntries = typeof buildGeneratedNoteNavigation === "function"
+        ? buildGeneratedNoteNavigation(fullSummary, sections)
+        : [];
+      syncGeneratedHeadingAnchors(navigationEntries);
+    });
   } catch (error) {
     console.error("Could not render notes markdown:", error);
     summaryContent.innerHTML = `<pre class="notes-render-fallback">${escapeHTML(source)}</pre>`;
@@ -182,30 +204,78 @@ function renderSectionNotes(title, options = {}) {
 
 function createSectionButton(entry, isMobile = false) {
   const title = String(entry?.title || "").trim();
-  const markdown = String(entry?.markdown || "").trim();
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "section-btn";
-  btn.title = title;
-  btn.dataset.sectionTitle = title;
-  btn.innerHTML = `<i class="bi bi-chevron-right"></i><span>${escapeHTML(title)}</span>`;
+  const children = Array.isArray(entry?.children) ? entry.children : [];
+  const row = document.createElement("div");
+  row.className = "section-nav-row";
+  const targetId = entry?.anchor || "";
+  const listId = targetId ? `${targetId}-children` : "";
+  const mainButton = document.createElement("button");
+  mainButton.type = "button";
+  mainButton.className = "section-btn section-nav-main";
+  mainButton.title = title;
+  mainButton.dataset.sectionTitle = title;
+  mainButton.innerHTML = `<i class="bi bi-chevron-right" aria-hidden="true"></i><span>${escapeHTML(title)}</span>`;
+  mainButton.addEventListener("click", () => navigateToGeneratedHeading(entry, isMobile));
+  row.appendChild(mainButton);
 
-  btn.addEventListener("click", () => {
-    renderSectionNotes(title, { markdown });
+  if (!children.length) return row;
 
-    document.querySelectorAll(".section-btn").forEach(button => {
-      const label = button.dataset.sectionTitle || button.querySelector("span")?.textContent?.trim() || button.textContent.trim();
-      button.classList.toggle("active", label === title);
-    });
-
-    if (isMobile) {
-      const mobileNav = document.getElementById("mobileNav");
-      const instance = bootstrap.Offcanvas.getInstance(mobileNav);
-      if (instance) instance.hide();
-    }
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "section-nav-toggle";
+  toggle.setAttribute("aria-label", `Show headings in ${title}`);
+  toggle.setAttribute("aria-expanded", "false");
+  if (listId) toggle.setAttribute("aria-controls", listId);
+  toggle.innerHTML = '<i class="bi bi-list" aria-hidden="true"></i>';
+  const childList = document.createElement("div");
+  childList.className = "section-subnav";
+  if (listId) childList.id = listId;
+  childList.hidden = true;
+  children.forEach(child => {
+    const childButton = document.createElement("button");
+    childButton.type = "button";
+    childButton.className = "section-subnav-btn";
+    childButton.textContent = child.title;
+    childButton.addEventListener("click", () => navigateToGeneratedHeading(child, isMobile));
+    childList.appendChild(childButton);
   });
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!expanded));
+    toggle.setAttribute("aria-label", `${expanded ? "Show" : "Hide"} headings in ${title}`);
+    childList.hidden = expanded;
+  });
+  row.append(toggle, childList);
+  return row;
+}
 
-  return btn;
+function navigateToGeneratedHeading(entry, isMobile = false) {
+  const targetId = String(entry?.anchor || "");
+  if (!targetId) return;
+  selectedSection = "";
+  sectionTitle.innerText = "Study Notes";
+  contextLabel.textContent = "Current Notes";
+  renderFullNotes();
+  document.querySelectorAll(".section-btn").forEach(button => {
+    button.classList.toggle("active", button.dataset.sectionTitle === entry.title);
+  });
+  requestAnimationFrame(() => {
+    const target = document.getElementById(targetId);
+    const disclosure = target?.closest("details");
+    if (disclosure) disclosure.open = true;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  if (typeof recordMasterySectionOpen === "function") {
+    recordMasterySectionOpen(entry.title);
+  }
+  if (typeof recordStudyActivity === "function") {
+    recordStudyActivity("section_opened", { tool: "notes", sectionTitle: entry.title });
+  }
+  if (isMobile) {
+    const mobileNav = document.getElementById("mobileNav");
+    const instance = window.bootstrap?.Offcanvas?.getInstance(mobileNav);
+    if (instance) instance.hide();
+  }
 }
 
 function showFullSummary() {

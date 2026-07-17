@@ -399,6 +399,68 @@ body.mobile-assistant-open::before {
   border-color: transparent;
 }
 
+.section-nav-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+}
+
+.section-nav-row:has(.section-nav-main:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.section-nav-main {
+  min-width: 0;
+}
+
+.section-nav-toggle {
+  align-self: stretch;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  min-height: 40px;
+  place-items: center;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.section-nav-toggle:hover,
+.section-nav-toggle:focus-visible {
+  background: var(--primary-soft);
+  border-color: var(--border-blue);
+  color: var(--primary);
+  outline: none;
+}
+
+.section-subnav {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  margin: -2px 0 5px 18px;
+}
+
+.section-subnav-btn {
+  border: 0;
+  border-left: 2px solid var(--border-blue);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.section-subnav-btn:hover,
+.section-subnav-btn:focus-visible {
+  border-left-color: var(--primary);
+  color: var(--primary);
+  outline: none;
+}
+
 .summary-nav.collapsed {
   width: 76px;
   min-width: 76px;
@@ -1451,6 +1513,21 @@ body.mobile-assistant-open::before {
 .app-layout.initial-state:has(.dark-learning-rail) .drop-zone {
   background: var(--color-surface-secondary);
   border-color: var(--color-border-default);
+}
+
+/* Generated classes own the title navigation. This is deliberately more specific
+   than the home rail's display:flex!important rule so stale home state cannot
+   replace a class outline after reopening an existing note. */
+.app-layout.generated-notes-state .history-nav {
+  display: none !important;
+}
+
+.app-layout.generated-notes-state #summaryNav {
+  display: block !important;
+}
+
+.app-layout.generated-notes-state .learning-experience-shell {
+  display: none !important;
 }
 
 @media (max-width: 850px) {
