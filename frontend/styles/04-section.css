@@ -1057,21 +1057,11 @@ html[data-theme="dark"] .prompt-mode-select option {
   color: #f4f4f5;
 }
 
-html[data-theme="dark"] .learning-mode-switcher-compact,
 html[data-theme="dark"] .brand-pill,
 html[data-theme="dark"] .companion-launch-btn {
   background: #2a2a2a;
   border-color: #3d3d3d;
   box-shadow: none;
-}
-
-html[data-theme="dark"] .learning-mode-switcher-compact .learning-mode-btn {
-  color: #dedee3;
-}
-
-html[data-theme="dark"] .learning-mode-switcher-compact .learning-mode-btn.active {
-  background: #f1f1f1;
-  color: #202020;
 }
 
 html[data-theme="dark"] .mobile-topbar {
