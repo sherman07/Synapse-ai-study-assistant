@@ -124,7 +124,7 @@ function renderSections() {
   }
 
   if (summaryNavDescription) {
-    const count = navigationEntries.length;
+    const count = countNavigationNodes(navigationEntries);
     summaryNavDescription.textContent = `${count} generated section${count === 1 ? "" : "s"} from this note.`;
   }
 
@@ -136,19 +136,28 @@ function renderSections() {
   });
 }
 
+function flattenNavigationEntries(entries = []) {
+  return entries.flatMap(entry => [entry, ...flattenNavigationEntries(entry.children || [])]);
+}
+
+function countNavigationNodes(entries = []) {
+  return flattenNavigationEntries(entries).length;
+}
+
 function syncGeneratedHeadingAnchors(navigationEntries = []) {
   if (!summaryContent) return;
-  const entryByTitle = new Map(navigationEntries.map(entry => [String(entry.title || "").toLowerCase(), entry]));
-  summaryContent.querySelectorAll("[data-section-title]").forEach(section => {
-    const entry = entryByTitle.get(String(section.dataset.sectionTitle || "").toLowerCase());
-    if (entry?.anchor) section.id = entry.anchor;
+  const entriesByTitle = new Map();
+  flattenNavigationEntries(navigationEntries).forEach(entry => {
+    const key = String(entry.title || "").trim().toLowerCase();
+    if (key && !entriesByTitle.has(key)) entriesByTitle.set(key, entry);
   });
-  summaryContent.querySelectorAll("h3, h4").forEach(heading => {
-    const title = String(heading.textContent || "").trim().toLowerCase();
-    const child = navigationEntries
-      .flatMap(entry => entry.children || [])
-      .find(candidate => String(candidate.title || "").toLowerCase() === title);
-    if (child?.anchor) heading.id = child.anchor;
+  const seenAnchors = new Set();
+  summaryContent.querySelectorAll("[data-section-title], h2, h3, h4").forEach(element => {
+    const title = String(element.dataset.sectionTitle || element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    const entry = entriesByTitle.get(title);
+    if (!entry?.anchor || seenAnchors.has(entry.anchor)) return;
+    element.id = entry.anchor;
+    seenAnchors.add(entry.anchor);
   });
 }
 
@@ -202,9 +211,12 @@ function renderSectionNotes(title, options = {}) {
   renderNotesMarkdown(sectionMarkdown, `No notes were generated for ${title}.`);
 }
 
-function createSectionButton(entry, isMobile = false) {
+function createSectionButton(entry, isMobile = false, depth = 0) {
   const title = String(entry?.title || "").trim();
   const children = Array.isArray(entry?.children) ? entry.children : [];
+  const group = document.createElement("div");
+  group.className = `section-nav-group${depth ? " nested" : ""}`;
+  group.dataset.sectionDepth = String(depth);
   const row = document.createElement("div");
   row.className = "section-nav-row";
   const targetId = entry?.anchor || "";
@@ -214,11 +226,14 @@ function createSectionButton(entry, isMobile = false) {
   mainButton.className = "section-btn section-nav-main";
   mainButton.title = title;
   mainButton.dataset.sectionTitle = title;
+  mainButton.dataset.sectionAnchor = targetId;
+  mainButton.style.setProperty("--section-depth", String(depth));
   mainButton.innerHTML = `<i class="bi bi-chevron-right" aria-hidden="true"></i><span>${escapeHTML(title)}</span>`;
   mainButton.addEventListener("click", () => navigateToGeneratedHeading(entry, isMobile));
   row.appendChild(mainButton);
 
-  if (!children.length) return row;
+  group.appendChild(row);
+  if (!children.length) return group;
 
   const toggle = document.createElement("button");
   toggle.type = "button";
@@ -232,21 +247,17 @@ function createSectionButton(entry, isMobile = false) {
   if (listId) childList.id = listId;
   childList.hidden = true;
   children.forEach(child => {
-    const childButton = document.createElement("button");
-    childButton.type = "button";
-    childButton.className = "section-subnav-btn";
-    childButton.textContent = child.title;
-    childButton.addEventListener("click", () => navigateToGeneratedHeading(child, isMobile));
-    childList.appendChild(childButton);
+    childList.appendChild(createSectionButton(child, isMobile, depth + 1));
   });
   toggle.addEventListener("click", () => {
     const expanded = toggle.getAttribute("aria-expanded") === "true";
     toggle.setAttribute("aria-expanded", String(!expanded));
     toggle.setAttribute("aria-label", `${expanded ? "Show" : "Hide"} headings in ${title}`);
     childList.hidden = expanded;
+    row.classList.toggle("expanded", !expanded);
   });
   row.append(toggle, childList);
-  return row;
+  return group;
 }
 
 function navigateToGeneratedHeading(entry, isMobile = false) {
@@ -256,7 +267,7 @@ function navigateToGeneratedHeading(entry, isMobile = false) {
   sectionTitle.innerText = "Study Notes";
   contextLabel.textContent = "Current Notes";
   renderFullNotes();
-  document.querySelectorAll(".section-btn").forEach(button => {
+  document.querySelectorAll(".section-nav-main").forEach(button => {
     button.classList.toggle("active", button.dataset.sectionTitle === entry.title);
   });
   requestAnimationFrame(() => {

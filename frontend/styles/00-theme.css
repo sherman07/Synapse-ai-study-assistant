@@ -197,3 +197,159 @@ html[data-theme="dark"] :where(.auth-label, .auth-header p, .billing-nav-links, 
     transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, fill .18s ease, stroke .18s ease;
   }
 }
+
+/* Generated notes use a dedicated renderer with its own card classes. These
+   overrides keep those surfaces on the same semantic palette as the rest of
+   the app; without them the renderer's light defaults create white-on-white
+   text whenever the account theme is dark. */
+html[data-theme="dark"] .notes-card,
+html[data-theme="dark"] .notes-summary-card,
+html[data-theme="dark"] .notes-section,
+html[data-theme="dark"] .professional-mode-title-card,
+html[data-theme="dark"] .professional-big-picture-card,
+html[data-theme="dark"] .professional-core-understanding-card,
+html[data-theme="dark"] .professional-deep-explanation-section,
+html[data-theme="dark"] .professional-background-card,
+html[data-theme="dark"] .professional-application-card,
+html[data-theme="dark"] .professional-assessment-use-card,
+html[data-theme="dark"] .professional-model-output-card,
+html[data-theme="dark"] .professional-memory-practice-card,
+html[data-theme="dark"] .professional-concept-connections-card,
+html[data-theme="dark"] .professional-high-quality-thinking-card,
+html[data-theme="dark"] .professional-common-mistakes-card,
+html[data-theme="dark"] .professional-question-bank-card {
+  background: var(--color-surface-primary);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-small);
+}
+
+html[data-theme="dark"] .notes-summary-card,
+html[data-theme="dark"] .professional-mode-title-card,
+html[data-theme="dark"] .professional-big-picture-card,
+html[data-theme="dark"] .professional-core-understanding-card,
+html[data-theme="dark"] .professional-model-output-card {
+  background: var(--color-surface-secondary);
+}
+
+html[data-theme="dark"] .summary-content,
+html[data-theme="dark"] .professional-mode-surface {
+  color: var(--color-text-secondary);
+}
+
+html[data-theme="dark"] .summary-content h1,
+html[data-theme="dark"] .summary-content h2,
+html[data-theme="dark"] .summary-content h3,
+html[data-theme="dark"] .summary-content h4,
+html[data-theme="dark"] .summary-content strong,
+html[data-theme="dark"] .notes-section-heading,
+html[data-theme="dark"] .professional-section-header h2,
+html[data-theme="dark"] .professional-deep-explanation-section h3 {
+  color: var(--color-text-primary);
+}
+
+html[data-theme="dark"] .summary-content a {
+  color: var(--color-accent-hover);
+}
+
+html[data-theme="dark"] .notes-section-summary,
+html[data-theme="dark"] .professional-section-summary {
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+}
+
+html[data-theme="dark"] .notes-section[open],
+html[data-theme="dark"] .professional-deep-explanation-section[open] {
+  border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border-default));
+}
+
+html[data-theme="dark"] .notes-section-body,
+html[data-theme="dark"] .professional-section-body {
+  color: var(--color-text-secondary);
+}
+
+html[data-theme="dark"] .professional-deep-explanation-section .professional-section-body {
+  border-top-color: var(--color-border-default);
+}
+
+html[data-theme="dark"] .notes-section-chevron {
+  border-color: var(--color-text-tertiary);
+}
+
+html[data-theme="dark"] .notes-action-btn,
+html[data-theme="dark"] .notes-language-select,
+html[data-theme="dark"] .source-tool-btn,
+html[data-theme="dark"] .source-tab,
+html[data-theme="dark"] .source-tab.active {
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+html[data-theme="dark"] .notes-action-btn:hover,
+html[data-theme="dark"] .source-tool-btn:hover,
+html[data-theme="dark"] .source-tab:hover,
+html[data-theme="dark"] .source-tab.active {
+  border-color: var(--color-accent);
+}
+
+html[data-theme="dark"] .source-viewer-panel,
+html[data-theme="dark"] .source-viewer-tabs,
+html[data-theme="dark"] .source-viewer-toolbar,
+html[data-theme="dark"] .source-viewer-body,
+html[data-theme="dark"] .source-pdf-clean-preview,
+html[data-theme="dark"] .source-pdf-stage,
+html[data-theme="dark"] .source-image-stage {
+  background: var(--color-surface-primary);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-default);
+}
+
+html[data-theme="dark"] .source-pdf-clean-preview,
+html[data-theme="dark"] .source-viewer-body {
+  background: var(--color-surface-secondary);
+}
+
+html[data-theme="dark"] .source-text-preview,
+html[data-theme="dark"] .source-slide-text,
+html[data-theme="dark"] .source-viewer-empty,
+html[data-theme="dark"] .source-link-preview,
+html[data-theme="dark"] .source-file-preview,
+html[data-theme="dark"] .source-loading {
+  color: var(--color-text-secondary);
+}
+
+html[data-theme="dark"] .source-viewer-empty h3,
+html[data-theme="dark"] .source-link-preview h3,
+html[data-theme="dark"] .source-file-preview h3,
+html[data-theme="dark"] .source-slide-text h1,
+html[data-theme="dark"] .source-slide-text h2,
+html[data-theme="dark"] .source-slide-text h3,
+html[data-theme="dark"] .source-slide-text h4 {
+  color: var(--color-text-primary);
+}
+
+/* Keep the generated-note outline available on laptop widths. The home
+   history rail can become a drawer, but generated notes need their document
+   outline to remain discoverable while the tutor panel is closed or open. */
+@media (max-width: 1180px) and (min-width: 851px) {
+  .app-layout.generated-notes-state.analysis-ready {
+    display: grid !important;
+    grid-template-columns: minmax(220px, 28vw) minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+
+  .app-layout.generated-notes-state.analysis-ready #summaryNav {
+    display: flex !important;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+  }
+
+  .app-layout.generated-notes-state.analysis-ready .notes-area {
+    width: auto;
+    min-height: 100dvh;
+    padding: 32px 24px 88px;
+    overflow-y: auto;
+  }
+}

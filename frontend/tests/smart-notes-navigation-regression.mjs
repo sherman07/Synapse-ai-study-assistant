@@ -6,6 +6,7 @@ import { buildGeneratedNoteNavigation } from "../src/legacy/notesNavigation.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const layoutCss = fs.readFileSync(path.join(repoRoot, "frontend/styles/01-section.css"), "utf8");
+const themeCss = fs.readFileSync(path.join(repoRoot, "frontend/styles/00-theme.css"), "utf8");
 const responsiveCss = fs.readFileSync(path.join(repoRoot, "frontend/styles/04-section.css"), "utf8");
 const navigationController = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/02_openvisualmodal.js"), "utf8");
 const analysisController = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/01_uploadedfiles.js"), "utf8");
@@ -60,6 +61,38 @@ assert.deepEqual(
   ["A useful distinction"],
   "a section should expose its nested headings for the disclosure menu"
 );
+
+const continuationHeadingNote = `## 1. Big Picture\nOverview.\n\n## 2. The Exam Will Probably Test These Ideas\n### Likely exam questions in natural wording\n## Key Terms and Mechanisms\n### Question-level mechanisms\n\n## 3. What You Actually Need To Understand\nCore understanding.`;
+const continuationEntries = buildGeneratedNoteNavigation(continuationHeadingNote);
+assert.deepEqual(
+  continuationEntries.map(entry => entry.title),
+  [
+    "1. Big Picture",
+    "2. The Exam Will Probably Test These Ideas",
+    "3. What You Actually Need To Understand",
+  ],
+  "unnumbered continuation headings must not become new top-level sections"
+);
+assert.deepEqual(
+  continuationEntries[1].children.map(child => child.title),
+  ["Likely exam questions in natural wording", "Key Terms and Mechanisms"],
+  "continuation headings should remain under the numbered section they explain"
+);
+assert.deepEqual(
+  continuationEntries[1].children[1].children.map(child => child.title),
+  ["Question-level mechanisms"],
+  "headings below a continuation heading should remain nested under that heading"
+);
+assert.match(
+  themeCss,
+  /html\[data-theme="dark"\] \.notes-card[\s\S]*?background: var\(--color-surface-primary\)/,
+  "generated note cards must adopt a readable dark surface instead of the light renderer default"
+);
+assert.match(
+  themeCss,
+  /html\[data-theme="dark"\] \.summary-content h1[\s\S]*?color: var\(--color-text-primary\)/,
+  "generated note headings must use the dark theme text token"
+);
 assert.match(
   navigationController,
   /section-nav-toggle[\s\S]*?aria-expanded/,
@@ -69,6 +102,11 @@ assert.match(
   navigationController,
   /navigateToGeneratedHeading\(/,
   "the section label should navigate the full generated note instead of replacing it with a fragment"
+);
+assert.match(
+  navigationController,
+  /createSectionButton\(child, isMobile, depth \+ 1\)/,
+  "nested headings should render as recursive navigation groups"
 );
 assert.match(
   analysisController,

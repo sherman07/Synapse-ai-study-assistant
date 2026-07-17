@@ -484,6 +484,97 @@ body.mobile-assistant-open::before {
   margin-left: 0;
 }
 
+/* Generated-note outline: keep the rail stable while the document itself
+   scrolls, and make nested headings feel like a real document outline. */
+.app-layout.generated-notes-state #summaryNav:not(.collapsed) {
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px 16px 16px;
+}
+
+.app-layout.generated-notes-state #summaryNav .nav-header {
+  flex: 0 0 auto;
+  padding: 0 2px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+}
+
+.app-layout.generated-notes-state #summaryNav .nav-logo {
+  margin-bottom: 12px;
+}
+
+.app-layout.generated-notes-state #summaryNav .section-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding: 16px 2px 12px;
+  margin-top: 0;
+  scrollbar-gutter: stable;
+}
+
+.section-nav-group {
+  min-width: 0;
+}
+
+.section-nav-group.nested {
+  margin-left: 12px;
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--border-blue) 80%, transparent);
+}
+
+.section-nav-group.nested .section-nav-main {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 8px 10px;
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.section-nav-group.nested .section-nav-main:hover,
+.section-nav-group.nested .section-nav-main:focus-visible {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.section-nav-group.nested .section-nav-main.active {
+  background: var(--primary-soft);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--primary);
+}
+
+.section-nav-row {
+  min-width: 0;
+}
+
+.section-nav-main:focus-visible,
+.section-nav-toggle:focus-visible,
+.section-subnav-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.section-nav-main i {
+  transition: transform 0.18s ease;
+}
+
+.section-nav-row.expanded > .section-nav-main i {
+  transform: rotate(90deg);
+}
+
+.section-subnav {
+  margin: 4px 0 6px;
+  gap: 2px;
+}
+
+.section-nav-group.nested .section-subnav {
+  margin-left: 0;
+}
+
 /* Notes area */
 .notes-area {
   min-width: 0;
