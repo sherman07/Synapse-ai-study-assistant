@@ -1030,31 +1030,31 @@ html[data-theme="dark"] .companion-workspace-card h1 {
 html[data-theme="dark"] .source-input-wrap,
 html[data-theme="dark"] .source-input-wrap:focus-within,
 html[data-theme="dark"] .prompt-mode-box {
-  background: #292929;
-  border-color: #454545;
+  background: var(--color-surface-secondary);
+  border-color: var(--color-border-default);
 }
 
 html[data-theme="dark"] .source-hints,
 html[data-theme="dark"] .source-input::placeholder {
-  color: #b6b8c2;
+  color: var(--color-text-tertiary);
 }
 
 html[data-theme="dark"] .language-box label,
 html[data-theme="dark"] .source-box label {
-  color: #f0f0f3;
+  color: var(--color-text-primary);
 }
 
 html[data-theme="dark"] .language-select,
 html[data-theme="dark"] .prompt-mode-select {
-  background: #242424;
-  border-color: #4a4a4a;
-  color: #f4f4f5;
+  background: var(--color-input-background);
+  border-color: var(--color-border-default);
+  color: var(--color-text-primary);
 }
 
 html[data-theme="dark"] .language-select option,
 html[data-theme="dark"] .prompt-mode-select option {
-  background: #242424;
-  color: #f4f4f5;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
 }
 
 html[data-theme="dark"] .brand-pill,

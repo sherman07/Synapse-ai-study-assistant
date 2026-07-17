@@ -11,13 +11,23 @@
 }
 
 .synapse-select {
-  --select-ink: #26344f;
-  --select-muted: #6d7890;
-  --select-blue: #4a7cff;
+  --select-ink: var(--color-text-primary, #26344f);
+  --select-muted: var(--color-text-tertiary, #6d7890);
+  --select-blue: var(--color-accent, #4a7cff);
   --select-violet: #7b61ff;
   --select-cyan: #24c7d9;
   --select-mint: #2dd6a3;
   --select-amber: #ffbf4a;
+  --select-control-background: var(--color-input-background, #ffffff);
+  --select-control-hover: var(--color-surface-hover, #f1f5ff);
+  --select-menu-background: var(--color-surface-elevated, #ffffff);
+  --select-menu-border: var(--color-border-default, rgba(149, 172, 255, 0.45));
+  --select-border: var(--color-border-default, rgba(116, 148, 255, 0.38));
+  --select-hover-border: var(--color-border-strong, rgba(36, 199, 217, 0.62));
+  --select-active-background: var(--color-accent-soft, rgba(74, 124, 255, 0.11));
+  --select-selected-ink: #ffffff;
+  --select-focus-ring: var(--color-focus-ring, rgba(74, 124, 255, 0.5));
+  --select-shadow: var(--shadow-medium, 0 16px 42px rgba(29, 45, 79, 0.12));
   position: relative;
   display: inline-block;
   width: 100%;
@@ -39,13 +49,11 @@
 .synapse-select__button {
   width: 100%;
   min-height: 44px;
-  border: 1px solid rgba(116, 148, 255, 0.38);
+  border: 1px solid var(--select-border);
   border-radius: 15px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.94) 48%, rgba(241, 255, 250, 0.9)),
-    radial-gradient(circle at 8% 12%, rgba(36, 199, 217, 0.16), transparent 28%);
+  background: var(--select-control-background);
   color: var(--select-ink);
-  box-shadow: 0 12px 30px rgba(74, 124, 255, 0.09);
+  box-shadow: var(--shadow-small, 0 12px 30px rgba(74, 124, 255, 0.09));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -61,11 +69,9 @@
 }
 
 .synapse-select__button:hover {
-  border-color: rgba(36, 199, 217, 0.62);
-  background:
-    linear-gradient(135deg, #ffffff, #f7fbff 45%, #effff8),
-    radial-gradient(circle at 8% 12%, rgba(45, 214, 163, 0.18), transparent 30%);
-  box-shadow: 0 14px 34px rgba(36, 199, 217, 0.13);
+  border-color: var(--select-hover-border);
+  background: var(--select-control-hover);
+  box-shadow: var(--shadow-medium, 0 14px 34px rgba(36, 199, 217, 0.13));
 }
 
 .synapse-select.is-open .synapse-select__button,
@@ -73,8 +79,8 @@
   outline: none;
   border-color: var(--select-blue);
   box-shadow:
-    0 0 0 4px rgba(74, 124, 255, 0.14),
-    0 18px 42px rgba(74, 124, 255, 0.16);
+    0 0 0 4px var(--select-focus-ring),
+    var(--shadow-medium, 0 18px 42px rgba(74, 124, 255, 0.16));
 }
 
 .synapse-select.is-open .synapse-select__button {
@@ -96,7 +102,7 @@
   place-items: center;
   flex: 0 0 auto;
   color: var(--select-blue);
-  background: linear-gradient(135deg, rgba(74, 124, 255, 0.13), rgba(45, 214, 163, 0.13));
+  background: var(--color-accent-soft, linear-gradient(135deg, rgba(74, 124, 255, 0.13), rgba(45, 214, 163, 0.13)));
   transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease;
 }
 
@@ -115,14 +121,11 @@
   max-height: min(360px, 48vh);
   overflow: auto;
   padding: 7px;
-  border: 1px solid rgba(149, 172, 255, 0.45);
+  border: 1px solid var(--select-menu-border);
   border-radius: 17px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.98)),
-    radial-gradient(circle at top right, rgba(36, 199, 217, 0.14), transparent 34%);
-  box-shadow:
-    0 28px 70px rgba(28, 43, 77, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.78) inset;
+  background: var(--select-menu-background);
+  color: var(--select-ink);
+  box-shadow: var(--select-shadow);
   opacity: 0;
   pointer-events: none;
   transform: translateY(-5px) scale(0.985);
@@ -159,16 +162,14 @@
 
 .synapse-select__option:hover,
 .synapse-select__option.is-active {
-  background: linear-gradient(135deg, rgba(74, 124, 255, 0.11), rgba(45, 214, 163, 0.14));
-  color: #14284c;
+  background: var(--select-active-background);
+  color: var(--select-ink);
 }
 
 .synapse-select__option[aria-selected="true"] {
-  color: #ffffff;
-  background:
-    linear-gradient(135deg, var(--select-blue), var(--select-violet) 58%, var(--select-cyan)),
-    linear-gradient(90deg, var(--select-amber), transparent 22%);
-  box-shadow: 0 10px 24px rgba(74, 124, 255, 0.22);
+  color: var(--select-selected-ink);
+  background: linear-gradient(135deg, var(--select-blue), var(--select-violet) 58%, var(--select-cyan));
+  box-shadow: var(--shadow-small, 0 10px 24px rgba(74, 124, 255, 0.22));
 }
 
 .synapse-select__option[aria-disabled="true"] {
@@ -189,7 +190,7 @@
 }
 
 .synapse-select__option[aria-selected="true"] .synapse-select__check {
-  color: #ffffff;
+  color: var(--select-selected-ink);
 }
 
 .synapse-select__button:disabled {
@@ -204,7 +205,7 @@
   padding: 8px 9px 8px 11px;
   color: var(--select-blue);
   font-size: 0.88rem;
-  box-shadow: 0 8px 20px rgba(74, 124, 255, 0.08);
+  box-shadow: var(--shadow-small, 0 8px 20px rgba(74, 124, 255, 0.08));
 }
 
 .synapse-select--compact .synapse-select__chevron {
@@ -214,11 +215,11 @@
 
 .synapse-select--auth .synapse-select__button {
   min-height: 52px;
-  border-color: rgba(216, 230, 255, 0.86);
+  border-color: var(--select-border);
   border-radius: var(--radius-md, 16px);
   padding: 13px 15px;
   font-weight: 650;
-  box-shadow: 0 10px 26px rgba(74, 124, 255, 0.08);
+  box-shadow: var(--shadow-small, 0 10px 26px rgba(74, 124, 255, 0.08));
 }
 
 .synapse-select--hero .synapse-select__button {
@@ -238,6 +239,29 @@
 
 .flashcard-builder-card .synapse-select {
   width: 100%;
+}
+
+/* The visible listbox is generated by synapse-selects.js. Keep its palette
+ * explicitly tied to the root theme so it cannot fall back to the light
+ * gradient when the hidden native <select> is dark-themed. */
+html[data-theme="dark"] .synapse-select {
+  --select-ink: var(--color-text-primary);
+  --select-muted: var(--color-text-tertiary);
+  --select-blue: var(--color-accent);
+  --select-control-background: var(--color-input-background);
+  --select-control-hover: var(--color-surface-hover);
+  --select-menu-background: var(--color-surface-elevated);
+  --select-menu-border: var(--color-border-strong);
+  --select-border: var(--color-border-default);
+  --select-hover-border: var(--color-accent);
+  --select-active-background: var(--color-surface-active);
+  --select-selected-ink: #101727;
+  --select-focus-ring: var(--color-focus-ring);
+  --select-shadow: var(--shadow-large);
+}
+
+html[data-theme="dark"] .synapse-select__menu {
+  color-scheme: dark;
 }
 
 @media (max-width: 640px) {

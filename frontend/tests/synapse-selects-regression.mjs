@@ -11,8 +11,8 @@ const selectStyles = read("frontend/synapse-selects.css");
 
 for (const page of ["index", "landing", "login", "signup", "forgot-password"]) {
   const html = read(`frontend/${page}.html`);
-  assert.ok(html.includes("synapse-selects.css?v=synapse-selects-v2"), `${page}.html should load select styles`);
-  assert.ok(html.includes("synapse-selects.js?v=synapse-selects-v2"), `${page}.html should load select behavior`);
+  assert.ok(html.includes("synapse-selects.css?v=synapse-selects-v3"), `${page}.html should load select styles`);
+  assert.ok(html.includes("synapse-selects.js?v=synapse-selects-v3"), `${page}.html should load select behavior`);
 }
 
 for (const token of [
@@ -31,6 +31,9 @@ for (const selector of [
   ".synapse-select__button",
   ".synapse-select__menu",
   ".synapse-select__option[aria-selected=\"true\"]",
+  "--select-menu-background",
+  "html[data-theme=\"dark\"] .synapse-select",
+  "--select-selected-ink",
   ".synapse-select--auth",
   ".synapse-select--hero",
   ".synapse-select--compact"
