@@ -227,21 +227,25 @@ function createSectionButton(entry, isMobile = false, depth = 0) {
   mainButton.title = title;
   mainButton.dataset.sectionTitle = title;
   mainButton.dataset.sectionAnchor = targetId;
+  mainButton.dataset.hasChildren = String(Boolean(children.length));
   mainButton.style.setProperty("--section-depth", String(depth));
   mainButton.innerHTML = `<i class="bi bi-chevron-right" aria-hidden="true"></i><span>${escapeHTML(title)}</span>`;
-  mainButton.addEventListener("click", () => navigateToGeneratedHeading(entry, isMobile));
+  mainButton.addEventListener("click", () => {
+    navigateToGeneratedHeading(entry, isMobile);
+    if (children.length) {
+      const expanded = group.classList.toggle("expanded");
+      childList.hidden = !expanded;
+      mainButton.setAttribute("aria-expanded", String(expanded));
+    }
+  });
   row.appendChild(mainButton);
 
   group.appendChild(row);
   if (!children.length) return group;
 
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "section-nav-toggle";
-  toggle.setAttribute("aria-label", `Show headings in ${title}`);
-  toggle.setAttribute("aria-expanded", "false");
-  if (listId) toggle.setAttribute("aria-controls", listId);
-  toggle.innerHTML = '<i class="bi bi-list" aria-hidden="true"></i>';
+  mainButton.setAttribute("aria-haspopup", "tree");
+  mainButton.setAttribute("aria-expanded", "false");
+  if (listId) mainButton.setAttribute("aria-controls", listId);
   const childList = document.createElement("div");
   childList.className = "section-subnav";
   if (listId) childList.id = listId;
@@ -249,14 +253,7 @@ function createSectionButton(entry, isMobile = false, depth = 0) {
   children.forEach(child => {
     childList.appendChild(createSectionButton(child, isMobile, depth + 1));
   });
-  toggle.addEventListener("click", () => {
-    const expanded = toggle.getAttribute("aria-expanded") === "true";
-    toggle.setAttribute("aria-expanded", String(!expanded));
-    toggle.setAttribute("aria-label", `${expanded ? "Show" : "Hide"} headings in ${title}`);
-    childList.hidden = expanded;
-    row.classList.toggle("expanded", !expanded);
-  });
-  row.append(toggle, childList);
+  group.appendChild(childList);
   return group;
 }
 

@@ -95,8 +95,13 @@ assert.match(
 );
 assert.match(
   navigationController,
-  /section-nav-toggle[\s\S]*?aria-expanded/,
-  "sections with nested headings should provide a separate disclosure control"
+  /mainButton\.addEventListener\("click", \(\) => \{[\s\S]*?navigateToGeneratedHeading\(entry, isMobile\)[\s\S]*?childList\.hidden = !expanded/,
+  "the parent section button should navigate and control its nested headings"
+);
+assert.doesNotMatch(
+  navigationController,
+  /section-nav-toggle/,
+  "nested headings should not use a separate burger/list button"
 );
 assert.match(
   navigationController,
