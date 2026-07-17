@@ -1024,6 +1024,39 @@ html[data-theme="dark"] .companion-workspace-card h1 {
   color: #f4f4f5;
 }
 
+/* Upload configuration used fixed light surfaces before the account theme existed.
+   Keep the input and its surrounding controls on the same dark surface so the
+   inherited theme text colours remain readable. */
+html[data-theme="dark"] .source-input-wrap,
+html[data-theme="dark"] .source-input-wrap:focus-within,
+html[data-theme="dark"] .prompt-mode-box {
+  background: #292929;
+  border-color: #454545;
+}
+
+html[data-theme="dark"] .source-hints,
+html[data-theme="dark"] .source-input::placeholder {
+  color: #b6b8c2;
+}
+
+html[data-theme="dark"] .language-box label,
+html[data-theme="dark"] .source-box label {
+  color: #f0f0f3;
+}
+
+html[data-theme="dark"] .language-select,
+html[data-theme="dark"] .prompt-mode-select {
+  background: #242424;
+  border-color: #4a4a4a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .language-select option,
+html[data-theme="dark"] .prompt-mode-select option {
+  background: #242424;
+  color: #f4f4f5;
+}
+
 html[data-theme="dark"] .learning-mode-switcher-compact,
 html[data-theme="dark"] .brand-pill,
 html[data-theme="dark"] .companion-launch-btn {

@@ -72,5 +72,8 @@ assert.ok(accountCss.includes('html[data-theme="dark"] .section-btn'), "dark the
 assert.ok(accountCss.includes('html[data-theme="dark"] .premium-upload-card'), "dark theme should not leave the upload workspace on a light card");
 assert.ok(accountCss.includes('html[data-theme="dark"] .drop-zone h2'), "dark theme should keep the upload call-to-action readable");
 assert.ok(accountCss.includes('html[data-theme="dark"] .mobile-topbar'), "dark theme should keep the mobile header coherent");
+assert.ok(accountCss.includes('html[data-theme="dark"] .source-input-wrap'), "dark theme should not place light source input text on a light-only surface");
+assert.ok(accountCss.includes('html[data-theme="dark"] .prompt-mode-box'), "dark theme should keep AI configuration cards readable");
+assert.ok(accountCss.includes('html[data-theme="dark"] .language-box label'), "dark theme should keep upload configuration labels legible");
 
 console.log("account menu regression passed");
