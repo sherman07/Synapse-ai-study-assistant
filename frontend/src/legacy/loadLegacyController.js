@@ -12,7 +12,7 @@ export function loadLegacyController() {
   const existingController = document.querySelector("script[data-synapse-controller]");
   if (existingController) return existingController;
 
-  const version = "ai-broadcast-v14";
+  const version = "ai-broadcast-v15";
   const controllerScript = document.createElement("script");
   controllerScript.type = "module";
   // This must remain a browser-served module URL. Vite turns import.meta-relative

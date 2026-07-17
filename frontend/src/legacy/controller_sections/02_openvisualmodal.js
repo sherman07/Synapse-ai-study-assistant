@@ -509,6 +509,16 @@ function getToolPanelId(toolName) {
   return ids[toolName] || `toolPanel${toolName.charAt(0).toUpperCase()}${toolName.slice(1)}`;
 }
 
+const STUDY_TOOL_BUTTON_IDS = {
+  mindmap: "toolBtnMindMap",
+  visualguide: "toolBtnVisualGuide",
+  timeline: "toolBtnTimeline",
+  masterygraph: "toolBtnMasteryGraph",
+  quiz: "toolBtnQuiz",
+  flashcards: "toolBtnFlashcards",
+  broadcast: "toolBtnBroadcast"
+};
+
 function switchTool(toolName, clickedBtn = null) {
   if (typeof persistStudyToolMemory === "function") persistStudyToolMemory();
   activeTool = toolName;
@@ -533,23 +543,10 @@ function switchTool(toolName, clickedBtn = null) {
   const panel = document.getElementById(getToolPanelId(toolName));
   if (panel) panel.classList.add("active");
 
-  if (clickedBtn && !clickedBtn.disabled) {
-    clickedBtn.classList.add("active");
-  } else if (toolName === "mindmap") {
-    document.getElementById("toolBtnMindMap")?.classList.add("active");
-  } else if (toolName === "timeline") {
-    document.getElementById("toolBtnTimeline")?.classList.add("active");
-  } else if (toolName === "masterygraph") {
-    document.getElementById("toolBtnMasteryGraph")?.classList.add("active");
-  } else if (toolName === "visualguide") {
-    document.getElementById("toolBtnVisualGuide")?.classList.add("active");
-  } else if (toolName === "quiz") {
-    document.getElementById("toolBtnQuiz")?.classList.add("active");
-  } else if (toolName === "flashcards") {
-    document.getElementById("toolBtnFlashcards")?.classList.add("active");
-  } else if (toolName === "broadcast") {
-    document.getElementById("toolBtnBroadcast")?.classList.add("active");
-  }
+  const toolButton = clickedBtn && !clickedBtn.disabled
+    ? clickedBtn
+    : document.getElementById(STUDY_TOOL_BUTTON_IDS[toolName] || "");
+  if (toolButton && !toolButton.disabled) toolButton.classList.add("active");
 
   if (toolName === "mindmap") {
     requestAnimationFrame(() => renderMindMap(currentMindMap));

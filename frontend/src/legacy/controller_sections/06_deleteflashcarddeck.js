@@ -954,10 +954,6 @@ function mindMapDetailHTML(value, fallback = "Open this branch for more detail."
 }
 
 function renderMindMap(mindMap) {
-  const panel = document.getElementById("toolPanelMindMap");
-  if (panel) panel.classList.add("active");
-  document.getElementById("toolBtnMindMap")?.classList.add("active");
-
   const data = getMindMapData(mindMap);
   currentMindMap = data;
 

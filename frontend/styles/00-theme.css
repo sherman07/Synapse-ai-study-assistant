@@ -353,3 +353,116 @@ html[data-theme="dark"] .source-slide-text h4 {
     overflow-y: auto;
   }
 }
+/* Study tools and generated tables are shared by legacy renderers and React.
+ * Keep their content on semantic surfaces so a renderer cannot reintroduce a
+ * light-only card while the rest of the workspace is dark. */
+html[data-theme] :where(
+  .study-tools-card, .tool-panel, .timeline-launch-card, .timeline-loading-card,
+  .timeline-hero, .broadcast-setup-card, .broadcast-player-card,
+  .visual-guide-panel, .visual-guide-poster, .quiz-launch-card,
+  .quiz-history-mini-card, .flashcard-card, .exam-readiness-card, .study-path-card,
+  .mind-map-panel, .memory-engine-shell, .memory-hero
+) {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+html[data-theme="light"] :where(
+  .timeline-launch-card, .timeline-loading-card, .timeline-hero,
+  .broadcast-setup-card, .broadcast-player-card, .visual-guide-panel,
+  .visual-guide-poster, .quiz-launch-card, .quiz-history-mini-card,
+  .flashcard-card, .exam-readiness-card, .study-path-card, .mind-map-panel,
+  .memory-engine-shell, .memory-hero
+) {
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-small);
+}
+
+html[data-theme="dark"] :where(
+  .timeline-launch-card, .timeline-loading-card, .timeline-hero,
+  .broadcast-setup-card, .broadcast-player-card, .visual-guide-panel,
+  .visual-guide-poster, .quiz-launch-card, .quiz-history-mini-card,
+  .flashcard-card, .exam-readiness-card, .study-path-card, .mind-map-panel,
+  .memory-engine-shell, .memory-hero
+) {
+  background: var(--color-surface-primary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+  box-shadow: var(--shadow-small);
+}
+
+html[data-theme] :where(
+  .study-tools-head h2, .tool-panel-head h3, .timeline-launch-copy h4,
+  .timeline-hero h4, .broadcast-setup-card .tool-panel-head h3,
+  .broadcast-player-card h3, .study-path-card h3, .visual-guide-panel h3,
+  .quiz-launch-card h3, .flashcard-card h3
+) {
+  color: var(--color-text-primary) !important;
+}
+
+html[data-theme] :where(
+  .study-tools-head p, .tool-panel-head p, .timeline-launch-card p,
+  .timeline-loading-card p, .timeline-launch-copy p, .timeline-hero p,
+  .broadcast-setup-card .tool-panel-head p, .broadcast-warning,
+  .study-path-card p, .visual-guide-panel p
+) {
+  color: var(--color-text-secondary) !important;
+}
+
+html[data-theme] .study-tools-icon { color: var(--color-accent); }
+html[data-theme] .tool-switch-btn {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme] .tool-switch-btn:hover,
+html[data-theme] .tool-switch-btn:focus-visible {
+  background: var(--color-surface-hover) !important;
+  border-color: var(--color-border-strong) !important;
+}
+html[data-theme] .tool-switch-btn.active {
+  background: linear-gradient(135deg, var(--color-accent-active), var(--color-accent)) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+html[data-theme] :where(
+  .broadcast-field select, .broadcast-field input,
+  .broadcast-player-controls select, .broadcast-audio-shell,
+  .broadcast-setup-summary, .broadcast-chapter-list button,
+  .broadcast-source-list article, .broadcast-transcript article,
+  .broadcast-script-quality, .broadcast-quality-grid span,
+  .broadcast-voice-direction, .history-broadcast-wrap .history-broadcast-item
+) {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme] :where(.broadcast-field, .broadcast-chapter-list li, .broadcast-key-ideas li) {
+  color: var(--color-text-primary) !important;
+}
+html[data-theme] :where(
+  .broadcast-source-list p, .broadcast-transcript p, .broadcast-time,
+  .broadcast-script-quality > p, .broadcast-voice-direction,
+  .broadcast-quality-grid span
+) { color: var(--color-text-secondary) !important; }
+html[data-theme] :where(.broadcast-setup-summary strong, .broadcast-script-quality summary, .broadcast-quality-grid strong, .broadcast-transcript strong) {
+  color: var(--color-text-primary) !important;
+}
+
+html[data-theme] .markdown-table-wrap {
+  background: var(--color-surface-secondary) !important;
+  border-color: var(--color-border-default) !important;
+  box-shadow: var(--shadow-small);
+}
+html[data-theme] .markdown-table th {
+  color: var(--color-text-primary) !important;
+  background: var(--color-surface-tertiary) !important;
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme] .markdown-table td {
+  color: var(--color-text-secondary) !important;
+  background: var(--color-surface-primary) !important;
+  border-color: var(--color-border-subtle) !important;
+}
+html[data-theme] .markdown-table td strong { color: var(--color-text-primary) !important; }

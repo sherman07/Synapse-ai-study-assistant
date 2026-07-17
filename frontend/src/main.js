@@ -1,5 +1,5 @@
-import { App } from "./react/App.js?v=ai-broadcast-v14";
-import { loadLegacyController } from "./legacy/loadLegacyController.js?v=ai-broadcast-v14";
+import { App } from "./react/App.js?v=ai-broadcast-v15";
+import { loadLegacyController } from "./legacy/loadLegacyController.js?v=ai-broadcast-v15";
 
 const root = document.getElementById("root");
 
