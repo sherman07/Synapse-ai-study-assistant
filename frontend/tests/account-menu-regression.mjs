@@ -9,6 +9,7 @@ const mobileNavigation = fs.readFileSync(path.join(repoRoot, "frontend/src/react
 const boot = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/99_boot.js"), "utf8");
 const accountController = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/08_extractrealtimeresponsetranscript.js"), "utf8");
 const accountCss = fs.readFileSync(path.join(repoRoot, "frontend/styles/04-section.css"), "utf8");
+const railCss = fs.readFileSync(path.join(repoRoot, "frontend/styles/01-section.css"), "utf8");
 
 assert.ok(historyNavigation.includes("history-account-btn"));
 assert.ok(historyNavigation.includes("history-account-plan account-menu-plan"));
@@ -44,6 +45,12 @@ assert.ok(accountController.includes("function renderAccountMenu()"));
 assert.ok(accountController.includes("function openAccountPanel"));
 assert.ok(accountController.includes("function refreshAccountSessionFromProvider()"), "workspace boot should resync Supabase auth before trusting account UI");
 assert.ok(boot.includes("refreshAccountSessionFromProvider()"), "boot should refresh the account menu after Supabase session sync");
+assert.ok(accountController.includes('ACCOUNT_PREFERENCES_STORAGE_KEY = "synapse.account.preferences.v1"'), "account preferences should use a namespaced persistent key");
+assert.ok(accountController.includes("function applyAccountTheme"), "settings should apply a saved appearance preference");
+assert.ok(accountController.includes("account-settings-nav"), "settings should have clear section navigation instead of a read-only status list");
+assert.ok(accountController.includes("openHistoryDeletionDialog"), "history deletion should use the Synapse confirmation dialog");
+assert.ok(accountController.includes("openAccountDeletionDialog"), "account deletion should require an explicit Synapse confirmation dialog");
+assert.ok(!accountController.includes("window.confirm("), "account and history deletion should not use browser confirmation prompts");
 
 for (const selector of [
   ".account-menu",
@@ -51,9 +58,19 @@ for (const selector of [
   ".history-account-plan",
   ".account-popover",
   ".account-panel-overlay",
+  ".account-settings-nav",
+  ".synapse-confirmation-card",
   ".mobile-account-summary"
 ]) {
   assert.ok(accountCss.includes(selector), `${selector} should have CSS`);
 }
+
+assert.ok(railCss.includes("flex: 1 1 auto"), "the recent-learning list should own the remaining rail height");
+assert.ok(railCss.includes("min-height: 0"), "the recent-learning list should be allowed to scroll inside the rail");
+assert.ok(accountCss.includes('html[data-theme="dark"] .summary-nav'), "dark theme should style the generated-section navigation shell");
+assert.ok(accountCss.includes('html[data-theme="dark"] .section-btn'), "dark theme should keep generated-section buttons legible");
+assert.ok(accountCss.includes('html[data-theme="dark"] .premium-upload-card'), "dark theme should not leave the upload workspace on a light card");
+assert.ok(accountCss.includes('html[data-theme="dark"] .drop-zone h2'), "dark theme should keep the upload call-to-action readable");
+assert.ok(accountCss.includes('html[data-theme="dark"] .mobile-topbar'), "dark theme should keep the mobile header coherent");
 
 console.log("account menu regression passed");

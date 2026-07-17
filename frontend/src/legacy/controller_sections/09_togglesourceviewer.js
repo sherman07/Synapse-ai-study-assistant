@@ -792,12 +792,12 @@ async function deleteHistoryEntry(event, id) {
     event.stopPropagation();
   }
 
+  openHistoryDeletionDialog(id);
+}
+
+async function destroyHistoryEntry(id) {
   const items = getHistory();
   const target = items.find(item => item.id === id);
-  const title = target ? makeHistoryTitle(target) : "this history item";
-
-  const confirmed = window.confirm(`Delete "${title}" from history?`);
-  if (!confirmed) return;
 
   const remoteId = String(target?.databaseRecord?.id || target?.database_record?.id || target?.id || "").trim();
   if (remoteId && typeof deleteGeneratedContentFromDataApi === "function") {

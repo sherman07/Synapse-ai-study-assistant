@@ -46,6 +46,7 @@ Object.assign(window, {
   openBroadcastJob,
   openActiveMindMapSection,
   openAccountPanel,
+  openAccountDeletionDialog,
   openAssistant,
   openFilePicker,
   openSynapseFocusRoom,
@@ -73,12 +74,14 @@ Object.assign(window, {
   resetFlashcardMatching,
   resetWorkspace,
   closeAccountPanel,
+  closeSynapseConfirmation,
   consumeFocusRoomReturnTarget,
   deleteAccountAndLocalData,
   goToAuthPage,
   exportAccountData,
   refreshAccountSessionFromProvider,
   renderAccountMenu,
+  setAccountPreference,
   revealQuizAnswer,
   saveQuizSettingsFromModal,
   scheduleMemoryReview,
@@ -150,6 +153,8 @@ Object.assign(window, {
   persistStudyToolMemory,
   restoreStudyToolMemory,
 });
+
+initialiseAccountPreferences();
 
 if (historySearch) {
   historySearch.addEventListener("input", event => renderHistory(event.target.value));
