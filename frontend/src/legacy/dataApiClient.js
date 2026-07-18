@@ -44,8 +44,15 @@ async function persistGeneratedContentToDataApi(result) {
 }
 
 async function fetchGeneratedContentFromDataApi(limit = 50) {
-  const payload = await dataApiFetch(`/api/generated-content?limit=${encodeURIComponent(limit)}`);
+  const payload = await dataApiFetch(`/api/generated-content?limit=${encodeURIComponent(limit)}&include=metadata`);
   return Array.isArray(payload.items) ? payload.items : [];
+}
+
+async function fetchGeneratedContentSectionsFromDataApi(contentId, page = 1, pageSize = 3) {
+  const payload = await dataApiFetch(
+    `/api/generated-content/${encodeURIComponent(contentId)}/sections?page=${encodeURIComponent(page)}&page_size=${encodeURIComponent(pageSize)}`
+  );
+  return payload?.ok ? payload : null;
 }
 
 async function createBroadcastJobInDataApi(job) {
@@ -145,6 +152,7 @@ export {
   fetchBroadcastJobsFromDataApi,
   fetchFocusSessionsFromDataApi,
   fetchGeneratedContentFromDataApi,
+  fetchGeneratedContentSectionsFromDataApi,
   persistGeneratedContentToDataApi,
   patchBroadcastJobInDataApi,
   retryBroadcastJobInDataApi,

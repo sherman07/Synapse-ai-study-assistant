@@ -1,0 +1,135 @@
+{
+  "info": {
+    "_postman_id": "9c6d3b3f-9b4d-4f2a-9b2c-1c5a7e8f4d10",
+    "name": "Synapse API",
+    "description": "Requests for the FastAPI AI backend and Express generated-content pagination API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "ai_base_url", "value": "http://127.0.0.1:8001" },
+    { "key": "data_base_url", "value": "http://127.0.0.1:3001" },
+    { "key": "auth_token", "value": "" },
+    { "key": "client_id", "value": "postman-client" },
+    { "key": "user_id", "value": "postman-user" },
+    { "key": "content_id", "value": "" },
+    { "key": "signup_email", "value": "student@example.com" },
+    { "key": "signup_password", "value": "ChangeMe123!" },
+    { "key": "verification_url", "value": "http://127.0.0.1:5175/frontend/verify.html" }
+  ],
+  "item": [
+    {
+      "name": "Sign up email account",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Synapse-Client-Id", "value": "{{client_id}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"Postman\",\n  \"lastName\": \"Tester\",\n  \"email\": \"{{signup_email}}\",\n  \"role\": \"student\",\n  \"password\": \"{{signup_password}}\",\n  \"confirmPassword\": \"{{signup_password}}\",\n  \"termsAccepted\": true,\n  \"redirectTo\": \"{{verification_url}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{ai_base_url}}/api/auth/signup",
+          "host": ["{{ai_base_url}}"],
+          "path": ["api", "auth", "signup"]
+        },
+        "description": "Required fields: firstName, lastName, email, password, confirmPassword, termsAccepted, and role. The backend also requires Supabase service-role configuration and SYNAPSE_SMTP_HOST plus SYNAPSE_SMTP_FROM_EMAIL before it can deliver the confirmation email. Never store SMTP secrets in this collection."
+      }
+    },
+    {
+      "name": "Resend signup confirmation",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Synapse-Client-Id", "value": "{{client_id}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{signup_email}}\",\n  \"redirectTo\": \"{{verification_url}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{ai_base_url}}/api/auth/resend-confirmation",
+          "host": ["{{ai_base_url}}"],
+          "path": ["api", "auth", "resend-confirmation"]
+        },
+        "description": "Use after a pending signup. Requires the same SMTP configuration as signup."
+      }
+    },
+    {
+      "name": "Analyze materials",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Synapse-Client-Id", "value": "{{client_id}}" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}", "disabled": true }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "files", "type": "file", "src": "", "description": "Optional. Add one or more readable files." },
+            { "key": "links", "value": "[]", "type": "text", "description": "Optional JSON array of public URLs." },
+            { "key": "free_text", "value": "Paste source text here.", "type": "text", "description": "Provide this, a file, or a link." },
+            { "key": "preferred_language", "value": "auto", "type": "text" },
+            { "key": "detail_level", "value": "auto", "type": "text" },
+            { "key": "prompt_mode", "value": "professor_mode", "type": "text" },
+            { "key": "note_length", "value": "standard_notes", "type": "text" },
+            { "key": "ai_provider", "value": "", "type": "text", "description": "Optional: openai or gemini." },
+            { "key": "client_fingerprint", "value": "postman-analysis-1", "type": "text" }
+          ]
+        },
+        "url": {
+          "raw": "{{ai_base_url}}/analyze",
+          "host": ["{{ai_base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "At least one of files, links, or free_text must contain readable material. The other fields have backend defaults."
+      }
+    },
+    {
+      "name": "List generated content metadata",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}", "disabled": true },
+          { "key": "X-Synapse-Client-Id", "value": "{{client_id}}" },
+          { "key": "X-Synapse-User-Id", "value": "{{user_id}}" }
+        ],
+        "url": {
+          "raw": "{{data_base_url}}/api/generated-content?limit=20&include=metadata",
+          "host": ["{{data_base_url}}"],
+          "path": ["api", "generated-content"],
+          "query": [
+            { "key": "limit", "value": "20" },
+            { "key": "include", "value": "metadata" }
+          ]
+        },
+        "description": "Metadata mode keeps the sidebar request small. It does not include summaries or section bodies."
+      }
+    },
+    {
+      "name": "Get generated content sections",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}", "disabled": true },
+          { "key": "X-Synapse-Client-Id", "value": "{{client_id}}" },
+          { "key": "X-Synapse-User-Id", "value": "{{user_id}}" }
+        ],
+        "url": {
+          "raw": "{{data_base_url}}/api/generated-content/{{content_id}}/sections?page=1&page_size=3",
+          "host": ["{{data_base_url}}"],
+          "path": ["api", "generated-content", "{{content_id}}", "sections"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "page_size", "value": "3" }
+          ]
+        },
+        "description": "Fetch pages sequentially. The first page also contains related note metadata; later pages only contain section items and pagination metadata."
+      }
+    }
+  ]
+}

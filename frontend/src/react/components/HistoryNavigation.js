@@ -107,19 +107,39 @@ export function HistoryNavigation() {
       { className: "learning-rail-actions", "aria-label": "Learning workspace" },
       h(
         "button",
-        { className: "learning-rail-action learning-rail-new-chat", type: "button", onClick: legacyAction("resetWorkspace") },
+        {
+          className: "learning-rail-action learning-rail-new-chat",
+          type: "button",
+          onClick: legacyAction("resetWorkspace"),
+          "data-feature-flag": "new-chat",
+          "data-feature-flag-label": "New chat",
+          title: "Start a new chat",
+        },
         icon("bi-pencil-square"),
-        h("span", null, "New chat")
+        h("span", { className: "learning-rail-action-label" }, "New chat"),
+        h("span", { className: "learning-rail-feature-tag", "aria-hidden": "true" }, "new chat")
       ),
       h(
         "button",
-        { className: "learning-rail-action learning-rail-materials", type: "button", onClick: legacyAction("setLearningExperienceMode", "materials") },
+        {
+          className: "learning-rail-action learning-rail-materials",
+          type: "button",
+          onClick: legacyAction("setLearningExperienceMode", "materials"),
+          "data-learning-experience-target": "materials",
+          "aria-pressed": "true",
+        },
         icon("bi-collection"),
         h("span", null, "Materials")
       ),
       h(
         "button",
-        { className: "learning-rail-action", type: "button", onClick: legacyAction("setLearningExperienceMode", "companion") },
+        {
+          className: "learning-rail-action learning-rail-companion",
+          type: "button",
+          onClick: legacyAction("setLearningExperienceMode", "companion"),
+          "data-learning-experience-target": "companion",
+          "aria-pressed": "false",
+        },
         icon("bi-chat-dots"),
         h("span", null, "Learning companion")
       ),
@@ -134,6 +154,12 @@ export function HistoryNavigation() {
         icon("bi-bullseye"),
         h("span", null, "Focus Room")
       )
+    ),
+    h(
+      "div",
+      { className: "learning-mode-status", role: "status", "aria-live": "polite" },
+      icon("bi-collection", "learning-mode-status-icon"),
+      h("span", { id: "learningModeStatusText" }, "Materials mode")
     ),
     h(
       "div",

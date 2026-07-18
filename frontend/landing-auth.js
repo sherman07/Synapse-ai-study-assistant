@@ -202,6 +202,17 @@
     if (submitButton && spinner) {
       submitButton.classList.toggle('loading', isLoading);
       submitButton.disabled = Boolean(isLoading);
+      submitButton.setAttribute('aria-busy', String(Boolean(isLoading)));
+      const label = submitButton.querySelector('span');
+      if (label) {
+        if (isLoading) {
+          label.dataset.defaultLabel = label.textContent;
+          label.textContent = spinnerId === 'signupSpinner' ? 'Sending confirmation…' : 'Signing in…';
+        } else if (label.dataset.defaultLabel) {
+          label.textContent = label.dataset.defaultLabel;
+          delete label.dataset.defaultLabel;
+        }
+      }
     }
   }
 
@@ -211,6 +222,17 @@
 
   function realAuthEnabled() {
     return Boolean(window.SynapseAuth?.isConfigured?.());
+  }
+
+  function isLocalDevHost() {
+    const hostname = String(window.location?.hostname || '').toLowerCase();
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') return true;
+    const parts = hostname.split('.');
+    if (parts.length !== 4 || parts.some(part => !/^\d+$/.test(part))) return false;
+    const numbers = parts.map(Number);
+    return numbers[0] === 10
+      || (numbers[0] === 172 && numbers[1] >= 16 && numbers[1] <= 31)
+      || (numbers[0] === 192 && numbers[1] === 168);
   }
 
   function showAuthStatus(form, type, message) {
@@ -457,6 +479,31 @@
       return true;
     }
     return false;
+  }
+
+  function showLocalDemoSignupAction(form, details) {
+    showAuthStatus(form, 'warning', 'Local email delivery is not configured, so the confirmation email cannot be sent from localhost. Configure SYNAPSE_SMTP_HOST and SYNAPSE_SMTP_FROM_EMAIL to test real email.');
+    const status = form?.querySelector?.('.auth-form-status');
+    if (!status) return;
+    const actions = document.createElement('div');
+    actions.className = 'auth-status-actions';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'auth-status-button';
+    button.textContent = 'Continue with local demo';
+    button.addEventListener('click', () => {
+      const existing = findAccountByEmail(details.email);
+      if (existing) {
+        showExistingAccountStatus(form, details.email);
+        return;
+      }
+      const account = createAccount(details);
+      setSession(account);
+      showAuthStatus(form, 'success', 'Local demo account created. Email confirmation is skipped on localhost. Opening your workspace…');
+      window.setTimeout(redirectToApp, 250);
+    });
+    actions.appendChild(button);
+    status.appendChild(actions);
   }
 
   function clearAuthStatus(form) {
@@ -868,6 +915,7 @@
       if (realAuthEnabled()) {
         signupSubmitting = true;
         setButtonLoading(signupForm, 'signupSpinner', true);
+        showAuthStatus(signupForm, 'info', 'Connecting to Synapse Auth. The first local request may take a moment while the backend wakes up.');
         window.SynapseAuth.signUpEmail({
           firstName,
           lastName,
@@ -896,6 +944,10 @@
             showAuthStatus(signupForm, 'error', result?.message || 'Sign up failed.');
           })
           .catch(error => {
+            if (error?.state === 'email_not_configured' && isLocalDevHost()) {
+              showLocalDemoSignupAction(signupForm, { firstName, lastName, email, role, authProvider: 'email' });
+              return;
+            }
             if (error?.errors) {
               showSignupFieldErrors(error.errors);
             }

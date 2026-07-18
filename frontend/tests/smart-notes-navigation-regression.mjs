@@ -120,8 +120,8 @@ assert.match(
 );
 assert.match(
   layoutCss,
-  /\.app-layout\.generated-notes-state \.history-nav\s*\{\s*display: none !important;/,
-  "the home history rail must be forcibly hidden in a generated class"
+  /\.app-layout\.generated-notes-state \.history-nav\s*\{\s*display: flex !important;/,
+  "the existing history rail must remain available in a generated class"
 );
 assert.match(
   layoutCss,

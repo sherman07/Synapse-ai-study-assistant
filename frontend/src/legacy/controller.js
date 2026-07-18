@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v15";
+import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v19";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
@@ -10,10 +10,11 @@ import {
   fetchBroadcastJobFromDataApi,
   fetchBroadcastJobsFromDataApi,
   fetchGeneratedContentFromDataApi,
+  fetchGeneratedContentSectionsFromDataApi,
   patchBroadcastJobInDataApi,
   persistGeneratedContentToDataApi,
   retryBroadcastJobInDataApi
-} from "./dataApiClient.js?v=ai-broadcast-v15";
+} from "./dataApiClient.js?v=ai-broadcast-v19";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -59,10 +60,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=ai-broadcast-v15";
-import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v15";
+} from "./markdownRenderer.js?v=ai-broadcast-v19";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v19";
 
-const CONTROLLER_VERSION = "ai-broadcast-v15";
+const CONTROLLER_VERSION = "ai-broadcast-v19";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -82,6 +83,36 @@ const CONTROLLER_DEFINITION_FILES = [
 ];
 const CONTROLLER_BOOT_FILE = "99_boot.js";
 const apiClient = new SynapseApiClient(API_BASE);
+
+function renderStudyToolLaunch({
+  tool,
+  iconClass,
+  title,
+  description,
+  action,
+  actionLabel,
+  hasNotes = true,
+  kicker = "Ready when you are"
+} = {}) {
+  const disabled = hasNotes ? "" : "disabled";
+  const helper = hasNotes
+    ? "No tokens used for this first generation"
+    : "Generate your study notes first to unlock this tool";
+  return `
+    <div class="study-tool-launch" data-study-tool-launch="${escapeAttr(tool)}" data-generation-cost="0">
+      <div class="study-tool-launch-icon" aria-hidden="true"><i class="bi ${escapeAttr(iconClass)}"></i></div>
+      <div class="study-tool-launch-copy">
+        <span class="study-tool-launch-kicker">${escapeHTML(kicker)}</span>
+        <h4>${escapeHTML(title)}</h4>
+        <p>${escapeHTML(description)}</p>
+      </div>
+      <div class="study-tool-launch-meta"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>${escapeHTML(helper)}</div>
+      <button class="btn btn-primary study-tool-generate-btn" type="button" data-study-tool-generate="${escapeAttr(tool)}" data-token-cost="0" onclick="${escapeAttr(action)}" ${disabled}>
+        <i class="bi bi-stars me-2" aria-hidden="true"></i>${escapeHTML(actionLabel)}
+      </button>
+    </div>
+  `;
+}
 
 const controllerLoader = new LegacyControllerLoader({
   baseUrl: import.meta.url,
@@ -117,10 +148,12 @@ const controllerLoader = new LegacyControllerLoader({
     fetchBroadcastJobFromDataApi,
     fetchBroadcastJobsFromDataApi,
     fetchGeneratedContentFromDataApi,
+    fetchGeneratedContentSectionsFromDataApi,
     patchBroadcastJobInDataApi,
     persistGeneratedContentToDataApi,
     removeAutoBilingualHeadings,
     removeDetectedUrlsClient,
+    renderStudyToolLaunch,
     renderMath,
     renderStudyNotesSurface,
     retryBroadcastJobInDataApi,

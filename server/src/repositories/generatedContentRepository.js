@@ -20,12 +20,17 @@ function resultFromPayload(payload = {}) {
   return payload.result && typeof payload.result === "object" ? payload.result : payload;
 }
 
-function mapGeneratedContent(row = {}, { includeFull = false } = {}) {
-  const full = jsonValue(row.full_result_json, {});
+function mapGeneratedContent(row = {}, {
+  includeFull = false,
+  includeSections = true,
+  includeRelated = true,
+  includeSummary = true
+} = {}) {
+  const full = includeFull ? jsonValue(row.full_result_json, {}) : {};
   const item = includeFull && full && typeof full === "object" ? { ...full } : {};
   item.id = row.id;
   item.title = item.title || row.title || "Generated Study Notes";
-  item.summary = item.summary || row.summary || "";
+  if (includeSummary) item.summary = item.summary || row.summary || "";
   item.language = item.language || row.language || "";
   item.output_language = item.output_language || row.language || "";
   item.detail_level = item.detail_level || row.detail_level || "";
@@ -33,12 +38,14 @@ function mapGeneratedContent(row = {}, { includeFull = false } = {}) {
   item.source_count = item.source_count || row.source_count || 0;
   item.source_fingerprint = item.source_fingerprint || row.source_fingerprint || "";
   item.client_fingerprint = item.client_fingerprint || row.client_fingerprint || "";
-  item.sections = item.sections || jsonValue(row.sections_json, {});
-  item.connections = item.connections || jsonValue(row.connections_json, []);
-  item.mind_map = item.mind_map || jsonValue(row.mind_map_json, {});
-  item.visual_gallery = item.visual_gallery || jsonValue(row.visual_gallery_json, []);
-  item.visuals = item.visuals || item.visual_gallery || [];
-  item.sources = item.sources || jsonValue(row.sources_json, []);
+  if (includeSections) item.sections = item.sections || jsonValue(row.sections_json, {});
+  if (includeRelated) {
+    item.connections = item.connections || jsonValue(row.connections_json, []);
+    item.mind_map = item.mind_map || jsonValue(row.mind_map_json, {});
+    item.visual_gallery = item.visual_gallery || jsonValue(row.visual_gallery_json, []);
+    item.visuals = item.visuals || item.visual_gallery || [];
+    item.sources = item.sources || jsonValue(row.sources_json, []);
+  }
   item.cached = row.cached === undefined ? Boolean(item.cached) : Boolean(row.cached);
   item.created_at = row.created_at;
   item.updated_at = row.updated_at;
@@ -153,19 +160,20 @@ async function mysqlUpsertGeneratedContent(userId, payload = {}) {
   return mysqlGetGeneratedContent(userId, row.id);
 }
 
-async function mysqlListGeneratedContent(userId, limit = 50) {
+async function mysqlListGeneratedContent(userId, limit = 50, options = {}) {
   const safeLimit = limitValue(limit);
+  const columns = options.includeSummary === false
+    ? "id, user_id, source_fingerprint, client_fingerprint, title, language, detail_level, prompt_mode, source_count, cached, created_at, updated_at"
+    : "id, user_id, source_fingerprint, client_fingerprint, title, summary, language, detail_level, prompt_mode, source_count, cached, sections_json, connections_json, mind_map_json, visual_gallery_json, sources_json, created_at, updated_at";
   const [rows] = await createPool().execute(
-    `SELECT id, user_id, source_fingerprint, client_fingerprint, title, summary, language,
-      detail_level, prompt_mode, source_count, cached, sections_json, connections_json,
-      mind_map_json, visual_gallery_json, sources_json, full_result_json, created_at, updated_at
+    `SELECT ${columns}
     FROM generated_contents
     WHERE user_id = ?
     ORDER BY updated_at DESC
     LIMIT ${safeLimit}`,
     [userId]
   );
-  return rows.map(row => mapGeneratedContent(row));
+  return rows.map(row => mapGeneratedContent(row, options));
 }
 
 async function mysqlGetGeneratedContent(userId, contentId) {
@@ -214,17 +222,62 @@ async function supabaseUpsertGeneratedContent(userId, payload = {}) {
   return savedRow ? mapGeneratedContent(savedRow, { includeFull: true }) : null;
 }
 
-async function supabaseListGeneratedContent(userId, limit = 50) {
+async function supabaseListGeneratedContent(userId, limit = 50, options = {}) {
   const safeLimit = limitValue(limit);
+  const select = options.includeSummary === false
+    ? "id,user_id,source_fingerprint,client_fingerprint,title,language,detail_level,prompt_mode,source_count,cached,created_at,updated_at"
+    : "*";
   const rows = await supabaseRequest("GET", "generated_contents", {
     query: {
-      select: "*",
+      select,
       user_id: `eq.${cleanString(userId, 80)}`,
       order: "updated_at.desc",
       limit: safeLimit
     }
   });
-  return Array.isArray(rows) ? rows.map(row => mapGeneratedContent(row)) : [];
+  return Array.isArray(rows) ? rows.map(row => mapGeneratedContent(row, options)) : [];
+}
+
+function generatedContentSectionPage(item, page = 1, pageSize = 3) {
+  const entries = Object.entries(item?.sections || {}).map(([title, markdown], index) => ({
+    index,
+    title,
+    markdown: String(markdown || "")
+  }));
+  const safePage = Math.max(1, intValue(page, 1));
+  const safePageSize = limitValue(pageSize, 3, 10);
+  const totalSections = entries.length;
+  const totalPages = Math.max(1, Math.ceil(totalSections / safePageSize));
+  const start = (safePage - 1) * safePageSize;
+
+  return {
+    content_id: item.id,
+    title: item.title,
+    language: item.language,
+    output_language: item.output_language,
+    detail_level: item.detail_level,
+    prompt_mode: item.prompt_mode,
+    source_count: item.source_count,
+    source_fingerprint: item.source_fingerprint,
+    page: safePage,
+    page_size: safePageSize,
+    total_sections: totalSections,
+    total_pages: totalPages,
+    has_next: safePage < totalPages,
+    items: entries.slice(start, start + safePageSize),
+    ...(safePage === 1 ? {
+      connections: item.connections || [],
+      mind_map: item.mind_map || {},
+      visual_gallery: item.visual_gallery || [],
+      visuals: item.visuals || item.visual_gallery || [],
+      sources: item.sources || []
+    } : {})
+  };
+}
+
+async function getGeneratedContentSections(userId, contentId, page = 1, pageSize = 3) {
+  const item = await getGeneratedContent(userId, contentId);
+  return item ? generatedContentSectionPage(item, page, pageSize) : null;
 }
 
 async function supabaseGetGeneratedContent(userId, contentId) {
@@ -310,15 +363,15 @@ async function upsertGeneratedContent(userId, payload = {}) {
   throw supabaseError || new Error("Could not persist generated content.");
 }
 
-async function listGeneratedContent(userId, limit = 50) {
+async function listGeneratedContent(userId, limit = 50, options = {}) {
   if (supabaseStorageEnabled()) {
     try {
-      return await supabaseListGeneratedContent(userId, limit);
+      return await supabaseListGeneratedContent(userId, limit, options);
     } catch (error) {
       console.warn(`[storage] Supabase generated-content list failed: ${error.message}`);
     }
   }
-  return mysqlListGeneratedContent(userId, limit);
+  return mysqlListGeneratedContent(userId, limit, options);
 }
 
 async function getGeneratedContent(userId, contentId) {
@@ -405,6 +458,8 @@ export {
   deleteGeneratedContent,
   deleteGeneratedContentForUser,
   exportGeneratedContent,
+  generatedContentSectionPage,
+  getGeneratedContentSections,
   getGeneratedContent,
   listGeneratedContent,
   mapGeneratedContent,

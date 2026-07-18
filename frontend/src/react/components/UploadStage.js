@@ -45,6 +45,12 @@ export function UploadStage() {
       "div",
       { className: "hero-copy text-center" },
       h("div", { className: "brand-pill mx-auto mb-4" }, icon("bi-stars"), "AI Academic Tutor"),
+      h(
+        "div",
+        { className: "learning-mode-status-badge", "data-learning-mode-status": "materials", "data-active": "true" },
+        icon("bi-collection"),
+        h("span", null, "Materials mode")
+      ),
       h("h1", null, "Study Smarter"),
       h("p", null, "Your private tutor for readings, notes, images, and links.")
     ),
@@ -79,11 +85,18 @@ export function UploadStage() {
           className: "visually-hidden",
           type: "file",
           multiple: true,
-          accept: ".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          accept: ".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp,.mp3,.m4a,.wav,.mp4,.webm,image/*,audio/*,video/*,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation",
         }),
         h("div", { className: "upload-icon-wrap" }, icon("bi-cloud-arrow-up")),
         h("h2", null, "Upload your study material"),
-        h("p", null, "Drop PDFs, images, notes, or documents here. Add links below if your source is online."),
+        h("p", null, "Drop PDFs, slides, images, audio, video, notes, or documents here. Add links below if your source is online."),
+        h(
+          "div",
+          { className: "upload-guidance", "aria-label": "Upload steps" },
+          h("span", null, icon("bi-1-circle"), "Choose"),
+          h("span", null, icon("bi-2-circle"), "Confirm"),
+          h("span", null, icon("bi-3-circle"), "Analyze")
+        ),
         h(
           "button",
           {
@@ -94,6 +107,12 @@ export function UploadStage() {
           icon("bi-plus-lg", "me-2"),
           "Select files"
         )
+      ),
+      h(
+        "div",
+        { id: "uploadStatus", className: "upload-status", role: "status", "aria-live": "polite" },
+        icon("bi-info-circle"),
+        h("span", null, "Choose a file to begin. Your files stay visible here until you analyze them.")
       ),
       h("div", { id: "filePreview", className: "file-preview d-none" }),
       h(

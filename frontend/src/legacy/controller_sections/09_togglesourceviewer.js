@@ -763,10 +763,17 @@ function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = []) {
   const jobHtml = jobs.map(job => renderGenerationJobHistoryItemHTML(job)).join("");
   const broadcastJobHtml = broadcastJobs.map(job => renderBroadcastJobHistoryItemHTML(job)).join("");
   const itemHtml = items.map(item => `
-    <div class="history-item-wrap">
+    <div class="history-item-wrap generated-history-item-wrap">
       <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
         <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
         <div class="history-item-meta">${formatHistoryDate(item.createdAt)}</div>
+      </button>
+      <button class="history-item-expand-btn" type="button" aria-expanded="false"
+              aria-controls="${historySectionsDomId(item.id)}"
+              title="Show generated sections"
+              aria-label="Show generated sections for ${escapeAttr(makeHistoryTitle(item))}"
+              onclick="toggleGeneratedHistorySections(event, '${escapeAttr(item.id)}')">
+        <i class="bi bi-chevron-down"></i>
       </button>
       <button class="history-delete-btn" type="button"
               title="Delete this history item"
@@ -774,9 +781,84 @@ function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = []) {
               onclick="deleteHistoryEntry(event, '${escapeAttr(item.id)}')">
         <i class="bi bi-trash3"></i>
       </button>
+      <div id="${historySectionsDomId(item.id)}" class="generated-history-sections" hidden></div>
     </div>
   `).join("");
   return `${jobHtml}${broadcastJobHtml}${itemHtml}`;
+}
+
+function historySectionsDomId(id) {
+  return `generated-history-sections-${String(id || "").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function historySectionTitles(item) {
+  const storedTitles = Array.isArray(item?.generatedSectionTitles) ? item.generatedSectionTitles : [];
+  const sectionTitles = item?.sections && typeof item.sections === "object" ? Object.keys(item.sections) : [];
+  return [...new Set([...storedTitles, ...sectionTitles].map(title => String(title || "").trim()).filter(Boolean))];
+}
+
+function renderGeneratedHistorySections(item, message = "Open this note to load its generated sections.") {
+  const titles = historySectionTitles(item);
+  if (!titles.length) return `<p class="generated-history-sections-empty">${escapeHTML(message)}</p>`;
+  return titles.map(title => `
+    <button class="generated-history-section-link" type="button"
+            onclick="openGeneratedHistorySection(event, '${escapeAttr(item.id)}', '${escapeAttr(title)}')">
+      <i class="bi bi-list-nested"></i>
+      <span>${escapeHTML(title)}</span>
+    </button>
+  `).join("");
+}
+
+async function loadGeneratedHistorySectionTitles(item) {
+  if (historySectionTitles(item).length || typeof fetchGeneratedContentSectionsFromDataApi !== "function") return historySectionTitles(item);
+  const contentId = String(item?.databaseRecord?.id || item?.database_record?.id || item?.id || "").trim();
+  if (!contentId) return [];
+  const titles = [];
+  let page = 1;
+  let pageData = await fetchGeneratedContentSectionsFromDataApi(contentId, page, 50);
+  while (pageData) {
+    (Array.isArray(pageData.items) ? pageData.items : []).forEach(section => {
+      const title = String(section?.title || "").trim();
+      if (title && !titles.includes(title)) titles.push(title);
+    });
+    if (!pageData.has_next) break;
+    page += 1;
+    pageData = await fetchGeneratedContentSectionsFromDataApi(contentId, page, 50);
+  }
+  item.generatedSectionTitles = titles;
+  setHistory(getHistory().map(entry => entry.id === item.id ? { ...entry, generatedSectionTitles: titles } : entry));
+  return titles;
+}
+
+async function toggleGeneratedHistorySections(event, id) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  const item = getHistory().find(entry => entry.id === id);
+  const container = document.getElementById(historySectionsDomId(id));
+  const button = event?.currentTarget;
+  if (!item || !container || !button) return;
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", expanded ? "false" : "true");
+  button.querySelector("i")?.classList.toggle("bi-chevron-up", !expanded);
+  button.querySelector("i")?.classList.toggle("bi-chevron-down", expanded);
+  container.hidden = expanded;
+  if (expanded || container.dataset.loaded === "true") return;
+  container.innerHTML = `<p class="generated-history-sections-loading"><i class="bi bi-arrow-repeat"></i> Loading generated sections…</p>`;
+  try {
+    await loadGeneratedHistorySectionTitles(item);
+    container.innerHTML = renderGeneratedHistorySections(item, "No generated section titles are available for this note yet.");
+    container.dataset.loaded = "true";
+  } catch (error) {
+    console.warn("Could not load generated section titles:", error);
+    container.innerHTML = renderGeneratedHistorySections(item, "Sections could not be loaded. Open the note to try again.");
+  }
+}
+
+async function openGeneratedHistorySection(event, id, title) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  await loadHistoryEntry(id, { preserveScroll: false });
+  if (sections && Object.prototype.hasOwnProperty.call(sections, title)) renderSectionNotes(title);
 }
 
 function closeMobileNavIfOpen() {
@@ -828,12 +910,83 @@ async function destroyHistoryEntry(id) {
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
 }
 
+function summaryFromGeneratedSections(sectionMap = {}) {
+  return Object.entries(sectionMap)
+    .map(([title, markdown]) => "## " + title + "\n\n" + String(markdown || "").trim())
+    .filter(block => block.trim())
+    .join("\n\n")
+    .trim();
+}
+
+function applyGeneratedContentSectionPage(pageData, { reset = false } = {}) {
+  const pageItems = Array.isArray(pageData?.items) ? pageData.items : [];
+  const nextSections = reset ? {} : { ...(sections || {}) };
+  pageItems.forEach(item => {
+    const title = String(item?.title || "").trim();
+    if (title) nextSections[title] = String(item?.markdown || "").trim();
+  });
+  sections = cleanAutoLanguageSectionTitles(nextSections, summaryFromGeneratedSections(nextSections), pageData?.output_language || pageData?.language || "auto");
+  fullSummary = ensureRenderableSummary(summaryFromGeneratedSections(sections), sections);
+  if (reset) {
+    connectionsData = Array.isArray(pageData?.connections) ? pageData.connections : [];
+    currentMindMap = pageData?.mind_map || pageData?.mindMap || null;
+    visualGalleryData = normalizeLearningFigures(
+      pageData?.visual_gallery || pageData?.source_evidence_cards || pageData?.visuals || []
+    );
+  }
+  return pageData;
+}
+
+async function hydrateGeneratedContentSections(entry, { preserveScroll = false } = {}) {
+  if (typeof fetchGeneratedContentSectionsFromDataApi !== "function") return null;
+  const contentId = String(
+    entry?.databaseRecord?.id ||
+    entry?.database_record?.id ||
+    entry?.id ||
+    ""
+  ).trim();
+  if (!contentId) return null;
+
+  const pageSize = 3;
+  let page = 1;
+  let pageData = await fetchGeneratedContentSectionsFromDataApi(contentId, page, pageSize);
+  if (!pageData) return null;
+
+  applyGeneratedContentSectionPage(pageData, { reset: true });
+  entry.connections = connectionsData;
+  entry.mindMap = currentMindMap;
+  entry.visualGallery = visualGalleryData;
+  entry.sources = Array.isArray(pageData.sources) ? pageData.sources : (entry.sources || []);
+  entry.sourceFingerprint = pageData.source_fingerprint || entry.sourceFingerprint || "";
+  entry.language = pageData.output_language || pageData.language || entry.language || "";
+  currentSourceFingerprint = pageData.source_fingerprint || currentSourceFingerprint;
+  if (pageData.prompt_mode) currentPromptMode = pageData.prompt_mode;
+
+  showAnalysisView({ scrollToTop: !preserveScroll });
+  renderSections();
+  renderConnections();
+  renderMindMap(currentMindMap);
+  renderVisualGallery();
+  renderFullNotes();
+
+  while (pageData.has_next && currentHistoryId === entry.id) {
+    page += 1;
+    pageData = await fetchGeneratedContentSectionsFromDataApi(contentId, page, pageSize);
+    if (!pageData) break;
+    applyGeneratedContentSectionPage(pageData);
+    renderSections();
+    if (!selectedSection) renderFullNotes();
+  }
+  return pageData;
+}
+
 async function loadHistoryEntry(id, options = {}) {
   const item = getHistory().find(entry => entry.id === id);
   if (!item) return;
   if (typeof clearActiveGenerationJob === "function") clearActiveGenerationJob();
   closeMobileNavIfOpen();
 
+  const hasStoredSections = item.sections && typeof item.sections === "object" && Object.keys(item.sections).length > 0;
   fullSummary = removeAutoBilingualHeadings(item.summary || "", item.language || "auto");
   storedTitle = item.title || makeHistoryTitle(fullSummary) || "Study Notes";
   sections = cleanAutoLanguageSectionTitles(hydrateSectionsFromSummary(item.sections || {}, fullSummary), fullSummary, item.language || "auto");
@@ -849,6 +1002,13 @@ async function loadHistoryEntry(id, options = {}) {
   currentPromptMode = item.promptMode || item.prompt_mode || "professor_mode";
   currentPromptModeLabel = item.promptModeLabel || item.prompt_mode_label || "";
   currentAiGeneration = normaliseAiGenerationDiagnostics(item.aiGeneration || item.ai_generation || null);
+  if (!hasStoredSections && typeof fetchGeneratedContentSectionsFromDataApi === "function") {
+    try {
+      await hydrateGeneratedContentSections(item, { preserveScroll: options.preserveScroll });
+    } catch (error) {
+      console.warn("Could not hydrate generated note sections page by page:", error);
+    }
+  }
   const localVisuals = Array.isArray(item.visualGallery) ? item.visualGallery : [];
   const restoredVisuals = await loadVisualGalleryAssets(id, currentSourceFingerprint);
   visualGalleryData = normalizeLearningFigures(restoredVisuals.length ? restoredVisuals : localVisuals);

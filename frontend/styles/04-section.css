@@ -1412,8 +1412,82 @@ html[data-theme="dark"] .mobile-menu-btn {
 }
 
 .history-item-wrap .history-item {
-  padding-right: 44px;
+  padding-right: 76px;
 }
+
+.history-item-expand-btn {
+  position: absolute;
+  top: 10px;
+  right: 44px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted-light);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.history-item-expand-btn:hover,
+.history-item-expand-btn:focus-visible {
+  background: var(--primary-soft);
+  color: var(--primary);
+  outline: none;
+}
+
+.generated-history-sections {
+  border-left: 1px solid var(--border-blue);
+  display: grid;
+  gap: 3px;
+  margin: -3px 10px 8px 14px;
+  padding: 3px 0 3px 10px;
+}
+
+.generated-history-section-link {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.76rem;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.generated-history-section-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generated-history-section-link:hover,
+.generated-history-section-link:focus-visible {
+  background: var(--primary-soft);
+  color: var(--primary);
+  outline: none;
+}
+
+.generated-history-sections-empty,
+.generated-history-sections-loading {
+  color: var(--muted-light);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  margin: 3px 6px;
+}
+
+.generated-history-sections-loading i {
+  animation: historySectionSpin 0.9s linear infinite;
+  display: inline-block;
+  margin-right: 5px;
+}
+
+@keyframes historySectionSpin { to { transform: rotate(360deg); } }
 
 .history-delete-btn {
   position: absolute;
@@ -1677,6 +1751,22 @@ html[data-theme="dark"] .mobile-menu-btn {
   color: #6c7a96;
 }
 
+.tool-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tool-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .study-tools-icon {
   font-size: 1.3rem;
   color: #5f7cff;
@@ -1717,6 +1807,111 @@ html[data-theme="dark"] .mobile-menu-btn {
 
 .tool-panel.active {
   display: block;
+}
+
+.study-tool-launch {
+  min-height: 360px;
+  padding: 34px 28px;
+  border: 1px solid #dce5fb;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(95, 124, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 18px 50px rgba(33, 52, 95, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+
+.study-tool-launch-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #5f7cff, #8f63ff);
+  color: #ffffff;
+  font-size: 1.5rem;
+  box-shadow: 0 18px 36px rgba(95, 124, 255, 0.22);
+}
+
+.study-tool-launch-copy {
+  max-width: 720px;
+}
+
+.study-tool-launch-kicker {
+  display: block;
+  margin-bottom: 8px;
+  color: #5f7cff;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.study-tool-launch-copy h4 {
+  margin: 0 0 8px;
+  color: #10182f;
+  font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.study-tool-launch-copy p {
+  max-width: 680px;
+  margin: 0;
+  color: #6c7a96;
+  line-height: 1.55;
+}
+
+.study-tool-launch-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  color: #62708d;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.study-tool-launch-meta i {
+  color: #5f7cff;
+}
+
+.study-tool-generate-btn {
+  min-width: 210px;
+  min-height: 48px;
+  margin-top: 4px;
+  border-radius: 12px;
+  font-weight: 900;
+  box-shadow: 0 14px 28px rgba(95, 124, 255, 0.2);
+}
+
+.study-tool-generate-btn:disabled {
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .tool-panel-head {
+    flex-wrap: wrap;
+  }
+
+  .tool-panel-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .study-tool-launch {
+    min-height: 320px;
+    padding: 28px 20px;
+  }
+
+  .study-tool-launch-copy p {
+    font-size: 0.94rem;
+  }
 }
 
 .timeline-launch-card,

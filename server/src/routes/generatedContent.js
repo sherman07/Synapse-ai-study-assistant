@@ -8,6 +8,7 @@ import {
   deleteGeneratedContent,
   deleteGeneratedContentForUser,
   exportGeneratedContent,
+  getGeneratedContentSections,
   getGeneratedContent,
   listGeneratedContent,
   patchGeneratedContent,
@@ -42,7 +43,14 @@ function requireProWhenRequested(req, res, next) {
 }
 
 router.get("/", requireUser, asyncRoute(async (req, res) => {
-  const items = await listGeneratedContent(req.user.id, limitValue(req.query.limit, 50, 100));
+  const metadataOnly = String(req.query.include || "").toLowerCase() === "metadata";
+  const items = await listGeneratedContent(
+    req.user.id,
+    limitValue(req.query.limit, 50, 100),
+    metadataOnly
+      ? { includeSummary: false, includeSections: false, includeRelated: false }
+      : {}
+  );
   res.json({ ok: true, items });
 }));
 
@@ -63,6 +71,14 @@ router.get("/:id", requireUser, asyncRoute(async (req, res) => {
   const item = await getGeneratedContent(req.user.id, req.params.id);
   if (!item) return sendNotFound(res, "Generated content not found.");
   res.json({ ok: true, item });
+}));
+
+router.get("/:id/sections", requireUser, asyncRoute(async (req, res) => {
+  const page = limitValue(req.query.page, 1, 1000000);
+  const pageSize = limitValue(req.query.page_size || req.query.pageSize, 3, 10);
+  const result = await getGeneratedContentSections(req.user.id, req.params.id, page, pageSize);
+  if (!result) return sendNotFound(res, "Generated content not found.");
+  res.json({ ok: true, ...result });
 }));
 
 router.patch("/:id", requireUser, asyncRoute(async (req, res) => {

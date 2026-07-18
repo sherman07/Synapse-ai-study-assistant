@@ -11,6 +11,7 @@ const appLayout = document.getElementById("appLayout");
 const assetUpload = document.getElementById("assetUpload");
 const dropZone = document.getElementById("dropZone");
 const filePreview = document.getElementById("filePreview");
+const uploadStatus = document.getElementById("uploadStatus");
 const linkInput = document.getElementById("linkInput");
 const linkPreview = document.getElementById("linkPreview");
 const sourceInput = document.getElementById("sourceInput");
@@ -652,6 +653,7 @@ assetUpload.addEventListener("change", (event) => {
   dropZone.addEventListener(type, (event) => {
     event.preventDefault();
     dropZone.classList.add("drag-over");
+    setUploadStatus("neutral", "Release to add your study material.");
   });
 });
 
@@ -659,6 +661,9 @@ assetUpload.addEventListener("change", (event) => {
   dropZone.addEventListener(type, (event) => {
     event.preventDefault();
     dropZone.classList.remove("drag-over");
+    if (type === "dragleave" && uploadedFiles.length === 0) {
+      setUploadStatus("neutral", "Choose a file to begin. Your files stay visible here until you analyze them.");
+    }
   });
 });
 
@@ -680,21 +685,29 @@ if (linkInput) {
 }
 
 function addFiles(files) {
-  if (!files.length) return;
-  uploadedFiles.push(...files);
+  const nextFiles = Array.isArray(files) ? files.filter(file => file && file.name) : [];
+  if (!nextFiles.length) {
+    setUploadStatus("error", "We could not read that upload. Choose a file and try again.");
+    flashUploadState("error");
+    return;
+  }
+  uploadedFiles.push(...nextFiles);
   renderFilePreview();
+  setUploadStatus("success", `${nextFiles.length} file${nextFiles.length === 1 ? "" : "s"} ready. Review the list below, then click Analyze materials.`);
+  flashUploadState("success");
 }
 
 function renderFilePreview() {
   if (uploadedFiles.length === 0) {
     filePreview.classList.add("d-none");
     filePreview.innerHTML = "";
+    setUploadStatus("neutral", "Choose a file to begin. Your files stay visible here until you analyze them.");
     return;
   }
 
   filePreview.classList.remove("d-none");
   filePreview.innerHTML = uploadedFiles.map((file, index) => `
-    <div class="file-chip">
+    <div class="file-chip file-chip-added">
       <i class="bi ${fileIcon(file)}"></i>
       <span title="${escapeAttr(file.name)}">${escapeHTML(shorten(file.name, 42))}</span>
       <button type="button" onclick="removeFile(${index})" aria-label="Remove file">
@@ -702,6 +715,21 @@ function renderFilePreview() {
       </button>
     </div>
   `).join("");
+}
+
+function setUploadStatus(type, message) {
+  if (!uploadStatus) return;
+  const icons = { success: "bi-check-circle", error: "bi-exclamation-triangle", neutral: "bi-info-circle" };
+  uploadStatus.className = `upload-status upload-status-${type}`;
+  uploadStatus.innerHTML = `<i class="bi ${icons[type] || icons.neutral}"></i><span>${escapeHTML(message)}</span>`;
+}
+
+function flashUploadState(type) {
+  if (!dropZone) return;
+  dropZone.classList.remove("upload-state-success", "upload-state-error");
+  dropZone.offsetWidth;
+  dropZone.classList.add(type === "success" ? "upload-state-success" : "upload-state-error");
+  window.setTimeout(() => dropZone.classList.remove("upload-state-success", "upload-state-error"), 900);
 }
 
 function removeFile(index) {

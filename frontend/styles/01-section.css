@@ -925,6 +925,67 @@ body.mobile-assistant-open::before {
   outline-offset: 4px;
 }
 
+.drop-zone.upload-state-success {
+  animation: uploadSuccessPulse 0.9s ease;
+  border-color: #22a06b;
+}
+
+.drop-zone.upload-state-error {
+  animation: uploadErrorShake 0.45s ease;
+  border-color: #e11d48;
+}
+
+.upload-guidance {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.upload-guidance span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.upload-status {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  line-height: 1.45;
+  margin: 14px 2px 0;
+  padding: 9px 11px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.upload-status-success { background: rgba(34, 160, 107, 0.1); color: #147a4f; }
+.upload-status-error { background: rgba(225, 29, 72, 0.1); color: #be123c; }
+.upload-status i { flex: 0 0 auto; margin-top: 2px; }
+
+.file-chip-added { animation: fileChipAdded 0.42s ease both; }
+
+@keyframes uploadSuccessPulse {
+  0%, 100% { box-shadow: none; }
+  45% { box-shadow: 0 0 0 7px rgba(34, 160, 107, 0.12); }
+}
+
+@keyframes uploadErrorShake {
+  0%, 100% { transform: translateX(0); }
+  35% { transform: translateX(-5px); }
+  70% { transform: translateX(5px); }
+}
+
+@keyframes fileChipAdded {
+  from { opacity: 0; transform: translateY(5px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .upload-icon-wrap {
   width: 86px;
   height: 86px;
@@ -1405,7 +1466,7 @@ body.mobile-assistant-open::before {
   gap: 11px;
   padding: 10px 11px;
   text-align: left;
-  transition: background 0.16s ease, color 0.16s ease;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
   width: 100%;
 }
 
@@ -1416,6 +1477,51 @@ body.mobile-assistant-open::before {
   outline: none;
 }
 
+.learning-rail-action[aria-pressed="true"] {
+  background: var(--color-surface-active);
+  color: var(--color-text-primary);
+}
+
+.learning-rail-feature-tag {
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 999px;
+  color: var(--color-text-tertiary);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  text-transform: lowercase;
+}
+
+.learning-mode-status,
+.learning-mode-status-badge {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  border-radius: 999px;
+  color: var(--color-text-secondary, var(--text-soft));
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+
+.learning-mode-status {
+  background: var(--color-surface-secondary);
+  margin: 0 8px 14px;
+}
+
+.learning-mode-status-badge {
+  background: rgba(74, 124, 255, 0.08);
+  margin: 0 auto 14px;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.learning-mode-status-badge[data-active="false"] {
+  opacity: 0.55;
+}
+
 .learning-rail-new-chat {
   background: var(--color-surface-tertiary);
   color: var(--color-text-primary);
@@ -1424,6 +1530,8 @@ body.mobile-assistant-open::before {
 .learning-rail-new-chat:hover,
 .learning-rail-new-chat:focus-visible {
   background: var(--color-surface-active);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-surface-active) 60%, transparent);
+  transform: translateY(-1px);
 }
 
 .dark-learning-rail .history-search-wrap {
@@ -1584,11 +1692,8 @@ body.mobile-assistant-open::before {
   border-color: var(--color-border-default);
 }
 
-/* Generated classes own the title navigation. This is deliberately more specific
-   than the home rail's display:flex!important rule so stale home state cannot
-   replace a class outline after reopening an existing note. */
 .app-layout.generated-notes-state .history-nav {
-  display: none !important;
+  display: flex !important;
 }
 
 .app-layout.generated-notes-state #summaryNav {
