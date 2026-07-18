@@ -558,14 +558,159 @@ function switchTool(toolName, clickedBtn = null) {
     renderMasteryGraphPanel();
   } else if (toolName === "quiz") {
     renderQuizPanel();
-    if (!isQuizGenerating && (!currentQuiz || !Array.isArray(currentQuiz.questions) || !currentQuiz.questions.length)) {
-      requestAnimationFrame(() => openQuizSettingsModal());
-    }
   } else if (toolName === "flashcards") {
     renderFlashcardPanel();
   } else if (toolName === "broadcast") {
     if (typeof renderCurrentBroadcastOrSetup === "function") renderCurrentBroadcastOrSetup();
     else renderBroadcastSetupPanel();
+  }
+}
+
+const STUDY_TOOL_SETTINGS_STORAGE_KEY = "synapse.study-tool.settings.v1";
+const STUDY_TOOL_SETTINGS_DEFAULTS = {
+  mindmap: { layout: "tree", detail: "expanded" },
+  visualguide: { language: "auto", style: "concept_board" },
+  timeline: { language: "auto", pace: "balanced" },
+  masterygraph: { reviewFilter: "due", priority: "weakest" }
+};
+const STUDY_TOOL_SETTINGS_META = {
+  mindmap: {
+    title: "Mind Map settings",
+    description: "Choose how the knowledge tree is presented while you explore the current notes.",
+    fields: [
+      { key: "layout", label: "Map layout", help: "Tree keeps the full branch structure visible; compact focuses attention on the selected branch.", options: [["tree", "Knowledge tree"], ["compact", "Compact focus"]] },
+      { key: "detail", label: "Detail density", help: "Choose whether points open with the full supporting detail or a lighter overview.", options: [["expanded", "Expanded detail"], ["focused", "Focused overview"]] }
+    ]
+  },
+  visualguide: {
+    title: "Image Guide settings",
+    description: "Set the language and visual direction used when the guide is generated.",
+    fields: [
+      { key: "language", label: "Guide language", help: "The language used for labels and explanations in the generated image.", options: [["auto", "Auto-detect source language"], ["english", "English"], ["chinese", "Chinese"], ["bilingual", "Bilingual"]] },
+      { key: "style", label: "Visual direction", help: "Choose the visual balance for the poster layout.", options: [["concept_board", "Concept board"], ["exam_revision", "Exam revision sheet"], ["process_story", "Process story"]] }
+    ]
+  },
+  timeline: {
+    title: "Study Path settings",
+    description: "Tune the pace and language of the next guided revision sequence.",
+    fields: [
+      { key: "language", label: "Path language", help: "The language used for tasks, prompts, and mastery checks.", options: [["auto", "Auto-detect source language"], ["english", "English"], ["chinese", "Chinese"], ["bilingual", "Bilingual"]] },
+      { key: "pace", label: "Revision pace", help: "A quick path is concise; a deep path adds more practice and explanation checkpoints.", options: [["quick", "Quick review"], ["balanced", "Balanced"], ["deep", "Deep study"]] }
+    ]
+  },
+  masterygraph: {
+    title: "Exam Readiness settings",
+    description: "Choose which review queue opens first and how the readiness view prioritises topics.",
+    fields: [
+      { key: "reviewFilter", label: "Opening review queue", help: "This filter is selected when Exam Readiness opens.", options: [["due", "Due today"], ["missed", "Only missed"], ["all", "All topics"]] },
+      { key: "priority", label: "Review priority", help: "Weakest-first surfaces the topics that need attention earliest.", options: [["weakest", "Weakest topics first"], ["balanced", "Balanced coverage"], ["recent", "Recently studied first"]] }
+    ]
+  }
+};
+let studyToolSettingsDraft = null;
+let studyToolSettingsMemory = {};
+
+function readStudyToolSettings() {
+  const saved = safeReadJSONStorage(STUDY_TOOL_SETTINGS_STORAGE_KEY, {});
+  const source = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  return Object.fromEntries(Object.entries(STUDY_TOOL_SETTINGS_DEFAULTS).map(([tool, defaults]) => ({
+    [tool]: {
+      ...defaults,
+      ...(source[tool] && typeof source[tool] === "object" ? source[tool] : {}),
+      ...(studyToolSettingsMemory[tool] && typeof studyToolSettingsMemory[tool] === "object" ? studyToolSettingsMemory[tool] : {})
+    }
+  })));
+}
+
+function getStudyToolSettings(toolName = "") {
+  return readStudyToolSettings()[toolName] || {};
+}
+
+function openStudyToolSettingsModal(toolName = "") {
+  const tool = String(toolName || "").trim().toLowerCase();
+  if (tool === "quiz") {
+    openQuizSettingsModal();
+    return;
+  }
+  if (tool === "flashcards") {
+    clearFlashcardsAndShowBuilder();
+    return;
+  }
+  if (tool === "broadcast") {
+    openAiBroadcastSetup();
+    return;
+  }
+  const meta = STUDY_TOOL_SETTINGS_META[tool];
+  if (!meta) return;
+  studyToolSettingsDraft = { tool, values: { ...getStudyToolSettings(tool) } };
+  document.getElementById("studyToolSettingsOverlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "studyToolSettingsOverlay";
+  overlay.className = "visual-modal visual-modal-overlay study-tool-settings-overlay";
+  overlay.innerHTML = `
+    <div class="visual-modal-content study-tool-settings-modal" role="dialog" aria-modal="true" aria-labelledby="studyToolSettingsTitle">
+      <button class="visual-modal-close" type="button" aria-label="Close settings" onclick="closeStudyToolSettingsModal()"><i class="bi bi-x-lg"></i></button>
+      <span class="study-tool-settings-kicker">Study Tools</span>
+      <h3 id="studyToolSettingsTitle">${escapeHTML(meta.title)}</h3>
+      <p class="text-secondary">${escapeHTML(meta.description)}</p>
+      <div class="study-tool-settings-fields">
+        ${meta.fields.map(field => `
+          <label class="study-tool-settings-field" for="studyToolSetting-${escapeAttr(field.key)}">
+            <span>${escapeHTML(field.label)}</span>
+            <select id="studyToolSetting-${escapeAttr(field.key)}" class="form-select" onchange="updateStudyToolSettingDraft('${escapeAttr(field.key)}', this.value)">
+              ${field.options.map(([value, label]) => `<option value="${escapeAttr(value)}" ${studyToolSettingsDraft.values[field.key] === value ? "selected" : ""}>${escapeHTML(label)}</option>`).join("")}
+            </select>
+            <small>${escapeHTML(field.help)}</small>
+          </label>
+        `).join("")}
+      </div>
+      <div class="study-tool-settings-actions">
+        <button class="btn btn-outline-secondary" type="button" onclick="closeStudyToolSettingsModal()">Cancel</button>
+        <button class="btn btn-primary" type="button" onclick="saveStudyToolSettingsModal()"><i class="bi bi-check2 me-1"></i>Save settings</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay) closeStudyToolSettingsModal();
+  });
+  document.body.appendChild(overlay);
+}
+
+function updateStudyToolSettingDraft(key, value) {
+  if (!studyToolSettingsDraft) return;
+  studyToolSettingsDraft.values[String(key || "")] = String(value || "");
+}
+
+function closeStudyToolSettingsModal() {
+  document.getElementById("studyToolSettingsOverlay")?.remove();
+  studyToolSettingsDraft = null;
+}
+
+function saveStudyToolSettingsModal() {
+  if (!studyToolSettingsDraft) return;
+  const overlay = document.getElementById("studyToolSettingsOverlay");
+  if (overlay) {
+    const meta = STUDY_TOOL_SETTINGS_META[studyToolSettingsDraft.tool];
+    meta?.fields.forEach(field => {
+      const input = overlay.querySelector(`#studyToolSetting-${CSS.escape(field.key)}`);
+      if (input) studyToolSettingsDraft.values[field.key] = String(input.value || "");
+    });
+  }
+  const saved = readStudyToolSettings();
+  saved[studyToolSettingsDraft.tool] = { ...saved[studyToolSettingsDraft.tool], ...studyToolSettingsDraft.values };
+  studyToolSettingsMemory[studyToolSettingsDraft.tool] = { ...saved[studyToolSettingsDraft.tool] };
+  safeWriteJSONStorage(STUDY_TOOL_SETTINGS_STORAGE_KEY, saved);
+  const { tool } = studyToolSettingsDraft;
+  closeStudyToolSettingsModal();
+  if (tool === "mindmap") {
+    requestAnimationFrame(() => renderMindMap(currentMindMap));
+  } else if (tool === "timeline") {
+    renderTimelinePanel();
+  } else if (tool === "masterygraph") {
+    activeMemoryFilter = saved.masterygraph.reviewFilter || "due";
+    renderMasteryGraphPanel();
+  } else if (tool === "visualguide") {
+    renderVisualGuidePanel();
   }
 }
 
@@ -899,20 +1044,18 @@ function renderTimelinePanel() {
 }
 
 function renderTimelineLaunchCard(hasNotes) {
-  return `
-    <div class="timeline-launch-card">
-      <div class="timeline-launch-icon"><i class="bi bi-signpost-split"></i></div>
-      <div class="timeline-launch-copy">
-        <h4>Create a study path</h4>
-        <p>${hasNotes
-          ? "Turn the current notes into a guided sequence of learning tasks, short questions, and revision checks."
-          : "Generate notes first, then build an interactive study path from them."}</p>
-      </div>
-      <button class="btn btn-primary timeline-generate-btn" type="button" onclick="generateTimeline(false)" ${hasNotes ? "" : "disabled"}>
-        <i class="bi bi-stars me-1"></i>Generate study path
-      </button>
-    </div>
-  `;
+  return renderStudyToolLaunch({
+    tool: "timeline",
+    iconClass: "bi-signpost-split",
+    title: "Create a study path",
+    description: hasNotes
+      ? "Turn the current notes into a guided sequence of learning tasks, short questions, and revision checks."
+      : "Generate notes first, then build an interactive study path from them.",
+    action: "generateTimeline(false)",
+    actionLabel: "Generate study path",
+    hasNotes,
+    kicker: "Guided revision sequence"
+  });
 }
 
 function getTimelineEventId(eventOrId) {
