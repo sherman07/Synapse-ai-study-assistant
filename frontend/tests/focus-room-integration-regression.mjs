@@ -57,6 +57,7 @@ const app = read("frontend/src/react/App.js");
 const runtime = read("frontend/src/react/runtime.js");
 const appShell = read("frontend/src/react/components/AppShell.js");
 const analysisStage = read("frontend/src/react/components/AnalysisStage.js");
+const historyNavigation = read("frontend/src/react/components/HistoryNavigation.js");
 const controller = read("frontend/src/legacy/controller.js");
 const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
 const uploadSection = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
@@ -147,10 +148,16 @@ assert.ok(!app.includes("dangerouslySetInnerHTML"), "React app should not inject
 assert.ok(!appShell.includes("FocusRoom()"), "AppShell should not render the separate Focus Room shell");
 assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should keep the dormant Focus Room CTA for future re-enabling");
 assert.ok(controller.includes("\"10_focusroombridge.js\""), "legacy controller should load the Focus Room bridge");
+assert.ok(historyNavigation.includes("learning-rail-focus-room"), "left learning navigation should include the Focus Room action");
+assert.ok(historyNavigation.includes('legacyAction("openSynapseFocusRoom")'), "left learning navigation should open Focus Room through the shared bridge");
 assert.ok(boot.includes("getSynapseFocusRoomMaterials"), "boot should expose Focus Room material bridge helpers");
 assert.ok(boot.includes("openSynapseFocusRoom"), "boot should expose the disabled-safe Focus Room opener");
 assert.ok(uploadSection.includes("renderFocusRoomWorkspaceActions"), "analysis view should refresh Focus Room CTAs");
-assert.ok(!historySection.includes("history-focus-room-btn"), "history rows should not include left-nav Focus Room actions");
+assert.ok(!historySection.includes("history-focus-room-btn"), "history rows should not duplicate the persistent left-nav Focus Room action");
+assert.ok(
+  runtimeConfig.includes('window.SYNAPSE_FOCUS_ROOM_ENABLED = window.SYNAPSE_FOCUS_ROOM_ENABLED !== false'),
+  "Focus Room should be enabled by default while allowing an explicit false override"
+);
 assert.ok(style.includes("09-focus-room.css"), "global stylesheet should import Focus Room styles");
 assert.ok(focusRoomHtml.includes("static-compatible-loader.js"), "Focus Room should use the static-compatible loader");
 assert.ok(

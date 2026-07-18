@@ -122,6 +122,17 @@ export function HistoryNavigation() {
         { className: "learning-rail-action", type: "button", onClick: legacyAction("setLearningExperienceMode", "companion") },
         icon("bi-chat-dots"),
         h("span", null, "Learning companion")
+      ),
+      h(
+        "button",
+        {
+          className: "learning-rail-action learning-rail-focus-room",
+          type: "button",
+          onClick: legacyAction("openSynapseFocusRoom"),
+          "aria-label": "Open Focus Room",
+        },
+        icon("bi-bullseye"),
+        h("span", null, "Focus Room")
       )
     ),
     h(

@@ -1,0 +1,400 @@
+/*
+ * Final dark-mode layer.
+ *
+ * The workspace still contains legacy renderers and Bootstrap utilities that
+ * ship their own light surfaces. This file intentionally loads last so every
+ * generated note, study tool, tutor state, modal, and form uses the same
+ * semantic dark palette even when its source renderer predates SynapseTheme.
+ */
+
+html[data-theme="dark"] {
+  --color-page-background: #0d1118;
+  --color-sidebar-background: #111722;
+  --color-surface-primary: #171e2b;
+  --color-surface-secondary: #1c2636;
+  --color-surface-tertiary: #243147;
+  --color-surface-elevated: #202b3d;
+  --color-surface-hover: #273751;
+  --color-surface-active: #304465;
+  --color-text-primary: #f4f7ff;
+  --color-text-secondary: #d5deef;
+  --color-text-tertiary: #aab8d0;
+  --color-text-disabled: #76849d;
+  --color-border-subtle: #263248;
+  --color-border-default: #35445d;
+  --color-border-strong: #52698f;
+  --color-accent: #86a5ff;
+  --color-accent-hover: #a9bfff;
+  --color-accent-active: #6388fa;
+  --color-accent-soft: rgba(134, 165, 255, .16);
+  --color-input-background: #121a28;
+  --color-input-placeholder: #91a0bb;
+  --color-overlay: rgba(4, 7, 13, .78);
+  --shadow-small: 0 8px 24px rgba(0, 0, 0, .24);
+  --shadow-medium: 0 18px 50px rgba(0, 0, 0, .32);
+  --shadow-large: 0 30px 90px rgba(0, 0, 0, .42);
+  --shadow-modal: 0 42px 120px rgba(0, 0, 0, .62);
+
+  /* Older workspace aliases resolve to the same palette. */
+  --bg: var(--color-page-background);
+  --surface: var(--color-surface-primary);
+  --text: var(--color-text-primary);
+  --text-soft: var(--color-text-secondary);
+  --muted: var(--color-text-tertiary);
+  --muted-light: var(--color-text-disabled);
+  --border: var(--color-border-default);
+  --border-blue: var(--color-border-default);
+  --primary: var(--color-accent);
+  --primary-hover: var(--color-accent-hover);
+  --primary-soft: var(--color-accent-soft);
+  --shadow-card: var(--shadow-medium);
+  --shadow-panel: var(--shadow-large);
+  --button-gradient: linear-gradient(135deg, #6f8fff, #8d9eff);
+}
+
+html[data-theme="dark"] :where(body, #root, .app-layout, .notes-area, .analysis-stage, .learning-experience-shell) {
+  background-color: var(--color-page-background);
+  color: var(--color-text-primary);
+}
+
+html[data-theme="dark"] :where(
+  .history-nav.dark-learning-rail,
+  .summary-nav,
+  .assistant-panel,
+  .assistant-panel.expanded,
+  .mobile-topbar,
+  .mobile-offcanvas,
+  .offcanvas,
+  .notes-card,
+  .brainstorm-card,
+  .study-tools-card,
+  .source-viewer-panel,
+  .source-viewer-body,
+  .source-pdf-clean-preview,
+  .source-pdf-stage,
+  .source-image-stage,
+  .companion-workspace-card,
+  .premium-upload-card,
+  .drop-zone,
+  .generation-job-panel,
+  .account-panel-card,
+  .synapse-confirmation-card,
+  .visual-modal-content,
+  .quiz-settings-modal,
+  .quiz-question-card,
+  .quiz-option-label,
+  .quiz-history-modal,
+  .flashcard-card,
+  .flashcard-modal-content,
+  .timeline-rail,
+  .timeline-detail-card,
+  .timeline-task-card,
+  .study-path-question-card,
+  .memory-hero,
+  .memory-stat,
+  .memory-review-card,
+  .memory-topic-panel,
+  .exam-readiness-summary-card,
+  .tool-panel,
+  .broadcast-setup-card,
+  .broadcast-player-card,
+  .visual-guide-panel,
+  .visual-guide-poster,
+  .mind-map-panel,
+  .mm-shell,
+  .study-activity-panel,
+  .toast,
+  .alert,
+  .modal-content,
+  .dropdown-menu,
+  .popover,
+  .card,
+  .list-group-item,
+  .accordion-item
+) {
+  background: var(--color-surface-primary) !important;
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default) !important;
+  box-shadow: var(--shadow-small);
+}
+
+html[data-theme="dark"] :where(
+  .summary-nav,
+  .history-nav.dark-learning-rail,
+  .assistant-header,
+  .assistant-tabs,
+  .quick-actions,
+  .assistant-input-card,
+  .voice-tutor-panel,
+  .voice-actions,
+  .voice-text-fallback,
+  .connections-panel,
+  .mobile-offcanvas .offcanvas-header,
+  .mobile-offcanvas .section-list,
+  .notes-section-summary,
+  .professional-section-summary,
+  .tool-panel,
+  .source-viewer-tabs,
+  .source-viewer-toolbar
+) {
+  background: var(--color-sidebar-background) !important;
+}
+
+html[data-theme="dark"] :where(
+  .notes-summary-card,
+  .notes-section-body,
+  .professional-section-body,
+  .professional-mode-title-card,
+  .professional-big-picture-card,
+  .professional-core-understanding-card,
+  .professional-deep-explanation-section,
+  .professional-background-card,
+  .professional-application-card,
+  .professional-assessment-use-card,
+  .professional-model-output-card,
+  .professional-memory-practice-card,
+  .professional-connections-grid li,
+  .professional-application-steps li,
+  .professional-mistakes-list li,
+  .professional-memory-list li,
+  .professional-high-quality-thinking-card li,
+  .readiness-metrics span,
+  .readiness-weak-topics span,
+  .timeline-progress-row span,
+  .timeline-task-success,
+  .study-path-option,
+  .memory-filter-row button,
+  .memory-card-actions button,
+  .history-item,
+  .history-new-btn,
+  .mobile-account-summary,
+  .history-search-wrap,
+  .history-delete-btn,
+  .history-job-retry,
+  .connection-card,
+  .chat-message.assistant,
+  .voice-message.assistant,
+  .quick-btn,
+  .voice-tutor-status,
+  .connection-label,
+  .notes-action-btn,
+  .notes-language-select,
+  .source-tab,
+  .source-tool-btn,
+  .source-input-wrap,
+  .prompt-mode-box,
+  .language-select,
+  .prompt-mode-select,
+  .auto-depth-box,
+  .multi-link-input-wrap,
+  .file-chip,
+  .link-chip,
+  .math-block,
+  .mm-detail-card,
+  .mm-detail-popover,
+  .mm-action-btn,
+  .mm-branch-node,
+  .mm-point-node,
+  .mm-tree-branch,
+  .mm-leaf-node,
+  .timeline-node,
+  .timeline-filter-btn,
+  .timeline-complete-btn,
+  .quiz-settings-modal .bg-light,
+  .quiz-settings-modal .bg-white,
+  .quiz-question-card.bg-white,
+  .quiz-option-label.bg-white,
+  .visual-modal-content .bg-light
+) {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-default) !important;
+}
+
+html[data-theme="dark"] :where(
+  .notes-card h1, .notes-card h2, .notes-card h3, .notes-card h4,
+  .summary-content h1, .summary-content h2, .summary-content h3, .summary-content h4,
+  .summary-content strong,
+  .professional-mode-surface h1, .professional-mode-surface h2,
+  .professional-mode-surface h3, .professional-mode-surface h4,
+  .professional-section-header h2,
+  .readiness-body h3, .readiness-weak-topics strong,
+  .readiness-next-action,
+  .timeline-detail-card h4, .timeline-task-label, .timeline-task-success strong,
+  .study-tools-head h2, .tool-panel-head h3,
+  .assistant-title h4, .voice-tutor-status h5,
+  .source-viewer-toolbar strong,
+  .mm-detail-title, .mm-root-node, .mm-branch-node, .mm-point-node,
+  .mm-tree-branch-title, .mm-leaf-node,
+  .quiz-settings-modal h3, .quiz-settings-modal label,
+  .quiz-question-text, .quiz-option-text,
+  .memory-hero h4, .memory-topic-panel h5, .memory-review-card h5
+) {
+  color: var(--color-text-primary) !important;
+}
+
+html[data-theme="dark"] :where(
+  .summary-content, .summary-content p, .summary-content li,
+  .professional-mode-surface, .professional-section-body,
+  .notes-section-body, .timeline-summary, .timeline-task-body,
+  .study-path-option-text, .mm-detail-body, .source-text-preview,
+  .source-slide-text, .connection-desc, .chat-message.assistant,
+  .voice-message.assistant, .voice-tutor-status p, .memory-hero p,
+  .memory-topic-panel p, .memory-review-card p, .tool-panel-head p,
+  .study-tools-head p
+) {
+  color: var(--color-text-secondary) !important;
+}
+html[data-theme="dark"] .readiness-next-action strong { color: var(--color-text-primary) !important; }
+
+html[data-theme="dark"] :where(
+  .compact-header p, .summary-nav .nav-header p, .history-empty,
+  .history-item-meta, .voice-message-meta, .voice-footer,
+  .voice-mastery-label, .voice-mastery-caption, .source-viewer-empty,
+  .source-link-preview, .source-file-preview, .source-loading,
+  .source-hints, .source-helper, .form-text, .text-secondary,
+  .text-muted, .small.text-secondary
+) {
+  color: var(--color-text-tertiary) !important;
+}
+
+/* Generated note content and formulas. */
+html[data-theme="dark"] :where(.math-block, .desmos-card, .desmos-calculator) {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border-default) !important;
+}
+
+html[data-theme="dark"] :where(.desmos-card-head, .desmos-card-head code) {
+  color: var(--color-accent-hover) !important;
+  background: var(--color-surface-tertiary) !important;
+}
+
+html[data-theme="dark"] :where(.notes-section-chip, .notes-inline-badges .notes-section-chip) {
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface-secondary)) !important;
+  color: var(--color-accent-hover) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border-default)) !important;
+}
+
+html[data-theme="dark"] :where(.markdown-table-wrap, .markdown-table, .markdown-table tbody, .markdown-table tr) {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border-default) !important;
+}
+
+html[data-theme="dark"] .markdown-table th {
+  background: var(--color-surface-tertiary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+
+html[data-theme="dark"] .markdown-table td {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border-subtle) !important;
+}
+
+/* Tutor: keep all three tabs readable, including empty, active, and streamed states. */
+html[data-theme="dark"] :where(.chat-area, .voice-chat-area) { background: var(--color-page-background) !important; }
+html[data-theme="dark"] :where(.chat-message.assistant, .voice-message.assistant) { background: var(--color-surface-secondary) !important; }
+html[data-theme="dark"] :where(.chat-message.user, .voice-message.user, .open-assistant-fab, .send-btn:hover) { color: #0b1020 !important; }
+html[data-theme="dark"] :where(.quick-btn, .voice-small-btn, .btn-light) {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme="dark"] :where(.quick-btn:hover, .voice-small-btn:hover, .btn-light:hover) {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+html[data-theme="dark"] .voice-mastery-bar { background: var(--color-surface-tertiary) !important; }
+html[data-theme="dark"] .connection-card { background: var(--color-surface-secondary) !important; }
+
+/* Study tools, mind map, tables, and progress cards. */
+html[data-theme="dark"] :where(.study-tools-card, .tool-panel, .mindmap-canvas, .mm-map-scroll) {
+  background: var(--color-surface-primary) !important;
+  color: var(--color-text-primary);
+}
+html[data-theme="dark"] :where(.mm-root-dot, .mm-branch-dot, .mm-point-dot, .mm-tree-dot, .mm-leaf-dot) {
+  background: var(--color-surface-secondary) !important;
+}
+html[data-theme="dark"] :where(.mindmap-canvas, .mm-shell) {
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme="dark"] :where(.exam-readiness-summary-card, .memory-hero, .memory-stat, .memory-review-card, .memory-topic-panel) {
+  background: linear-gradient(145deg, var(--color-surface-primary), var(--color-surface-secondary)) !important;
+}
+html[data-theme="dark"] :where(.readiness-score, .memory-score-ring) {
+  background:
+    radial-gradient(circle at center, var(--color-surface-primary) 58%, transparent 59%),
+    conic-gradient(var(--color-accent) var(--memory-score), var(--color-surface-tertiary) 0) !important;
+  box-shadow: inset 0 0 0 1px var(--color-border-default), 0 16px 34px rgba(82, 125, 255, .18);
+}
+html[data-theme="dark"] :where(.readiness-score strong, .memory-score-ring strong) { color: var(--color-text-primary) !important; }
+html[data-theme="dark"] :where(.readiness-score span, .memory-score-ring span) { color: var(--color-text-tertiary) !important; }
+
+/* Bootstrap's utility classes are a common source of white flashes in legacy modals. */
+html[data-theme="dark"] :where(.bg-white, .bg-light, .table, .table > :not(caption) > *, .form-control, .form-select, .form-check-input) {
+  background-color: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme="dark"] :where(.form-control, .form-select, .source-input, .language-select, .prompt-mode-select) {
+  background: var(--color-input-background) !important;
+  color: var(--color-text-primary) !important;
+}
+html[data-theme="dark"] :where(.multi-link-input-wrap, .multi-link-input-wrap:focus-within) {
+  background: var(--color-input-background) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+html[data-theme="dark"] :where(.multi-link-input-wrap:focus-within) {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 4px rgba(134, 165, 255, .16) !important;
+}
+html[data-theme="dark"] :where(.form-control::placeholder, .source-input::placeholder, textarea::placeholder) {
+  color: var(--color-input-placeholder) !important;
+  opacity: 1;
+}
+html[data-theme="dark"] :where(.dropdown-item, .nav-link, .form-check-label) { color: var(--color-text-secondary); }
+html[data-theme="dark"] :where(.dropdown-item:hover, .dropdown-item:focus) { background: var(--color-surface-hover); color: var(--color-text-primary); }
+html[data-theme="dark"] .synapse-select__option { color: var(--color-text-primary); }
+html[data-theme="dark"] .synapse-select__option[aria-selected="true"] { color: #101727; }
+
+/* Modal surfaces and close controls. */
+html[data-theme="dark"] :where(.visual-modal, .synapse-confirmation-overlay, .account-panel-overlay, .modal-backdrop) {
+  background: var(--color-overlay) !important;
+}
+html[data-theme="dark"] :where(.visual-modal-close, .account-panel-close, .btn-close) {
+  background-color: var(--color-surface-tertiary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+  filter: none;
+}
+html[data-theme="dark"] .visual-modal-caption { color: var(--color-text-primary); }
+
+/* Error, success, and warning surfaces keep their semantic hue without becoming pale cards. */
+html[data-theme="dark"] :where(.alert-success, .account-panel-status.success, .study-path-question-feedback.correct) {
+  background: rgba(34, 197, 139, .14) !important;
+  color: #8df0c7 !important;
+  border-color: rgba(97, 219, 173, .38) !important;
+}
+html[data-theme="dark"] :where(.alert-danger, .account-panel-status.error, .study-path-question-feedback.incorrect, .study-path-question-feedback.error) {
+  background: rgba(248, 113, 113, .14) !important;
+  color: #ffb0b0 !important;
+  border-color: rgba(255, 156, 156, .38) !important;
+}
+html[data-theme="dark"] :where(.account-panel-status.info, .study-path-question-feedback.retry) {
+  background: rgba(134, 165, 255, .14) !important;
+  color: var(--color-accent-hover) !important;
+  border-color: rgba(134, 165, 255, .38) !important;
+}
+
+html[data-theme="dark"] :where(a, button, input, select, textarea) { accent-color: var(--color-accent); }
+html[data-theme="dark"] :where(button:hover, a:hover) { color: var(--color-accent-hover); }
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme="dark"] :where(.notes-card, .assistant-panel, .summary-nav, .study-tools-card, .tool-panel, .visual-modal-content, .quiz-settings-modal, .card, .form-control, .form-select) {
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+}

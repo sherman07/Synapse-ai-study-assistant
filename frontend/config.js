@@ -50,8 +50,10 @@ if (
 window.SYNAPSE_API_BASE = window.SYNAPSE_API_BASE || (SYNAPSE_IS_LOCAL_HOST ? SYNAPSE_LOCAL_API_BASE : SYNAPSE_PRODUCTION_API_BASE);
 window.SYNAPSE_DATA_API_BASE = window.SYNAPSE_DATA_API_BASE || (SYNAPSE_IS_LOCAL_HOST ? SYNAPSE_LOCAL_DATA_API_BASE : SYNAPSE_PRODUCTION_DATA_API_BASE);
 window.SYNAPSE_CONTACT_ENDPOINT = window.SYNAPSE_CONTACT_ENDPOINT || `${window.SYNAPSE_API_BASE}/contact`;
-window.SYNAPSE_FOCUS_ROOM_ENABLED = window.SYNAPSE_FOCUS_ROOM_ENABLED === true
-  || window.SYNAPSE_FOCUS_ROOM_ENABLED === "true";
+// Focus Room is part of the primary study workflow. Deployments can still
+// disable it explicitly before this config runs with false or "false".
+window.SYNAPSE_FOCUS_ROOM_ENABLED = window.SYNAPSE_FOCUS_ROOM_ENABLED !== false
+  && window.SYNAPSE_FOCUS_ROOM_ENABLED !== "false";
 
 window.SYNAPSE_SUPABASE_URL = window.SYNAPSE_SUPABASE_URL || "https://yoopvoutgfhnldhmqmip.supabase.co";
 window.SYNAPSE_SUPABASE_ANON_KEY = window.SYNAPSE_SUPABASE_ANON_KEY || "sb_publishable_WhUSmLHyEZ7E_-R9_sjbPA_5KVgHzXF";
