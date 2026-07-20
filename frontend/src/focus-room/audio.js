@@ -136,7 +136,10 @@ async function syncFocusRoomAudio(config = {}) {
     const key = layer.id || layer.streamUrl;
     activeAmbientKeys.add(key);
     const howl = ensureAmbientChannel(layer);
-    const targetVolume = Math.min(1, Math.max(0, ambientBaseVolume * (layer.volumeBias ?? 1)));
+    const channelVolume = Number(activeConfig.audioChannels?.[layer.id]);
+    const targetVolume = Number.isFinite(channelVolume)
+      ? normalizeVolume(channelVolume, 0)
+      : Math.min(1, Math.max(0, ambientBaseVolume * (layer.volumeBias ?? 1)));
     ambientTargets.push([howl, targetVolume]);
   });
   removeInactiveAmbientChannels(activeAmbientKeys);

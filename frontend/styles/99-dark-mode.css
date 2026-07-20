@@ -140,6 +140,29 @@ html[data-theme="dark"] :where(
   background: var(--color-sidebar-background) !important;
 }
 
+/* Legacy study-tool controls keep their own light defaults in 04-section.css.
+   Override the controls themselves, not only their surrounding card. */
+html[data-theme="dark"] .tool-switch-btn {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .tool-switch-btn:hover,
+html[data-theme="dark"] .tool-switch-btn:focus-visible {
+  background: var(--color-surface-hover) !important;
+  border-color: var(--color-border-strong) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html[data-theme="dark"] .tool-switch-btn.active {
+  background: linear-gradient(135deg, var(--color-accent-active), var(--color-accent)) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 8px 20px rgba(99, 136, 250, .22);
+}
+
 html[data-theme="dark"] :where(
   .notes-summary-card,
   .notes-section-body,
@@ -209,6 +232,16 @@ html[data-theme="dark"] :where(
   background: var(--color-surface-secondary) !important;
   color: var(--color-text-secondary);
   border-color: var(--color-border-default) !important;
+}
+
+html[data-theme="dark"] :where(.memory-topic-row, .mm-node-dot, .mm-branch-count) {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-default) !important;
+}
+
+html[data-theme="dark"] .mm-branch-node.active .mm-node-dot {
+  background: color-mix(in srgb, var(--branch-color) 26%, var(--color-surface-secondary)) !important;
 }
 
 html[data-theme="dark"] :where(
@@ -315,6 +348,16 @@ html[data-theme="dark"] :where(.study-tools-card, .tool-panel, .mindmap-canvas, 
   background: var(--color-surface-primary) !important;
   color: var(--color-text-primary);
 }
+html[data-theme="dark"] :where(.study-tool-launch) {
+  border-color: var(--color-border-default) !important;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(95, 124, 255, 0.16), transparent 30%),
+    linear-gradient(180deg, var(--color-surface-secondary), var(--color-surface-primary)) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .18) !important;
+}
+html[data-theme="dark"] :where(.study-tool-launch-copy h4) { color: var(--color-text-primary) !important; }
+html[data-theme="dark"] :where(.study-tool-launch-copy p, .study-tool-launch-meta) { color: var(--color-text-secondary) !important; }
+html[data-theme="dark"] :where(.study-tool-launch-kicker, .study-tool-launch-meta i) { color: var(--color-accent) !important; }
 html[data-theme="dark"] :where(.mm-root-dot, .mm-branch-dot, .mm-point-dot, .mm-tree-dot, .mm-leaf-dot) {
   background: var(--color-surface-secondary) !important;
 }
@@ -392,6 +435,19 @@ html[data-theme="dark"] :where(.account-panel-status.info, .study-path-question-
 
 html[data-theme="dark"] :where(a, button, input, select, textarea) { accent-color: var(--color-accent); }
 html[data-theme="dark"] :where(button:hover, a:hover) { color: var(--color-accent-hover); }
+
+html[data-theme="dark"] {
+  scrollbar-color: var(--color-border-strong) var(--color-surface-secondary);
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--color-surface-secondary) !important;
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong) !important;
+  border-color: var(--color-surface-secondary) !important;
+}
 
 @media (prefers-reduced-motion: no-preference) {
   html[data-theme="dark"] :where(.notes-card, .assistant-panel, .summary-nav, .study-tools-card, .tool-panel, .visual-modal-content, .quiz-settings-modal, .card, .form-control, .form-select) {

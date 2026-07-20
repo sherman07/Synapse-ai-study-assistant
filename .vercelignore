@@ -1,0 +1,16 @@
+.git
+.worktrees
+.synapse_runtime
+.venv
+.venv-1
+node_modules
+dist
+frontend/dist
+__pycache__
+*.pyc
+.DS_Store
+.env*
+backend/.env
+server/.env
+*.sqlite
+*.sqlite3

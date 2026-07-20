@@ -7,15 +7,8 @@ export function SceneSelector() {
   const selectScene = useFocusRoomStore(state => state.selectScene);
 
   return (
-    <div className="scene-selector">
-      {FOCUS_ROOM_SCENES.map(scene => (
-        <SceneCard
-          key={scene.id}
-          scene={scene}
-          active={scene.id === selectedScene}
-          onSelect={selectScene}
-        />
-      ))}
+    <div className="scene-selector" aria-label="Study scenes">
+      {FOCUS_ROOM_SCENES.map(scene => <SceneCard key={scene.id} scene={scene} active={scene.id === selectedScene} onSelect={selectScene} />)}
     </div>
   );
 }

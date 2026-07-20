@@ -1,7 +1,7 @@
 import { h, icon, legacyAction } from "../runtime.js";
-import { NotesToolbar } from "./NotesToolbar.js?v=ai-broadcast-v15";
-import { SourceViewerPanel } from "./SourceViewerPanel.js?v=ai-broadcast-v15";
-import { StudyTools } from "./StudyTools.js?v=ai-broadcast-v15";
+import { NotesToolbar } from "./NotesToolbar.js?v=ai-broadcast-v19";
+import { SourceViewerPanel } from "./SourceViewerPanel.js?v=ai-broadcast-v19";
+import { StudyTools } from "./StudyTools.js?v=ai-broadcast-v19";
 
 export function AnalysisStage() {
   return h(
@@ -19,17 +19,6 @@ export function AnalysisStage() {
       h(
         "div",
         { className: "analysis-header-actions" },
-        h(
-          "button",
-          {
-            id: "focusRoomCta",
-            className: "btn btn-primary focus-room-entry-btn d-none",
-            type: "button",
-            onClick: legacyAction("openSynapseFocusRoom"),
-          },
-          icon("bi-door-open", "me-1"),
-          "Study in Focus Room"
-        ),
         h(
           "button",
           {

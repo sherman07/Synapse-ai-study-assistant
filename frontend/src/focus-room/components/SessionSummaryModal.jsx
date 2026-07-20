@@ -2,25 +2,14 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
 import { formatFocusRoomDuration } from "../data.js";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
-import { focusFlashcards, focusQuizQuestions } from "../utils.js";
+import { currentScene } from "../utils.js";
 import { GlassButton } from "./GlassButton.jsx";
 
-export function SessionSummaryModal({ onWorkspace, onHistory }) {
+export function SessionSummaryModal() {
   const record = useFocusRoomStore(state => state.summaryRecord);
-  const material = useFocusRoomStore(state => state.selectedMaterial);
   const closeSummary = useFocusRoomStore(state => state.closeSummary);
-  const openStudyPanel = useFocusRoomStore(state => state.openStudyPanel);
   const startTimer = useFocusRoomStore(state => state.startTimer);
-  const openHistory = () => {
-    closeSummary();
-    openStudyPanel("history");
-  };
-  const openWorkspace = () => {
-    closeSummary();
-    onWorkspace?.();
-  };
-  const flashcards = focusFlashcards(material);
-  const questions = focusQuizQuestions(material);
+  const scene = currentScene(record?.selectedScene);
 
   return (
     <Dialog.Root open={Boolean(record)} onOpenChange={open => !open && closeSummary()}>
@@ -43,39 +32,33 @@ export function SessionSummaryModal({ onWorkspace, onHistory }) {
                 exit={{ opacity: 0, y: 18, scale: 0.98 }}
               >
                 <span className="focus-kicker">Session complete</span>
-                <Dialog.Title>{record.materialTitle}</Dialog.Title>
+                <Dialog.Title>Focus block complete</Dialog.Title>
                 <Dialog.Description className="sr-only">
-                  Summary of focus time, flashcards, quiz score, completed tasks, and recommended next step.
+                  Summary of the completed focus block.
                 </Dialog.Description>
-                <p>{record.aiReflection}</p>
+                <p>You protected a focused block in your quiet study room.</p>
                 <div className="summary-grid">
                   <div className="summary-stat liquid-glass-lite">
                     <span>Focus time</span>
                     <strong>{formatFocusRoomDuration(record.totalFocusTime)}</strong>
                   </div>
                   <div className="summary-stat liquid-glass-lite">
-                    <span>Flashcards</span>
-                    <strong>{record.flashcardsCompleted}</strong>
+                    <span>Planned block</span>
+                    <strong>{record.pomodoroDuration}m</strong>
                   </div>
                   <div className="summary-stat liquid-glass-lite">
-                    <span>Quiz score</span>
-                    <strong>{record.quizScore === null ? "N/A" : `${record.quizScore}%`}</strong>
+                    <span>Scene</span>
+                    <strong>{scene.name}</strong>
                   </div>
                   <div className="summary-stat liquid-glass-lite">
-                    <span>Tasks</span>
-                    <strong>{record.completedTasks.length}</strong>
+                    <span>Room state</span>
+                    <strong>Saved</strong>
                   </div>
                 </div>
-                {record.mistakesMade.length ? <p>Review: {record.mistakesMade.join("; ")}</p> : null}
                 {record.persisted === false ? <p>This session is visible for now, but could not be saved to this device history.</p> : null}
-                <p>{record.recommendedNextStep}</p>
                 <div className="focus-button-row">
                   <GlassButton variant="primary" onClick={() => { closeSummary(); startTimer(); }}>Continue studying</GlassButton>
-                  <GlassButton onClick={() => { closeSummary(); openStudyPanel(questions.length ? "quiz" : "materials"); }}>Start quiz</GlassButton>
-                  <GlassButton onClick={() => { closeSummary(); openStudyPanel(flashcards.length ? "flashcards" : "materials"); }}>Review flashcards</GlassButton>
-                  <GlassButton onClick={() => { closeSummary(); openStudyPanel(material?.mindMap ? "mindmap" : "materials"); }}>Open mind map</GlassButton>
-                  <GlassButton onClick={openHistory}>View History</GlassButton>
-                  <GlassButton onClick={openWorkspace}>Workspace</GlassButton>
+                  <GlassButton onClick={closeSummary}>Done</GlassButton>
                 </div>
               </motion.article>
             </Dialog.Content>

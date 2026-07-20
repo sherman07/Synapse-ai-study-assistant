@@ -5,6 +5,8 @@ function deleteFlashcardDeck(historyId, sourceFingerprint = "") {
   setFlashcardStore(store);
 }
 
+let flashcardBuilderOpen = false;
+
 function resetFlashcardState() {
   currentFlashcards = [];
   activeFlashcardIndex = 0;
@@ -13,6 +15,7 @@ function resetFlashcardState() {
   isFlashcardGenerating = false;
   flashcardActivityMode = "cards";
   flashcardMatchingState = null;
+  flashcardBuilderOpen = false;
   renderFlashcardPanel();
 }
 
@@ -52,11 +55,29 @@ function renderFlashcardPanel() {
     return;
   }
 
-  panel.innerHTML = currentFlashcards.length ? renderFlashcardStudyView() : renderFlashcardBuilder();
+  panel.innerHTML = currentFlashcards.length
+    ? renderFlashcardStudyView()
+    : (flashcardBuilderOpen ? renderFlashcardBuilder() : renderFlashcardLaunch());
   renderMath();
   if (flashcardActivityMode === "matching") {
     requestAnimationFrame(renderFlashcardMatchLines);
   }
+}
+
+function renderFlashcardLaunch() {
+  const hasNotes = Boolean(fullSummary && fullSummary.trim());
+  return renderStudyToolLaunch({
+    tool: "flashcards",
+    iconClass: "bi-card-text",
+    title: "Build a flashcard deck",
+    description: hasNotes
+      ? "Turn definitions, contrasts, processes, examples, and evidence into a focused active-recall deck."
+      : "Generate notes first, then build a flashcard deck from the material.",
+    action: "generateFlashcards()",
+    actionLabel: "Generate flashcards",
+    hasNotes,
+    kicker: "Active recall deck"
+  });
 }
 
 function renderFlashcardBuilder() {
@@ -554,6 +575,7 @@ function clearFlashcardsAndShowBuilder() {
   flashcardError = "";
   flashcardActivityMode = "cards";
   flashcardMatchingState = null;
+  flashcardBuilderOpen = true;
   renderFlashcardPanel();
 }
 
@@ -571,6 +593,7 @@ async function generateFlashcards() {
   activeFlashcardIndex = 0;
   flashcardSide = "front";
   flashcardMatchingState = null;
+  flashcardBuilderOpen = false;
   switchTool("flashcards");
   renderFlashcardPanel();
 
@@ -958,6 +981,9 @@ function renderMindMap(mindMap) {
   currentMindMap = data;
 
   if (!mindMapCanvas) return;
+  const mindMapSettings = getStudyToolSettings("mindmap");
+  mindMapCanvas.dataset.mindmapLayout = mindMapSettings.layout || "tree";
+  mindMapCanvas.dataset.mindmapDetail = mindMapSettings.detail || "expanded";
   if (!data.branches.length) {
     mindMapCanvas.innerHTML = `<div class="mindmap-empty">Mind map will appear after analysis.</div>`;
     return;

@@ -15,6 +15,30 @@
   box-shadow: 0 14px 32px rgba(74, 124, 255, 0.22);
 }
 
+.focus-setup-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 2px;
+}
+
+.focus-back-main-btn {
+  min-height: 40px;
+  padding-inline: 14px;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(7, 12, 21, 0.32);
+  color: var(--text-primary);
+  box-shadow: 0 10px 24px rgba(7, 9, 13, 0.18);
+}
+
+.focus-back-main-btn:hover,
+.focus-back-main-btn:focus-visible {
+  border-color: rgba(255, 255, 255, 0.52);
+  background: rgba(7, 12, 21, 0.5);
+  color: #ffffff;
+}
+
 .focus-room-surface,
 body.focus-room-standalone {
   --glass-bg: var(--focus-glass-bg, rgba(20, 21, 26, 0.6));
@@ -1046,6 +1070,15 @@ body.focus-room-standalone #focusRoomRoot {
     padding: 17px;
   }
 
+  .focus-setup-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .focus-back-main-btn {
+    width: 100%;
+  }
+
   .scene-selector,
   .duration-grid,
   .summary-grid,
@@ -1117,6 +1150,503 @@ body.focus-room-standalone #focusRoomRoot {
   }
 }
 
+/* Keep the Focus Mode affordance discoverable on touch layouts. */
+@media (max-width: 640px) {
+  .react-focus-room .dock-focus-mode { display: flex !important; }
+}
+
+/* Final Innook selection geometry: keep the header in the upper frame while
+   centering the 928px composition below it to match the reference state. */
+.react-focus-room .focus-innook-selection {
+  padding: 22px 48px 20px !important;
+  gap: 0 !important;
+}
+
+.react-focus-room .focus-selection-header {
+  flex: 0 0 auto !important;
+  height: 58px;
+  min-height: 58px;
+  box-sizing: border-box;
+  padding-bottom: 13px !important;
+}
+
+.react-focus-room .focus-selection-layout {
+  width: min(928px, 100%);
+  height: 570px;
+  flex: 0 0 570px !important;
+  margin: 50px auto 0 !important;
+  padding: 0 !important;
+  align-items: stretch;
+}
+
+.react-focus-room .focus-selection-panel {
+  width: 845px !important;
+  height: 570px !important;
+  box-sizing: border-box;
+  padding: 24px 28px 25px !important;
+  transform: translateX(-1px);
+}
+
+.react-focus-room .focus-selection-heading {
+  height: 50px;
+  margin-bottom: 14px !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-selector {
+  gap: 15px 16px !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-card {
+  height: 220px !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-card-media {
+  flex: 0 0 auto;
+}
+
+.react-focus-room .focus-selection-panel .scene-card::after {
+  display: none !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-card-media {
+  border-radius: 12px;
+}
+
+.react-focus-room .focus-selection-panel .scene-card-copy {
+  width: 100%;
+}
+
+.react-focus-room .focus-selection-rail {
+  width: 62px;
+  flex-basis: 62px;
+}
+
+.react-focus-room .focus-selection-rail .focus-rail-icon {
+  width: 31px;
+  height: 31px;
+}
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-innook-selection {
+    padding: 24px 20px max(18px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .react-focus-room .focus-selection-layout {
+    width: 100%;
+    height: auto;
+    flex: 1 1 auto !important;
+    margin-top: 20px !important;
+  }
+
+  .react-focus-room .focus-selection-panel {
+    width: 100% !important;
+    height: auto !important;
+    padding: 18px !important;
+  }
+
+  .react-focus-room .focus-selection-rail {
+    width: 100% !important;
+    flex-basis: auto !important;
+    position: static;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-group,
+  .react-focus-room .focus-selection-rail .focus-rail-divider,
+  .react-focus-room .focus-selection-rail .focus-rail-durations,
+  .react-focus-room .focus-selection-rail .focus-selection-enter {
+    position: static;
+    transform: none;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-group {
+    display: flex;
+    gap: 6px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-divider {
+    width: 1px;
+    height: 28px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-durations {
+    display: flex;
+    gap: 2px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-selection-enter {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+/* Final Innook selection geometry: keep the header in the upper frame while
+   centering the 928px composition below it to match the reference state. */
+.react-focus-room .focus-innook-selection {
+  padding: 22px 48px 20px;
+}
+
+.react-focus-room .focus-selection-header {
+  flex: 0 0 auto;
+  min-height: 58px;
+  padding-bottom: 13px;
+}
+
+.react-focus-room .focus-selection-layout {
+  width: min(928px, 100%);
+  height: 570px;
+  flex: 0 0 570px;
+  margin: 50px auto 0;
+  padding: 0;
+  align-items: stretch;
+}
+
+.react-focus-room .focus-selection-panel {
+  width: 845px;
+  height: 570px;
+  box-sizing: border-box;
+  padding: 24px 28px 25px;
+}
+
+.react-focus-room .focus-selection-heading {
+  margin-bottom: 9px;
+}
+
+.react-focus-room .focus-selection-panel .scene-selector {
+  gap: 15px 16px;
+}
+
+.react-focus-room .focus-selection-panel .scene-card {
+  height: 220px;
+}
+
+.react-focus-room .focus-selection-panel .scene-card-media {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-innook-selection {
+    padding: 24px 20px max(18px, env(safe-area-inset-bottom));
+  }
+
+  .react-focus-room .focus-selection-layout {
+    width: 100%;
+    height: auto;
+    flex: 1 1 auto;
+    margin-top: 20px;
+  }
+
+  .react-focus-room .focus-selection-panel {
+    width: 100%;
+    height: auto;
+    padding: 18px;
+  }
+}
+
+/* Innook reference composition: quiet media, thin glass, and a single visual focus. */
+@font-face {
+  font-family: "Innook Songti Subset";
+  src: url("../assets/focus-room/innook/innook-songti-subset.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.react-focus-room.focus-room-surface {
+  --innook-ink: #f4e7d3;
+  --innook-soft: rgba(244, 231, 211, .72);
+  --innook-line: rgba(244, 231, 211, .34);
+  --innook-glass: rgba(36, 31, 26, .34);
+  font-family: Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  background: #000;
+  color: var(--innook-ink);
+}
+
+.react-focus-room .focus-background-wrap,
+.react-focus-room .focus-background,
+.react-focus-room .focus-background-media {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.react-focus-room .focus-background-wrap { z-index: 0; overflow: hidden; background: #080706; }
+.react-focus-room .focus-background { transform: scale(1.015); transition: opacity .7s ease, transform 1.2s ease; }
+.react-focus-room .focus-background-media { display: block; object-fit: cover; object-position: 50% 50%; opacity: 0; transition: opacity .7s ease; }
+.react-focus-room .focus-background-media.is-ready { opacity: 1; }
+.react-focus-room .focus-background-video { z-index: 1; }
+.react-focus-room .focus-background-poster { z-index: 0; }
+.react-focus-room .focus-background:has(.focus-background-video.is-ready) .focus-background-poster { opacity: 0; }
+.react-focus-room .focus-overlay { z-index: 2; background: rgba(0, 0, 0, .30); }
+.react-focus-room .focus-vignette { z-index: 3; background: radial-gradient(circle at 18% 12%, rgba(244, 231, 211, .16), transparent 30%), linear-gradient(180deg, rgba(0, 0, 0, .05), rgba(0, 0, 0, .34)); }
+
+.react-focus-room .focus-room-setup-view { min-height: 100dvh; height: 100dvh; overflow: auto; padding: 0; }
+.react-focus-room .focus-landing-shell,
+.react-focus-room .focus-innook-selection { position: relative; z-index: 10; width: min(1440px, 100%); min-height: 100dvh; margin: 0 auto; padding: 48px 48px 20px; color: var(--innook-ink); }
+.react-focus-room .focus-landing-shell { display: flex; flex-direction: column; }
+
+.react-focus-room .focus-landing-header,
+.react-focus-room .focus-selection-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid rgba(244, 231, 211, .16); }
+.react-focus-room .focus-landing-brand,
+.react-focus-room .focus-wordmark { display: inline-flex; align-items: center; gap: 10px; padding: 0; color: var(--innook-ink); background: none; border: 0; cursor: pointer; }
+.react-focus-room .focus-landing-brand { text-align: left; }
+.react-focus-room .focus-wordmark-mark { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(244, 231, 211, .62); border-radius: 50%; font: 400 20px/1 "Innook Songti Subset", Georgia, serif; color: var(--innook-ink); background: rgba(244, 231, 211, .06); }
+.react-focus-room .focus-landing-brand-copy,
+.react-focus-room .focus-landing-footer-lockup > span:last-child { display: grid; gap: 1px; }
+.react-focus-room .focus-landing-brand-copy strong { font: 600 20px/1 Arial, sans-serif; letter-spacing: -.04em; }
+.react-focus-room .focus-landing-brand-copy small,
+.react-focus-room .focus-landing-footer-lockup small { color: rgba(244, 231, 211, .55); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.react-focus-room .focus-landing-actions,
+.react-focus-room .focus-selection-header-actions { display: flex; align-items: center; gap: 12px; }
+.react-focus-room .focus-landing-icon,
+.react-focus-room .focus-selection-icon { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid rgba(244, 231, 211, .16); border-radius: 50%; color: var(--innook-soft); background: rgba(244, 231, 211, .08); box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); backdrop-filter: blur(18px) saturate(1.25); cursor: pointer; transition: color .25s ease, border-color .25s ease, background .25s ease, transform .25s ease; }
+.react-focus-room .focus-landing-icon:hover,
+.react-focus-room .focus-selection-icon:hover { color: var(--innook-ink); border-color: rgba(244, 231, 211, .42); background: rgba(244, 231, 211, .13); transform: translateY(-1px); }
+.react-focus-room .focus-landing-language { display: inline-flex; align-items: center; gap: 16px; height: 56px; padding: 0 20px; border: 1px solid rgba(244, 231, 211, .16); border-radius: 999px; color: var(--innook-ink); background: rgba(244, 231, 211, .08); box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); backdrop-filter: blur(18px) saturate(1.25); font-size: 16px; cursor: default; }
+.react-focus-room .focus-landing-language span { color: rgba(244, 231, 211, .68); }
+
+.react-focus-room .focus-landing-hero { display: flex; flex: 1; min-height: 39dvh; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0 28px; text-align: center; }
+.react-focus-room .focus-landing-eyebrow { margin: 0 0 20px; color: var(--innook-soft); font-size: 14px; letter-spacing: .42em; text-transform: uppercase; }
+.react-focus-room .focus-landing-hero h1 { margin: 0; color: var(--innook-ink); font: 400 clamp(3.2rem, 7.2vw, 5.2rem)/1.08 "Innook Songti Subset", "Songti SC", STSong, Georgia, serif; letter-spacing: .05em; }
+.react-focus-room .focus-landing-subtitle { max-width: 720px; margin: 24px 0 0; color: var(--innook-soft); font-size: 18px; line-height: 1.55; letter-spacing: .12em; }
+.react-focus-room .focus-landing-enter { display: inline-flex; align-items: center; gap: 14px; min-height: 52px; margin-top: 32px; padding: 14px 32px; border: 1px solid rgba(244, 231, 211, .28); border-radius: 999px; color: #fff; background: rgba(244, 231, 211, .08); box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); backdrop-filter: blur(18px) saturate(1.25); font: 500 16px/24px Arial, sans-serif; letter-spacing: .04em; cursor: pointer; transition: background .25s ease, border-color .25s ease, transform .25s ease; }
+.react-focus-room .focus-landing-enter:hover { border-color: rgba(244, 231, 211, .56); background: rgba(244, 231, 211, .15); transform: translateY(-2px); }
+.react-focus-room .focus-landing-secondary { display: flex; align-items: center; gap: 10px; margin-top: 16px; color: rgba(244, 231, 211, .48); font-size: 11px; }
+.react-focus-room .focus-landing-secondary span,
+.react-focus-room .focus-landing-secondary button { display: inline-flex; align-items: center; gap: 7px; min-height: 33px; padding: 9px 14px; border: 1px solid rgba(244, 231, 211, .16); border-radius: 999px; color: inherit; background: rgba(25, 22, 18, .26); box-shadow: inset 0 1px 1px rgba(255,255,255,.08), 0 12px 29px rgba(0,0,0,.12); }
+.react-focus-room .focus-landing-secondary button { cursor: pointer; }
+.react-focus-room .focus-landing-secondary button:hover { color: var(--innook-ink); border-color: rgba(244, 231, 211, .35); }
+
+.react-focus-room .focus-landing-footer { width: 100%; padding: 20px 28px; border: 1px solid rgba(244, 231, 211, .34); border-radius: 24px; background: rgba(36, 31, 26, .34); box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); backdrop-filter: blur(18px) saturate(1.25); }
+.react-focus-room .focus-landing-footer-grid { display: grid; grid-template-columns: 4fr 5fr 3fr; align-items: center; gap: 32px; }
+.react-focus-room .focus-landing-footer-lockup { display: flex; align-items: center; gap: 12px; }
+.react-focus-room .focus-landing-footer-lockup .focus-wordmark-mark { width: 40px; height: 40px; }
+.react-focus-room .focus-landing-footer-lockup strong { font: 600 18px/1 Arial, sans-serif; letter-spacing: -.04em; }
+.react-focus-room .focus-landing-footer-brand p,
+.react-focus-room .focus-landing-footer-resource p { max-width: 390px; margin: 12px 0 0; color: var(--innook-soft); font-size: 14px; line-height: 1.7; }
+.react-focus-room .focus-landing-footer-resource strong { color: var(--innook-ink); font-size: 14px; }
+.react-focus-room .focus-landing-footer-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.react-focus-room .focus-landing-footer-meta { margin-top: 15px; padding-top: 13px; border-top: 1px solid rgba(244, 231, 211, .14); color: rgba(244, 231, 211, .5); font-size: 11px; text-align: center; }
+
+.react-focus-room .focus-innook-selection { display: flex; flex-direction: column; }
+.react-focus-room .focus-innook-selection .focus-selection-header { flex: 0 0 auto; }
+.react-focus-room .focus-selection-layout { display: flex; flex: 1; align-items: center; justify-content: center; gap: 20px; min-height: 0; padding: 32px 0 22px; }
+.react-focus-room .focus-selection-panel { width: min(844px, calc(100vw - 170px)); padding: 28px; border: 1px solid rgba(244, 231, 211, .42); border-radius: 24px; background: rgba(36, 31, 26, .34) !important; box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); backdrop-filter: blur(18px) saturate(1.25); }
+.react-focus-room .focus-selection-heading { margin-bottom: 16px; }
+.react-focus-room .focus-selection-heading h1 { margin: 8px 0 0; color: var(--innook-ink); font: 400 30px/1.1 "Innook Songti Subset", "Songti SC", STSong, Georgia, serif; letter-spacing: .04em; }
+.react-focus-room .focus-selection-panel .scene-selector-wrap { position: relative; }
+.react-focus-room .focus-selection-panel .scene-selector { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.react-focus-room .focus-selection-panel .scene-card { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 8px; padding: 0 !important; border: 0 !important; border-radius: 0 !important; color: rgba(244, 231, 211, .7); background: transparent !important; box-shadow: none !important; text-align: center; }
+.react-focus-room .focus-selection-panel .scene-card.is-active,
+.react-focus-room .focus-selection-panel .scene-card.active { color: var(--innook-ink); }
+.react-focus-room .focus-selection-panel .scene-card-media { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; border: 1px solid transparent; border-radius: 16px; background: rgba(0,0,0,.16); box-shadow: 0 14px 34px rgba(0,0,0,.24); }
+.react-focus-room .focus-selection-panel .scene-card.active .scene-card-media { border-color: rgba(244, 231, 211, .84); box-shadow: 0 0 0 1px rgba(244, 231, 211, .42), 0 14px 34px rgba(0,0,0,.3); }
+.react-focus-room .focus-selection-panel .scene-card-media img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
+.react-focus-room .focus-selection-panel .scene-card:hover .scene-card-media img { transform: scale(1.03); }
+.react-focus-room .focus-selection-panel .scene-card-media-shade { position: absolute; inset: 0; background: radial-gradient(circle at 18% 18%, rgba(255,255,255,.2), transparent 28%), linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.2)); pointer-events: none; }
+.react-focus-room .focus-selection-panel .scene-card-check { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid rgba(244, 231, 211, .38); border-radius: 50%; color: var(--innook-ink); background: rgba(36, 31, 26, .42); backdrop-filter: blur(12px); font-size: 14px; }
+.react-focus-room .focus-selection-panel .scene-card-copy { display: grid; gap: 3px; text-align: center; }
+.react-focus-room .focus-selection-panel .scene-card-copy strong { color: inherit; font: 400 14px/1.1 "Innook Songti Subset", "Songti SC", STSong, Georgia, serif; letter-spacing: .02em; }
+.react-focus-room .focus-selection-panel .scene-card-copy small { color: rgba(244, 231, 211, .58); font-size: 10px; line-height: 1.3; }
+.react-focus-room .focus-selection-panel .scene-pagination { position: absolute; inset: 0; display: block; pointer-events: none; }
+.react-focus-room .focus-selection-panel .scene-pagination span { display: none; }
+.react-focus-room .focus-selection-panel .scene-page-arrow { position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid rgba(244, 231, 211, .18); border-radius: 50%; color: rgba(244, 231, 211, .78); background: rgba(244, 231, 211, .055); box-shadow: inset 0 1px 1px rgba(255,255,255,.12), 0 14px 35px rgba(0,0,0,.18); transform: translateY(-50%); pointer-events: auto; cursor: pointer; }
+.react-focus-room .focus-selection-panel .scene-page-arrow:disabled { opacity: .35; cursor: default; }
+.react-focus-room .focus-selection-panel .scene-page-button-left { left: -46px; }
+.react-focus-room .focus-selection-panel .scene-page-button-right { right: -46px; }
+.react-focus-room .focus-selection-rail { display: flex; width: 64px; flex: 0 0 64px; flex-direction: column; align-items: center; gap: 13px; color: var(--innook-soft); }
+.react-focus-room .focus-rail-group { display: grid; gap: 8px; }
+.react-focus-room .focus-rail-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid rgba(244, 231, 211, .14); border-radius: 50%; color: rgba(244, 231, 211, .48); background: rgba(244, 231, 211, .035); box-shadow: inset 0 1px 1px rgba(255,255,255,.08); cursor: pointer; transition: color .2s ease, border-color .2s ease, background .2s ease; }
+.react-focus-room .focus-rail-icon:hover,
+.react-focus-room .focus-rail-icon.is-active { border-color: rgba(244, 231, 211, .74); color: var(--innook-ink); background: rgba(244, 231, 211, .13); box-shadow: 0 0 22px rgba(244, 231, 211, .12); }
+.react-focus-room .focus-rail-divider { width: 28px; height: 1px; background: rgba(244, 231, 211, .16); }
+.react-focus-room .focus-rail-durations { display: grid; gap: 6px; justify-items: center; }
+.react-focus-room .focus-rail-duration { min-width: 40px; min-height: 24px; padding: 3px 7px; border: 1px solid transparent; border-radius: 999px; color: rgba(244, 231, 211, .68); background: transparent; font-size: 12px; cursor: pointer; }
+.react-focus-room .focus-rail-duration:hover,
+.react-focus-room .focus-rail-duration.is-active { border-color: rgba(244, 231, 211, .64); color: var(--innook-ink); background: rgba(244, 231, 211, .10); }
+.react-focus-room .focus-rail-countup { font-size: 18px; line-height: 1; }
+.react-focus-room .focus-selection-enter { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(244, 231, 211, .32); border-radius: 50%; color: var(--innook-ink); background: rgba(244, 231, 211, .08); box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); cursor: pointer; transition: transform .25s ease, background .25s ease; }
+.react-focus-room .focus-selection-enter:hover { background: rgba(244, 231, 211, .16); transform: translateX(2px); }
+.react-focus-room .focus-selection-tools { display: none; }
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-landing-shell,
+  .react-focus-room .focus-innook-selection { padding: 24px 20px max(18px, env(safe-area-inset-bottom)); }
+  .react-focus-room .focus-landing-header,
+  .react-focus-room .focus-selection-header { padding-bottom: 14px; }
+  .react-focus-room .focus-landing-language { width: 44px; height: 44px; padding: 0; justify-content: center; font-size: 0; }
+  .react-focus-room .focus-landing-language span { font-size: 16px; }
+  .react-focus-room .focus-landing-hero { min-height: 50dvh; padding: 20px 0; }
+  .react-focus-room .focus-landing-eyebrow { margin-bottom: 14px; font-size: 10px; letter-spacing: .34em; }
+  .react-focus-room .focus-landing-hero h1 { font-size: clamp(2.7rem, 12vw, 4.4rem); }
+  .react-focus-room .focus-landing-subtitle { max-width: 330px; font-size: 13px; letter-spacing: .06em; }
+  .react-focus-room .focus-landing-footer { padding: 18px; border-radius: 20px; }
+  .react-focus-room .focus-landing-footer-grid { grid-template-columns: 1fr; gap: 18px; }
+  .react-focus-room .focus-landing-footer-actions { justify-content: flex-start; }
+  .react-focus-room .focus-selection-layout { flex-direction: column; gap: 16px; padding-top: 20px; }
+  .react-focus-room .focus-selection-panel { width: 100%; padding: 18px; border-radius: 21px; }
+  .react-focus-room .focus-selection-heading h1 { font-size: 28px; }
+  .react-focus-room .focus-selection-panel .scene-selector { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+  .react-focus-room .focus-selection-panel .scene-card-media { border-radius: 13px; }
+  .react-focus-room .focus-selection-panel .scene-page-button-left { left: -8px; }
+  .react-focus-room .focus-selection-panel .scene-page-button-right { right: -8px; }
+  .react-focus-room .focus-selection-rail { width: 100%; flex-direction: row; justify-content: center; gap: 10px; }
+  .react-focus-room .focus-rail-group { display: flex; gap: 6px; }
+  .react-focus-room .focus-rail-divider { width: 1px; height: 28px; }
+  .react-focus-room .focus-rail-durations { display: flex; gap: 2px; }
+  .react-focus-room .focus-rail-duration { min-width: 32px; padding: 3px 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-focus-room .focus-background,
+  .react-focus-room .focus-background-media,
+  .react-focus-room .focus-landing-enter,
+  .react-focus-room .focus-landing-icon,
+  .react-focus-room .focus-selection-enter { transition: none; }
+}
+
+/* Immersive Focus Room composition */
+.react-focus-room.focus-room-surface {
+  --room-ink: #f7efe4;
+  --room-soft: rgba(247, 239, 228, .68);
+  --room-glass: rgba(37, 31, 27, .46);
+  --room-glass-strong: rgba(45, 37, 31, .68);
+  --room-line: rgba(250, 241, 229, .22);
+  min-height: 100svh;
+  color: var(--room-ink);
+  background: #0b0908;
+  overflow: hidden;
+}
+.react-focus-room .focus-background-wrap { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: #0b0908; }
+.react-focus-room .focus-background { position: absolute; inset: -3%; background: #16110e; overflow: hidden; transform-origin: center; }
+.focus-background-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 0; transition: opacity .75s ease; }
+.focus-background-media.is-ready { opacity: 1; }
+.react-focus-room .focus-overlay { background: linear-gradient(180deg, rgba(12, 9, 7, .44) 0%, rgba(12, 9, 7, .12) 30%, rgba(12, 9, 7, .32) 75%, rgba(8, 6, 5, .68) 100%); opacity: 1; }
+.focus-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 30%, rgba(6, 4, 3, .28) 100%); }
+.focus-room-view { position: relative; z-index: 1; min-height: 100svh; }
+.focus-wordmark { display: inline-flex; align-items: center; gap: 8px; color: var(--room-ink); background: transparent; border: 0; padding: 0; font-size: 20px; letter-spacing: -.045em; font-weight: 650; cursor: pointer; text-shadow: 0 1px 16px rgba(0,0,0,.22); }
+.focus-wordmark-mark { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid rgba(255,255,255,.6); border-radius: 50%; font-family: Georgia, serif; font-size: 15px; font-weight: 500; }
+.focus-room-header { position: absolute; top: max(22px, env(safe-area-inset-top)); left: max(32px, env(safe-area-inset-left)); right: max(32px, env(safe-area-inset-right)); display: flex; align-items: center; justify-content: space-between; z-index: 4; min-height: 58px; }
+.focus-room-context { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-left: auto; margin-right: 26px; color: var(--room-soft); font-size: 12px; letter-spacing: .05em; }
+.focus-room-context span { color: var(--room-ink); font-size: 13px; }
+.focus-room-context small { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--room-soft); }
+.focus-room-header-actions { display: flex; align-items: center; gap: 7px; }
+.header-icon-button { min-height: 40px; padding: 0 13px; gap: 7px; border-radius: 999px; color: var(--room-ink); border-color: var(--room-line); background: rgba(30, 25, 21, .27); box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 7px 24px rgba(0,0,0,.16); backdrop-filter: blur(16px) saturate(120%); }
+.header-icon-button:hover, .header-icon-button:focus-visible { background: rgba(51, 42, 34, .64); transform: translateY(-1px); }
+.header-exit-button { color: #f2d6c9; }
+.focus-session-stage { min-height: 100svh; padding: 80px 48px 170px; display: grid; place-items: center; }
+.focus-session-stage.is-focus-mode { padding: 0; }
+.focus-session-stage.is-focus-mode .focus-session-grid { opacity: 0; pointer-events: none; }
+.focus-session-grid { width: min(980px, 100%); opacity: 0; pointer-events: none; }
+.focus-session-dock { position: fixed; z-index: 5; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(896px, calc(100vw - 72px)); min-height: 92px; display: grid; grid-template-columns: 210px minmax(240px, 1fr) auto; align-items: center; gap: 30px; padding: 18px 22px; color: var(--room-ink); border: 1px solid rgba(255,255,255,.19); border-radius: 25px; background: rgba(36, 31, 26, .45); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 20px 55px rgba(0,0,0,.28); backdrop-filter: blur(22px) saturate(130%); }
+.dock-eyebrow { display: block; color: var(--room-soft); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
+.dock-status { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--room-soft); font-size: 11px; }
+.dock-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #c0d9b5; box-shadow: 0 0 10px #c0d9b5; }
+.dock-status-dot.is-paused { background: #e2bd84; box-shadow: 0 0 10px #e2bd84; }
+.dock-time { display: block; margin-top: 1px; font-size: 27px; font-weight: 420; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+.dock-progress, .compact-focus-progress { height: 2px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.16); }
+.dock-progress span, .compact-focus-progress span { display: block; height: 100%; border-radius: inherit; background: rgba(247, 223, 188, .78); transition: width .35s linear; }
+.dock-goal-block { min-width: 0; padding-left: 28px; border-left: 1px solid rgba(255,255,255,.16); }
+.dock-goal-block strong { display: block; max-width: 340px; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--room-ink); font-size: 14px; font-weight: 450; }
+.dock-goal-meta { display: block; margin-top: 5px; color: var(--room-soft); font-size: 10px; }
+.dock-action-block { display: flex; align-items: center; gap: 7px; }
+.dock-action-button { min-height: 42px; border-radius: 13px; padding: 0 13px; color: var(--room-ink); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
+.dock-action-button.glass-button-primary { background: rgba(237, 214, 181, .78); color: #35271e; border-color: rgba(255,255,255,.4); }
+.dock-focus-mode { min-height: 42px; border: 0; padding: 0 4px; color: var(--room-soft); background: transparent; font-size: 11px; }
+.dock-focus-mode:hover, .dock-focus-mode:focus-visible { color: var(--room-ink); background: transparent; }
+.focus-mode-exit-hit-area { position: fixed; top: max(22px, env(safe-area-inset-top)); right: max(26px, env(safe-area-inset-right)); z-index: 8; min-height: 42px; padding: 0 14px; border: 1px solid var(--room-line); border-radius: 999px; color: var(--room-ink); background: rgba(36,31,26,.4); backdrop-filter: blur(16px); cursor: pointer; }
+.compact-focus-mode-card { position: fixed; z-index: 7; left: max(32px, env(safe-area-inset-left)); bottom: max(32px, env(safe-area-inset-bottom)); width: 188px; padding: 16px 17px; color: var(--room-ink); border: 1px solid rgba(255,255,255,.2); border-radius: 19px; background: rgba(36,31,26,.48); box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 18px 50px rgba(0,0,0,.24); backdrop-filter: blur(22px); }
+.compact-focus-card-top { display: flex; align-items: center; justify-content: space-between; color: var(--room-soft); font-size: 9px; letter-spacing: .12em; }
+.compact-exit-button { width: 28px; height: 28px; min-height: 28px; padding: 0; border-radius: 50%; color: var(--room-ink); }
+.compact-focus-status { display: flex; align-items: center; gap: 5px; margin-top: 13px; color: var(--room-soft); font-size: 11px; }
+.compact-focus-status i { width: 5px; height: 5px; display: block; border-radius: 50%; background: #c0d9b5; }
+.compact-focus-mode-card > strong { display: block; margin: 2px 0 8px; font-size: 30px; font-weight: 400; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.compact-focus-mode-card small { display: block; margin-top: 8px; color: var(--room-soft); font-size: 10px; }
+.focus-setup-view { padding: max(22px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+.focus-setup-stage { width: min(928px, 100%); min-height: calc(100svh - 52px); margin: 0 auto; padding-top: 11px; }
+.focus-setup-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.focus-setup-heading-actions { display: flex; gap: 7px; }
+.setup-quiet-action { min-height: 38px; padding: 0 13px; border-radius: 999px; color: var(--room-soft); border-color: rgba(255,255,255,.16); background: rgba(25,21,18,.28); }
+.focus-setup-layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 21px; align-items: stretch; }
+.focus-setup-scenes, .focus-setup-controls { min-width: 0; border: 1px solid rgba(244,231,211,.24); border-radius: 27px; background: linear-gradient(130deg, rgba(62,52,44,.55), rgba(30,26,23,.49)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 24px 64px rgba(0,0,0,.28); backdrop-filter: blur(22px) saturate(120%); }
+.focus-setup-scenes { padding: 29px; }
+.focus-setup-controls { padding: 24px 20px; }
+.setup-panel-intro h1 { margin: 7px 0 3px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(28px, 3.3vw, 43px); font-weight: 400; letter-spacing: -.055em; }
+.setup-panel-intro p { margin: 0; color: var(--room-soft); font-size: 13px; }
+.focus-step-label { color: rgba(248, 223, 190, .76); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; }
+.material-strip { display: flex; align-items: center; gap: 11px; min-height: 51px; margin: 23px 0 18px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.13); border-radius: 14px; background: rgba(255,255,255,.07); }
+.material-strip .focus-pill { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.material-strip-copy { min-width: 0; }
+.material-strip-copy strong, .material-strip-copy p { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.material-strip-copy strong { font-size: 12px; font-weight: 500; }
+.material-strip-copy p { margin: 3px 0 0; color: var(--room-soft); font-size: 10px; }
+.scene-selector-wrap { min-width: 0; }
+.scene-selector { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.scene-card { position: relative; min-height: 184px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; overflow: hidden; padding: 14px; border: 1px solid rgba(255,255,255,.15); border-radius: 17px; color: #fff; text-align: left; background-color: #30251e; background-size: cover; background-position: center; box-shadow: inset 0 -80px 70px rgba(7,5,4,.72), 0 8px 22px rgba(0,0,0,.14); cursor: pointer; }
+.scene-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, rgba(10,7,5,.56) 100%); pointer-events: none; }
+.scene-card > * { position: relative; z-index: 1; }
+.scene-card .focus-pill { margin-bottom: 7px; border-color: rgba(255,255,255,.22); background: rgba(30,25,21,.36); color: rgba(255,255,255,.72); font-size: 9px; }
+.scene-card strong { font-size: 14px; font-weight: 500; }
+.scene-card > span:last-child { display: -webkit-box; margin-top: 4px; overflow: hidden; color: rgba(255,255,255,.72); font-size: 10px; line-height: 1.35; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.scene-card.active { border-color: rgba(255,238,205,.82); box-shadow: inset 0 0 0 2px rgba(243,215,175,.62), inset 0 -80px 70px rgba(7,5,4,.68), 0 9px 24px rgba(0,0,0,.22); }
+.scene-card:focus-visible, .scene-page-arrow:focus-visible, .setup-music-chip:focus-visible { outline: 2px solid #f3d4a8; outline-offset: 3px; }
+.scene-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; color: var(--room-soft); font-size: 10px; letter-spacing: .14em; }
+.scene-page-arrow { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(255,255,255,.17); border-radius: 50%; color: var(--room-ink); background: rgba(255,255,255,.07); cursor: pointer; }
+.scene-page-arrow:disabled { opacity: .35; cursor: default; }
+.focus-setup-controls h2 { margin: 6px 0 13px; font-family: Georgia, "Times New Roman", serif; font-size: 20px; font-weight: 400; letter-spacing: -.035em; }
+.setup-control-section + .setup-control-section { margin-top: 20px; padding-top: 19px; border-top: 1px solid rgba(255,255,255,.11); }
+.setup-music-list { display: flex; flex-direction: column; gap: 4px; }
+.setup-music-chip { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 9px; border: 1px solid transparent; border-radius: 9px; color: var(--room-soft); text-align: left; background: transparent; cursor: pointer; font-size: 11px; }
+.setup-music-chip:hover, .setup-music-chip.is-selected { color: var(--room-ink); border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.09); }
+.music-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.35); }
+.is-selected .music-chip-dot { background: #f3d4a8; box-shadow: 0 0 9px rgba(243,212,168,.7); }
+.focus-setup-controls .sound-panel { margin-top: 8px; }
+.focus-setup-controls .sound-panel .focus-field, .focus-setup-controls .sound-panel .audio-preview, .focus-setup-controls .sound-panel .audio-links { display: none; }
+.focus-setup-controls .sound-slider { margin-top: 12px; }
+.focus-setup-controls .sound-slider-head { font-size: 10px; }
+.duration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.duration-choice { min-height: 36px; padding: 0 8px; border-radius: 9px; font-size: 11px; }
+.count-up-symbol { font-size: 17px; line-height: 1; }
+.setup-goal-field { margin-top: 19px; }
+.setup-goal-field > span { display: flex; justify-content: space-between; }
+.setup-goal-field small { color: var(--room-soft); font-size: 9px; font-weight: 400; }
+.setup-goal-field textarea { min-height: 66px; font-size: 11px; }
+.setup-plan-hint { display: flex; justify-content: space-between; margin: 12px 1px 14px; color: var(--room-soft); font-size: 10px; }
+.enter-focus-btn { width: 100%; min-height: 45px; border-radius: 12px; font-size: 12px; }
+.focus-utility-panel { position: fixed; z-index: 11; top: max(88px, calc(env(safe-area-inset-top) + 72px)); right: max(31px, env(safe-area-inset-right)); width: min(768px, calc(100vw - 62px)); max-height: calc(100svh - 120px); overflow: hidden; padding: 15px; border: 1px solid rgba(255,255,255,.2); border-radius: 24px; background: rgba(36,31,26,.58); box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 24px 65px rgba(0,0,0,.31); backdrop-filter: blur(24px) saturate(130%); }
+.focus-utility-panel .drawer-head { margin-bottom: 12px; }
+.utility-title { display: flex; align-items: center; gap: 10px; }
+.utility-title-icon { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: rgba(255,255,255,.08); }
+.utility-title h2 { margin: 3px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: 400; }
+.utility-panel-body { max-height: calc(100svh - 190px); overflow: auto; padding: 3px; scrollbar-width: thin; }
+.utility-panel-body::-webkit-scrollbar { width: 5px; }.utility-panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 99px; }
+.utility-empty-state, .utility-login-state { min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; max-width: 360px; padding: 28px 20px 35px; }
+.utility-login-state > svg, .utility-empty-state > svg { color: #f3d4a8; opacity: .82; }
+.utility-login-state h3, .utility-empty-state h3 { margin: 12px 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: 29px; font-weight: 400; letter-spacing: -.04em; }
+.utility-login-state p, .utility-empty-state p { margin: 0 0 22px; color: var(--room-soft); font-size: 13px; line-height: 1.6; }
+.utility-login-state small { margin-top: 18px; color: rgba(247,239,228,.44); font-size: 10px; }
+.settings-scene-summary { display: flex; gap: 11px; align-items: center; padding: 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(255,255,255,.06); }
+.settings-scene-image { width: 64px; height: 50px; flex: none; border-radius: 9px; background-size: cover; background-position: center; }
+.settings-scene-summary strong, .settings-scene-summary small { display: block; }.settings-scene-summary strong { margin-top: 3px; font-size: 13px; font-weight: 500; }.settings-scene-summary small { margin-top: 3px; color: var(--room-soft); font-size: 10px; }
+.utility-section-title { margin: 20px 2px 9px; color: var(--room-soft); font-size: 10px; font-weight: 550; letter-spacing: .14em; text-transform: uppercase; }
+.room-settings-utility .scene-selector { grid-template-columns: repeat(4, minmax(0, 1fr)); }.room-settings-utility .scene-card { min-height: 116px; padding: 9px; border-radius: 12px; }.room-settings-utility .scene-card strong { font-size: 11px; }.room-settings-utility .scene-card > span:last-child { display: none; }.room-settings-utility .scene-card .focus-pill { margin-bottom: 4px; }
+.sound-mixer .sound-panel { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }.sound-mixer .sound-panel > .sound-slider:first-of-type { grid-column: 1 / -1; }.sound-mixer .sound-panel .focus-field, .sound-mixer .sound-panel .audio-preview, .sound-mixer .sound-panel .audio-links { display: none; }
+.mixer-featured-row, .mixer-preset-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }.mixer-featured-row .glass-button, .mixer-preset-row .glass-button { min-height: 32px; padding: 0 10px; border-radius: 9px; font-size: 10px; }.mixer-preset-button { min-height: 34px; flex: 1; padding: 0 11px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; color: var(--room-soft); text-align: left; background: rgba(255,255,255,.07); cursor: pointer; }.mixer-preset-button span { float: right; }
+.mixer-channel-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.11); }.mixer-channel { display: grid; grid-template-columns: 1fr auto; gap: 5px 7px; align-items: center; color: var(--room-soft); font-size: 10px; }.mixer-channel > span { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.mixer-channel strong { color: var(--room-ink); font-size: 9px; font-weight: 450; }.mixer-channel input { grid-column: 1 / -1; width: 100%; accent-color: #e8cda7; }.mixer-channel-dot { width: 6px; height: 6px; flex: none; display: inline-block; border-radius: 50%; background: rgba(255,255,255,.28); }.mixer-light-rain { background: #bcd6e4; }.mixer-fireplace { background: #e29b60; }.mixer-typing { background: #d0c19f; }
+.focus-exit-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(4,3,2,.42); backdrop-filter: blur(7px); }.focus-exit-dialog { width: min(390px, 100%); padding: 27px; border: 1px solid rgba(255,255,255,.2); border-radius: 22px; background: rgba(45,37,31,.72); box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 22px 70px rgba(0,0,0,.36); }.focus-exit-dialog h2 { margin: 8px 0; font-family: Georgia, "Times New Roman", serif; font-size: 29px; font-weight: 400; }.focus-exit-dialog p { margin: 0 0 22px; color: var(--room-soft); font-size: 13px; }
+.focus-setup-controls .radix-slider-root { margin-top: 4px; }
+@media (max-width: 900px) {
+  .focus-setup-stage { width: min(640px, 100%); }.focus-setup-layout { grid-template-columns: 1fr; }.focus-setup-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }.setup-goal-field, .setup-plan-hint, .enter-focus-btn { grid-column: 1 / -1; }.focus-setup-controls .sound-panel { grid-column: 1 / -1; }.focus-session-dock { width: calc(100vw - 48px); grid-template-columns: 190px minmax(0, 1fr) auto; gap: 18px; }.dock-goal-block { padding-left: 18px; }.dock-focus-mode span { display: none; }.focus-utility-panel { width: min(640px, calc(100vw - 48px)); right: 24px; }
+}
+@media (max-width: 640px) {
+  .focus-setup-view { padding: max(12px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom)); overflow: auto; }.focus-setup-stage { min-height: auto; padding-top: 8px; }.focus-setup-heading { margin-bottom: 12px; }.focus-wordmark { font-size: 18px; }.focus-wordmark-mark { width: 23px; height: 23px; font-size: 13px; }.setup-quiet-action { min-height: 34px; padding: 0 8px; font-size: 10px; }.setup-quiet-action:first-child { display: none; }.focus-setup-scenes { padding: 18px 12px 14px; border-radius: 21px; }.setup-panel-intro h1 { font-size: 30px; }.setup-panel-intro p { font-size: 12px; }.material-strip { margin: 17px 0 12px; }.scene-selector { display: flex; flex-direction: column; gap: 8px; }.scene-card { min-height: 98px; height: 98px; padding: 11px; border-radius: 13px; background-position: center 52%; }.scene-card .focus-pill { margin-bottom: 4px; }.scene-card strong { font-size: 13px; }.scene-card > span:last-child { max-width: 235px; font-size: 9px; }.scene-pagination { margin-top: 10px; }.focus-setup-controls { display: block; padding: 17px 13px; border-radius: 21px; }.setup-control-section + .setup-control-section { margin-top: 15px; padding-top: 15px; }.setup-music-list { display: grid; grid-template-columns: repeat(2, 1fr); }.focus-session-dock { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); transform: none; width: auto; min-height: auto; grid-template-columns: 1fr auto; gap: 12px; padding: 13px; border-radius: 18px; }.dock-timer-block { min-width: 0; }.dock-time { font-size: 24px; }.dock-goal-block { display: none; }.dock-action-block { display: grid; grid-template-columns: auto auto; gap: 5px; }.dock-tools-button { grid-column: 1 / -1; width: 100%; }.dock-action-button { min-height: 36px; padding: 0 9px; font-size: 10px; }.dock-focus-mode { display: flex; min-height: 36px; padding: 0 9px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; color: var(--room-soft); background: rgba(255,255,255,.07); font-size: 10px; }.focus-room-header { top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; }.focus-room-context { display: none; }.focus-room-header-actions { gap: 4px; }.header-icon-button { width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 50%; justify-content: center; }.header-icon-button span { display: none; }.focus-session-stage { padding: 72px 12px 148px; }.focus-mode-exit-hit-area { top: max(12px, env(safe-area-inset-top)); right: 12px; min-height: 36px; font-size: 10px; }.compact-focus-mode-card { left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: 170px; }.focus-utility-panel { top: max(67px, calc(env(safe-area-inset-top) + 55px)); right: 12px; left: 12px; width: auto; max-height: calc(100svh - 79px); padding: 10px; border-radius: 19px; }.utility-panel-body { max-height: calc(100svh - 150px); }.room-settings-utility .scene-selector { display: grid; grid-template-columns: repeat(2, 1fr); }.room-settings-utility .scene-card { min-height: 98px; height: 98px; }.mixer-channel-grid { grid-template-columns: 1fr; }.sound-mixer .sound-panel { display: block; }.focus-exit-dialog { padding: 23px; }.focus-exit-dialog .focus-button-row { display: grid; grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .react-focus-room *, .react-focus-room *::before, .react-focus-room *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+
 .liquid-glass-lite {
   background: rgba(31, 33, 39, 0.58);
   border-color: rgba(255, 255, 255, 0.12);
@@ -1184,9 +1714,9 @@ body.focus-room-standalone #focusRoomRoot {
 }
 
 .focus-session-grid {
-  width: min(1180px, 100%);
+  width: min(760px, 100%);
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 600px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 26px;
   align-items: center;
   justify-content: center;
@@ -1265,7 +1795,8 @@ body.focus-room-standalone #focusRoomRoot {
 }
 
 .timer-card {
-  width: min(600px, calc(100vw - 40px));
+  width: min(720px, calc(100vw - 40px));
+  margin: 0 auto;
   justify-items: stretch;
   gap: 18px;
   padding: 28px;
@@ -1758,5 +2289,1040 @@ body.focus-room-standalone #focusRoomRoot {
 
   .study-tool-head {
     display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .react-focus-room .dock-focus-mode { display: flex !important; }
+}
+
+/* Final Innook selection geometry: keep the header in the upper frame while
+   centering the 928px composition below it to match the reference state. */
+.react-focus-room .focus-innook-selection {
+  padding: 22px 48px 20px !important;
+  gap: 0 !important;
+}
+
+.react-focus-room .focus-selection-header {
+  flex: 0 0 auto !important;
+  height: 58px;
+  min-height: 58px;
+  box-sizing: border-box;
+  padding-bottom: 13px !important;
+}
+
+.react-focus-room .focus-selection-layout {
+  width: min(928px, 100%);
+  height: 570px;
+  flex: 0 0 570px !important;
+  margin: 50px auto 0 !important;
+  padding: 0 !important;
+  align-items: stretch;
+}
+
+.react-focus-room .focus-selection-panel {
+  width: 845px !important;
+  height: 570px !important;
+  box-sizing: border-box;
+  padding: 24px 28px 25px !important;
+  transform: translateX(-1px);
+}
+
+.react-focus-room .focus-selection-heading {
+  height: 50px;
+  margin-bottom: 14px !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-selector {
+  gap: 15px 16px !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-card {
+  height: 220px !important;
+}
+
+.react-focus-room .focus-selection-panel .scene-card-media {
+  flex: 0 0 auto;
+}
+
+.react-focus-room .focus-selection-rail {
+  width: 62px !important;
+  flex-basis: 62px !important;
+  position: relative;
+  display: block;
+}
+
+.react-focus-room .focus-selection-rail .focus-rail-group {
+  position: absolute;
+  top: 103px;
+  left: 50%;
+  display: grid;
+  gap: 5px;
+  transform: translateX(-50%);
+}
+
+.react-focus-room .focus-selection-rail .focus-rail-icon {
+  width: 31px;
+  height: 31px;
+}
+
+.react-focus-room .focus-selection-rail .focus-rail-divider {
+  position: absolute;
+  top: 283px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.react-focus-room .focus-selection-rail .focus-rail-durations {
+  position: absolute;
+  top: 299px;
+  left: 50%;
+  gap: 0;
+  transform: translateX(-50%);
+}
+
+.react-focus-room .focus-selection-rail .focus-rail-duration {
+  min-width: 35px;
+  height: 24px;
+  min-height: 24px;
+}
+
+.react-focus-room .focus-selection-rail .focus-selection-enter {
+  position: absolute;
+  top: 430px;
+  left: 50%;
+  width: 38px;
+  height: 38px;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-innook-selection {
+    padding: 24px 20px max(18px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .react-focus-room .focus-selection-layout {
+    width: 100%;
+    height: auto;
+    flex: 1 1 auto !important;
+    margin-top: 20px !important;
+  }
+
+  .react-focus-room .focus-selection-panel {
+    width: 100% !important;
+    height: auto !important;
+    padding: 18px !important;
+  }
+
+  .react-focus-room .focus-selection-rail {
+    width: 100% !important;
+    flex-basis: auto !important;
+    position: static;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-group,
+  .react-focus-room .focus-selection-rail .focus-rail-divider,
+  .react-focus-room .focus-selection-rail .focus-rail-durations,
+  .react-focus-room .focus-selection-rail .focus-selection-enter {
+    position: static;
+    transform: none;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-group {
+    display: flex;
+    gap: 6px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-divider {
+    width: 1px;
+    height: 28px;
+  }
+
+  .react-focus-room .focus-selection-rail .focus-rail-durations {
+    display: flex;
+    gap: 2px;
+  }
+}
+
+/* Focus Room readability pass: preserve the scene photography while giving
+   the setup controls a dependable liquid-glass contrast surface. */
+.react-focus-room.focus-room-surface {
+  --focus-ink: #f5f8ff;
+  --focus-soft: rgba(226, 236, 253, .82);
+  --focus-muted: rgba(199, 216, 243, .68);
+  --focus-line: rgba(214, 231, 255, .24);
+  --focus-accent: #8eafff;
+  --room-ink: var(--focus-ink);
+  --room-soft: var(--focus-soft);
+  --room-line: var(--focus-line);
+  color: var(--focus-ink);
+  background: #0b1526;
+}
+
+.react-focus-room .focus-overlay {
+  background: transparent;
+  opacity: 0;
+}
+
+.react-focus-room .focus-vignette {
+  background: transparent;
+  opacity: 0;
+}
+
+.react-focus-room .focus-setup-stage {
+  width: min(1320px, calc(100vw - 56px));
+  gap: 24px;
+  padding-top: clamp(28px, 5vh, 54px);
+}
+
+.react-focus-room .focus-setup-scenes,
+.react-focus-room .focus-setup-controls,
+.react-focus-room .focus-selection-panel {
+  color: var(--focus-ink);
+  border: 1px solid var(--focus-line);
+  background: linear-gradient(145deg, rgba(22, 38, 62, .9), rgba(9, 19, 34, .8)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 -1px 0 rgba(2, 8, 18, .52),
+    0 28px 80px rgba(1, 7, 16, .42);
+  backdrop-filter: blur(28px) saturate(145%);
+  -webkit-backdrop-filter: blur(28px) saturate(145%);
+}
+
+.react-focus-room .focus-setup-scenes h1,
+.react-focus-room .focus-setup-controls h2,
+.react-focus-room .focus-selection-heading h1 {
+  color: var(--focus-ink);
+  text-shadow: 0 3px 22px rgba(2, 8, 18, .3);
+}
+
+.react-focus-room .focus-setup-scenes p,
+.react-focus-room .focus-setup-controls p,
+.react-focus-room .focus-selection-heading p,
+.react-focus-room .focus-kicker,
+.react-focus-room .focus-step-label {
+  color: var(--focus-soft);
+}
+
+.react-focus-room .material-strip {
+  border-color: rgba(214, 231, 255, .24);
+  background: linear-gradient(135deg, rgba(92, 126, 190, .28), rgba(10, 21, 38, .68));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15), 0 12px 30px rgba(2, 8, 18, .18);
+}
+
+.react-focus-room .material-strip strong,
+.react-focus-room .material-strip p {
+  color: var(--focus-ink);
+}
+
+.react-focus-room .material-strip p {
+  color: var(--focus-soft);
+}
+
+.react-focus-room .focus-setup-scenes .scene-card {
+  border-color: rgba(221, 234, 255, .22);
+  color: var(--focus-ink);
+  background-color: #172943;
+  box-shadow: inset 0 -94px 82px rgba(3, 9, 19, .78), 0 14px 30px rgba(1, 7, 16, .28);
+}
+
+.react-focus-room .focus-setup-scenes .scene-card::after,
+.react-focus-room .focus-setup-scenes .scene-card::before {
+  background: linear-gradient(180deg, rgba(3, 10, 20, .06) 20%, rgba(3, 9, 18, .86) 100%);
+}
+
+.react-focus-room .focus-setup-scenes .scene-card .focus-pill {
+  border-color: rgba(224, 236, 255, .3);
+  color: #f8fbff;
+  background: rgba(8, 18, 33, .66);
+}
+
+.react-focus-room .focus-setup-scenes .scene-card strong {
+  color: #ffffff;
+  font-weight: 720;
+}
+
+.react-focus-room .focus-setup-scenes .scene-card span:last-child {
+  color: rgba(243, 248, 255, .86);
+}
+
+.react-focus-room .focus-setup-scenes .scene-card.active {
+  border-color: var(--focus-accent);
+  box-shadow: inset 0 0 0 2px rgba(142, 175, 255, .68), inset 0 -94px 82px rgba(3, 9, 18, .78), 0 0 0 5px rgba(142, 175, 255, .12), 0 18px 38px rgba(1, 7, 16, .34);
+}
+
+.react-focus-room .focus-selection-panel .scene-card {
+  color: var(--focus-soft);
+}
+
+.react-focus-room .focus-selection-panel .scene-card-media {
+  border-color: rgba(218, 233, 255, .24);
+  box-shadow: 0 14px 34px rgba(1, 7, 16, .34);
+}
+
+.react-focus-room .focus-selection-panel .scene-card-media-shade {
+  background: radial-gradient(circle at 18% 18%, rgba(255, 255, 255, .16), transparent 28%), linear-gradient(180deg, rgba(2, 8, 18, .04), rgba(2, 8, 18, .62));
+}
+
+.react-focus-room .focus-selection-panel .scene-card-copy strong,
+.react-focus-room .focus-selection-panel .scene-card.active .scene-card-copy strong {
+  color: #f7faff;
+}
+
+.react-focus-room .focus-selection-panel .scene-card-copy small {
+  color: var(--focus-soft);
+}
+
+.react-focus-room .focus-selection-panel .scene-card.active .scene-card-media {
+  border-color: var(--focus-accent);
+  box-shadow: 0 0 0 2px rgba(142, 175, 255, .62), 0 0 0 6px rgba(142, 175, 255, .12), 0 18px 38px rgba(1, 7, 16, .38);
+}
+
+.react-focus-room .focus-setup-controls .focus-field,
+.react-focus-room .focus-setup-controls .sound-slider,
+.react-focus-room .focus-setup-controls .sound-slider-head {
+  color: var(--focus-soft);
+}
+
+.react-focus-room .focus-setup-controls .focus-field select,
+.react-focus-room .focus-setup-controls .focus-field input,
+.react-focus-room .focus-setup-controls .focus-field textarea {
+  color: #10203a;
+  border-color: rgba(219, 233, 255, .58);
+  background: rgba(248, 251, 255, .96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .92), 0 10px 24px rgba(1, 7, 16, .16);
+}
+
+.react-focus-room .focus-setup-controls .radix-slider-track {
+  background: rgba(224, 236, 255, .24);
+}
+
+.react-focus-room .focus-setup-controls .radix-slider-range {
+  background: linear-gradient(90deg, #7d9cff, #b7c9ff);
+}
+
+.react-focus-room .focus-setup-controls .radix-slider-thumb {
+  border-color: #f7faff;
+  background: var(--focus-accent);
+  box-shadow: 0 0 0 5px rgba(142, 175, 255, .18), 0 8px 18px rgba(1, 7, 16, .26);
+}
+
+.react-focus-room .audio-preview {
+  border-color: rgba(214, 231, 255, .28);
+  background: linear-gradient(135deg, rgba(77, 112, 178, .34), rgba(8, 19, 35, .7));
+  color: var(--focus-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15), 0 16px 34px rgba(1, 7, 16, .2);
+}
+
+.react-focus-room .audio-preview strong,
+.react-focus-room .audio-preview p,
+.react-focus-room .audio-links a {
+  color: var(--focus-ink);
+}
+
+.react-focus-room .audio-preview p,
+.react-focus-room .audio-links a {
+  color: var(--focus-soft);
+}
+
+.react-focus-room .focus-rail-icon,
+.react-focus-room .focus-rail-duration,
+.react-focus-room .focus-selection-icon,
+.react-focus-room .focus-selection-enter {
+  color: var(--focus-soft);
+  border-color: rgba(214, 231, 255, .28);
+  background: rgba(13, 28, 49, .62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 12px 28px rgba(1, 7, 16, .2);
+}
+
+.react-focus-room .focus-rail-icon:hover,
+.react-focus-room .focus-rail-icon.is-active,
+.react-focus-room .focus-rail-duration:hover,
+.react-focus-room .focus-rail-duration.is-active,
+.react-focus-room .focus-selection-icon:hover,
+.react-focus-room .focus-selection-enter:hover {
+  color: #ffffff;
+  border-color: var(--focus-accent);
+  background: rgba(88, 126, 222, .42);
+  box-shadow: 0 0 0 4px rgba(142, 175, 255, .12), 0 14px 30px rgba(1, 7, 16, .24);
+}
+
+.react-focus-room .scene-card:focus-visible,
+.react-focus-room .scene-page-arrow:focus-visible,
+.react-focus-room .focus-rail-icon:focus-visible,
+.react-focus-room .focus-rail-duration:focus-visible,
+.react-focus-room .focus-selection-icon:focus-visible,
+.react-focus-room .focus-selection-enter:focus-visible,
+.react-focus-room .glass-button:focus-visible {
+  outline: 3px solid rgba(174, 199, 255, .92);
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-setup-stage {
+    width: min(680px, calc(100vw - 32px));
+    padding-top: 22px;
+  }
+
+  .react-focus-room .focus-setup-scenes,
+  .react-focus-room .focus-setup-controls,
+  .react-focus-room .focus-selection-panel {
+    border-radius: 22px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .react-focus-room .focus-setup-scenes,
+  .react-focus-room .focus-setup-controls,
+  .react-focus-room .focus-selection-panel,
+  .react-focus-room .audio-preview {
+    background: #101f35 !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Liquid glass study replacement: layered refraction, edge alpha, and local
+   pointer light. The SVG displacement filter is progressive; blur/saturation
+   remain as the dependable fallback when backdrop URL filters are unavailable. */
+.react-focus-room .liquid-glass-filter-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.react-focus-room .liquid-glass,
+.react-focus-room .glass-button {
+  --glass-x: 50%;
+  --glass-y: 0%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  contain: paint;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .055) 42%, rgba(11, 22, 39, .32));
+  border-color: rgba(235, 246, 255, .32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .58),
+    inset 0 -1px 0 rgba(7, 18, 34, .32),
+    0 26px 72px rgba(3, 13, 28, .27),
+    0 2px 8px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(22px) saturate(165%) brightness(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(165%) brightness(1.08);
+  transition: border-color .24s ease, box-shadow .24s ease, background .24s ease;
+}
+
+.react-focus-room .liquid-glass::before,
+.react-focus-room .glass-button::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at var(--glass-x) var(--glass-y), rgba(255, 255, 255, .38), transparent 28%),
+    linear-gradient(120deg, rgba(255, 255, 255, .16), transparent 34%, rgba(131, 185, 255, .08) 72%, rgba(255, 255, 255, .12));
+  opacity: .76;
+  backdrop-filter: url("#liquid-glass-displacement") blur(16px) saturate(155%);
+  -webkit-backdrop-filter: url("#liquid-glass-displacement") blur(16px) saturate(155%);
+  transition: opacity .24s ease, background-position .24s ease;
+}
+
+.react-focus-room .liquid-glass::after,
+.react-focus-room .glass-button::after {
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  content: "";
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: calc(var(--glass-radius, 28px) - 1px);
+  mask-image: linear-gradient(150deg, #fff 0 22%, transparent 48% 70%, #fff 92%);
+  opacity: .82;
+}
+
+.react-focus-room .liquid-glass > *,
+.react-focus-room .glass-button > * {
+  position: relative;
+  z-index: 2;
+}
+
+.react-focus-room .liquid-glass-inner {
+  position: relative;
+  z-index: 2;
+  display: block;
+}
+
+.react-focus-room .liquid-glass-lite {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .045));
+  border-color: rgba(235, 246, 255, .24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .36), 0 12px 30px rgba(3, 13, 28, .16);
+}
+
+.react-focus-room .glass-button {
+  min-height: 42px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .52), 0 12px 28px rgba(3, 13, 28, .2);
+}
+
+.react-focus-room .glass-button:hover,
+.react-focus-room .glass-button:focus-visible {
+  border-color: rgba(240, 249, 255, .72);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .32), rgba(131, 185, 255, .15));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .68), 0 16px 34px rgba(3, 13, 28, .28), 0 0 0 3px rgba(173, 213, 255, .11);
+}
+
+.react-focus-room .glass-button-primary {
+  color: #071426;
+  border-color: rgba(255, 255, 255, .86);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .94), rgba(208, 230, 255, .78));
+  box-shadow: inset 0 1px 0 #fff, 0 14px 32px rgba(98, 158, 255, .27), 0 0 0 1px rgba(255, 255, 255, .24);
+}
+
+.react-focus-room .focus-session-dock,
+.react-focus-room .focus-utility-panel {
+  background: linear-gradient(135deg, rgba(31, 53, 82, .58), rgba(11, 24, 43, .42) 48%, rgba(62, 83, 112, .34));
+  border-color: rgba(231, 245, 255, .36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .52), inset 0 -1px 0 rgba(3, 12, 25, .28), 0 28px 72px rgba(2, 11, 25, .32);
+  backdrop-filter: blur(26px) saturate(175%) brightness(1.12);
+  -webkit-backdrop-filter: blur(26px) saturate(175%) brightness(1.12);
+}
+
+.react-focus-room .focus-session-dock::before,
+.react-focus-room .focus-utility-panel::before {
+  opacity: .62;
+}
+
+.react-focus-room .timer-card {
+  border-radius: 32px;
+  background: linear-gradient(145deg, rgba(31, 54, 84, .63), rgba(12, 25, 44, .47) 56%, rgba(79, 103, 137, .3));
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .react-focus-room .liquid-glass,
+  .react-focus-room .glass-button,
+  .react-focus-room .focus-session-dock,
+  .react-focus-room .focus-utility-panel {
+    background: rgba(18, 37, 62, .88);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .react-focus-room .liquid-glass,
+  .react-focus-room .glass-button,
+  .react-focus-room .focus-session-dock,
+  .react-focus-room .focus-utility-panel {
+    background: #132943;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .react-focus-room .liquid-glass::before,
+  .react-focus-room .liquid-glass::after,
+  .react-focus-room .glass-button::before,
+  .react-focus-room .glass-button::after {
+    display: none;
+  }
+}
+
+/* Reference-format pass: keep the same controls, but compose them as a quiet
+   room console instead of a stack of bright floating cards. */
+.react-focus-room.focus-room-surface {
+  --room-ink: rgba(250, 245, 237, .94);
+  --room-soft: rgba(250, 245, 237, .66);
+  --room-line: rgba(250, 245, 237, .24);
+  --room-line-quiet: rgba(250, 245, 237, .14);
+  --room-panel: rgba(20, 17, 15, .28);
+  --room-panel-strong: rgba(20, 17, 15, .46);
+}
+
+.react-focus-room .focus-room-header {
+  top: max(28px, env(safe-area-inset-top));
+  left: max(40px, env(safe-area-inset-left));
+  right: max(40px, env(safe-area-inset-right));
+  min-height: 52px;
+}
+
+.react-focus-room .focus-wordmark {
+  gap: 10px;
+  color: var(--room-ink);
+  font-size: 18px;
+  font-weight: 560;
+  letter-spacing: -.035em;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .28);
+}
+
+.react-focus-room .focus-wordmark-mark {
+  width: 30px;
+  height: 30px;
+  border-color: rgba(250, 245, 237, .56);
+  background: rgba(250, 245, 237, .045);
+}
+
+.react-focus-room .focus-room-context {
+  margin-right: 22px;
+  color: var(--room-soft);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: none;
+}
+
+.react-focus-room .focus-room-context span {
+  color: var(--room-ink);
+  font-size: 13px;
+  font-weight: 520;
+}
+
+.react-focus-room .focus-room-context small {
+  color: rgba(250, 245, 237, .52);
+  font-size: 10px;
+}
+
+.react-focus-room .focus-room-header-actions {
+  gap: 9px;
+}
+
+.react-focus-room .header-icon-button {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+  border: 1px solid var(--room-line);
+  border-radius: 50%;
+  color: var(--room-ink);
+  background: rgba(20, 17, 15, .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 12px 28px rgba(0, 0, 0, .16);
+  backdrop-filter: blur(18px) saturate(125%);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+}
+
+.react-focus-room .header-icon-button span {
+  display: none;
+}
+
+.react-focus-room .header-icon-button:hover,
+.react-focus-room .header-icon-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(250, 245, 237, .64);
+  color: #fff;
+  background: rgba(250, 245, 237, .13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 16px 34px rgba(0, 0, 0, .22), 0 0 0 4px rgba(250, 245, 237, .08);
+}
+
+.react-focus-room .header-exit-button {
+  color: rgba(250, 222, 210, .92);
+}
+
+.react-focus-room .focus-session-stage {
+  padding: 96px 48px 184px;
+}
+
+.react-focus-room .focus-session-dock {
+  position: fixed;
+  left: 50%;
+  bottom: max(30px, env(safe-area-inset-bottom));
+  width: min(1160px, calc(100vw - 80px));
+  min-height: 112px;
+  grid-template-columns: 270px minmax(260px, 1fr) auto;
+  gap: 0;
+  padding: 18px 22px 18px 26px;
+  border: 1px solid rgba(250, 245, 237, .26);
+  border-radius: 28px;
+  background: linear-gradient(110deg, rgba(22, 19, 17, .42), rgba(26, 22, 20, .24) 58%, rgba(18, 16, 15, .38));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 -1px 0 rgba(0, 0, 0, .22), 0 24px 64px rgba(0, 0, 0, .26);
+  backdrop-filter: blur(22px) saturate(122%);
+  -webkit-backdrop-filter: blur(22px) saturate(122%);
+}
+
+.react-focus-room .focus-session-dock::before {
+  opacity: .28;
+}
+
+.react-focus-room .dock-timer-block {
+  min-width: 0;
+  padding-right: 24px;
+}
+
+.react-focus-room .dock-eyebrow {
+  color: rgba(250, 245, 237, .52);
+  font-size: 9px;
+  letter-spacing: .18em;
+}
+
+.react-focus-room .dock-status {
+  margin-top: 3px;
+  color: rgba(250, 245, 237, .68);
+  font-size: 11px;
+}
+
+.react-focus-room .dock-time {
+  margin-top: 0;
+  color: var(--room-ink);
+  font-size: 40px;
+  font-weight: 360;
+  letter-spacing: .025em;
+}
+
+.react-focus-room .dock-progress {
+  max-width: 220px;
+  height: 2px;
+  margin-top: 7px;
+  background: rgba(250, 245, 237, .14);
+}
+
+.react-focus-room .dock-progress span {
+  background: rgba(244, 214, 172, .82);
+}
+
+.react-focus-room .dock-goal-block {
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 26px;
+  border-left: 1px solid var(--room-line-quiet);
+  border-right: 1px solid var(--room-line-quiet);
+}
+
+.react-focus-room .dock-goal-block strong {
+  max-width: 330px;
+  margin-top: 7px;
+  color: var(--room-ink);
+  font-size: 14px;
+  font-weight: 470;
+}
+
+.react-focus-room .dock-goal-meta {
+  margin-top: 5px;
+  color: rgba(250, 245, 237, .52);
+  font-size: 10px;
+}
+
+.react-focus-room .dock-action-block {
+  gap: 9px;
+  padding-left: 22px;
+}
+
+.react-focus-room .dock-action-button,
+.react-focus-room .dock-focus-mode {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  justify-content: center;
+  border: 1px solid rgba(250, 245, 237, .22);
+  border-radius: 50%;
+  color: var(--room-ink);
+  background: rgba(250, 245, 237, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 10px 24px rgba(0, 0, 0, .14);
+}
+
+.react-focus-room .dock-action-button span,
+.react-focus-room .dock-focus-mode span {
+  display: none;
+}
+
+.react-focus-room .dock-action-button.glass-button-primary {
+  border-color: rgba(250, 245, 237, .72);
+  color: #2c2119;
+  background: rgba(244, 214, 172, .88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 12px 26px rgba(0, 0, 0, .18);
+}
+
+.react-focus-room .dock-action-button:hover,
+.react-focus-room .dock-action-button:focus-visible,
+.react-focus-room .dock-focus-mode:hover,
+.react-focus-room .dock-focus-mode:focus-visible {
+  color: #fff;
+  border-color: rgba(250, 245, 237, .7);
+  background: rgba(250, 245, 237, .16);
+  transform: translateY(-1px);
+}
+
+.react-focus-room .dock-action-button.glass-button-primary:hover,
+.react-focus-room .dock-action-button.glass-button-primary:focus-visible {
+  color: #2c2119;
+  background: rgba(250, 229, 199, .96);
+}
+
+.react-focus-room .focus-utility-panel {
+  position: fixed;
+  top: max(96px, calc(env(safe-area-inset-top) + 84px));
+  right: auto;
+  left: max(40px, env(safe-area-inset-left));
+  width: min(450px, calc(100vw - 80px));
+  max-height: calc(100svh - 156px);
+  padding: 16px;
+  border: 1px solid rgba(250, 245, 237, .26);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(25, 21, 18, .46), rgba(17, 15, 14, .28));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 26px 66px rgba(0, 0, 0, .24);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+}
+
+.react-focus-room .focus-utility-panel::before {
+  opacity: .24;
+}
+
+.react-focus-room .utility-title-icon {
+  width: 36px;
+  height: 36px;
+  border-color: rgba(250, 245, 237, .22);
+  border-radius: 50%;
+  background: rgba(250, 245, 237, .06);
+}
+
+.react-focus-room .utility-title h2 {
+  color: var(--room-ink);
+  font-size: 23px;
+}
+
+.react-focus-room .focus-utility-panel .drawer-head > .glass-button {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.react-focus-room .utility-empty-state,
+.react-focus-room .utility-login-state {
+  min-height: 280px;
+  max-width: 370px;
+  padding: 28px 18px 30px;
+}
+
+.react-focus-room .utility-login-state h3,
+.react-focus-room .utility-empty-state h3 {
+  color: var(--room-ink);
+  font-size: 28px;
+}
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-room-header {
+    left: 24px;
+    right: 24px;
+  }
+
+  .react-focus-room .focus-room-context {
+    margin-right: 14px;
+  }
+
+  .react-focus-room .focus-session-dock {
+    width: calc(100vw - 48px);
+    grid-template-columns: 190px minmax(0, 1fr) auto;
+    padding-left: 19px;
+  }
+
+  .react-focus-room .dock-goal-block {
+    padding: 0 18px;
+  }
+
+  .react-focus-room .dock-action-block {
+    padding-left: 16px;
+  }
+
+  .react-focus-room .focus-utility-panel {
+    left: 24px;
+    width: min(560px, calc(100vw - 48px));
+  }
+}
+
+@media (max-width: 640px) {
+  .react-focus-room .focus-room-header {
+    top: max(14px, env(safe-area-inset-top));
+    left: 14px;
+    right: 14px;
+  }
+
+  .react-focus-room .focus-room-context {
+    display: none;
+  }
+
+  .react-focus-room .focus-room-header-actions {
+    gap: 5px;
+  }
+
+  .react-focus-room .header-icon-button {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .react-focus-room .focus-session-stage {
+    padding: 70px 12px 148px;
+  }
+
+  .react-focus-room .focus-session-dock {
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    min-height: 98px;
+    grid-template-columns: 1fr auto;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .react-focus-room .dock-timer-block {
+    padding-right: 12px;
+  }
+
+  .react-focus-room .dock-time {
+    font-size: 30px;
+  }
+
+  .react-focus-room .dock-goal-block {
+    display: none;
+  }
+
+  .react-focus-room .dock-action-block {
+    display: grid;
+    grid-template-columns: repeat(2, 38px);
+    gap: 5px;
+    padding-left: 8px;
+  }
+
+  .react-focus-room .dock-action-button,
+  .react-focus-room .dock-focus-mode {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .react-focus-room .focus-utility-panel {
+    top: max(66px, calc(env(safe-area-inset-top) + 54px));
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100svh - 80px);
+    padding: 11px;
+    border-radius: 20px;
+  }
+}
+
+/* Opaque liquid-glass pass: keep the photographic scene visible, but give
+   every translucent console surface a steadier contrast floor. */
+.react-focus-room.focus-room-surface {
+  --room-panel: rgba(20, 17, 15, .46);
+  --room-panel-strong: rgba(20, 17, 15, .64);
+}
+
+.react-focus-room .liquid-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .11) 42%, rgba(11, 22, 39, .48));
+}
+
+.react-focus-room .liquid-glass-lite {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .21), rgba(255, 255, 255, .095));
+}
+
+.react-focus-room .glass-button {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .14));
+}
+
+.react-focus-room .header-icon-button {
+  background: rgba(20, 17, 15, .32);
+}
+
+.react-focus-room .focus-session-dock {
+  background: linear-gradient(110deg, rgba(22, 19, 17, .64), rgba(26, 22, 20, .48) 58%, rgba(18, 16, 15, .58));
+}
+
+.react-focus-room .focus-utility-panel {
+  background: linear-gradient(145deg, rgba(25, 21, 18, .66), rgba(17, 15, 14, .52));
+}
+
+.react-focus-room .compact-focus-mode-card {
+  background: rgba(36, 31, 26, .62);
+}
+
+.react-focus-room .dock-action-button,
+.react-focus-room .dock-focus-mode {
+  background: rgba(250, 245, 237, .15);
+}
+
+.react-focus-room .material-strip {
+  background: linear-gradient(135deg, rgba(92, 126, 190, .38), rgba(10, 21, 38, .76));
+}
+
+/* Final room readability and left-rail interaction pass. */
+.react-focus-room .focus-overlay {
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 8, 10, .34) 0%,
+    rgba(7, 8, 10, .18) 34%,
+    rgba(7, 8, 10, .36) 76%,
+    rgba(3, 4, 5, .56) 100%
+  );
+  opacity: 1;
+}
+
+.react-focus-room .focus-vignette {
+  z-index: 3;
+  background:
+    radial-gradient(ellipse at 48% 38%, transparent 30%, rgba(2, 3, 5, .22) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, .04), rgba(0, 0, 0, .18));
+  opacity: 1;
+}
+
+.react-focus-room .focus-mode-exit-hit-area {
+  right: auto;
+  left: max(40px, env(safe-area-inset-left));
+}
+
+.react-focus-room .focus-exit-overlay {
+  display: block;
+  padding: 0;
+}
+
+.react-focus-room .focus-exit-dialog {
+  position: absolute;
+  top: max(96px, calc(env(safe-area-inset-top) + 84px));
+  left: max(40px, env(safe-area-inset-left));
+  width: min(420px, calc(100vw - 80px));
+  margin: 0;
+}
+
+.summary-overlay {
+  display: block;
+  padding: 0;
+}
+
+.summary-card {
+  position: absolute;
+  top: max(96px, calc(env(safe-area-inset-top) + 84px));
+  left: max(40px, env(safe-area-inset-left));
+  width: min(560px, calc(100vw - 80px));
+  max-height: calc(100svh - 156px);
+  overflow: auto;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .react-focus-room .focus-mode-exit-hit-area {
+    top: max(14px, env(safe-area-inset-top));
+    left: 14px;
+  }
+
+  .react-focus-room .focus-exit-dialog,
+  .summary-card {
+    top: max(66px, calc(env(safe-area-inset-top) + 54px));
+    left: 12px;
+    width: calc(100vw - 24px);
+    max-height: calc(100svh - 80px);
+    padding: 21px;
+    border-radius: 20px;
   }
 }

@@ -1,17 +1,17 @@
 function renderVisualGuideLaunch() {
   const hasNotes = Boolean(fullSummary && fullSummary.trim());
-  return `
-    <div class="visual-guide-launch">
-      <div class="visual-guide-launch-copy">
-        <span class="visual-guide-kicker">Generated image poster</span>
-        <h4>Create a visual image guide</h4>
-        <p>${hasNotes ? "Generates a detailed grid infographic from a compact source-grounded blueprint." : "Generate notes first, then create a visual image guide."}</p>
-      </div>
-      <button class="btn btn-primary visual-guide-generate-btn" type="button" onclick="generateVisualGuide(true)" ${hasNotes ? "" : "disabled"}>
-        <i class="bi bi-image me-1"></i>Generate image guide
-      </button>
-    </div>
-  `;
+  return renderStudyToolLaunch({
+    tool: "visualguide",
+    iconClass: "bi-image",
+    title: "Create an image guide",
+    description: hasNotes
+      ? "Turn the current notes into a clear visual poster with concepts, examples, and source evidence."
+      : "Generate notes first, then create a visual image guide.",
+    action: "generateVisualGuide(true)",
+    actionLabel: "Generate image guide",
+    hasNotes,
+    kicker: "Visual understanding"
+  });
 }
 
 async function generateVisualGuide(force = false) {
@@ -30,6 +30,7 @@ async function generateVisualGuide(force = false) {
   renderVisualGuidePanel();
 
   try {
+    const toolSettings = getStudyToolSettings("visualguide");
     const response = await apiClient.fetch("/visual-image-guide/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,7 +38,8 @@ async function generateVisualGuide(force = false) {
         title: storedTitle,
         summary: fullSummary,
         sections,
-        preferred_language: preferredLanguage ? preferredLanguage.value : "auto",
+        preferred_language: toolSettings.language || (preferredLanguage ? preferredLanguage.value : "auto"),
+        visual_style: toolSettings.style || "concept_board",
         source_fingerprint: currentSourceFingerprint,
         sources: visualGuideSourceRequestItems(),
         visual_gallery: visualGuideFigureRequestItems()
@@ -708,7 +710,7 @@ function setupFlashcardTool() {
             <p>Build a source-grounded concept deck for fast active recall.</p>
           </div>
           <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="clearFlashcardsAndShowBuilder()">
-            <i class="bi bi-sliders me-1"></i>Deck settings
+            <i class="bi bi-sliders me-1"></i>Flashcard settings
           </button>
         </div>
         <div id="flashcardPanelContent"></div>

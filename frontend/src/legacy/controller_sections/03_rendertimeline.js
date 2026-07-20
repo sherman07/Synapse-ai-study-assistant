@@ -511,6 +511,7 @@ async function generateTimeline(force = false) {
   renderTimelinePanel();
 
   try {
+    const toolSettings = getStudyToolSettings("timeline");
     const response = await apiClient.fetch("/timeline/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -519,7 +520,8 @@ async function generateTimeline(force = false) {
         summary: fullSummary,
         sections,
         source_fingerprint: currentSourceFingerprint,
-        preferred_language: preferredLanguage ? preferredLanguage.value : "auto"
+        preferred_language: toolSettings.language || (preferredLanguage ? preferredLanguage.value : "auto"),
+        pace: toolSettings.pace || "balanced"
       })
     });
     const data = await response.json();
@@ -625,9 +627,14 @@ function setupTimelineTool() {
             <h3>Study Path</h3>
             <p>Turn the notes into an actionable study sequence with tasks, short questions, and mastery checks.</p>
           </div>
-          <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="generateTimeline(true)">
-            <i class="bi bi-arrow-clockwise me-1"></i>Regenerate
-          </button>
+          <div class="tool-panel-actions">
+            <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="generateTimeline(true)">
+              <i class="bi bi-arrow-clockwise me-1"></i>Regenerate
+            </button>
+            <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="openStudyToolSettingsModal('timeline')">
+              <i class="bi bi-sliders me-1"></i>Study path settings
+            </button>
+          </div>
         </div>
         <div id="timelinePanelContent"></div>
       </div>
@@ -884,9 +891,14 @@ function setupVisualGuideTool() {
             <h3>Visual Image Guide</h3>
             <p>Generate one finished image poster from the current notes.</p>
           </div>
-          <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="generateVisualGuide(true)">
-            <i class="bi bi-image me-1"></i>Generate image
-          </button>
+          <div class="tool-panel-actions">
+            <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="generateVisualGuide(true)">
+              <i class="bi bi-image me-1"></i>Generate image
+            </button>
+            <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="openStudyToolSettingsModal('visualguide')">
+              <i class="bi bi-sliders me-1"></i>Image guide settings
+            </button>
+          </div>
         </div>
         <div id="visualGuidePanelContent"></div>
       </div>

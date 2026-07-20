@@ -16,6 +16,7 @@ function writeAudioPrefs(config) {
       ambientSound: config.ambientSound,
       musicVolume: config.musicVolume,
       ambientVolume: config.ambientVolume,
+      audioChannels: config.audioChannels,
       updatedAt: new Date().toISOString()
     }));
   } catch {
@@ -28,16 +29,18 @@ export function useAudioSettings() {
   const ambientSound = useFocusRoomStore(state => state.ambientSound);
   const musicVolume = useFocusRoomStore(state => state.musicVolume);
   const ambientVolume = useFocusRoomStore(state => state.ambientVolume);
+  const audioChannels = useFocusRoomStore(state => state.audioChannels);
   const audioPlaying = useFocusRoomStore(state => state.audioPlaying);
   const [audioState, setAudioState] = useState(() => getFocusRoomAudioState(getFocusRoomAudioProfile({
     musicType,
     ambientSound,
     musicVolume,
-    ambientVolume
+    ambientVolume,
+    audioChannels
   })));
 
   useEffect(() => {
-    const config = { musicType, ambientSound, musicVolume, ambientVolume };
+    const config = { musicType, ambientSound, musicVolume, ambientVolume, audioChannels };
     let cancelled = false;
     setFocusRoomAudioPlaying(audioPlaying);
     writeAudioPrefs(config);
@@ -47,7 +50,7 @@ export function useAudioSettings() {
     return () => {
       cancelled = true;
     };
-  }, [ambientSound, ambientVolume, audioPlaying, musicType, musicVolume]);
+  }, [ambientSound, ambientVolume, audioChannels, audioPlaying, musicType, musicVolume]);
 
   return audioState;
 }

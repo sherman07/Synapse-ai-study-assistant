@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Synapse Focus Room</title>
-  <meta name="description" content="A dedicated Synapse Focus Room for scene-based Pomodoro study, flashcards, quizzes, AI tutor chat, and session history." />
+  <meta name="description" content="A dedicated Synapse Focus Room for calm scene-based Pomodoro study, room audio, and distraction-free focus." />
   <meta name="robots" content="noindex,follow" />
   <meta name="theme-color" content="#0a111f" />
   <script src="theme-bootstrap.js?v=theme-system-v1"></script>
@@ -12,18 +12,19 @@
   <link rel="icon" type="image/png" href="/logos/synapse.png">
   <link rel="apple-touch-icon" href="/logos/synapse.png">
   <link rel="stylesheet" href="style.css?v=loading-history-v1">
-  <link rel="stylesheet" href="styles/09-focus-room.css?v=focus-room-glass-v8">
-  <link rel="stylesheet" href="styles/00-theme.css?v=theme-system-v1">
-  <link rel="stylesheet" href="styles/99-dark-mode.css?v=dark-mode-v4">
+  <link rel="stylesheet" href="styles/09-focus-room.css?v=focus-room-glass-v17">
+  <link rel="stylesheet" href="styles/00-theme.css?v=theme-system-v2">
+  <link rel="stylesheet" href="styles/99-dark-mode.css?v=dark-mode-v6">
 </head>
-<body class="focus-room-standalone" data-focus-room-version="focus-room-glass-v8">
+<body class="focus-room-standalone" data-focus-room-version="focus-room-glass-v11">
   <main id="focusRoomRoot">
     <h1 id="focusRoomFallbackTitle">Synapse Focus Room</h1>
   </main>
-  <script src="config.js?v=public-auth-session-v3"></script>
+  <script src="config.js?v=public-auth-session-v4"></script>
+  <script src="auth-client.js?v=public-auth-session-v4"></script>
   <script type="module">
     if (window.SYNAPSE_FOCUS_ROOM_ENABLED === true) {
-      import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7")
+      import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v9")
         .catch(error => {
           console.error("Synapse Focus Room failed to start:", error);
           window.location.replace("index.html");

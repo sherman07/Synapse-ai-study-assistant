@@ -112,6 +112,16 @@ function getFocusRoomKeysForHistoryItem(item) {
   return [...new Set(keys)];
 }
 
+function findFocusRoomHistoryItem(materialId = "") {
+  const id = String(materialId || "").trim();
+  if (!id) return null;
+  return getHistory().find(item =>
+    String(item?.id || "") === id ||
+    String(item?.sourceFingerprint || item?.source_fingerprint || "") === id ||
+    String(item?.clientFingerprint || item?.client_fingerprint || "") === id
+  ) || null;
+}
+
 function getFocusRoomFlashcardsForKeys(keys, fallbackCards = []) {
   const fallback = Array.isArray(fallbackCards) ? fallbackCards : [];
   const record = getFocusRoomStoreRecordByKeys(
@@ -287,10 +297,12 @@ function openSynapseFocusRoom(materialId = "") {
 
 async function returnFromFocusRoomToWorkspace(materialId = "", target = {}) {
   const id = String(materialId || "");
-  const workspaceTarget = normalizeFocusRoomWorkspaceTarget({ ...target, materialId: id });
+  const historyItem = findFocusRoomHistoryItem(id);
+  const workspaceId = String(historyItem?.id || "");
+  const workspaceTarget = normalizeFocusRoomWorkspaceTarget({ ...target, materialId: workspaceId });
   try {
-    if (id && getHistory().some(item => item.id === id)) {
-      await loadHistoryEntry(id, { preserveScroll: true });
+    if (workspaceId) {
+      await loadHistoryEntry(workspaceId, { preserveScroll: true });
     }
   } catch (error) {
     console.error("Could not restore Focus Room material:", error);

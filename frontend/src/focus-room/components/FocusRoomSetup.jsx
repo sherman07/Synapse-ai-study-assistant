@@ -6,44 +6,19 @@ import { LiquidGlass } from "./LiquidGlass.jsx";
 import { SceneSelector } from "./SceneSelector.jsx";
 import { SoundControlPanel } from "./SoundControlPanel.jsx";
 
-export function FocusRoomSetup({ audioState, onWorkspace, onHistory }) {
-  const material = useFocusRoomStore(state => state.selectedMaterial);
+export function FocusRoomSetup({ audioState }) {
   const pomodoroDuration = useFocusRoomStore(state => state.pomodoroDuration);
   const studyGoal = useFocusRoomStore(state => state.studyGoal);
-  const studyPlan = useFocusRoomStore(state => state.studyPlan);
   const setPomodoroDuration = useFocusRoomStore(state => state.setPomodoroDuration);
   const setStudyGoal = useFocusRoomStore(state => state.setStudyGoal);
   const startSession = useFocusRoomStore(state => state.startSession);
-
-  if (!material) {
-    return (
-      <section className="focus-empty-stage">
-        <LiquidGlass className="focus-empty-card">
-          <span className="focus-kicker">Ready when you are</span>
-          <h1>Waiting for material</h1>
-          <p>Generate or select study notes in the workspace, then open the Focus Room again.</p>
-          <div className="focus-button-row">
-            <GlassButton variant="primary" onClick={() => onWorkspace()}>Open Workspace</GlassButton>
-            <GlassButton onClick={onHistory}>Study History</GlassButton>
-          </div>
-        </LiquidGlass>
-      </section>
-    );
-  }
 
   return (
     <section className="focus-setup-stage" aria-label="Focus Room setup">
       <LiquidGlass className="focus-setup-scenes">
         <span className="focus-step-label">Step 01</span>
         <h1>Choose your study scene</h1>
-        <p>Pick the cinematic atmosphere that matches this focus block.</p>
-        <article className="material-strip liquid-glass-lite">
-          <span className="focus-pill">{material.materialType || "Study material"}</span>
-          <div className="material-strip-copy">
-            <strong>{material.materialTitle || "Study material"}</strong>
-            <p>{material.studyHeadings?.slice(0, 2).join(" / ") || "Generated notes"}</p>
-          </div>
-        </article>
+        <p>Pick the cinematic atmosphere that helps you settle into this focus block.</p>
         <SceneSelector />
       </LiquidGlass>
 
@@ -67,30 +42,12 @@ export function FocusRoomSetup({ audioState, onWorkspace, onHistory }) {
         </div>
         <label className="focus-field">
           Custom duration
-          <input
-            type="number"
-            min="10"
-            max="180"
-            step="5"
-            value={pomodoroDuration}
-            onChange={event => setPomodoroDuration(event.target.value)}
-          />
+          <input type="number" min="10" max="180" step="5" value={pomodoroDuration} onChange={event => setPomodoroDuration(event.target.value)} />
         </label>
         <label className="focus-field">
-          Study goal
+          Focus intention
           <textarea value={studyGoal} onChange={event => setStudyGoal(event.target.value)} />
         </label>
-        <div className="plan-preview liquid-glass-lite">
-          <h3>Study plan</h3>
-          <ul className="plan-list">
-            {studyPlan.map((item, index) => (
-              <li key={`${item.task}-${index}`}>
-                <strong>{item.minutes}m</strong>
-                <span>{item.task}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
         <GlassButton className="enter-focus-btn" variant="primary" onClick={startSession}>
           <Sparkles size={18} aria-hidden="true" /> Enter Focus Room
         </GlassButton>

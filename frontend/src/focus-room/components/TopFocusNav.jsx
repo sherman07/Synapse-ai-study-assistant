@@ -1,37 +1,26 @@
-import { BookOpenText, Brain, History, Layers, Music2, NotebookPen, Quote, Square } from "lucide-react";
+import { DoorOpen, Footprints, Settings2, Users } from "lucide-react";
 import { currentScene } from "../utils.js";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
 import { GlassButton } from "./GlassButton.jsx";
 
-export function TopFocusNav({ onWorkspace, onHistory }) {
-  const material = useFocusRoomStore(state => state.selectedMaterial);
+export function TopFocusNav({ onWorkspace, onOpenTrail, onOpenCompanion, onOpenSettings, onExit }) {
   const selectedScene = useFocusRoomStore(state => state.selectedScene);
-  const panelTab = useFocusRoomStore(state => state.panelTab);
-  const aiPanelOpen = useFocusRoomStore(state => state.aiPanelOpen);
-  const openDrawer = useFocusRoomStore(state => state.openDrawer);
-  const openStudyPanel = useFocusRoomStore(state => state.openStudyPanel);
-  const endSession = useFocusRoomStore(state => state.endSession);
   const scene = currentScene(selectedScene);
-  const sourceCount = material?.sourceHighlights?.length || material?.sourceItems?.length || material?.sources?.length || 0;
-  const sectionCount = Object.keys(material?.sections || {}).length || material?.studyHeadings?.length || 1;
-  const isActive = tab => aiPanelOpen && panelTab === tab;
 
   return (
-    <header className="top-nav">
-      <div className="focus-brand">
-        <span className="focus-kicker">Synapse Focus Room</span>
-        <strong>{scene.name}</strong>
-        <small>{material?.materialTitle || "Study material"} · {sectionCount} section{sectionCount === 1 ? "" : "s"} · {sourceCount} source{sourceCount === 1 ? "" : "s"}</small>
+    <header className="focus-room-header">
+      <button type="button" className="focus-wordmark" onClick={onWorkspace} aria-label="Return to Synapse workspace">
+        <span className="focus-wordmark-mark">S</span><span>synapse</span>
+      </button>
+      <div className="focus-room-context" aria-label="Current focus context">
+        <span>{scene.name}</span>
+        <small>Quiet study room</small>
       </div>
-      <nav className="top-nav-actions" aria-label="Focus Room controls">
-        <GlassButton className="focus-command-btn" onClick={() => openDrawer("scene")} title="Change scene"><Layers size={16} aria-hidden="true" /> <span>Scene</span></GlassButton>
-        <GlassButton className="focus-command-btn" onClick={() => openDrawer("music")} title="Sound controls"><Music2 size={16} aria-hidden="true" /> <span>Sound</span></GlassButton>
-        <GlassButton className={`focus-command-btn ${isActive("materials") ? "is-active" : ""}`.trim()} onClick={() => openStudyPanel("materials")} title="Open material overview"><BookOpenText size={16} aria-hidden="true" /> <span>Materials</span></GlassButton>
-        <GlassButton className={`focus-command-btn ${isActive("notes") ? "is-active" : ""}`.trim()} onClick={() => openStudyPanel("notes")} title="Read generated notes"><NotebookPen size={16} aria-hidden="true" /> <span>Notes</span></GlassButton>
-        <GlassButton className={`focus-command-btn ${isActive("sources") ? "is-active" : ""}`.trim()} onClick={() => openStudyPanel("sources")} title="Open source highlights"><Quote size={16} aria-hidden="true" /> <span>Sources</span></GlassButton>
-        <GlassButton className={`focus-command-btn ${isActive("chat") ? "is-active" : ""}`.trim()} onClick={() => openStudyPanel("chat")} title="Open Study Suite"><Brain size={16} aria-hidden="true" /> <span>Study Suite</span></GlassButton>
-        <GlassButton className={`focus-command-btn ${isActive("history") ? "is-active" : ""}`.trim()} onClick={() => openStudyPanel("history")} title="Open history"><History size={16} aria-hidden="true" /> <span>History</span></GlassButton>
-        <GlassButton className="focus-command-btn" variant="danger" onClick={endSession} title="End focus session"><Square size={16} aria-hidden="true" /> <span>End</span></GlassButton>
+      <nav className="focus-room-header-actions" aria-label="Focus Room controls">
+        <GlassButton className="header-icon-button" onClick={onOpenTrail} title="Open Focus Trail" aria-label="Open Focus Trail"><Footprints size={16} aria-hidden="true" /><span>Focus Trail</span></GlassButton>
+        <GlassButton className="header-icon-button" onClick={onOpenCompanion} title="Open Companion Room" aria-label="Open Companion Room"><Users size={16} aria-hidden="true" /><span>Companion</span></GlassButton>
+        <GlassButton className="header-icon-button" onClick={onOpenSettings} title="Open room settings" aria-label="Open room settings"><Settings2 size={16} aria-hidden="true" /><span>Settings</span></GlassButton>
+        <GlassButton className="header-icon-button header-exit-button" onClick={onExit} title="Exit Focus Room" aria-label="Exit Focus Room"><DoorOpen size={16} aria-hidden="true" /><span>Exit</span></GlassButton>
       </nav>
     </header>
   );

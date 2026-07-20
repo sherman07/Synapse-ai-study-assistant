@@ -365,6 +365,71 @@
   min-width: 0;
 }
 
+.study-tool-settings-modal {
+  width: min(620px, calc(100vw - 1.5rem));
+  padding: clamp(1.35rem, 3vw, 2rem);
+}
+
+.study-tool-settings-modal h3 {
+  margin: 0 2.75rem 0.45rem 0;
+  color: var(--text-main);
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.study-tool-settings-modal > p {
+  margin: 0 0 1.25rem;
+  line-height: 1.55;
+}
+
+.study-tool-settings-kicker {
+  display: inline-flex;
+  margin-bottom: 0.55rem;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.study-tool-settings-fields {
+  display: grid;
+  gap: 1rem;
+}
+
+.study-tool-settings-field {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-main);
+  font-weight: 800;
+}
+
+.study-tool-settings-field small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.study-tool-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+.study-tool-settings-overlay .visual-modal-close {
+  z-index: 1;
+}
+
+@media (max-width: 640px) {
+  .study-tool-settings-actions > .btn {
+    flex: 1 1 140px;
+  }
+}
+
 .visual-modal-content img {
   width: 100%;
   max-height: min(74vh, 74dvh);

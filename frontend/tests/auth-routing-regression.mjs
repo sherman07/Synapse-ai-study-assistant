@@ -76,10 +76,10 @@ assert.ok(signupPage.includes("password-strength"), "Sign-up should expose a pas
 assert.ok(signupPage.includes("password-requirements"), "Sign-up should expose live password requirements");
 assert.ok(loginPage.includes("data-testid=\"login-status\""), "Login should expose a status region");
 for (const page of [loginPage, signupPage, forgotPage, resetPage, verifyPage, workspacePage]) {
-  assert.ok(page.includes("config.js?v=public-auth-session-v3"), "Public pages must bypass cached pre-fix runtime config");
+  assert.ok(page.includes("config.js?v=public-auth-session-v4"), "Public pages must bypass cached pre-fix runtime config");
   assert.ok(page.includes("auth-client.js?v=public-auth-session-v3"), "Public pages must bypass cached pre-fix auth client code");
 }
-assert.ok(workspacePage.includes("style.css?v=workspace-contrast-v9"), "Workspace should bypass cached pre-fix contrast styles");
+assert.ok(workspacePage.includes("style.css?v=workspace-contrast-v10"), "Workspace should bypass cached pre-fix contrast styles");
 assert.ok(forgotPage.includes("data-testid=\"reset-success\""), "Forgot password should expose a success state");
 assert.ok(resetPage.includes("data-testid=\"reset-password-success\""), "Reset password should expose a success state");
 assert.ok(authClientScript.includes("/api/auth/request-password-reset"), "Password recovery should use the Synapse backend email endpoint");
@@ -120,17 +120,28 @@ function makeClassList() {
 }
 
 function makeElement(value = "") {
+  const attributes = new Map();
   return {
     value,
     checked: false,
     disabled: false,
     textContent: "",
     type: "password",
+    dataset: {},
     style: {
       setProperty() {}
     },
     classList: makeClassList(),
     addEventListener() {},
+    setAttribute(name, nextValue) {
+      attributes.set(name, String(nextValue));
+    },
+    getAttribute(name) {
+      return attributes.has(name) ? attributes.get(name) : null;
+    },
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
     getBoundingClientRect() {
       return { left: 0, top: 0, width: 100, height: 100 };
     },

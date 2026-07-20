@@ -56,11 +56,20 @@ assert.equal(harness.rootElement.dataset.theme, "light", "Storage synchronizatio
 for (const page of ["index.html", "landing.html", "focus-room.html", "login.html", "pricing.html"]) {
   const html = fs.readFileSync(path.join(root, "frontend", page), "utf8");
   assert.match(html, /theme-bootstrap\.js/, `${page} loads the shared pre-paint theme bootstrap`);
+  assert.match(html, /styles\/00-theme\.css\?v=theme-system-v2/, `${page} loads the current semantic theme stylesheet`);
+  assert.match(html, /styles\/99-dark-mode\.css\?v=dark-mode-v6/, `${page} loads the current dark-mode compatibility layer`);
+  if (html.includes("config.js")) {
+    assert.match(html, /config\.js\?v=public-auth-session-v4/, `${page} loads the current runtime config`);
+  }
 }
 
 const tokens = fs.readFileSync(path.join(root, "frontend/styles/00-theme.css"), "utf8");
+const darkLayer = fs.readFileSync(path.join(root, "frontend/styles/99-dark-mode.css"), "utf8");
 for (const token of ["--color-page-background", "--color-surface-primary", "--color-text-primary", "--color-accent", "--color-overlay", "--shadow-modal"]) {
   assert.match(tokens, new RegExp(token), `${token} is part of the semantic theme contract`);
+}
+for (const selector of [".tool-switch-btn", ".memory-topic-row", ".mm-node-dot", "scrollbar-color"]) {
+  assert.match(darkLayer, new RegExp(selector.replace(/[.]/g, "\\.")), `${selector} has a dark-mode override`);
 }
 
 console.log("theme-system-regression: passed");

@@ -75,6 +75,7 @@ const focusRoomQueryClient = read("frontend/src/focus-room/queryClient.js");
 const focusRoomStore = read("frontend/src/focus-room/hooks/useFocusRoomStore.js");
 const focusRoomPage = read("frontend/src/focus-room/components/FocusRoomPage.jsx");
 const topFocusNav = read("frontend/src/focus-room/components/TopFocusNav.jsx");
+const bottomControlDock = read("frontend/src/focus-room/components/BottomControlDock.jsx");
 const focusTimerCard = read("frontend/src/focus-room/components/TimerCard.jsx");
 const focusToolPanel = read("frontend/src/focus-room/components/FocusRoomToolPanel.jsx");
 const focusMaterialContent = read("frontend/src/focus-room/components/FocusMaterialContent.jsx");
@@ -146,7 +147,7 @@ assert.ok(runtime.includes("globalThis.React"), "React runtime helper should use
 assert.ok(app.includes("h(AppShell)"), "React app should render the shell as React elements");
 assert.ok(!app.includes("dangerouslySetInnerHTML"), "React app should not inject the workspace shell as an HTML string");
 assert.ok(!appShell.includes("FocusRoom()"), "AppShell should not render the separate Focus Room shell");
-assert.ok(analysisStage.includes("focusRoomCta"), "analysis header should keep the dormant Focus Room CTA for future re-enabling");
+assert.ok(!analysisStage.includes("focusRoomCta"), "generated notes should not expose a duplicate Focus Room entry point");
 assert.ok(controller.includes("\"10_focusroombridge.js\""), "legacy controller should load the Focus Room bridge");
 assert.ok(historyNavigation.includes("learning-rail-focus-room"), "left learning navigation should include the Focus Room action");
 assert.ok(historyNavigation.includes('legacyAction("openSynapseFocusRoom")'), "left learning navigation should open Focus Room through the shared bridge");
@@ -169,7 +170,7 @@ assert.ok(
   "Standalone Focus Room page should redirect direct visitors to the workspace while disabled"
 );
 assert.ok(
-  focusRoomHtml.includes('import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v7")'),
+  focusRoomHtml.includes('import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v9")'),
   "Standalone Focus Room page should only import the loader after the feature flag allows it"
 );
 assert.ok(
@@ -181,18 +182,18 @@ assert.ok(
   "Standalone Focus Room page should not boot the loader unconditionally while disabled"
 );
 assert.ok(
-  focusRoomHtml.includes("styles/09-focus-room.css?v=focus-room-glass-v8"),
+  focusRoomHtml.includes("styles/09-focus-room.css?v=focus-room-glass-v17"),
   "Focus Room HTML should cache-bust the CSS after portal stacking fixes"
 );
 assert.ok(
-  focusRoomHtml.includes("static-compatible-loader.js?v=focus-room-loader-v7"),
+  focusRoomHtml.includes("static-compatible-loader.js?v=focus-room-loader-v9"),
   "Focus Room HTML should cache-bust the standalone loader after boot fixes"
 );
 assert.ok(focusRoomHtml.includes("styles/09-focus-room.css"), "Standalone Focus Room page should load Focus Room styles directly");
 assert.ok(!focusRoomHtml.includes("react@18"), "Standalone Focus Room should rely on Vite/npm React, not CDN React");
 assert.ok(focusRoomStaticLoader.includes("focus-room-static.js"), "Focus Room static loader should import the prebuilt static bundle");
 assert.ok(
-  focusRoomStaticLoader.includes("focus-room-static.js?v=focus-room-static-v7"),
+  focusRoomStaticLoader.includes("focus-room-static.js?v=focus-room-static-v9"),
   "Focus Room loader should cache-bust the static bundle after portal stacking fixes"
 );
 assert.ok(
@@ -209,6 +210,9 @@ assert.ok(focusRoomStandalone.includes("initFocusRoom({ root })"), "Standalone F
 assert.ok(focusRoomStandaloneBridge.includes("HISTORY_STORAGE_KEY"), "Standalone Focus Room bridge should read generated history");
 assert.ok(focusRoomStandaloneBridge.includes("getSynapseFocusRoomMaterials"), "Standalone Focus Room bridge should expose material providers");
 assert.ok(focusRoomStandaloneBridge.includes("returnFromFocusRoomToWorkspace"), "Standalone Focus Room bridge should return to the workspace page");
+assert.ok(focusRoomStandaloneBridge.includes("item.sourceFingerprint === id"), "Standalone Focus Room should resolve material routes by source fingerprint");
+assert.ok(focusRoomStandaloneBridge.includes("return getSynapseFocusRoomMaterial(activeId);"), "Standalone Focus Room should not fall back to the oldest generated note");
+assert.ok(focusRoomStandaloneBridge.includes("const workspaceId = String(historyItem?.id || \"\")"), "Standalone Focus Room should return using the matching history id");
 assert.ok(focusRoomData.includes("Cafe Rain"), "Focus Room data should include the two-layer Rainy Cafe ambience");
 assert.ok(focusBridge.includes("function getFocusRoomFlashcardsForCurrentNote()"), "Focus Room bridge should read stored flashcards for the active note");
 assert.ok(focusBridge.includes("function getFocusRoomQuizRecordsForCurrentNote()"), "Focus Room bridge should expose saved quiz record metadata");
@@ -221,6 +225,10 @@ assert.ok(
 assert.ok(
   boot.includes('typeof notifyFocusRoomMaterialsChanged === "function"'),
   "boot should guard Focus Room material change notifications"
+);
+assert.ok(
+  focusBridge.includes("function findFocusRoomHistoryItem(materialId = \"\")"),
+  "workspace bridge should resolve Focus Room materials by history id or fingerprint"
 );
 assert.ok(
   focusBridge.includes("function isSynapseFocusRoomEnabled()"),
@@ -279,7 +287,7 @@ for (const token of [
 assert.ok(!focusRoomController.includes("HashRouter"), "Standalone Focus Room should not wrap its self-managed hash route in React Router");
 assert.ok(!focusRoomController.includes("QueryClientProvider"), "Standalone Focus Room should avoid a React Query provider in its boot path");
 assert.ok(
-  focusRoomController.includes("FocusRoomPage.jsx?v=focus-room-react-vite-v5"),
+  focusRoomController.includes("FocusRoomPage.jsx?v=focus-room-react-vite-v6"),
   "Standalone Focus Room controller should cache-bust the page module that owns React hooks"
 );
 assert.ok(!focusRoomQueryClient.includes("@tanstack/react-query"), "Focus Room query helper should avoid React Query in standalone boot");
@@ -314,33 +322,30 @@ for (const token of [
 }
 
 assert.ok(focusRoomData.includes("sourceHighlights"), "Focus Room materials should normalize source highlights for generated evidence navigation");
-assert.ok(topFocusNav.includes('openStudyPanel("notes"'), "Top navigation Notes command should open generated notes");
-assert.ok(topFocusNav.includes('openStudyPanel("sources"'), "Top navigation should expose source highlights directly");
-assert.ok(focusUtils.includes('"notes"'), "Focus Room panel tabs should include generated notes");
-assert.ok(focusUtils.includes('"sources"'), "Focus Room panel tabs should include source highlights");
-assert.ok(focusToolPanel.includes('tab === "notes"'), "Study suite should route the generated notes tab");
-assert.ok(focusToolPanel.includes('tab === "sources"'), "Study suite should route the source highlights tab");
-assert.ok(focusMaterialContent.includes("source-highlight"), "Generated notes reader should render source highlight controls");
-assert.ok(focusMaterialContent.includes("openSourceInWorkspace"), "Generated notes source controls should navigate back to workspace sources");
+assert.ok(topFocusNav.includes("Synapse"), "Top navigation should retain Synapse branding");
+assert.ok(topFocusNav.includes("Open Focus Trail"), "Top navigation should expose Focus Trail");
+assert.ok(topFocusNav.includes("Open room settings"), "Top navigation should expose room settings");
+assert.ok(!focusRoomPage.includes("AILearningPanel"), "Pure Focus Room should not mount the generated-content study suite");
+assert.ok(!focusRoomPage.includes("FocusRoomToolPanel"), "Pure Focus Room should not mount Synapse Tools");
+assert.ok(!focusRoomPage.includes("useStudyMaterial"), "Pure Focus Room should not hydrate generated materials");
+assert.ok(!bottomControlDock.includes("Synapse Tools"), "Pure Focus Room dock should not expose Synapse Tools");
+assert.ok(!focusTimerCard.includes(">Materials<"), "Pure Focus Room timer should not expose Materials");
 
 for (const token of [
   "useIdleMode(3000)",
   "usePomodoroTimer",
   "useAudioSettings",
-  "useStudyMaterial",
+  "initializeFocusRoom",
   "TopFocusNav",
   "BottomControlDock",
-  "AILearningPanel",
-  "SessionOverviewCard",
+  "SessionSummaryModal",
   "focus-session-grid"
 ]) {
   assert.ok(focusRoomPage.includes(token), `Focus Room page should include ${token}`);
 }
 assert.ok(focusTimerCard.includes("isIdle"), "Timer card Motion animation should respond to idle mode");
 assert.ok(focusTimerCard.includes("timerScale"), "Timer card should scale down through Motion during idle mode");
-assert.ok(focusToolPanel.includes("FocusMaterialContent"), "Study suite should render the full materials surface");
-assert.ok(focusToolPanel.includes("FocusWorkspaceNotes"), "Study suite should include in-room notes");
-assert.ok(focusToolPanel.includes("Study History"), "Study suite should include history content");
+assert.ok(focusRoomPage.includes("initializeFocusRoom"), "Pure Focus Room should initialize without a generated material");
 assert.ok(
   !focusToolPanel.includes('from "radix-ui"')
     && !sessionSummaryModal.includes('from "radix-ui"')
@@ -412,36 +417,9 @@ function createFocusBridgeContext(overrides = {}) {
   return context;
 }
 
-function createHiddenButton() {
-  const classes = new Set();
-  const attributes = new Map();
-  return {
-    disabled: false,
-    classList: {
-      toggle(name, force) {
-        if (force) classes.add(name);
-        else classes.delete(name);
-      },
-      contains(name) {
-        return classes.has(name);
-      }
-    },
-    setAttribute(name, value) {
-      attributes.set(name, String(value));
-    },
-    removeAttribute(name) {
-      attributes.delete(name);
-    },
-    getAttribute(name) {
-      return attributes.get(name);
-    }
-  };
-}
-
-const disabledFocusRoomButton = createHiddenButton();
 const disabledFocusRoomContext = createFocusBridgeContext({
   document: {
-    getElementById: id => id === "focusRoomCta" ? disabledFocusRoomButton : null
+    getElementById: () => null
   },
   window: {
     SYNAPSE_FOCUS_ROOM_ENABLED: false,
@@ -450,13 +428,6 @@ const disabledFocusRoomContext = createFocusBridgeContext({
   }
 });
 disabledFocusRoomContext.renderFocusRoomWorkspaceActions();
-assert.equal(disabledFocusRoomButton.disabled, true, "Disabled Focus Room flag should disable the workspace CTA");
-assert.equal(disabledFocusRoomButton.classList.contains("d-none"), true, "Disabled Focus Room flag should keep the workspace CTA hidden");
-assert.equal(
-  disabledFocusRoomButton.getAttribute("aria-label"),
-  "Focus Room is currently unavailable",
-  "Disabled Focus Room flag should communicate that the CTA is unavailable"
-);
 disabledFocusRoomContext.openSynapseFocusRoom("history-1");
 assert.equal(
   disabledFocusRoomContext.window.location.href,

@@ -4,9 +4,12 @@ import {
   FOCUS_ROOM_SCENES,
   formatFocusRoomDuration,
   getFocusRoomMaterial,
+  focusRoomLegacyTimerStatus,
   readFocusRoomActiveSessionForMaterial,
   readFocusRoomDraft,
   readFocusRoomSessions,
+  normalizeFocusRoomTimerState,
+  saveFocusRoomActiveSession,
   saveFocusRoomSession,
   writeFocusRoomDraft
 } from "../data.js";
@@ -35,6 +38,12 @@ import {
   sceneById
 } from "../utils.js";
 
+const DEFAULT_AUDIO_CHANNELS = Object.freeze({
+  "white-noise": 0, "pink-noise": 0, "brown-noise": 0, "light-rain": 24, "heavy-rain": 0,
+  "ocean-waves": 0, wind: 0, fireplace: 0, train: 0, cafe: 0, street: 0, forest: 0,
+  "summer-night": 0, waterfall: 0, typing: 0, "page-turning": 0, writing: 0
+});
+
 function initialScene() {
   return FOCUS_ROOM_SCENES[0] || currentScene(DEFAULT_SCENE_ID);
 }
@@ -58,6 +67,7 @@ function persistDraftFromState(source) {
     ambientSound: source.ambientSound,
     musicVolume: clampVolume(source.musicVolume),
     ambientVolume: clampVolume(source.ambientVolume),
+    audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(source.audioChannels || {}) },
     durationMinutes: clampDuration(source.pomodoroDuration),
     studyGoal: source.studyGoal,
     studyPlan: normalizeStudyPlanItems(source.studyPlan),
@@ -97,6 +107,83 @@ function normalizeSourceHighlight(highlight = null) {
   };
 }
 
+function clockNowMs() {
+  const now = Date.now();
+  return Number.isFinite(now) ? now : 0;
+}
+
+function timerStateFor(source = {}) {
+  return normalizeFocusRoomTimerState(source.timerState || source.timerPhase || source.status || source.timerStatus);
+}
+
+function timerTotalSeconds(source = {}) {
+  if (source.timerMode === "countup") return 0;
+  const persistedDuration = Number(source.timerDurationSeconds);
+  return Number.isFinite(persistedDuration) && persistedDuration > 0
+    ? persistedDuration
+    : durationSeconds(source.pomodoroDuration);
+}
+
+function elapsedSecondsAt(source = {}, now = clockNowMs()) {
+  const current = Math.max(0, Number(source.elapsedSeconds) || 0);
+  if (timerStateFor(source) !== "running") return current;
+  const anchor = Number(source.timerAnchorAtMs);
+  if (!Number.isFinite(anchor) || anchor <= 0) return current;
+  return Math.max(current, Math.floor(Math.max(0, now - anchor) / 1000));
+}
+
+function timerStateFields(nextState, now = clockNowMs()) {
+  const timerState = normalizeFocusRoomTimerState(nextState);
+  return {
+    timerState,
+    timerPhase: timerState,
+    status: timerState,
+    timerStatus: focusRoomLegacyTimerStatus(timerState),
+    timerUpdatedAtMs: now
+  };
+}
+
+function timerSnapshot(source = {}) {
+  const timerState = timerStateFor(source);
+  return {
+    timerState,
+    timerPhase: timerState,
+    status: timerState,
+    timerStatus: focusRoomLegacyTimerStatus(timerState),
+    timerMode: source.timerMode === "countup" ? "countup" : "countdown",
+    timerAnchorAtMs: Number.isFinite(Number(source.timerAnchorAtMs)) ? Number(source.timerAnchorAtMs) : null,
+    timerPausedAtMs: Number.isFinite(Number(source.timerPausedAtMs)) ? Number(source.timerPausedAtMs) : null,
+    timerUpdatedAtMs: Number.isFinite(Number(source.timerUpdatedAtMs)) ? Number(source.timerUpdatedAtMs) : null,
+    timerRestoredAtMs: Number.isFinite(Number(source.timerRestoredAtMs)) ? Number(source.timerRestoredAtMs) : null,
+    timerDurationSeconds: timerTotalSeconds(source),
+    pomodoroDuration: source.pomodoroDuration,
+    elapsedSeconds: Math.max(0, Number(source.elapsedSeconds) || 0),
+    startedAt: source.startedAt || null,
+    currentSession: source.currentSession || null,
+    view: source.view
+  };
+}
+
+function persistTimerSnapshot(source) {
+  const materialId = String(source.selectedMaterialId || source.selectedMaterial?.materialId || "");
+  if (!materialId || source.view !== "session") return false;
+  return saveFocusRoomActiveSession(materialId, timerSnapshot(source));
+}
+
+function reconciledTimer(source, now = clockNowMs()) {
+  const elapsedSeconds = elapsedSecondsAt(source, now);
+  const total = timerTotalSeconds(source);
+  const completed = source.timerMode !== "countup" && total > 0 && elapsedSeconds >= total;
+  const nextState = completed ? "completed" : timerStateFor(source);
+  return {
+    ...timerStateFields(nextState, now),
+    elapsedSeconds: completed ? total : elapsedSeconds,
+    timerAnchorAtMs: nextState === "running" ? source.timerAnchorAtMs : null,
+    timerPausedAtMs: nextState === "running" ? null : (source.timerPausedAtMs || now),
+    audioPlaying: nextState === "running" ? source.audioPlaying : false
+  };
+}
+
 function hydratedMaterialState(material, previous = {}) {
   const scene = currentScene(previous.selectedScene);
   const draft = readDraftForMaterial(material?.materialId);
@@ -120,6 +207,7 @@ function hydratedMaterialState(material, previous = {}) {
     ambientSound,
     musicVolume,
     ambientVolume,
+    audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(draft?.audioChannels || previous.audioChannels || {}) },
     pomodoroDuration,
     studyGoal,
     studyPlan,
@@ -132,12 +220,34 @@ function hydratedMaterialState(material, previous = {}) {
 function restoreActiveSessionState(materialId) {
   const snapshot = readFocusRoomActiveSessionForMaterial(materialId);
   if (!snapshot || typeof snapshot !== "object") return null;
-  const restoredStatus = snapshot.timerStatus === "studying" ? "paused" : String(snapshot.timerStatus || "idle");
+  const snapshotState = timerStateFor(snapshot);
+  const now = clockNowMs();
+  const snapshotAnchor = Number(snapshot.timerAnchorAtMs);
+  const startedAtMs = Date.parse(snapshot.startedAt || "");
+  const fallbackAnchor = Number.isFinite(startedAtMs) ? startedAtMs : NaN;
+  const runningElapsed = snapshotState === "running"
+    ? elapsedSecondsAt({
+        ...snapshot,
+        timerState: "running",
+        timerAnchorAtMs: Number.isFinite(snapshotAnchor) && snapshotAnchor > 0 ? snapshotAnchor : fallbackAnchor
+      }, now)
+    : Math.max(0, Number(snapshot.elapsedSeconds) || 0);
+  const total = timerTotalSeconds(snapshot);
+  const restoredTimerState = snapshotState === "running"
+    ? (total > 0 && runningElapsed >= total ? "completed" : "paused")
+    : snapshotState;
+  const needsRestoring = snapshotState === "running";
   return {
     route: snapshot.view === "session" ? "session" : "setup",
     view: snapshot.view === "session" ? "session" : "setup",
-    timerStatus: ["idle", "paused", "completed"].includes(restoredStatus) ? restoredStatus : "idle",
-    elapsedSeconds: Math.max(0, Number(snapshot.elapsedSeconds) || 0),
+    ...timerStateFields(needsRestoring ? "restoring" : restoredTimerState, now),
+    timerRestoreTarget: needsRestoring ? restoredTimerState : null,
+    timerMode: snapshot.timerMode === "countup" ? "countup" : "countdown",
+    timerAnchorAtMs: null,
+    timerPausedAtMs: needsRestoring ? null : (Number(snapshot.timerPausedAtMs) || null),
+    timerRestoredAtMs: needsRestoring ? null : now,
+    timerDurationSeconds: total,
+    elapsedSeconds: total > 0 ? Math.min(total, runningElapsed) : runningElapsed,
     startedAt: snapshot.startedAt || null,
     currentSession: snapshot.currentSession || null,
     completedTasks: Array.isArray(snapshot.completedTasks) ? snapshot.completedTasks.filter(Boolean) : [],
@@ -245,25 +355,47 @@ export const useFocusRoomStore = create((set, get) => {
   const scene = initialScene();
 
   return {
-    route: "workspace",
-    view: "setup",
+    route: "session",
+    view: "session",
     materials: [],
     materialsStatus: "idle",
     materialsError: "",
-    selectedMaterialId: "",
+    selectedMaterialId: "focus-room",
     selectedMaterial: null,
     selectedScene: scene.id,
     musicType: scene.musicType || "Deep Focus",
     ambientSound: scene.ambientSound || "Nature",
     musicVolume: 60,
     ambientVolume: 50,
+    audioChannels: { ...DEFAULT_AUDIO_CHANNELS },
     pomodoroDuration: DEFAULT_DURATION_MINUTES,
     timerStatus: "idle",
-    studyGoal: "",
+    timerState: "idle",
+    timerPhase: "idle",
+    status: "idle",
+    timerRestoreTarget: null,
+    timerMode: "countdown",
+    timerAnchorAtMs: null,
+    timerPausedAtMs: null,
+    timerUpdatedAtMs: null,
+    timerRestoredAtMs: null,
+    timerDurationSeconds: durationSeconds(DEFAULT_DURATION_MINUTES),
+    studyGoal: "Deep work block",
     studyPlan: [],
     aiPanelOpen: false,
     isIdle: false,
-    currentSession: null,
+    currentSession: {
+      sessionId: `focus-${Date.now()}`,
+      materialId: "focus-room",
+      studyGoal: "Deep work block",
+      selectedScene: scene.id,
+      musicType: scene.musicType || "Deep Focus",
+      ambientSound: scene.ambientSound || "Nature",
+      musicVolume: 60,
+      ambientVolume: 50,
+      pomodoroDuration: DEFAULT_DURATION_MINUTES,
+      startedAt: null
+    },
     sessionHistory: [],
     activeDrawer: "",
     audioPlaying: false,
@@ -287,6 +419,33 @@ export const useFocusRoomStore = create((set, get) => {
     chatError: "",
 
     setIdle: isIdle => set({ isIdle }),
+
+    initializeFocusRoom() {
+      const state = get();
+      if (state.view === "session" && state.selectedMaterialId === "focus-room" && state.currentSession) return;
+      const activeScene = currentScene(state.selectedScene);
+      set({
+        route: "session",
+        view: "session",
+        selectedMaterialId: "focus-room",
+        selectedMaterial: null,
+        studyGoal: state.studyGoal || "Deep work block",
+        studyPlan: [],
+        completedTasks: [],
+        currentSession: {
+          sessionId: `focus-${Date.now()}`,
+          materialId: "focus-room",
+          studyGoal: state.studyGoal || "Deep work block",
+          selectedScene: activeScene.id,
+          musicType: state.musicType,
+          ambientSound: state.ambientSound,
+          musicVolume: state.musicVolume,
+          ambientVolume: state.ambientVolume,
+          pomodoroDuration: state.pomodoroDuration,
+          startedAt: null
+        }
+      });
+    },
 
     setMaterialsState({ items = [], status = "ready", error = "" } = {}) {
       set({
@@ -329,6 +488,16 @@ export const useFocusRoomStore = create((set, get) => {
         : hydratedMaterialState(material, previous);
       const freshSessionState = sameMaterial && preserveSession ? {} : {
         timerStatus: "idle",
+        timerState: "idle",
+        timerPhase: "idle",
+        status: "idle",
+        timerRestoreTarget: null,
+        timerMode: "countdown",
+        timerAnchorAtMs: null,
+        timerPausedAtMs: null,
+        timerUpdatedAtMs: null,
+        timerRestoredAtMs: null,
+        timerDurationSeconds: durationSeconds(hydrated.pomodoroDuration || DEFAULT_DURATION_MINUTES),
         elapsedSeconds: 0,
         startedAt: null,
         currentSession: null,
@@ -356,6 +525,30 @@ export const useFocusRoomStore = create((set, get) => {
         activeDrawer: "",
         summaryRecord: null
       });
+
+      if (restoredSession?.timerState === "restoring") {
+        const restoreTarget = restoredSession.timerRestoreTarget || "paused";
+        Promise.resolve().then(() => {
+          const current = get();
+          if (current.selectedMaterialId !== selectedMaterialId || current.timerState !== "restoring") return;
+          const now = clockNowMs();
+          const total = timerTotalSeconds(current);
+          const elapsedSeconds = total > 0
+            ? Math.min(total, Math.max(0, Number(current.elapsedSeconds) || 0))
+            : Math.max(0, Number(current.elapsedSeconds) || 0);
+          const next = {
+            ...timerStateFields(restoreTarget, now),
+            timerRestoreTarget: null,
+            timerAnchorAtMs: null,
+            timerPausedAtMs: restoreTarget === "paused" ? now : null,
+            timerRestoredAtMs: now,
+            elapsedSeconds,
+            audioPlaying: false
+          };
+          set(next);
+          persistTimerSnapshot({ ...current, ...next });
+        });
+      }
     },
 
     showStudyHistory() {
@@ -387,8 +580,14 @@ export const useFocusRoomStore = create((set, get) => {
     setPomodoroDuration(value) {
       set(state => {
         const pomodoroDuration = clampDuration(value, state.pomodoroDuration);
-        const studyPlan = buildPlanForState(state.selectedMaterial, state.studyGoal, pomodoroDuration);
-        const next = { pomodoroDuration, studyPlan };
+        const studyPlan = state.selectedMaterial
+          ? buildPlanForState(state.selectedMaterial, state.studyGoal, pomodoroDuration)
+          : [];
+        const next = {
+          pomodoroDuration,
+          studyPlan,
+          timerDurationSeconds: state.timerMode === "countup" ? 0 : durationSeconds(pomodoroDuration)
+        };
         persistDraftFromState({ ...state, ...next });
         return next;
       });
@@ -397,7 +596,9 @@ export const useFocusRoomStore = create((set, get) => {
     setStudyGoal(value) {
       set(state => {
         const studyGoal = String(value ?? "");
-        const studyPlan = buildPlanForState(state.selectedMaterial, studyGoal, state.pomodoroDuration);
+        const studyPlan = state.selectedMaterial
+          ? buildPlanForState(state.selectedMaterial, studyGoal, state.pomodoroDuration)
+          : [];
         const next = { studyGoal, studyPlan };
         persistDraftFromState({ ...state, ...next });
         return next;
@@ -411,6 +612,10 @@ export const useFocusRoomStore = create((set, get) => {
         if (key === "ambientVolume") next = { ambientVolume: clampVolume(value, state.ambientVolume) };
         if (key === "musicType") next = { musicType: String(value || state.musicType) };
         if (key === "ambientSound") next = { ambientSound: String(value || state.ambientSound) };
+        if (String(key).startsWith("audioChannel:")) {
+          const channel = String(key).slice("audioChannel:".length);
+          next = { audioChannels: { ...state.audioChannels, [channel]: clampVolume(value, state.audioChannels?.[channel] ?? 0) } };
+        }
         persistDraftFromState({ ...state, ...next });
         return next;
       });
@@ -481,12 +686,21 @@ export const useFocusRoomStore = create((set, get) => {
 
     startSession() {
       const state = get();
-      if (!state.selectedMaterial) return;
       persistDraftFromState(state);
       set({
         route: "session",
         view: "session",
         timerStatus: "idle",
+        timerState: "idle",
+        timerPhase: "idle",
+        status: "idle",
+        timerRestoreTarget: null,
+        timerMode: "countdown",
+        timerAnchorAtMs: null,
+        timerPausedAtMs: null,
+        timerUpdatedAtMs: clockNowMs(),
+        timerRestoredAtMs: null,
+        timerDurationSeconds: durationSeconds(state.pomodoroDuration),
         elapsedSeconds: 0,
         startedAt: null,
         summaryRecord: null,
@@ -494,7 +708,7 @@ export const useFocusRoomStore = create((set, get) => {
         activeDrawer: "",
         currentSession: {
           sessionId: `focus-${Date.now()}`,
-          materialId: state.selectedMaterial.materialId,
+          materialId: "focus-room",
           studyGoal: state.studyGoal,
           selectedScene: state.selectedScene,
           musicType: state.musicType,
@@ -513,74 +727,151 @@ export const useFocusRoomStore = create((set, get) => {
 
     startTimer() {
       const state = get();
-      if (!state.selectedMaterial) return;
-      const shouldRestart = state.timerStatus === "completed" || state.elapsedSeconds >= durationSeconds(state.pomodoroDuration);
-      set({
+      const now = clockNowMs();
+      const currentState = timerStateFor(state);
+      if (currentState === "running") {
+        get().tickTimer();
+        return;
+      }
+      const total = timerTotalSeconds(state);
+      const shouldRestart = currentState === "completed" || currentState === "break" || total > 0 && state.elapsedSeconds >= total;
+      const elapsedSeconds = shouldRestart ? 0 : Math.max(0, Number(state.elapsedSeconds) || 0);
+      const next = {
         view: "session",
         route: "session",
-        timerStatus: "studying",
+        ...timerStateFields("running", now),
         audioPlaying: true,
         summaryRecord: null,
-        elapsedSeconds: shouldRestart ? 0 : state.elapsedSeconds,
-        startedAt: !state.startedAt || state.timerStatus === "completed" ? new Date().toISOString() : state.startedAt,
+        elapsedSeconds,
+        startedAt: !state.startedAt || shouldRestart ? new Date(now).toISOString() : state.startedAt,
+        timerAnchorAtMs: now - elapsedSeconds * 1000,
+        timerPausedAtMs: null,
+        timerRestoredAtMs: null,
+        timerRestoreTarget: null,
+        timerDurationSeconds: total,
         ...(shouldRestart ? resetProgressState() : {})
-      });
+      };
+      set(next);
+      persistTimerSnapshot({ ...state, ...next });
     },
 
     pauseTimer({ pauseAudio = true } = {}) {
       const state = get();
-      set({
-        timerStatus: state.timerStatus === "studying" ? "paused" : state.timerStatus,
+      const now = clockNowMs();
+      if (timerStateFor(state) !== "running") {
+        if (pauseAudio && state.audioPlaying) set({ audioPlaying: false });
+        return;
+      }
+      const reconciled = reconciledTimer(state, now);
+      const next = {
+        ...reconciled,
+        ...timerStateFields(reconciled.timerState === "completed" ? "completed" : "paused", now),
+        timerAnchorAtMs: null,
+        timerPausedAtMs: now,
         audioPlaying: pauseAudio ? false : state.audioPlaying
-      });
+      };
+      set(next);
+      persistTimerSnapshot({ ...state, ...next });
     },
 
     resetTimer() {
-      set({
-        timerStatus: "idle",
+      const now = clockNowMs();
+      const next = {
+        ...timerStateFields("idle", now),
+        timerRestoreTarget: null,
+        timerMode: "countdown",
+        timerAnchorAtMs: null,
+        timerPausedAtMs: null,
+        timerRestoredAtMs: null,
+        timerDurationSeconds: durationSeconds(get().pomodoroDuration),
         audioPlaying: false,
         startedAt: null,
         elapsedSeconds: 0,
         summaryRecord: null,
         ...resetProgressState()
-      });
+      };
+      set(next);
+      persistTimerSnapshot({ ...get(), ...next });
     },
 
     skipTimer() {
       const state = get();
-      set({
-        elapsedSeconds: durationSeconds(state.pomodoroDuration),
-        timerStatus: "completed",
+      const now = clockNowMs();
+      const total = timerTotalSeconds(state);
+      const next = {
+        ...timerStateFields("completed", now),
+        elapsedSeconds: total || Math.max(0, Number(state.elapsedSeconds) || 0),
         audioPlaying: false,
-        startedAt: state.startedAt || new Date().toISOString()
-      });
+        startedAt: state.startedAt || new Date(now).toISOString(),
+        timerAnchorAtMs: null,
+        timerPausedAtMs: now,
+        timerDurationSeconds: total
+      };
+      set(next);
+      persistTimerSnapshot({ ...state, ...next });
     },
 
     tickTimer() {
       const state = get();
-      if (state.view !== "session" || state.timerStatus !== "studying" || !state.selectedMaterial) return;
-      const total = durationSeconds(state.pomodoroDuration);
+      if (state.view !== "session" || timerStateFor(state) !== "running") return;
+      const now = clockNowMs();
+      const total = timerTotalSeconds(state);
       const elapsedSeconds = total
-        ? Math.min(total, state.elapsedSeconds + 1)
-        : state.elapsedSeconds + 1;
-      set({
+        ? Math.min(total, elapsedSecondsAt(state, now))
+        : elapsedSecondsAt(state, now);
+      const nextState = total > 0 && elapsedSeconds >= total ? "completed" : "running";
+      const next = {
+        ...timerStateFields(nextState, now),
         elapsedSeconds,
-        timerStatus: total && elapsedSeconds >= total ? "completed" : state.timerStatus,
-        audioPlaying: total && elapsedSeconds >= total ? false : state.audioPlaying
-      });
+        timerAnchorAtMs: nextState === "running" ? state.timerAnchorAtMs : null,
+        timerPausedAtMs: nextState === "running" ? null : now,
+        timerDurationSeconds: total,
+        audioPlaying: nextState === "running" ? state.audioPlaying : false
+      };
+      if (elapsedSeconds === state.elapsedSeconds && nextState === timerStateFor(state)) return;
+      set(next);
+      persistTimerSnapshot({ ...state, ...next });
+    },
+
+    setTimerMode(mode = "countdown") {
+      const timerMode = mode === "countup" ? "countup" : "countdown";
+      const next = {
+        timerMode,
+        timerDurationSeconds: timerMode === "countup" ? 0 : durationSeconds(get().pomodoroDuration)
+      };
+      set(next);
+      persistTimerSnapshot({ ...get(), ...next });
+    },
+
+    startBreak() {
+      const now = clockNowMs();
+      const next = {
+        ...timerStateFields("break", now),
+        timerRestoreTarget: null,
+        timerAnchorAtMs: null,
+        timerPausedAtMs: now,
+        timerDurationSeconds: 0,
+        audioPlaying: false
+      };
+      set(next);
+      persistTimerSnapshot({ ...get(), ...next });
+    },
+
+    getTimerState() {
+      return timerStateFor(get());
     },
 
     endSession() {
       const state = get();
-      const material = state.selectedMaterial || getFocusRoomMaterial(state.selectedMaterialId);
-      if (!material) return;
-      const now = new Date().toISOString();
-      const total = durationSeconds(state.pomodoroDuration);
-      const totalFocusTime = total ? Math.min(total, state.elapsedSeconds) : state.elapsedSeconds;
+      const nowMs = clockNowMs();
+      const now = new Date(nowMs).toISOString();
+      const reconciled = timerStateFor(state) === "running" ? reconciledTimer(state, nowMs) : state;
+      const total = timerTotalSeconds(reconciled);
+      const totalFocusTime = total ? Math.min(total, reconciled.elapsedSeconds) : reconciled.elapsedSeconds;
       const record = saveFocusRoomSession({
         sessionId: state.currentSession?.sessionId,
-        materialId: material.materialId,
-        materialTitle: material.materialTitle,
+        materialId: "focus-room",
+        materialTitle: "Focus Room",
         studyGoal: state.studyGoal,
         selectedScene: state.selectedScene,
         musicType: state.musicType,
@@ -591,20 +882,23 @@ export const useFocusRoomStore = create((set, get) => {
         startedAt: state.startedAt || now,
         endedAt: now,
         totalFocusTime,
-        flashcardsCompleted: countFocusFlashcardsCompleted(state),
-        quizScore: focusQuizScoreFromState(state),
-        mistakesMade: focusQuizMistakesFromState(state),
-        completedTasks: state.completedTasks,
-        recommendedNextStep: "Return to your notes, review any unchecked tasks, then start another short focus block."
+        flashcardsCompleted: 0,
+        quizScore: null,
+        mistakesMade: [],
+        completedTasks: [],
+        recommendedNextStep: "Start another protected focus block when you are ready."
       });
-      clearFocusRoomActiveSession(material.materialId);
+      clearFocusRoomActiveSession("focus-room");
 
       set({
         summaryRecord: record,
         sessionHistory: readFocusRoomSessions(),
-        timerStatus: "completed",
+        ...timerStateFields("completed", nowMs),
         audioPlaying: false,
-        elapsedSeconds: total ? Math.min(total, state.elapsedSeconds) : state.elapsedSeconds,
+        timerAnchorAtMs: null,
+        timerPausedAtMs: nowMs,
+        timerDurationSeconds: total,
+        elapsedSeconds: total ? Math.min(total, reconciled.elapsedSeconds) : reconciled.elapsedSeconds,
         currentSession: null
       });
     },

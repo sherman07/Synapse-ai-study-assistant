@@ -210,23 +210,18 @@ function renderQuizEmptyActions() {
   const hasNotes = Boolean(fullSummary && fullSummary.trim());
   return `
     <div class="d-grid gap-4">
-      <div class="quiz-launch-card">
-        <div class="quiz-launch-content">
-          <div class="quiz-launch-copy">
-            <h4>Generate a quiz from the current notes</h4>
-            <p>${hasNotes ? "Questions will use the concepts, examples, figures, and source evidence in your notes." : "Generate visual notes first, then create a quiz here."}</p>
-            ${quizSettingsSummaryHTML()}
-          </div>
-          <div class="quiz-launch-actions">
-            <button class="btn btn-outline-primary quiz-action-btn" type="button" onclick="openQuizSettingsModal()">
-              <i class="bi bi-sliders me-1"></i>Quiz settings
-            </button>
-            <button class="btn btn-primary quiz-action-btn" type="button" onclick="generateQuiz()" ${hasNotes ? "" : "disabled"}>
-              <i class="bi bi-stars me-1"></i>Generate quiz
-            </button>
-          </div>
-        </div>
-      </div>
+      ${renderStudyToolLaunch({
+        tool: "quiz",
+        iconClass: "bi-patch-question",
+        title: "Create a quiz from these notes",
+        description: hasNotes
+          ? "Practise understanding, application, and exam phrasing with source-grounded questions."
+          : "Generate notes first, then create a quiz from the material.",
+        action: "generateQuiz()",
+        actionLabel: "Generate quiz",
+        hasNotes,
+        kicker: "Active recall practice"
+      })}
       ${renderQuizHistoryPreview()}
     </div>
   `;
@@ -877,4 +872,5 @@ function loadFlashcardsForCurrentNote() {
   flashcardError = "";
   flashcardActivityMode = "cards";
   flashcardMatchingState = null;
+  flashcardBuilderOpen = false;
 }

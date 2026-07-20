@@ -65,17 +65,16 @@ function setupBroadcastTool() {
     studyToolsCard.insertAdjacentHTML("beforeend", `
       <div id="toolPanelBroadcast" class="tool-panel">
         <div id="broadcastWorkspace" class="broadcast-workspace">
-          <div class="broadcast-setup-card">
-            <div class="tool-panel-head">
-              <div>
-                <h3>AI Broadcast</h3>
-          <p>Create a source-grounded AI speaker episode from the generated notes and study tools.</p>
-              </div>
-            </div>
-            <button class="btn btn-primary" type="button" onclick="openAiBroadcastSetup()">
-              <i class="bi bi-broadcast-pin me-1"></i>Set up broadcast
-            </button>
-          </div>
+          ${renderStudyToolLaunch({
+            tool: "broadcast",
+            iconClass: "bi-broadcast-pin",
+            title: "Create an AI broadcast",
+            description: "Turn the current notes into a natural study episode with explanations, examples, and a guided recap.",
+            action: "generateBroadcastFromSetup()",
+            actionLabel: "Generate broadcast",
+            hasNotes: Boolean(fullSummary && fullSummary.trim()),
+            kicker: "Listen and revise"
+          })}
         </div>
       </div>
     `);
@@ -368,7 +367,18 @@ function renderCurrentBroadcastOrSetup() {
     renderBroadcastJobProgress(currentBroadcast.id);
     return;
   }
-  renderBroadcastSetupPanel();
+  const panel = document.getElementById("broadcastWorkspace") || document.getElementById("toolPanelBroadcast");
+  if (!panel) return;
+  panel.innerHTML = renderStudyToolLaunch({
+    tool: "broadcast",
+    iconClass: "bi-broadcast-pin",
+    title: "Create an AI broadcast",
+    description: "Turn the current notes into a natural study episode with explanations, examples, and a guided recap.",
+    action: "generateBroadcastFromSetup()",
+    actionLabel: "Generate broadcast",
+    hasNotes: Boolean(fullSummary && fullSummary.trim()),
+    kicker: "Listen and revise"
+  });
 }
 
 function broadcastSelectHTML(id, label, options, selected) {

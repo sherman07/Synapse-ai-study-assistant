@@ -141,12 +141,17 @@ function getSynapseFocusRoomMaterials() {
 
 function getSynapseFocusRoomMaterial(materialId = "") {
   const id = String(materialId || "");
-  return getSynapseFocusRoomMaterials().find(item => item.materialId === id) || null;
+  if (!id) return null;
+  return getSynapseFocusRoomMaterials().find(item =>
+    item.materialId === id ||
+    item.sourceFingerprint === id ||
+    item.clientFingerprint === id
+  ) || null;
 }
 
 function getSynapseFocusRoomCurrentMaterial() {
   const activeId = globalThis.localStorage?.getItem(ACTIVE_HISTORY_KEY) || "";
-  return getSynapseFocusRoomMaterial(activeId) || getSynapseFocusRoomMaterials()[0] || null;
+  return getSynapseFocusRoomMaterial(activeId);
 }
 
 function openSynapseFocusRoom(materialId = "") {
@@ -172,15 +177,21 @@ function normalizeReturnTarget(materialId = "", target = {}) {
 
 async function returnFromFocusRoomToWorkspace(materialId = "", target = {}) {
   const id = String(materialId || "");
-  if (id) {
-    writeValue(ACTIVE_HISTORY_KEY, id);
+  const historyItem = getHistory().find(item =>
+    String(item?.id || "") === id ||
+    String(item?.sourceFingerprint || item?.source_fingerprint || "") === id ||
+    String(item?.clientFingerprint || item?.client_fingerprint || "") === id
+  ) || null;
+  const workspaceId = String(historyItem?.id || "");
+  if (workspaceId) {
+    writeValue(ACTIVE_HISTORY_KEY, workspaceId);
   }
-  const workspaceTarget = normalizeReturnTarget(id, target);
+  const workspaceTarget = normalizeReturnTarget(workspaceId, target);
   if (workspaceTarget.action) {
     writeJSON(FOCUS_ROOM_RETURN_TARGET_KEY, workspaceTarget);
   }
-  globalThis.location.href = id
-    ? `index.html?focusReturn=${encodeURIComponent(id)}`
+  globalThis.location.href = workspaceId
+    ? `index.html?focusReturn=${encodeURIComponent(workspaceId)}`
     : "index.html";
 }
 

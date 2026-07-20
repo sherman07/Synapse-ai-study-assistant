@@ -187,7 +187,7 @@ Open the study workspace:
 http://127.0.0.1:5175/frontend/index.html
 ```
 
-The standalone Focus Room is currently disabled from the workspace UI and direct URL access, but the implementation is preserved for a future update:
+The standalone Focus Room is feature-flagged and enabled by default in the current local frontend configuration. Set `window.SYNAPSE_FOCUS_ROOM_ENABLED` to `false` before the runtime loads to keep it unavailable from the workspace UI and direct URL access:
 
 ```text
 http://127.0.0.1:5175/frontend/focus-room.html#/focus-room/:materialId

@@ -2,6 +2,26 @@ const MEMORY_ENGINE_STORAGE_KEY = "synapse.memory.engine.v1";
 const MEMORY_ENGINE_LEGACY_KEY = "synapse.mastery.graph.progress.v1";
 const MEMORY_ACTIVITY_LIMIT = 300;
 let activeMemoryFilter = "due";
+let examReadinessGeneratedForNoteKey = "";
+
+function generateExamReadiness() {
+  if (!fullSummary || !fullSummary.trim()) {
+    alert("Generate notes first, then diagnose exam readiness.");
+    return;
+  }
+  examReadinessGeneratedForNoteKey = getMemoryEngineNoteKey();
+  if (typeof recordStudyActivity === "function") recordStudyActivity("exam_readiness_generated", {
+    tool: "masterygraph",
+    label: "Generated Exam Readiness",
+    metadata: { cost: 0, local: true }
+  });
+  switchTool("masterygraph");
+  renderMasteryGraphPanel();
+}
+
+function examReadinessIsGenerated() {
+  return examReadinessGeneratedForNoteKey === getMemoryEngineNoteKey();
+}
 
 function clampMemoryPercent(value) {
   const number = Number(value);
@@ -82,6 +102,7 @@ const STUDY_ACTIVITY_LABELS = {
   notes_exported: "Exported generated notes",
   source_opened: "Opened source evidence",
   mindmap_point_opened: "Opened mind map detail",
+  exam_readiness_generated: "Generated Exam Readiness",
   broadcast_generation_started: "Started AI Broadcast generation",
   study_path_generated: "Generated Study Path",
   study_path_task_opened: "Opened Study Path task",
@@ -762,18 +783,35 @@ function updateExamReadinessSummary(cards = buildMemoryCards()) {
 function renderMasteryGraphPanel() {
   const panel = document.getElementById("masteryGraphPanelContent");
   if (!panel) return;
+  const hasNotes = Boolean(fullSummary && fullSummary.trim());
 
-  if (!fullSummary || !fullSummary.trim()) {
+  if (!hasNotes) {
     updateExamReadinessSummary([]);
-    panel.innerHTML = `
-      <div class="timeline-launch-card">
-        <div class="timeline-launch-icon"><i class="bi bi-repeat"></i></div>
-        <div class="timeline-launch-copy">
-          <h4>Exam Readiness</h4>
-          <p>Generate notes first, then Synapse will diagnose weak topics and build a spaced-repetition review queue here.</p>
-        </div>
-      </div>
-    `;
+    panel.innerHTML = renderStudyToolLaunch({
+      tool: "masterygraph",
+      iconClass: "bi-repeat",
+      title: "Generate exam readiness",
+      description: "Generate notes first, then diagnose weak topics and build a spaced-repetition review queue.",
+      action: "generateExamReadiness()",
+      actionLabel: "Generate exam readiness",
+      hasNotes: false,
+      kicker: "Personal readiness check"
+    });
+    return;
+  }
+
+  if (!examReadinessIsGenerated()) {
+    updateExamReadinessSummary([]);
+    panel.innerHTML = renderStudyToolLaunch({
+      tool: "masterygraph",
+      iconClass: "bi-repeat",
+      title: "Generate exam readiness",
+      description: "See what is due, repair missed topics, and get a focused next action from your current study history.",
+      action: "generateExamReadiness()",
+      actionLabel: "Generate exam readiness",
+      hasNotes: true,
+      kicker: "Personal readiness check"
+    });
     return;
   }
 
@@ -862,6 +900,14 @@ function setupMasteryGraphTool() {
           <div>
             <h3>Exam Readiness</h3>
             <p>Review what is due, repair missed topics, and see exactly what to study next.</p>
+          </div>
+          <div class="tool-panel-actions">
+            <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="generateExamReadiness()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Regenerate
+            </button>
+            <button class="btn btn-outline-primary btn-sm flex-shrink-0" type="button" onclick="openStudyToolSettingsModal('masterygraph')">
+              <i class="bi bi-sliders me-1"></i>Readiness settings
+            </button>
           </div>
         </div>
         <div id="masteryGraphPanelContent"></div>

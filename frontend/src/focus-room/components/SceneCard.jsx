@@ -6,6 +6,7 @@ export function SceneCard({ scene, active, onSelect }) {
       className={`scene-card ${active ? "active" : ""}`.trim()}
       type="button"
       aria-pressed={active}
+      aria-label={`${scene.name}: ${scene.description}`}
       onClick={() => onSelect(scene.id)}
       style={{ backgroundImage: `url("${scene.image}")` }}
       whileHover={{ scale: 1.025, y: -2 }}

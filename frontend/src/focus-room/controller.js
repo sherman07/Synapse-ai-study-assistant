@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { FocusRoomPage } from "./components/FocusRoomPage.jsx?v=focus-room-react-vite-v5";
+import { FocusRoomPage } from "./components/FocusRoomPage.jsx?v=focus-room-react-vite-v6";
 
 let focusRoomRoot = null;
 

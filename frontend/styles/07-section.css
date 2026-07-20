@@ -858,6 +858,18 @@
   align-items: start;
 }
 
+#mindMapCanvas[data-mindmap-layout="compact"] .mm-tree-branch.active {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#mindMapCanvas[data-mindmap-layout="compact"] .mm-tree-branch.active .mm-leaf-group.expanded {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#mindMapCanvas[data-mindmap-detail="focused"] .mm-tree-branch.active .mm-leaf-group.expanded .mm-subleaf-list {
+  display: none;
+}
+
 .mm-leaf-node,
 .mm-leaf-more {
   border: 1px solid color-mix(in srgb, var(--branch-color) 24%, #dfe8fb);

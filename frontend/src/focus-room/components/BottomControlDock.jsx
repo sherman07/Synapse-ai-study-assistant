@@ -1,29 +1,49 @@
-import { Pause, Play, RotateCcw, SkipForward, Square } from "lucide-react";
+import { Pause, Play, RotateCcw, SkipForward, SlidersHorizontal, Volume2 } from "lucide-react";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
+import { formatTimerClock, progressPercent } from "../utils.js";
 import { GlassButton } from "./GlassButton.jsx";
 
-export function BottomControlDock({ audioState }) {
-  const audioPlaying = useFocusRoomStore(state => state.audioPlaying);
-  const toggleAudio = useFocusRoomStore(state => state.toggleAudio);
+export function BottomControlDock({ onFocusMode, audioState }) {
+  const timerStatus = useFocusRoomStore(state => state.timerStatus);
+  const elapsedSeconds = useFocusRoomStore(state => state.elapsedSeconds);
+  const pomodoroDuration = useFocusRoomStore(state => state.pomodoroDuration);
+  const timerMode = useFocusRoomStore(state => state.timerMode);
+  const studyGoal = useFocusRoomStore(state => state.studyGoal);
+  const currentSession = useFocusRoomStore(state => state.currentSession);
+  const startTimer = useFocusRoomStore(state => state.startTimer);
   const pauseTimer = useFocusRoomStore(state => state.pauseTimer);
   const resetTimer = useFocusRoomStore(state => state.resetTimer);
   const skipTimer = useFocusRoomStore(state => state.skipTimer);
-  const endSession = useFocusRoomStore(state => state.endSession);
-  const musicVolume = useFocusRoomStore(state => state.musicVolume);
-  const ambientVolume = useFocusRoomStore(state => state.ambientVolume);
+  const toggleAudio = useFocusRoomStore(state => state.toggleAudio);
+  const audioPlaying = useFocusRoomStore(state => state.audioPlaying);
+  const remaining = timerMode === "countup" ? elapsedSeconds : Math.max(0, (Number(pomodoroDuration) || 0) * 60 - elapsedSeconds);
+  const isPaused = timerStatus === "paused";
+  const isRunning = timerStatus === "studying";
+  const isComplete = timerStatus === "completed";
+  const timerLabel = isComplete && timerMode !== "countup" ? "00:00" : formatTimerClock(remaining);
+  const statusLabel = isPaused ? "Paused" : isComplete ? "Complete" : "In focus";
+  const timerActionLabel = isPaused ? "Resume timer" : isRunning ? "Pause timer" : "Start timer";
 
   return (
-    <div className="bottom-dock liquid-glass" aria-label="Floating session controls">
-      <span className="dock-meter">Music {musicVolume}%</span>
-      <span className="dock-meter">Ambient {ambientVolume}%</span>
-      <GlassButton variant={audioPlaying ? "primary" : "ghost"} onClick={toggleAudio}>
-        {audioPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
-        {audioState?.playing ? "Pause" : "Audio"}
-      </GlassButton>
-      <GlassButton onClick={() => pauseTimer()}><Pause size={16} aria-hidden="true" /> Timer</GlassButton>
-      <GlassButton onClick={skipTimer}><SkipForward size={16} aria-hidden="true" /> Skip</GlassButton>
-      <GlassButton onClick={resetTimer}><RotateCcw size={16} aria-hidden="true" /> Reset</GlassButton>
-      <GlassButton variant="danger" onClick={endSession}><Square size={16} aria-hidden="true" /> End</GlassButton>
+    <div className="focus-session-dock liquid-glass" aria-label="Focus session controls">
+      <div className="dock-timer-block">
+        <div className="dock-eyebrow">POMODORO #{currentSession?.pomodoroNumber || 1}</div>
+        <div className="dock-status"><span className={`dock-status-dot ${isPaused ? "is-paused" : ""}`} />{statusLabel}</div>
+        <strong className="dock-time" aria-live="off">{timerLabel}</strong>
+        <div className="dock-progress" aria-hidden="true"><span style={{ width: `${progressPercent(elapsedSeconds, pomodoroDuration)}%` }} /></div>
+      </div>
+      <div className="dock-goal-block">
+        <span className="dock-eyebrow">TODAY'S GOAL</span>
+        <strong>{studyGoal || "A quiet block for meaningful progress"}</strong>
+        <span className="dock-goal-meta">{timerMode === "countup" ? "Count-up" : `${pomodoroDuration} minutes`} · {formatTimerClock(elapsedSeconds)} focused</span>
+      </div>
+      <div className="dock-action-block">
+        <GlassButton className="dock-action-button" onClick={toggleAudio} aria-label={audioPlaying ? "Pause room audio" : "Play room audio"}>{audioPlaying ? <Pause size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}<span>{audioState?.playing ? "Pause audio" : "Audio"}</span></GlassButton>
+        <GlassButton className="dock-action-button" onClick={() => isRunning ? pauseTimer() : startTimer()} variant="primary" aria-label={timerActionLabel}>{isRunning ? <Pause size={15} aria-hidden="true" /> : <Play size={15} fill="currentColor" aria-hidden="true" />}<span>{isPaused ? "Resume" : isRunning ? "Pause" : "Start"}</span></GlassButton>
+        <GlassButton className="dock-action-button" onClick={skipTimer} aria-label="Skip timer"><SkipForward size={15} aria-hidden="true" /><span>Skip</span></GlassButton>
+        <GlassButton className="dock-action-button" onClick={resetTimer} aria-label="Reset timer"><RotateCcw size={15} aria-hidden="true" /><span>Reset</span></GlassButton>
+        <GlassButton className="dock-focus-mode" onClick={onFocusMode} aria-label="Enter distraction-free Focus Mode"><SlidersHorizontal size={15} aria-hidden="true" /><span>Focus Mode</span></GlassButton>
+      </div>
     </div>
   );
 }

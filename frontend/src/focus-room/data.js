@@ -13,6 +13,25 @@ const FOCUS_ROOM_DRAFT_KEY = "synapse.focusRoom.draft.v1";
 const FOCUS_ROOM_ACTIVE_SESSION_KEY = "synapse.focusRoom.active-session.v1";
 const FOCUS_ROOM_SESSION_LIMIT = 40;
 
+const FOCUS_ROOM_TIMER_STATES = Object.freeze([
+  "idle",
+  "running",
+  "paused",
+  "completed",
+  "break",
+  "restoring"
+]);
+
+const FOCUS_ROOM_TIMER_STATE_ALIASES = Object.freeze({
+  studying: "running",
+  running: "running",
+  idle: "idle",
+  paused: "paused",
+  completed: "completed",
+  break: "break",
+  restoring: "restoring"
+});
+
 let memoryFocusRoomSessions = [];
 
 const commonsAudio = fileName => `https://commons.wikimedia.org/wiki/Special:Redirect/file/${encodeURI(fileName)}`;
@@ -166,7 +185,7 @@ const FOCUS_ROOM_SCENES = [
     description: "Soft daylight, quiet desk, gentle outdoor calm.",
     image: "./assets/focus-room/morning-window.webp",
     ambientSound: "Nature",
-    musicType: "Deep Focus"
+    musicType: "Piano"
   },
   {
     id: "rainy-cafe",
@@ -184,7 +203,7 @@ const FOCUS_ROOM_SCENES = [
     description: "Desk lamp, bookshelves, late-night concentration.",
     image: "./assets/focus-room/library-night.webp",
     ambientSound: "White Noise",
-    musicType: "Piano"
+    musicType: "Minimal"
   },
   {
     id: "ocean-study-room",
@@ -192,14 +211,14 @@ const FOCUS_ROOM_SCENES = [
     kicker: "Open air",
     description: "Blue horizon, slow waves, clean study energy.",
     image: "./assets/focus-room/ocean-study-room.webp",
-    ambientSound: "Ocean",
-    musicType: "Deep Focus"
+    ambientSound: "Cafe Rain",
+    musicType: "Lo-fi"
   },
   {
     id: "mountain-cabin",
     name: "Mountain Cabin",
     kicker: "Warm retreat",
-    description: "Snow view, wood textures, protected concentration.",
+    description: "Timber, mountain air, and an unhurried study block.",
     image: "./assets/focus-room/mountain-cabin.webp",
     ambientSound: "Wind",
     musicType: "Piano"
@@ -208,11 +227,11 @@ const FOCUS_ROOM_SCENES = [
     id: "minimal-desk",
     name: "Minimal Desk",
     kicker: "Clean reset",
-    description: "Neutral light, uncluttered desk, no distractions.",
+    description: "A clear desk, soft light, and room to think.",
     image: "./assets/focus-room/minimal-desk.webp",
     ambientSound: "White Noise",
-    musicType: "Minimal"
-  }
+    musicType: "Deep Focus"
+  },
 ];
 
 const FOCUS_ROOM_DURATIONS = [25, 45, 50, 90];
@@ -720,6 +739,55 @@ function normalizeActiveSessionRoot(rawValue) {
   };
 }
 
+function normalizeFocusRoomTimerState(value, fallback = "idle") {
+  const normalized = FOCUS_ROOM_TIMER_STATE_ALIASES[String(value || "").trim().toLowerCase()];
+  if (normalized && FOCUS_ROOM_TIMER_STATES.includes(normalized)) return normalized;
+  return FOCUS_ROOM_TIMER_STATES.includes(fallback) ? fallback : "idle";
+}
+
+function focusRoomLegacyTimerStatus(value) {
+  return normalizeFocusRoomTimerState(value) === "running" ? "studying" : normalizeFocusRoomTimerState(value);
+}
+
+function normalizeFocusRoomTimerSnapshot(snapshot = {}, previous = {}) {
+  const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+  const prior = previous && typeof previous === "object" ? previous : {};
+  const hasTimerStatus = Object.prototype.hasOwnProperty.call(source, "timerStatus");
+  const hasTimerState = Object.prototype.hasOwnProperty.call(source, "timerState")
+    || Object.prototype.hasOwnProperty.call(source, "timerPhase");
+  const timerState = normalizeFocusRoomTimerState(
+    hasTimerState
+      ? (source.timerState || source.timerPhase)
+      : (hasTimerStatus ? source.timerStatus : (source.status || prior.timerState)),
+    normalizeFocusRoomTimerState(prior.timerState || prior.timerPhase || prior.timerStatus)
+  );
+  const timerMode = source.timerMode === "countup" || prior.timerMode === "countup" && !Object.prototype.hasOwnProperty.call(source, "timerMode")
+    ? "countup"
+    : "countdown";
+  const timestampKeys = ["timerAnchorAtMs", "timerPausedAtMs", "timerUpdatedAtMs", "timerRestoredAtMs"];
+  const timestamps = Object.fromEntries(timestampKeys.map(key => {
+    const value = Object.prototype.hasOwnProperty.call(source, key) ? source[key] : prior[key];
+    const number = Number(value);
+    return [key, Number.isFinite(number) && number > 0 ? number : null];
+  }));
+  const elapsedSeconds = Math.max(0, finiteNumber(
+    Object.prototype.hasOwnProperty.call(source, "elapsedSeconds") ? source.elapsedSeconds : prior.elapsedSeconds,
+    0
+  ));
+
+  return {
+    ...prior,
+    ...source,
+    timerState,
+    timerPhase: timerState,
+    status: timerState,
+    timerStatus: focusRoomLegacyTimerStatus(timerState),
+    timerMode,
+    elapsedSeconds,
+    ...timestamps
+  };
+}
+
 function readFocusRoomActiveSession() {
   return normalizeActiveSessionRoot(safeReadJSONStorage(FOCUS_ROOM_ACTIVE_SESSION_KEY, null));
 }
@@ -733,7 +801,9 @@ function readFocusRoomActiveSessionForMaterial(materialId) {
   if (!id) return null;
   const root = readFocusRoomActiveSession();
   const snapshot = root.materials[id];
-  return snapshot && typeof snapshot === "object" ? snapshot : null;
+  return snapshot && typeof snapshot === "object"
+    ? normalizeFocusRoomTimerSnapshot(snapshot)
+    : null;
 }
 
 function saveFocusRoomActiveSession(materialId, snapshot) {
@@ -742,7 +812,7 @@ function saveFocusRoomActiveSession(materialId, snapshot) {
   const root = readFocusRoomActiveSession();
   if (snapshot && typeof snapshot === "object") {
     root.materials[id] = {
-      ...snapshot,
+      ...normalizeFocusRoomTimerSnapshot(snapshot, root.materials[id]),
       materialId: id,
       updatedAt: new Date().toISOString()
     };
@@ -850,6 +920,7 @@ export {
   FOCUS_ROOM_MUSIC_TRACKS,
   FOCUS_ROOM_SCENES,
   FOCUS_ROOM_SESSION_KEY,
+  FOCUS_ROOM_TIMER_STATES,
   buildFocusRoomStudyPlan,
   clearFocusRoomActiveSession,
   formatFocusRoomDuration,
@@ -867,6 +938,9 @@ export {
   readFocusRoomSessionsWithDataApi,
   saveFocusRoomActiveSession,
   saveFocusRoomSession,
+  focusRoomLegacyTimerStatus,
+  normalizeFocusRoomTimerSnapshot,
+  normalizeFocusRoomTimerState,
   writeFocusRoomActiveSession,
   writeFocusRoomDraft
 };
