@@ -5,6 +5,10 @@
   flex-wrap: wrap;
 }
 
+.analysis-header-actions .new-upload-btn {
+  margin-left: auto;
+}
+
 .focus-room-entry-btn {
   display: inline-flex;
   align-items: center;

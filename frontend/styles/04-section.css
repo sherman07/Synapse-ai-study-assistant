@@ -115,7 +115,7 @@
   }
 
   .assistant-panel { width: 100%; }
-  .notes-area { padding: 48px 32px; }
+  .notes-area { padding: 48px 16px 48px 32px; }
 }
 
 @media (max-width: 1180px) and (min-width: 851px) {
@@ -139,7 +139,7 @@
     box-shadow: -18px 18px 56px rgba(15, 23, 42, 0.2);
   }
 
-  .notes-area { padding: 36px 24px; }
+  .notes-area { padding: 36px 16px 36px 24px; }
 }
 
 @media (max-width: 850px) {
