@@ -195,6 +195,7 @@ Object.assign(window, {
 }
 
 initialiseAccountPreferences();
+prewarmSynapseServices();
 
 if (historySearch) {
   historySearch.addEventListener("input", event => renderHistory(event.target.value));

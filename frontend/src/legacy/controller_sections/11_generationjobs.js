@@ -3,6 +3,7 @@ const GENERATION_JOB_STATUSES = new Set(["queued", "analysing", "generating", "c
 const ACTIVE_GENERATION_STATUSES = new Set(["queued", "analysing", "generating"]);
 const runtimeGenerationJobContexts = new Map();
 const runtimeGenerationJobControllers = new Map();
+const runtimeGenerationJobProgress = new Map();
 let activeGenerationJobId = "";
 let runningGenerationJobId = "";
 
@@ -22,6 +23,9 @@ function normaliseGenerationJob(job = {}) {
     status,
     progress: Number.isFinite(Number(job.progress)) ? Math.max(0, Math.min(100, Number(job.progress))) : 0,
     message: String(job.message || statusLabelForGenerationJob(status)).slice(0, 280),
+    analysisRequestId: String(job.analysisRequestId || "").slice(0, 96),
+    analysisStage: String(job.analysisStage || "").slice(0, 48),
+    elapsedSeconds: Number.isFinite(Number(job.elapsedSeconds)) ? Math.max(0, Number(job.elapsedSeconds)) : 0,
     resultId: String(job.resultId || ""),
     error: String(job.error || "").slice(0, 500),
     request: job.request && typeof job.request === "object" ? job.request : {},
@@ -197,6 +201,7 @@ function clearActiveGenerationJob() {
 function deleteGenerationJob(jobId) {
   const id = String(jobId || "");
   if (!id) return;
+  stopGenerationJobProgressPolling(id);
   const controller = runtimeGenerationJobControllers.get(id);
   if (controller) controller.abort();
   runtimeGenerationJobControllers.delete(id);
@@ -213,6 +218,114 @@ function generationJobProgressPercent(job) {
   if (job.status === "completed") return 100;
   if (job.status === "failed" || job.status === "cancelled") return Math.max(0, Math.min(100, job.progress || 0));
   return Math.max(8, Math.min(94, job.progress || 12));
+}
+
+function generationAnalysisRequestId() {
+  if (globalThis.crypto?.randomUUID) return `analysis_${globalThis.crypto.randomUUID()}`;
+  return `analysis_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function generationAnalysisStageLabel(stage = "") {
+  const labels = {
+    initializing: "Starting workspace",
+    file_read: "Reading sources",
+    file_extract: "Extracting material",
+    source_preparation: "Organising context",
+    cache_hit: "Restoring analysis",
+    generation: "Drafting notes",
+    title: "Refining structure",
+    mind_map: "Connecting ideas",
+    persistence: "Saving workspace",
+    completed: "Complete",
+    failed: "Stopped"
+  };
+  return labels[String(stage || "")] || "Preparing analysis";
+}
+
+function formatGenerationElapsed(seconds = 0) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const minutes = Math.floor(total / 60);
+  const remainder = String(total % 60).padStart(2, "0");
+  return minutes ? `${minutes}:${remainder} elapsed` : `${total}s elapsed`;
+}
+
+function updateGenerationElapsedDisplay(jobId, startedAt) {
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  if (!isGenerationJobSelected(jobId)) return;
+  const elapsed = loadingBox?.querySelector?.(".generation-progress-elapsed");
+  if (elapsed) elapsed.textContent = formatGenerationElapsed(elapsedSeconds);
+}
+
+function stopGenerationJobProgressPolling(jobId) {
+  const id = String(jobId || "");
+  const runtime = runtimeGenerationJobProgress.get(id);
+  if (!runtime) return;
+  window.clearTimeout(runtime.pollTimer);
+  window.clearInterval(runtime.elapsedTimer);
+  runtimeGenerationJobProgress.delete(id);
+}
+
+function startGenerationJobProgressPolling(jobId, analysisRequestId) {
+  const id = String(jobId || "");
+  const requestId = String(analysisRequestId || "");
+  if (!id || !requestId) return;
+  stopGenerationJobProgressPolling(id);
+  const startedAt = Date.now();
+  const runtime = { pollTimer: 0, elapsedTimer: 0, startedAt, requestId };
+  runtimeGenerationJobProgress.set(id, runtime);
+  runtime.elapsedTimer = window.setInterval(() => updateGenerationElapsedDisplay(id, startedAt), 1000);
+
+  const poll = async () => {
+    if (runtimeGenerationJobProgress.get(id) !== runtime) return;
+    try {
+      const response = await apiClient.fetch(`/analyze/progress/${encodeURIComponent(requestId)}`, {
+        method: "GET",
+        timeoutMs: 5000
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const current = getGenerationJob(id);
+        const progress = Math.max(
+          Number(current?.progress || 0),
+          Math.max(0, Math.min(100, Number(data.progress_percent || 0)))
+        );
+        upsertGenerationJob({
+          jobId: id,
+          status: data.status === "failed" ? "failed" : (data.status === "completed" ? "completed" : (data.stage === "generation" ? "generating" : current?.status || "analysing")),
+          progress,
+          message: String(data.message || current?.message || "Synapse is working"),
+          analysisStage: String(data.stage || current?.analysisStage || ""),
+          elapsedSeconds: Math.max(0, Number(data.elapsed_seconds || 0))
+        });
+        if (data.status === "completed" || data.status === "failed") {
+          stopGenerationJobProgressPolling(id);
+          return;
+        }
+      }
+    } catch (error) {
+      console.debug("Analysis progress poll is waiting for the backend:", error?.message || error);
+    }
+    if (runtimeGenerationJobProgress.get(id) === runtime) {
+      runtime.pollTimer = window.setTimeout(poll, 1500);
+    }
+  };
+
+  poll();
+}
+
+function prewarmSynapseServices() {
+  apiClient.warmup({ attempts: 1, timeoutMs: 75000, maxWaitMs: 75000 })
+    .catch(error => console.debug("Synapse analysis prewarm is still pending:", error?.message || error));
+
+  const dataApiBase = String(
+    window.SynapseAuth?.dataApiBase?.() || window.SYNAPSE_DATA_API_BASE || ""
+  ).replace(/\/+$/, "");
+  if (!dataApiBase || typeof window.fetch !== "function") return;
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeout = window.setTimeout(() => controller?.abort(), 75000);
+  window.fetch(`${dataApiBase}/health`, { method: "GET", signal: controller?.signal })
+    .catch(error => console.debug("Synapse data service prewarm is still pending:", error?.message || error))
+    .finally(() => window.clearTimeout(timeout));
 }
 
 function renderGenerationJobProgress(jobId) {
@@ -250,7 +363,11 @@ function renderGenerationJobProgress(jobId) {
       <h3>Synapse is analysing your material...</h3>
       <p>${escapeHTML(job.message || "Reading sources, explaining ideas, and preparing your tutor-style notes.")}</p>
       ${job.sourceTitle ? `<p class="generation-job-source">${escapeHTML(job.sourceTitle)}</p>` : ""}
-      <div class="generation-progress-track" aria-label="Generation progress">
+      <div class="generation-progress-meta">
+        <span class="generation-progress-stage">${escapeHTML(generationAnalysisStageLabel(job.analysisStage))}</span>
+        <span class="generation-progress-elapsed">${escapeHTML(formatGenerationElapsed(job.elapsedSeconds))}</span>
+      </div>
+      <div class="generation-progress-track" role="progressbar" aria-label="Generation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}">
         <div style="width:${progress}%"></div>
       </div>
       <p class="generation-job-note">You can continue browsing other notes while this generates.</p>
@@ -283,6 +400,7 @@ function renderGenerationJobProgress(jobId) {
 
 function cancelGenerationJob(jobId) {
   const id = String(jobId || "");
+  stopGenerationJobProgressPolling(id);
   const controller = runtimeGenerationJobControllers.get(id);
   if (controller) controller.abort();
   runtimeGenerationJobContexts.delete(id);
@@ -334,6 +452,7 @@ function processGenerationJobQueue() {
       });
     })
     .finally(() => {
+      stopGenerationJobProgressPolling(nextJob.jobId);
       runtimeGenerationJobContexts.delete(nextJob.jobId);
       runtimeGenerationJobControllers.delete(nextJob.jobId);
       if (runningGenerationJobId === nextJob.jobId) runningGenerationJobId = "";

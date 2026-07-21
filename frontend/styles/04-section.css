@@ -1694,6 +1694,25 @@ html[data-theme="dark"] .mobile-menu-btn {
   background: rgba(216, 230, 255, 0.9);
 }
 
+.generation-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.generation-progress-stage {
+  color: var(--primary);
+}
+
+.generation-progress-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
 .generation-progress-track div {
   height: 100%;
   border-radius: inherit;

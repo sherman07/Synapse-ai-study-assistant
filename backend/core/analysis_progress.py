@@ -14,15 +14,15 @@ _LOCK = threading.Lock()
 _RECORDS: Dict[str, Dict[str, Any]] = {}
 
 _STAGES = {
-    "initializing": (8, "Starting the analysis workspace"),
-    "file_read": (16, "Reading your uploaded material"),
-    "file_extract": (24, "Extracting useful text and visuals"),
-    "source_preparation": (34, "Organising sources and study context"),
+    "initializing": (28, "Starting the analysis workspace"),
+    "file_read": (35, "Reading your uploaded material"),
+    "file_extract": (42, "Extracting useful text and visuals"),
+    "source_preparation": (50, "Organising sources and study context"),
     "cache_hit": (76, "Restoring your previous analysis"),
-    "generation": (52, "Drafting your tutor-style study notes"),
-    "title": (72, "Refining the title and structure"),
-    "mind_map": (82, "Connecting the key ideas"),
-    "persistence": (92, "Saving your study workspace"),
+    "generation": (62, "Drafting your tutor-style study notes"),
+    "title": (78, "Refining the title and structure"),
+    "mind_map": (86, "Connecting the key ideas"),
+    "persistence": (94, "Saving your study workspace"),
     "completed": (100, "Study notes are ready"),
     "failed": (100, "Analysis stopped before completion"),
 }

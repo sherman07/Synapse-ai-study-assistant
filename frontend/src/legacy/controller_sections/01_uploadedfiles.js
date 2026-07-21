@@ -930,6 +930,7 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
   const promptModeValue = context.promptMode || request.promptMode || "professor_mode";
   const noteLengthValue = context.noteLength || request.noteLength || "standard_notes";
   const aiProviderValue = normaliseAiProvider(context.aiProvider || request.aiProvider || "");
+  const analysisRequestId = generationAnalysisRequestId();
   const previousUploadedFiles = uploadedFiles;
   const previousUploadedLinks = uploadedLinks;
   const previousHistoryId = currentHistoryId;
@@ -953,6 +954,7 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
   formData.append("note_length", noteLengthValue);
   formData.append("ai_provider", aiProviderValue);
   formData.append("client_fingerprint", currentSourceFingerprint);
+  formData.append("analysis_request_id", analysisRequestId);
 
   try {
     const abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -960,9 +962,13 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     upsertGenerationJob({
       jobId,
       status: "analysing",
-      progress: 26,
-      message: "Connecting to Synapse and preparing your workspace"
+      progress: 16,
+      message: "Waking Synapse and preparing your workspace",
+      analysisRequestId,
+      analysisStage: "initializing",
+      elapsedSeconds: 0
     });
+    startGenerationJobProgressPolling(jobId, analysisRequestId);
     await apiClient.warmup({
       signal: abortController?.signal,
       attempts: 16,
@@ -972,9 +978,9 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
     });
     upsertGenerationJob({
       jobId,
-      status: "generating",
-      progress: 34,
-      message: "Generating tutor-style study notes"
+      status: "analysing",
+      progress: 24,
+      message: "Connected — starting source analysis"
     });
     const response = await apiClient.fetchWithRetry("/analyze", {
       method: "POST",
@@ -1165,6 +1171,7 @@ async function runGenerationJobAnalysis(jobId, context = {}) {
       }
     }
   } finally {
+    stopGenerationJobProgressPolling(jobId);
     uploadedFiles = previousUploadedFiles;
     uploadedLinks = previousUploadedLinks;
     updateGenerateButtonForCurrentJob();
