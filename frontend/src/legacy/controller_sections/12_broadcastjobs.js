@@ -902,6 +902,7 @@ function renderBroadcastPlayer(job) {
       <div id="broadcastAudioShell" class="broadcast-audio-shell">
         <div class="broadcast-seek"><span id="broadcastSeekFill" style="width:0%"></span></div>
         <div class="broadcast-time"><span id="broadcastCurrentTime">0:00</span><span>${escapeHTML(formatBroadcastTime(duration))}</span></div>
+        <div id="broadcastPlaybackError" class="broadcast-playback-error" role="alert" hidden></div>
       </div>
       <div class="broadcast-player-grid">
         <div>
@@ -1029,6 +1030,7 @@ async function toggleBroadcastPlayback(jobId) {
     timer: null,
     utterance: null
   };
+  clearBroadcastPlaybackError();
   if (typeof recordStudyActivity === "function") recordStudyActivity("broadcast_started", {
     tool: "broadcast",
     label: `Started broadcast: ${job.broadcastTitle || job.title}`
@@ -1039,12 +1041,15 @@ async function toggleBroadcastPlayback(jobId) {
   } catch (error) {
     console.error(error);
     stopBroadcastPlayback({ render: false });
-    alert(normaliseBroadcastRealtimeError(error));
+    showBroadcastPlaybackError(job, error);
   }
 }
 
 function normaliseBroadcastRealtimeError(error) {
   const message = error?.message || String(error || "");
+  if (/\bsdp\b.*(?:required|missing|offer)|(?:required|missing).*\bsdp\b|audio offer/i.test(message)) {
+    return "Your browser did not provide an audio offer. Refresh the page and try Play again. If it continues, use an up-to-date Chrome browser.";
+  }
   if (/invalid sdp|realtime voice service returned/i.test(message)) {
     return "OpenAI Realtime returned an invalid audio session. Check OPENAI_REALTIME_MODEL and restart the backend.";
   }
@@ -1055,6 +1060,26 @@ function normaliseBroadcastRealtimeError(error) {
     return `OpenAI could not find ${BROADCAST_REALTIME_MODEL}. Check OPENAI_REALTIME_MODEL.`;
   }
   return message || "Synapse could not start the GPT Realtime Broadcast speaker.";
+}
+
+function showBroadcastPlaybackError(job, error) {
+  const message = normaliseBroadcastRealtimeError(error);
+  const errorNode = document.getElementById("broadcastPlaybackError");
+  if (!errorNode) return message;
+  errorNode.hidden = false;
+  errorNode.innerHTML = `
+    <strong>Playback could not start</strong>
+    <p>${escapeHTML(message)}</p>
+    <button class="btn btn-sm btn-outline-primary" type="button" onclick="toggleBroadcastPlayback('${escapeAttr(job?.id || "")}')">Try Play again</button>
+  `;
+  return message;
+}
+
+function clearBroadcastPlaybackError() {
+  const errorNode = document.getElementById("broadcastPlaybackError");
+  if (!errorNode) return;
+  errorNode.hidden = true;
+  errorNode.innerHTML = "";
 }
 
 function broadcastRealtimeResponseErrorMessage(body, response) {
@@ -1108,8 +1133,10 @@ function closeBroadcastRealtimeTransport() {
 }
 
 function buildBroadcastRealtimeFormData(job, sdp, startSeconds = 0) {
+  const safeSdp = String(sdp || "").trim();
+  if (!safeSdp) throw new Error("Realtime Broadcast could not create an audio offer. Please try Play again.");
   const formData = new FormData();
-  formData.append("sdp", sdp);
+  formData.append("sdp", safeSdp);
   formData.append("title", job.broadcastTitle || job.title || "Synapse Broadcast");
   formData.append("broadcast_script", job.broadcastScript || "");
   formData.append("speaker_instructions", job.speakerInstructions || "");
@@ -1236,8 +1263,8 @@ function handleBroadcastRealtimeEvent(messageEvent) {
   if (!job) return;
   if (event.type === "error" || event.type === "response.failed") {
     console.warn("Broadcast realtime event error:", event);
-    alert(normaliseBroadcastRealtimeError(event.error || event));
     stopBroadcastPlayback({ render: false });
+    showBroadcastPlaybackError(job, event.error || event);
     return;
   }
   if (event.type === "response.created") {
@@ -1363,9 +1390,11 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
   if (typeof waitForIceGathering === "function") await waitForIceGathering(peer);
+  const sdp = String(peer.localDescription?.sdp || offer?.sdp || "").trim();
+  if (!sdp) throw new Error("Realtime Broadcast could not create an audio offer. Please try Play again.");
   const response = await apiClient.fetch("/broadcast/realtime-call", {
     method: "POST",
-    body: buildBroadcastRealtimeFormData(job, peer.localDescription.sdp, startSeconds)
+    body: buildBroadcastRealtimeFormData(job, sdp, startSeconds)
   });
   const answerSdp = await response.text();
   const answerContentType = response.headers?.get?.("content-type") || "";
@@ -1382,7 +1411,7 @@ async function playBroadcastRealtime(job, startSeconds = 0) {
   activeBroadcastPlayback.startupTimer = window.setTimeout(() => {
     if (activeBroadcastPlayback.jobId === job.id && activeBroadcastPlayback.connecting && !activeBroadcastPlayback.paused) {
       stopBroadcastPlayback({ render: false });
-      alert("Realtime Broadcast connected but no audio started. Please try Play again.");
+      showBroadcastPlaybackError(job, new Error("Realtime Broadcast connected but no audio started. Please try Play again."));
     }
   }, 25000);
   if (activeBroadcastPlayback.timer) window.clearInterval(activeBroadcastPlayback.timer);
@@ -1438,13 +1467,14 @@ async function resumeBroadcastPlayback() {
     timer: null,
     utterance: null
   };
+  clearBroadcastPlaybackError();
   updateBroadcastPlaybackUI(job, seconds, true, false);
   try {
     await playBroadcastRealtime(job, seconds);
   } catch (error) {
     console.error(error);
     stopBroadcastPlayback({ render: false });
-    alert(normaliseBroadcastRealtimeError(error));
+    showBroadcastPlaybackError(job, error);
   }
 }
 
@@ -1497,11 +1527,12 @@ function seekBroadcastSection(jobId, seconds = 0, requestedSectionIndex = null) 
       timer: null,
       utterance: null
     };
+    clearBroadcastPlaybackError();
     updateBroadcastPlaybackUI(job, target, true, false);
     playBroadcastRealtime(job, target).catch(error => {
       console.error(error);
       stopBroadcastPlayback({ render: false });
-      alert(normaliseBroadcastRealtimeError(error));
+      showBroadcastPlaybackError(job, error);
     });
     return;
   }

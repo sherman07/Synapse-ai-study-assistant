@@ -2245,6 +2245,30 @@ html[data-theme="dark"] .mobile-menu-btn {
   border-color: rgba(120, 135, 175, 0.34);
 }
 
+.broadcast-playback-error {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(220, 78, 92, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 244, 245, 0.92);
+  color: #7f1d1d;
+}
+
+.broadcast-playback-error strong,
+.broadcast-playback-error p {
+  display: block;
+  margin: 0;
+}
+
+.broadcast-playback-error p {
+  margin-top: 4px;
+  line-height: 1.55;
+}
+
+.broadcast-playback-error .btn {
+  margin-top: 12px;
+}
+
 .broadcast-seek {
   height: 8px;
   border-radius: 999px;

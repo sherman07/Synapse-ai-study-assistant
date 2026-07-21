@@ -592,7 +592,7 @@ async def generate_broadcast_tts(data: dict):
 
 @app.post("/broadcast/realtime-call")
 async def broadcast_realtime_call(
-    sdp: str = Form(...),
+    sdp: str = Form(default=""),
     title: str = Form(default=""),
     broadcast_script: str = Form(default=""),
     speaker_instructions: str = Form(default=""),
@@ -604,6 +604,14 @@ async def broadcast_realtime_call(
     rate: str = Form(default="1x"),
 ):
     try:
+        if not clean_broadcast_string(sdp):
+            return Response(
+                content=json.dumps({
+                    "error": "Realtime Broadcast could not start because the browser did not provide an audio offer. Refresh the page and try Play again."
+                }),
+                media_type="application/json",
+                status_code=400,
+            )
         script = clean_broadcast_string(broadcast_script)
         if not script:
             return Response(

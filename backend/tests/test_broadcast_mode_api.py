@@ -249,6 +249,16 @@ class BroadcastModeApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("broadcast script", response.json()["error"].lower())
 
+    def test_realtime_call_rejects_missing_sdp_with_actionable_error(self):
+        with patch("backend.app.requests.post", side_effect=AssertionError("Realtime should not be called without an SDP offer")):
+            response = TestClient(app).post(
+                "/broadcast/realtime-call",
+                data={"broadcast_script": "Opening\nA source-grounded broadcast script."},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("audio offer", response.json()["error"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()
