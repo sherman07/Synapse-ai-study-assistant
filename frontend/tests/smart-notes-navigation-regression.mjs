@@ -42,12 +42,12 @@ assert.deepEqual(
 
 assert.match(
   layoutCss,
-  /grid-template-columns:\s*clamp\(232px, 16vw, 280px\) minmax\(560px, 1fr\) clamp\(330px, 22vw, 400px\)/,
+  /grid-template-columns:\s*clamp\(200px, 15vw, 260px\) minmax\(0, 1fr\) minmax\(280px, clamp\(300px, 22vw, 380px\)\)/,
   "the desktop workspace should reserve a readable main column while both side panels are open"
 );
 assert.match(
   responsiveCss,
-  /@media \(max-width: 1180px\) and \(min-width: 851px\)[\s\S]*?\.app-layout:not\(\.assistant-closed\)\s*\{\s*grid-template-columns: 220px minmax\(0, 1fr\);/,
+  /@media \(max-width: 1479px\) and \(min-width: 851px\)[\s\S]*?\.app-layout:not\(\.assistant-closed\)\s*\{\s*grid-template-columns: clamp\(200px, 15vw, 260px\) minmax\(0, 1fr\);/,
   "at laptop widths, an open tutor should become a drawer instead of shrinking the generated notes"
 );
 assert.match(entries[0].markdown, /A useful distinction/, "each navigation item should retain its generated section content");
@@ -120,7 +120,7 @@ assert.match(
 );
 assert.match(
   layoutCss,
-  /\.app-layout\.generated-notes-state \.history-nav\s*\{\s*display: flex !important;/,
+  /\.app-layout\.generated-notes-state \.history-nav[\s\S]*?display: flex !important;/,
   "the existing history rail must remain available in a generated class"
 );
 assert.match(

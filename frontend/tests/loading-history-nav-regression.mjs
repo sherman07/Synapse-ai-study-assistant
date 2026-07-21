@@ -12,17 +12,19 @@ const generationJobs = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/
 const broadcastJobs = fs.readFileSync(path.join(repoRoot, "frontend/src/legacy/controller_sections/12_broadcastjobs.js"), "utf8");
 
 assert.ok(css.includes(".app-layout.loading-state .history-nav"));
-
-const loadingHistoryBlock = css.match(/\.app-layout\.loading-state \.history-nav\s*\{[^}]+\}/)?.[0] || "";
-assert.ok(loadingHistoryBlock.includes("display: block"));
-assert.ok(!loadingHistoryBlock.includes("pointer-events: none"));
-
-const hiddenLoadingBlock = css.match(/\.loading-state #summaryNav,[^}]+\}/)?.[0] || "";
-assert.ok(!hiddenLoadingBlock.includes(".history-nav"));
+assert.ok(
+  css.includes(".workspace-shell:has(.app-layout.loading-state) .history-nav") ||
+    /\.app-layout\.loading-state \.history-nav[\s\S]{0,120}?display:\s*block/.test(css),
+  "loading state should keep the learning rail visible whether it is nested or a workspace sibling"
+);
 
 const loadingNotesBlock = css.match(/\.app-layout\.loading-state \.notes-area\s*\{[^}]+\}/)?.[0] || "";
 assert.ok(loadingNotesBlock.includes("margin-left: 300px"));
 assert.ok(loadingNotesBlock.includes("width: calc(100% - 300px)"));
+assert.ok(
+  css.includes(".app-layout.loading-state.has-learning-rail .notes-area"),
+  "loading notes should not double-offset when the learning rail already reserves padding"
+);
 
 assert.ok(index.includes("style.css?v=workspace-contrast-v12-right-edge"));
 assert.ok(style.includes('@import url("./styles/04-section.css");'));

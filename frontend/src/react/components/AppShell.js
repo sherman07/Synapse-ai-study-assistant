@@ -1,4 +1,4 @@
-import { Fragment, h } from "../runtime.js";
+import { Fragment, h, icon, legacyAction } from "../runtime.js";
 import { MobileNavigation } from "./MobileNavigation.js?v=ai-broadcast-v19";
 import { HistoryNavigation } from "./HistoryNavigation.js?v=ai-broadcast-v19";
 import { SummaryNavigation } from "./SummaryNavigation.js?v=ai-broadcast-v19";
@@ -14,22 +14,46 @@ export function AppShell() {
     h(MobileNavigation),
     h(
       "div",
-      { id: "appLayout", className: "app-layout initial-state", "data-learning-experience-mode": "materials" },
+      { className: "workspace-shell", id: "workspaceShell" },
+      /* Keep the learning rail outside the notes/summary/tutor grid so it can
+         hide/show without stealing CSS grid tracks or squashing content. */
       h(HistoryNavigation),
-      h(SummaryNavigation),
       h(
-        "main",
-        { id: "mainNotes", className: "notes-area" },
+        "div",
+        {
+          id: "appLayout",
+          className: "app-layout initial-state has-learning-rail",
+          "data-learning-experience-mode": "materials",
+        },
+        h(SummaryNavigation),
         h(
-          "div",
-          { className: "learning-experience-shell" },
-          h(UploadStage),
-          h(CompanionWorkspace)
+          "main",
+          { id: "mainNotes", className: "notes-area" },
+          h(
+            "div",
+            { className: "learning-experience-shell" },
+            h(UploadStage),
+            h(CompanionWorkspace)
+          ),
+          h(AnalysisStage)
         ),
-        h(AnalysisStage)
-      ),
-      h(AssistantPanel)
+        h(AssistantPanel)
+      )
     ),
-    h(OpenAssistantButton)
+    h(OpenAssistantButton),
+    h(
+      "button",
+      {
+        id: "historyNavExpand",
+        className: "history-nav-expand",
+        type: "button",
+        hidden: true,
+        onClick: legacyAction("toggleHistoryNav", false),
+        "aria-label": "Show learning navigation",
+        "aria-expanded": "false",
+        title: "Show learning navigation",
+      },
+      icon("bi-chevron-double-right")
+    )
   );
 }

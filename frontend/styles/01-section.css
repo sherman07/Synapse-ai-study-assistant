@@ -242,7 +242,7 @@ body.mobile-assistant-open::before {
   min-height: 100vh;
   height: auto;
   display: grid;
-  grid-template-columns: clamp(232px, 16vw, 280px) minmax(560px, 1fr) clamp(330px, 22vw, 400px);
+  grid-template-columns: clamp(200px, 15vw, 260px) minmax(0, 1fr) minmax(280px, clamp(300px, 22vw, 380px));
   background: var(--bg);
 }
 
@@ -251,11 +251,11 @@ body.mobile-assistant-open::before {
 }
 
 .app-layout.assistant-closed {
-  grid-template-columns: clamp(232px, 16vw, 280px) minmax(0, 1fr);
+  grid-template-columns: clamp(200px, 15vw, 260px) minmax(0, 1fr);
 }
 
 .app-layout.summary-collapsed {
-  grid-template-columns: 76px minmax(560px, 1fr) clamp(330px, 22vw, 400px);
+  grid-template-columns: 76px minmax(0, 1fr) minmax(280px, clamp(300px, 22vw, 380px));
 }
 
 .app-layout.assistant-closed.summary-collapsed {
@@ -558,8 +558,18 @@ body.mobile-assistant-open::before {
   min-width: 0;
   min-height: 100vh;
   overflow-y: auto;
+  overflow-x: clip;
   padding: 64px 16px 64px 56px;
   background: linear-gradient(135deg, var(--hero-start) 0%, var(--hero-mid) 42%, var(--hero-end) 100%);
+}
+
+.app-layout:not(.assistant-closed) .notes-area {
+  padding-right: 20px;
+}
+
+.app-layout:not(.assistant-closed).summary-collapsed .notes-area,
+.app-layout.history-collapsed:not(.assistant-closed) .notes-area {
+  padding-left: 28px;
 }
 
 .initial-state .notes-area {
@@ -1303,10 +1313,22 @@ body.mobile-assistant-open::before {
 }
 
 .result-grid.source-open {
-  grid-template-columns: minmax(440px, 0.92fr) minmax(560px, 1.08fr);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.95fr);
   align-items: stretch;
   column-gap: 0;
   row-gap: 22px;
+}
+
+/* With the tutor open, keep notes readable: prefer stacking sources under the
+   notes instead of forcing a cramped side-by-side split. */
+.app-layout:not(.assistant-closed) .result-grid.source-open {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1480px) {
+  .app-layout:not(.assistant-closed) .result-grid.source-open {
+    grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.9fr);
+  }
 }
 
 .notes-card,
@@ -1332,6 +1354,13 @@ body.mobile-assistant-open::before {
   max-height: calc(100dvh - 158px);
   overflow: auto;
   scrollbar-gutter: stable;
+  min-width: 0;
+}
+
+.app-layout:not(.assistant-closed) .source-open .notes-card {
+  border-radius: var(--radius-lg);
+  border-right: 1px solid var(--border-blue);
+  max-height: none;
 }
 
 .notes-toolbar {
@@ -1411,7 +1440,7 @@ body.mobile-assistant-open::before {
 /* History-backed initial workspace. The class name is retained for compatibility,
    but every surface consumes global theme tokens so Light, Dark, and System all
    resolve from the document root. */
-.app-layout:has(.dark-learning-rail) {
+.app-layout.has-learning-rail {
   background: var(--color-page-background);
 }
 
@@ -1424,12 +1453,106 @@ body.mobile-assistant-open::before {
   overflow: hidden;
   padding: 18px 12px;
   position: fixed;
+  left: 0;
+  top: 0;
   width: 280px;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 30;
+  transition: transform 0.22s ease, width 0.22s ease, padding 0.22s ease, border-color 0.22s ease;
+}
+
+.workspace-shell {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Reserve space for the fixed learning rail in every workspace state. */
+.app-layout.has-learning-rail:not(.history-collapsed) {
+  padding-left: 280px;
+  box-sizing: border-box;
+}
+
+.app-layout.initial-state.has-learning-rail:not(.history-collapsed) .notes-area {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+.app-layout.has-learning-rail.history-collapsed {
+  padding-left: 0;
+}
+
+.workspace-shell:has(.app-layout.history-collapsed) .history-nav.dark-learning-rail,
+.app-layout.history-collapsed .history-nav.dark-learning-rail {
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.history-nav-toggle {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.history-nav-toggle:hover,
+.history-nav-toggle:focus-visible {
+  background: var(--color-surface-hover);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--color-border-default));
+  outline: none;
+}
+
+.history-nav-expand {
+  position: fixed;
+  z-index: 35;
+  left: 12px;
+  top: 18px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-surface-primary, #fff);
+  color: var(--color-text-primary);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.history-nav-expand[hidden] {
+  display: none !important;
+}
+
+.history-nav-expand:hover,
+.history-nav-expand:focus-visible {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--color-border-default));
+  outline: none;
 }
 
 .dark-learning-rail .history-header {
   margin: 0 0 14px;
   padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dark-learning-rail .history-header .nav-logo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dark-learning-rail .history-header .history-account-rail {
+  margin-left: auto;
 }
 
 .dark-learning-rail .nav-logo {
@@ -1637,62 +1760,61 @@ body.mobile-assistant-open::before {
   color: var(--color-text-primary);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .notes-area {
+.app-layout.initial-state.has-learning-rail .notes-area {
   background: var(--color-page-background) !important;
   color: var(--color-text-primary);
-  margin-left: 280px !important;
-  width: calc(100% - 280px) !important;
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .learning-experience-shell {
+.app-layout.initial-state.has-learning-rail .learning-experience-shell {
   width: min(920px, 100%);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .companion-workspace-card,
-.app-layout.initial-state:has(.dark-learning-rail) .premium-upload-card {
+.app-layout.initial-state.has-learning-rail .companion-workspace-card,
+.app-layout.initial-state.has-learning-rail .premium-upload-card {
   background: var(--color-surface-primary);
   border-color: var(--color-border-default);
   box-shadow: var(--shadow-card);
   color: var(--color-text-primary);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .companion-workspace-intro,
-.app-layout.initial-state:has(.dark-learning-rail) .hero-copy p,
-.app-layout.initial-state:has(.dark-learning-rail) .source-helper {
+.app-layout.initial-state.has-learning-rail .companion-workspace-intro,
+.app-layout.initial-state.has-learning-rail .hero-copy p,
+.app-layout.initial-state.has-learning-rail .source-helper {
   color: var(--color-text-secondary);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .companion-message-assistant {
+.app-layout.initial-state.has-learning-rail .companion-message-assistant {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
   color: var(--color-text-primary);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .companion-message-user {
+.app-layout.initial-state.has-learning-rail .companion-message-user {
   background: var(--color-surface-secondary);
   border-color: var(--color-border-default);
   color: var(--color-text-primary);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .companion-composer {
+.app-layout.initial-state.has-learning-rail .companion-composer {
   background: var(--color-surface-secondary);
   border-color: var(--color-border-default);
   box-shadow: var(--shadow-small);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .companion-composer textarea,
-.app-layout.initial-state:has(.dark-learning-rail) .companion-workspace-card h1,
-.app-layout.initial-state:has(.dark-learning-rail) .companion-message-role {
+.app-layout.initial-state.has-learning-rail .companion-composer textarea,
+.app-layout.initial-state.has-learning-rail .companion-workspace-card h1,
+.app-layout.initial-state.has-learning-rail .companion-message-role {
   color: var(--color-text-primary);
 }
 
-.app-layout.initial-state:has(.dark-learning-rail) .drop-zone {
+.app-layout.initial-state.has-learning-rail .drop-zone {
   background: var(--color-surface-secondary);
   border-color: var(--color-border-default);
 }
 
-.app-layout.generated-notes-state .history-nav {
+.app-layout.generated-notes-state .history-nav,
+.workspace-shell:has(.app-layout.generated-notes-state) .history-nav {
   display: flex !important;
 }
 
@@ -1709,7 +1831,16 @@ body.mobile-assistant-open::before {
     display: none !important;
   }
 
-  .app-layout.initial-state:has(.dark-learning-rail) .notes-area {
+  .history-nav-expand {
+    display: none !important;
+  }
+
+  .app-layout.has-learning-rail,
+  .app-layout.has-learning-rail.history-collapsed {
+    padding-left: 0 !important;
+  }
+
+  .app-layout.initial-state.has-learning-rail .notes-area {
     margin-left: 0 !important;
     width: 100% !important;
   }

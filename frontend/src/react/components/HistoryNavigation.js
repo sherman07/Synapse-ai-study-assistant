@@ -4,26 +4,39 @@ export function HistoryNavigation() {
   return h(
     "aside",
     { id: "historyNav", className: "history-nav dark-learning-rail", "aria-label": "Synapse learning navigation" },
-    h(
-      "div",
-      { className: "history-header" },
       h(
         "div",
-        { className: "nav-logo" },
+        { className: "history-header" },
         h(
-          "span",
-          { className: "nav-logo-icon" },
-          h("img", { className: "nav-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
+          "div",
+          { className: "nav-logo" },
+          h(
+            "span",
+            { className: "nav-logo-icon" },
+            h("img", { className: "nav-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
+          ),
+          h("span", { className: "nav-logo-text" }, "Synapse")
         ),
-        h("span", { className: "nav-logo-text" }, "Synapse")
-      ),
-      h(
-        "div",
-        {
-          className: "account-menu history-account-rail",
-          onMouseEnter: legacyAction("renderAccountMenu"),
-          onFocus: legacyAction("renderAccountMenu"),
-        },
+        h(
+          "button",
+          {
+            id: "historyNavToggle",
+            className: "history-nav-toggle",
+            type: "button",
+            onClick: legacyAction("toggleHistoryNav"),
+            "aria-label": "Hide learning navigation",
+            "aria-expanded": "true",
+            title: "Hide learning navigation",
+          },
+          icon("bi-chevron-double-left")
+        ),
+        h(
+          "div",
+          {
+            className: "account-menu history-account-rail",
+            onMouseEnter: legacyAction("renderAccountMenu"),
+            onFocus: legacyAction("renderAccountMenu"),
+          },
         h(
           "button",
           {
