@@ -10,7 +10,15 @@ router.get("/me", requireUser, (req, res) => {
 });
 
 router.patch("/me", requireUser, asyncRoute(async (req, res) => {
-  const user = await patchUser(req.user.id, req.body || {});
+  // Only allow the user to change their own display name. Identity-critical
+  // fields (role, email, plan, subscription, stripe ids) are derived from the
+  // verified token or Stripe webhooks and must never be client-settable.
+  const body = req.body || {};
+  const patch = {};
+  if (body.displayName !== undefined || body.display_name !== undefined) {
+    patch.displayName = body.displayName ?? body.display_name;
+  }
+  const user = await patchUser(req.user.id, patch);
   res.json({ ok: true, user });
 }));
 
