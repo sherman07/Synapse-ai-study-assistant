@@ -261,6 +261,79 @@ app.add_middleware(
 )
 RUNTIME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# Per-client rate limiting for expensive AI-generation endpoints.
+# These routes have no auth requirement (anonymous study is supported), so an
+# unmetered caller could otherwise drive unbounded OpenAI/Gemini spend. This is
+# a lightweight in-memory fixed-window limiter; it is per-process, which is
+# sufficient for the single-worker MVP deployment. Set the limit to 0 to
+# disable. Loopback/test clients are exempt so local tooling and the test suite
+# are unaffected.
+# ---------------------------------------------------------------------------
+import threading as _threading
+
+GENERATION_RATE_LIMIT = env_int("SYNAPSE_GENERATION_RATE_LIMIT", 30)
+GENERATION_RATE_WINDOW_SECONDS = max(1, env_int("SYNAPSE_GENERATION_RATE_WINDOW_SECONDS", 60))
+RATE_LIMITED_PATHS = frozenset({
+    "/analyze",
+    "/upload-pdf",
+    "/ask",
+    "/source-preview",
+    "/voice-tutor/respond",
+    "/voice-tutor/realtime-call",
+    "/learning-companion/respond",
+    "/quiz/generate",
+    "/flashcards/generate",
+    "/timeline/generate",
+    "/timeline/check-answer",
+    "/translate-notes",
+    "/visual-image-guide/generate",
+    "/visual-guide/generate",
+    "/broadcast/generate",
+    "/broadcast/tts",
+    "/broadcast/realtime-call",
+})
+_RATE_EXEMPT_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}
+_rate_limit_lock = _threading.Lock()
+_rate_limit_hits: Dict[str, List[float]] = {}
+
+
+def _rate_limit_client_key(request: Request) -> Tuple[str, str]:
+    host = (request.client.host if request.client else "") or ""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    key = forwarded.split(",")[0].strip() if forwarded else host
+    return key or "unknown", host
+
+
+@app.middleware("http")
+async def generation_rate_limit_middleware(request: Request, call_next):
+    if (
+        GENERATION_RATE_LIMIT > 0
+        and request.method == "POST"
+        and request.url.path in RATE_LIMITED_PATHS
+    ):
+        key, host = _rate_limit_client_key(request)
+        if key not in _RATE_EXEMPT_HOSTS and host not in _RATE_EXEMPT_HOSTS:
+            now = time.monotonic()
+            window_start = now - GENERATION_RATE_WINDOW_SECONDS
+            with _rate_limit_lock:
+                if len(_rate_limit_hits) > 10000:
+                    for stale_key in [k for k, v in _rate_limit_hits.items() if not v or v[-1] < window_start]:
+                        _rate_limit_hits.pop(stale_key, None)
+                hits = [hit for hit in _rate_limit_hits.get(key, []) if hit >= window_start]
+                if len(hits) >= GENERATION_RATE_LIMIT:
+                    retry_after = max(1, int(GENERATION_RATE_WINDOW_SECONDS - (now - hits[0])))
+                    _rate_limit_hits[key] = hits
+                    return Response(
+                        json.dumps({"error": "Too many requests. Please wait a moment and try again."}),
+                        status_code=429,
+                        media_type="application/json",
+                        headers={"Retry-After": str(retry_after)},
+                    )
+                hits.append(now)
+                _rate_limit_hits[key] = hits
+    return await call_next(request)
+
 
 async def run_blocking(func, *args, **kwargs):
     """Run synchronous parsing/model/persistence work without blocking Uvicorn."""
@@ -335,6 +408,13 @@ STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
 SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK = (
     os.getenv("SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK", "false").lower() not in {"0", "false", "no"}
+)
+# Development-only. When true, the backend trusts an "X-Synapse-User-Id" header
+# as an account identity. This lets any caller impersonate any demo account, so
+# it must stay false in production. Verified Supabase bearer tokens are never
+# gated by this flag.
+SYNAPSE_ALLOW_LOCAL_DEMO_AUTH = (
+    os.getenv("SYNAPSE_ALLOW_LOCAL_DEMO_AUTH", "false").lower() in {"1", "true", "yes", "on"}
 )
 SYNAPSE_FRONTEND_BASE_URL = (
     os.getenv("SYNAPSE_FRONTEND_BASE_URL")
@@ -504,16 +584,28 @@ def database_identity_from_request(request: Optional[Request], client_fingerprin
         client_id = _clean_identity_header(request.headers.get("x-synapse-client-id"), 160)
         local_user_id = _clean_identity_header(request.headers.get("x-synapse-user-id"), 160)
         auth_mode = _clean_identity_header(request.headers.get("x-synapse-auth-mode"), 60) or "anonymous"
-        if local_user_id or client_id:
-            subject = local_user_id or client_id
-            provider = "local_demo" if auth_mode == "local_demo" or local_user_id else "anonymous"
+        # The user-id header asserts an arbitrary account identity, so it is only
+        # honoured when local demo auth is explicitly enabled (development). In
+        # production this branch is skipped and the request falls back to an
+        # anonymous, self-scoped client bucket, which prevents cross-user access.
+        if local_user_id and SYNAPSE_ALLOW_LOCAL_DEMO_AUTH:
             return {
-                "auth_provider": provider,
-                "auth_subject": subject,
+                "auth_provider": "local_demo",
+                "auth_subject": local_user_id,
                 "email": _clean_identity_header(request.headers.get("x-synapse-user-email"), 220).lower(),
                 "display_name": _clean_identity_header(request.headers.get("x-synapse-user-name"), 180),
-                "auth_mode": auth_mode,
+                "auth_mode": auth_mode or "local_demo",
                 "role": _clean_identity_header(request.headers.get("x-synapse-user-role"), 80) or "student",
+                "metadata": {"client_id": client_id},
+            }
+        if client_id:
+            return {
+                "auth_provider": "anonymous",
+                "auth_subject": client_id,
+                "email": "",
+                "display_name": "Anonymous Synapse user",
+                "auth_mode": "anonymous",
+                "role": "student",
                 "metadata": {"client_id": client_id},
             }
 
