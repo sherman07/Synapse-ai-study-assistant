@@ -142,6 +142,7 @@ Object.assign(window, {
   switchTool,
   toggleSourceViewer,
   toggleSummaryNav,
+  toggleHistoryNav,
   toggleTimelineComplete,
   toggleVoiceTutorMute,
   updateFlashcardCustomCount,

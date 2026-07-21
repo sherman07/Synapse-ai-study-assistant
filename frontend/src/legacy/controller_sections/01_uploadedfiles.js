@@ -79,6 +79,7 @@ const SOURCE_HISTORY_LIMIT = 20;
 const MAX_SOURCE_PREVIEW_BYTES = 80 * 1024 * 1024;
 const ANALYSIS_TIMEOUT_MS = Number(window.SYNAPSE_ANALYSIS_TIMEOUT_MS || 8 * 60 * 1000);
 const SUMMARY_NAV_COLLAPSED_KEY = "synapse.summary.nav.collapsed.v1";
+const HISTORY_NAV_COLLAPSED_KEY = "synapse.history.nav.collapsed.v1";
 const AI_PROVIDER_STORAGE_KEY = "synapse.ai.provider.v1";
 const VISUAL_STORE_CONFIG = {
   dbName: VISUAL_DB_NAME,
@@ -165,6 +166,7 @@ let sourceViewerOpen = false;
 let activeSourceItemId = "";
 let sourceViewerZoom = 100;
 let summaryNavCollapsed = false;
+let historyNavCollapsed = false;
 let voiceTutorHistory = [];
 let voiceTutorLastState = null;
 let voiceTutorBusy = false;
@@ -189,6 +191,10 @@ function readSummaryNavPreference() {
   return safeGetLocalStorage(SUMMARY_NAV_COLLAPSED_KEY, "") === "true";
 }
 
+function readHistoryNavPreference() {
+  return safeGetLocalStorage(HISTORY_NAV_COLLAPSED_KEY, "") === "true";
+}
+
 function applySummaryNavCollapsed() {
   if (!appLayout || !summaryNav) return;
   appLayout.classList.toggle("summary-collapsed", summaryNavCollapsed);
@@ -205,14 +211,49 @@ function applySummaryNavCollapsed() {
   }
 }
 
+function applyHistoryNavCollapsed() {
+  if (!appLayout) return;
+  appLayout.classList.toggle("history-collapsed", historyNavCollapsed);
+  const nav = document.getElementById("historyNav") || historyNav;
+  if (nav) nav.classList.toggle("collapsed", historyNavCollapsed);
+
+  const historyNavToggle = document.getElementById("historyNavToggle");
+  const historyNavExpand = document.getElementById("historyNavExpand");
+  const expanded = !historyNavCollapsed;
+  if (historyNavToggle) {
+    historyNavToggle.setAttribute("aria-expanded", String(expanded));
+    historyNavToggle.setAttribute("aria-label", expanded ? "Hide learning navigation" : "Show learning navigation");
+    historyNavToggle.title = expanded ? "Hide learning navigation" : "Show learning navigation";
+    const icon = historyNavToggle.querySelector("i");
+    if (icon) {
+      icon.className = expanded ? "bi bi-chevron-double-left" : "bi bi-chevron-double-right";
+    }
+  }
+  if (historyNavExpand) {
+    historyNavExpand.hidden = expanded;
+    historyNavExpand.setAttribute("aria-expanded", String(expanded));
+  }
+}
+
 function toggleSummaryNav(force = null) {
   summaryNavCollapsed = typeof force === "boolean" ? force : !summaryNavCollapsed;
   safeSetLocalStorage(SUMMARY_NAV_COLLAPSED_KEY, String(summaryNavCollapsed));
   applySummaryNavCollapsed();
 }
 
+function toggleHistoryNav(force = null) {
+  historyNavCollapsed = typeof force === "boolean" ? force : !historyNavCollapsed;
+  safeSetLocalStorage(HISTORY_NAV_COLLAPSED_KEY, String(historyNavCollapsed));
+  applyHistoryNavCollapsed();
+}
+
 summaryNavCollapsed = readSummaryNavPreference();
+historyNavCollapsed = readHistoryNavPreference();
 applySummaryNavCollapsed();
+applyHistoryNavCollapsed();
+requestAnimationFrame(() => {
+  applyHistoryNavCollapsed();
+});
 
 function updateNoteLengthDescription() {
   const noteLengthSelect = document.getElementById("noteLength");

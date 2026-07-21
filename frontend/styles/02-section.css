@@ -634,13 +634,29 @@
   box-shadow: 0 20px 52px rgba(41, 76, 130, 0.14);
 }
 
-.source-open .source-viewer-panel {
-  top: 14px;
-  height: calc(100dvh - 158px);
-  max-height: calc(100dvh - 158px);
-  border-radius: 0 30px 30px 0;
+.app-layout:not(.assistant-closed) .source-open .source-viewer-panel {
+  position: relative;
+  top: auto;
+  height: min(680px, 72dvh);
+  max-height: 72dvh;
+  border-radius: var(--radius-lg);
   border-left: 1px solid rgba(197, 213, 242, 0.92);
-  box-shadow: 18px 24px 58px rgba(41, 76, 130, 0.12);
+}
+
+@media (min-width: 1480px) {
+  .app-layout:not(.assistant-closed) .source-open .notes-card {
+    border-radius: 30px 0 0 30px;
+    border-right: 0;
+    max-height: calc(100dvh - 158px);
+  }
+
+  .app-layout:not(.assistant-closed) .source-open .source-viewer-panel {
+    position: sticky;
+    top: 14px;
+    height: calc(100dvh - 158px);
+    max-height: calc(100dvh - 158px);
+    border-radius: 0 30px 30px 0;
+  }
 }
 
 .source-viewer-tabs {

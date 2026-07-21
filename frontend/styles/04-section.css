@@ -87,15 +87,15 @@
 
 @media (max-width: 1200px) {
   .app-layout {
-    grid-template-columns: 232px minmax(500px, 1fr) 340px;
+    grid-template-columns: 220px minmax(0, 1fr) minmax(280px, 320px);
   }
 
   .app-layout.assistant-closed {
-    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
   .app-layout.summary-collapsed {
-    grid-template-columns: 72px minmax(500px, 1fr) 340px;
+    grid-template-columns: 72px minmax(0, 1fr) minmax(280px, 320px);
   }
 
   .app-layout.assistant-closed.summary-collapsed {
@@ -118,12 +118,20 @@
   .notes-area { padding: 48px 16px 48px 32px; }
 }
 
-@media (max-width: 1180px) and (min-width: 851px) {
+@media (max-width: 1479px) and (min-width: 851px) {
   .app-layout:not(.assistant-closed) {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: clamp(200px, 15vw, 260px) minmax(0, 1fr);
   }
 
   .app-layout:not(.assistant-closed).summary-collapsed {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .app-layout:not(.assistant-closed).history-collapsed {
+    grid-template-columns: clamp(200px, 15vw, 260px) minmax(0, 1fr);
+  }
+
+  .app-layout:not(.assistant-closed).history-collapsed.summary-collapsed {
     grid-template-columns: 72px minmax(0, 1fr);
   }
 
@@ -131,15 +139,31 @@
     position: fixed;
     top: 16px;
     right: 16px;
-    width: min(380px, calc(100vw - 32px));
+    width: min(360px, calc(100vw - 48px));
     min-width: 0;
     height: calc(100dvh - 32px);
     border: 1px solid var(--border-blue);
     border-radius: 24px;
     box-shadow: -18px 18px 56px rgba(15, 23, 42, 0.2);
+    z-index: 40;
+  }
+
+  /* Keep notes readable beside the floating tutor instead of sitting under it. */
+  .app-layout:not(.assistant-closed) .notes-area {
+    padding-right: calc(min(360px, calc(100vw - 48px)) + 24px);
   }
 
   .notes-area { padding: 36px 16px 36px 24px; }
+}
+
+@media (max-width: 1320px) and (min-width: 851px) {
+  .app-layout:not(.assistant-closed) .assistant-panel {
+    width: min(320px, calc(100vw - 40px));
+  }
+
+  .app-layout:not(.assistant-closed) .notes-area {
+    padding-right: calc(min(320px, calc(100vw - 40px)) + 20px);
+  }
 }
 
 @media (max-width: 850px) {
@@ -473,11 +497,13 @@
   overflow-y: auto;
 }
 
-.app-layout.initial-state:not(.loading-state) .history-nav {
+.app-layout.initial-state:not(.loading-state) .history-nav,
+.workspace-shell:has(.app-layout.initial-state:not(.loading-state)) .history-nav {
   display: block;
 }
 
-.app-layout.loading-state .history-nav {
+.app-layout.loading-state .history-nav,
+.workspace-shell:has(.app-layout.loading-state) .history-nav {
   display: block;
 }
 
@@ -1314,6 +1340,14 @@ html[data-theme="dark"] .mobile-menu-btn {
   width: calc(100% - 300px);
 }
 
+.app-layout.initial-state.has-learning-rail:not(.history-collapsed) .notes-area,
+.app-layout.loading-state.has-learning-rail:not(.history-collapsed) .notes-area,
+.app-layout.initial-state.history-collapsed .notes-area,
+.app-layout.loading-state.history-collapsed .notes-area {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
 .loading-state #summaryNav,
 .loading-state #assistant,
 .loading-state #openAssistant {
@@ -1331,6 +1365,11 @@ html[data-theme="dark"] .mobile-menu-btn {
   display: grid;
   place-items: center;
   padding: 48px 20px;
+}
+
+.app-layout.loading-state.has-learning-rail .notes-area {
+  margin-left: 0 !important;
+  width: 100% !important;
 }
 
 .app-layout.loading-state .analysis-stage {
