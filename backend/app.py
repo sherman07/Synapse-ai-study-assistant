@@ -34,6 +34,12 @@ if str(BACKEND_PACKAGE_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_PACKAGE_DIR))
 
 from core.analysis_cache import cache_get, cache_set
+from core.analysis_progress import (
+    begin_analysis_progress,
+    finish_analysis_progress,
+    get_analysis_progress,
+    update_analysis_progress,
+)
 from core.config import (
     AI_TEXT_PROVIDER,
     ANALYSIS_MAX_SECONDS,

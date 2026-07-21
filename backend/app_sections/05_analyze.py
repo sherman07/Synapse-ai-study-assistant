@@ -80,6 +80,14 @@ def voice_realtime_provider_error_message(response: requests.Response) -> str:
     return fallback
 
 
+@app.get("/analyze/progress/{analysis_request_id}")
+async def analysis_progress_status(analysis_request_id: str) -> Any:
+    snapshot = get_analysis_progress(analysis_request_id)
+    if not snapshot:
+        return analysis_error_response("Analysis progress was not found.", 404)
+    return snapshot
+
+
 @app.post("/analyze")
 async def analyze_materials(
     files: List[UploadFile] = File(default=[]),
@@ -91,6 +99,7 @@ async def analyze_materials(
     note_length: str = Form(default=DEFAULT_NOTE_LENGTH_MODE),
     ai_provider: str = Form(default=""),
     client_fingerprint: str = Form(default=""),
+    analysis_request_id: str = Form(default=""),
     request: Request = None,
 ):
     global stored_summary, stored_sections, stored_connections, stored_mind_map, stored_title, stored_source_identity
@@ -99,6 +108,8 @@ async def analyze_materials(
     trace_token = begin_ai_call_trace() if "begin_ai_call_trace" in globals() else None
     analysis_started_at = time.monotonic()
     analysis_stage = "initializing"
+    analysis_outcome = "failed"
+    begin_analysis_progress(analysis_request_id)
     selected_ai_provider = "unresolved"
     source_units: List[dict] = []
     try:
@@ -123,6 +134,11 @@ async def analyze_materials(
         def analysis_remaining_seconds() -> float:
             return analysis_remaining_seconds_since(analysis_started_at)
 
+        def set_analysis_stage(stage: str) -> None:
+            nonlocal analysis_stage
+            analysis_stage = stage
+            update_analysis_progress(analysis_request_id, stage)
+
         def allow_optional_stage(stage: str, min_remaining_seconds: int) -> bool:
             if should_run_optional_analysis_stage(analysis_started_at, min_remaining_seconds):
                 return True
@@ -134,11 +150,11 @@ async def analyze_materials(
         seen_youtube_sources = set()
 
         for uploaded in files:
-            analysis_stage = "file_read"
+            set_analysis_stage("file_read")
             data = await read_upload_bytes(uploaded, MAX_UPLOAD_BYTES, uploaded.filename or "uploaded file")
             if not data:
                 continue
-            analysis_stage = "file_extract"
+            set_analysis_stage("file_extract")
             content_type = uploaded.content_type or mimetypes.guess_type(uploaded.filename or "")[0] or "application/octet-stream"
             parts, meta = await run_blocking(
                 file_to_source_unit,
@@ -224,7 +240,7 @@ async def analyze_materials(
         if not content_parts:
             return analysis_error_response("No readable files, links, or text were provided.", 400)
 
-        analysis_stage = "source_preparation"
+        set_analysis_stage("source_preparation")
         combined_source_text = "\n\n".join(
             part.get("text", "") for part in content_parts
             if isinstance(part, dict) and part.get("type") == "text"
@@ -262,7 +278,7 @@ async def analyze_materials(
         )
         cached_result = cache_get(source_fingerprint)
         if cached_result:
-            analysis_stage = "cache_hit"
+            set_analysis_stage("cache_hit")
             logger.info(
                 "analysis_event=cache_hit provider=%s source_count=%d elapsed_seconds=%.2f",
                 selected_ai_provider,
@@ -340,6 +356,7 @@ async def analyze_materials(
                 "optional_stages_skipped": [],
             }
             response_payload.update(ai_diagnostic_payload("cache"))
+            set_analysis_stage("persistence")
             database_record = await run_blocking(
                 persist_generated_analysis_result,
                 request,
@@ -354,9 +371,10 @@ async def analyze_materials(
                 len(source_units),
                 analysis_elapsed_seconds(),
             )
+            analysis_outcome = "completed"
             return response_payload
 
-        analysis_stage = "generation"
+        set_analysis_stage("generation")
         logger.info(
             "analysis_event=generation_started provider=%s source_count=%d remaining_seconds=%.2f",
             selected_ai_provider,
@@ -411,6 +429,7 @@ async def analyze_materials(
         stored_sections = parse_sections(stored_summary)
         await raise_if_analysis_client_disconnected(request, "optional title and mind-map generation")
         if allow_optional_stage("title", env_int("TITLE_STAGE_MIN_SECONDS", 18)):
+            set_analysis_stage("title")
             stored_title = await run_blocking(
                 make_notes_title,
                 stored_summary,
@@ -439,6 +458,7 @@ async def analyze_materials(
         stored_connections = generate_connections_from_sections(stored_sections)
         await raise_if_analysis_client_disconnected(request, "optional mind-map generation")
         if allow_optional_stage("mind_map", env_int("MINDMAP_STAGE_MIN_SECONDS", 35)):
+            set_analysis_stage("mind_map")
             stored_mind_map = await run_blocking(
                 generate_ai_mind_map,
                 stored_title,
@@ -513,6 +533,7 @@ async def analyze_materials(
             "figure_cards": visual_gallery,
         }
         cache_set(source_fingerprint, cache_result)
+        set_analysis_stage("persistence")
         database_record = await run_blocking(
             persist_generated_analysis_result,
             request,
@@ -522,6 +543,7 @@ async def analyze_materials(
         if database_record:
             result["database_record"] = database_record
         analysis_stage = "completed"
+        analysis_outcome = "completed"
         logger.info(
             "analysis_event=completed cached=false provider=%s source_count=%d elapsed_seconds=%.2f optional_stages_skipped=%d",
             selected_ai_provider,
@@ -543,6 +565,7 @@ async def analyze_materials(
         )
         return analysis_error_response(str(error), analysis_exception_status(error))
     finally:
+        finish_analysis_progress(analysis_request_id, analysis_outcome)
         if "reset_ai_call_trace" in globals():
             reset_ai_call_trace(trace_token)
         reset_request_text_provider(provider_token)
