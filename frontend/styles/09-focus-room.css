@@ -723,7 +723,7 @@ body.focus-room-standalone #focusRoomRoot {
   align-items: center;
   justify-content: center;
   gap: clamp(4px, 1.2vw, 12px);
-  color: var(--text-primary);
+  color: #fff;
   font-variant-numeric: tabular-nums;
   line-height: 0.95;
 }
@@ -758,7 +758,8 @@ body.focus-room-standalone #focusRoomRoot {
   padding: 0.04em 0.16em;
   border-radius: 0.22em;
   text-align: center;
-  color: inherit;
+  color: #fff;
+  font-weight: inherit;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid transparent;
   cursor: text;
@@ -1707,7 +1708,7 @@ body.focus-room-standalone #focusRoomRoot {
 .compact-exit-button { width: 28px; height: 28px; min-height: 28px; padding: 0; border-radius: 50%; color: var(--room-ink); }
 .compact-focus-status { display: flex; align-items: center; gap: 5px; margin-top: 13px; color: var(--room-soft); font-size: 11px; }
 .compact-focus-status i { width: 5px; height: 5px; display: block; border-radius: 50%; background: #c0d9b5; }
-.compact-focus-mode-card > strong { display: block; margin: 2px 0 8px; font-size: 30px; font-weight: 400; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.compact-focus-mode-card > strong { display: block; margin: 2px 0 8px; font-size: 30px; font-weight: 560; letter-spacing: .04em; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35); }
 .compact-focus-mode-card small { display: block; margin-top: 8px; color: var(--room-soft); font-size: 10px; }
 .focus-setup-view { padding: max(22px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
 .focus-setup-stage { width: min(928px, 100%); min-height: calc(100svh - 52px); margin: 0 auto; padding-top: 11px; }
@@ -3115,10 +3116,11 @@ body.focus-room-standalone #focusRoomRoot {
 
 .react-focus-room .dock-time {
   margin-top: 0;
-  color: var(--room-ink);
+  color: #fff;
   font-size: 40px;
-  font-weight: 360;
+  font-weight: 560;
   letter-spacing: .025em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.28);
 }
 
 .react-focus-room .dock-progress {
@@ -3900,122 +3902,71 @@ body.focus-room-standalone #focusRoomRoot {
 }
 
 /* ============================================================
-   Floating POMODORO hero — the reference glass timer card, with
-   editable MM:SS digits when the session is not running.
+   Dock timer digits — high-contrast segmented input only.
+   The center floating timer is intentionally removed; edit time
+   in the bottom dock by typing into minutes / seconds.
    ============================================================ */
 .react-focus-room .focus-session-grid {
-  width: auto;
-  opacity: 1;
-  pointer-events: auto;
-  display: grid;
-  place-items: center;
+  display: none;
 }
 
-.react-focus-room .focus-session-stage.is-focus-mode .focus-session-grid {
-  opacity: 0;
-  pointer-events: none;
+.react-focus-room .dock-time,
+.react-focus-room .dock-time-editor,
+.react-focus-room .timer-editor-dock {
+  color: #fff;
+  font-weight: 560;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.28);
+  -webkit-font-smoothing: antialiased;
 }
 
-.react-focus-room .timer-card.floating-pomodoro {
-  width: min(320px, calc(100vw - 48px));
-  justify-items: start;
-  gap: 0;
-  padding: 22px 24px 20px;
-  border-radius: 26px;
-  text-align: left;
-  background: var(--fr-glass);
+.react-focus-room .dock-time-editor .timer-editor-digits,
+.react-focus-room .dock-time-editor .timer-editor-colon,
+.react-focus-room .timer-editor-dock .timer-editor-digits,
+.react-focus-room .timer-editor-dock .timer-editor-colon {
+  color: #fff;
 }
 
-.floating-pomodoro-top {
-  width: 100%;
+.react-focus-room .dock-time-editor .timer-editor-digits {
+  min-width: 1.7ch;
+  padding: 0.02em 0.1em;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.18em;
+  font-weight: 560;
 }
 
-.floating-pomodoro-status {
-  margin-top: 10px;
+.react-focus-room .dock-time-editor .timer-editor-digits:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
-.floating-pomodoro-time,
-.floating-pomodoro-editor {
-  display: block;
-  margin-top: 8px;
-  color: var(--room-ink);
-  font-size: clamp(3.2rem, 8vw, 4.2rem);
-  font-weight: 360;
-  letter-spacing: 0.03em;
-  font-variant-numeric: tabular-nums;
-  line-height: 0.95;
+.react-focus-room .dock-time-editor .timer-editor-segment.is-active .timer-editor-digits,
+.react-focus-room .dock-time-editor .timer-editor-digits:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+  outline: none;
 }
 
-.timer-editor-float {
-  font-size: clamp(3.2rem, 8vw, 4.2rem);
-  font-weight: 360;
-  justify-content: flex-start;
-  gap: 4px;
+.react-focus-room .dock-time-editor {
+  display: flex;
+  margin-top: 0;
 }
 
-.timer-editor-dock {
+.react-focus-room .timer-editor-dock {
   font-size: 40px;
-  font-weight: 360;
+  font-weight: 560;
   justify-content: flex-start;
   gap: 2px;
   line-height: 0.95;
 }
 
-.floating-pomodoro-editor .timer-editor-digits,
-.dock-time-editor .timer-editor-digits {
-  min-width: 1.7ch;
-  padding: 0.02em 0.08em;
-  background: transparent;
-  border-radius: 0.18em;
-}
-
-.floating-pomodoro-editor .timer-editor-digits:hover,
-.dock-time-editor .timer-editor-digits:hover,
-.floating-pomodoro-editor .timer-editor-segment.is-active .timer-editor-digits,
-.dock-time-editor .timer-editor-segment.is-active .timer-editor-digits,
-.floating-pomodoro-editor .timer-editor-digits:focus-visible,
-.dock-time-editor .timer-editor-digits:focus-visible {
-  background: rgba(250, 245, 237, 0.12);
-  border-color: rgba(250, 229, 199, 0.45);
-  box-shadow: none;
-}
-
-.floating-pomodoro-editor .timer-editor-step,
-.dock-time-editor .timer-editor-step {
-  width: 1.1em;
-  height: 0.7em;
-  color: rgba(250, 245, 237, 0.55);
-}
-
-.dock-time-editor {
-  display: flex;
-  margin-top: 0;
-}
-
-.floating-pomodoro-progress {
-  width: 100%;
-  height: 2px;
-  margin-top: 16px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(250, 245, 237, 0.14);
-}
-
-.floating-pomodoro-progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: rgba(247, 223, 188, 0.82);
-  transition: width 0.35s linear;
+.react-focus-room .timer-editor-step {
+  display: none;
 }
 
 @media (max-width: 640px) {
-  .react-focus-room .timer-card.floating-pomodoro {
-    width: min(280px, calc(100vw - 32px));
-    padding: 18px 18px 16px;
-  }
-
-  .timer-editor-dock {
+  .react-focus-room .timer-editor-dock {
     font-size: 30px;
   }
 }

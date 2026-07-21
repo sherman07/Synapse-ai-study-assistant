@@ -54,7 +54,7 @@ export function FocusRoomSetup({ audioState }) {
             size="setup"
             ariaLabel="Set custom Pomodoro length"
           />
-          <span className="focus-field-hint">Tap the minutes or seconds, then type, scroll, or use ↑ / ↓ to fine-tune.</span>
+          <span className="focus-field-hint">Click minutes or seconds, then type digits to set the length.</span>
         </div>
         <label className="focus-field">
           Focus intention

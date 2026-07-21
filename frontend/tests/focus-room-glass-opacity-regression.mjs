@@ -36,13 +36,17 @@ assert.match(styles, /\.react-focus-room \.focus-utility-panel\.room-control-pan
 assert.match(styles, /\.room-control-grid\s*\{[\s\S]*?grid-template-columns: minmax\(0, 0\.92fr\) minmax\(0, 1\.08fr\)/, "the control panel should use a two-column scenes/audio grid");
 assert.match(styles, /\.room-control-masters\s*\{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "music and scene sound should sit side by side");
 assert.match(styles, /\.room-channel-card\.is-active/, "active ambient cards should light up against the glass");
+assert.match(styles, /\.timer-editor-dock/, "the dock timer should support segmented editing");
 assert.match(
   styles,
-  /\.react-focus-room \.focus-session-grid\s*\{[\s\S]*?opacity: 1;[\s\S]*?pointer-events: auto;/,
-  "the floating pomodoro hero must be visible in the session stage"
+  /\.react-focus-room \.dock-time[\s\S]*?color: #fff;[\s\S]*?font-weight: 560;/,
+  "dock timer digits should use high-contrast white type"
 );
-assert.match(styles, /\.timer-card\.floating-pomodoro/, "session should use the floating pomodoro glass card");
-assert.match(styles, /\.timer-editor-dock/, "the dock timer should support segmented editing");
+assert.doesNotMatch(
+  styles,
+  /\.react-focus-room \.focus-session-grid\s*\{[\s\S]*?opacity: 1;[\s\S]*?pointer-events: auto;/,
+  "the center floating pomodoro hero must stay removed"
+);
 
 const drawers = fs.readFileSync(path.join(root, "frontend/src/focus-room/components/FocusRoomDrawers.jsx"), "utf8");
 assert.match(drawers, /function RoomControlPanel/, "settings should render the wide RoomControlPanel");
@@ -50,10 +54,13 @@ assert.match(drawers, /Ambient atmosphere/, "settings should expose ambient atmo
 assert.match(drawers, /Focus noise/, "settings should expose focus noise channels");
 assert.match(drawers, /room-control-masters/, "music and scene sound should share a masters row");
 
-const timerCard = fs.readFileSync(path.join(root, "frontend/src/focus-room/components/TimerCard.jsx"), "utf8");
+const page = fs.readFileSync(path.join(root, "frontend/src/focus-room/components/FocusRoomPage.jsx"), "utf8");
 const dock = fs.readFileSync(path.join(root, "frontend/src/focus-room/components/BottomControlDock.jsx"), "utf8");
-assert.match(timerCard, /EditableTimer/, "floating pomodoro should use the segmented editor");
+const editor = fs.readFileSync(path.join(root, "frontend/src/focus-room/components/EditableTimer.jsx"), "utf8");
+assert.doesNotMatch(page, /<PomodoroTimer|from "\.\/PomodoroTimer/, "session page should not mount the center timer");
 assert.match(dock, /EditableTimer/, "dock timer should use the segmented editor when idle");
 assert.match(dock, /size="dock"/, "dock editor should use the compact dock size");
+assert.doesNotMatch(editor, /ChevronUp|ChevronDown|timer-editor-step/, "timer editing should be digit input only");
+assert.doesNotMatch(editor, /addEventListener\("wheel"|ArrowUp|PageUp|stepSegment/, "timer editing should not use steppers or scroll nudges");
 
 console.log("focus-room-glass-opacity-regression: passed");

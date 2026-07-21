@@ -338,11 +338,11 @@ for (const token of [
   "initializeFocusRoom",
   "TopFocusNav",
   "BottomControlDock",
-  "SessionSummaryModal",
-  "focus-session-grid"
+  "SessionSummaryModal"
 ]) {
   assert.ok(focusRoomPage.includes(token), `Focus Room page should include ${token}`);
 }
+assert.ok(!focusRoomPage.includes("<PomodoroTimer"), "Focus Room session should not mount the center timer card");
 assert.ok(focusTimerCard.includes("isIdle"), "Timer card Motion animation should respond to idle mode");
 assert.ok(focusTimerCard.includes("timerScale"), "Timer card should scale down through Motion during idle mode");
 assert.ok(focusRoomPage.includes("initializeFocusRoom"), "Pure Focus Room should initialize without a generated material");

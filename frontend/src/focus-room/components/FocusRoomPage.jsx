@@ -3,7 +3,6 @@ import { useShallow } from "zustand/react/shallow";
 import { AnimatePresence, motion } from "motion/react";
 import { clearFocusRoomActiveSession, saveFocusRoomActiveSession } from "../data.js";
 import { FocusBackground } from "./FocusBackground.jsx";
-import { PomodoroTimer } from "./PomodoroTimer.jsx";
 import { TopFocusNav } from "./TopFocusNav.jsx";
 import { BottomControlDock } from "./BottomControlDock.jsx";
 import { SessionSummaryModal } from "./SessionSummaryModal.jsx";
@@ -127,11 +126,7 @@ export function FocusRoomPage() {
             transition={spring}
           >
             {!focusMode ? <TopFocusNav onWorkspace={showWorkspace} onOpenTrail={() => setUtilityPanel("trail")} onOpenCompanion={() => setUtilityPanel("companion")} onOpenSettings={() => setUtilityPanel("settings")} onExit={() => setExitDialog(true)} /> : <button type="button" className="focus-mode-exit-hit-area" onClick={() => setFocusMode(false)}>Exit Focus Mode</button>}
-            <section className={`focus-session-stage ${focusMode ? "is-focus-mode" : ""}`.trim()}>
-              <div className="focus-session-grid">
-                <PomodoroTimer />
-              </div>
-            </section>
+            <section className={`focus-session-stage ${focusMode ? "is-focus-mode" : ""}`.trim()} aria-hidden="true" />
             {!focusMode ? <BottomControlDock audioState={audioState} onFocusMode={() => setFocusMode(true)} /> : <CompactFocusTimer onExit={() => setFocusMode(false)} />}
             {!focusMode ? <FocusRoomDrawers audioState={audioState} utilityPanel={utilityPanel} onClose={() => setUtilityPanel("")} onWorkspace={showWorkspace} /> : null}
             <SessionSummaryModal />
