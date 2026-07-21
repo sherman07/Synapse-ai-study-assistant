@@ -64,6 +64,12 @@ services:
         value: https://synapse-data-api.onrender.com
       - key: SYNAPSE_INTERNAL_API_TOKEN
         sync: false
+      - key: SYNAPSE_ALLOW_LOCAL_DEMO_AUTH
+        value: "false"
+      - key: SYNAPSE_GENERATION_RATE_LIMIT
+        value: "30"
+      - key: SYNAPSE_GENERATION_RATE_WINDOW_SECONDS
+        value: "60"
       - key: SYNAPSE_SMTP_HOST
         sync: false
       - key: SYNAPSE_SMTP_PORT
