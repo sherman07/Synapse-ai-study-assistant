@@ -16,6 +16,7 @@ import {
 import {
   DEFAULT_DURATION_MINUTES,
   DEFAULT_SCENE_ID,
+  MIN_DURATION_MINUTES,
   MAX_DURATION_MINUTES,
   PANEL_TABS,
   buildPlanForState,
@@ -589,6 +590,40 @@ export const useFocusRoomStore = create((set, get) => {
           timerDurationSeconds: state.timerMode === "countup" ? 0 : durationSeconds(pomodoroDuration)
         };
         persistDraftFromState({ ...state, ...next });
+        return next;
+      });
+    },
+
+    setSessionDuration(minutesValue, secondsValue = 0) {
+      set(state => {
+        const requestedMinutes = Math.max(0, Number.parseInt(minutesValue, 10) || 0);
+        const requestedSeconds = Math.min(59, Math.max(0, Number.parseInt(secondsValue, 10) || 0));
+        const requestedTotal = requestedMinutes * 60 + requestedSeconds;
+        const minimumTotal = durationSeconds(MIN_DURATION_MINUTES);
+        const maximumTotal = durationSeconds(MAX_DURATION_MINUTES);
+        const total = state.timerMode === "countup"
+          ? 0
+          : Math.min(maximumTotal, Math.max(minimumTotal, requestedTotal || durationSeconds(state.pomodoroDuration)));
+        const pomodoroDuration = state.timerMode === "countup"
+          ? clampDuration(minutesValue, state.pomodoroDuration)
+          : Math.floor(total / 60);
+        const now = clockNowMs();
+        const currentState = timerStateFor(state);
+        const currentElapsed = elapsedSecondsAt(state, now);
+        const elapsedSeconds = state.timerMode === "countup"
+          ? currentElapsed
+          : Math.min(currentElapsed, total);
+        const nextState = currentState === "completed" ? "paused" : currentState;
+        const next = {
+          pomodoroDuration,
+          timerDurationSeconds: total,
+          elapsedSeconds,
+          ...timerStateFields(nextState, now),
+          timerAnchorAtMs: nextState === "running" ? now - elapsedSeconds * 1000 : null,
+          timerPausedAtMs: nextState === "paused" ? now : null
+        };
+        persistDraftFromState({ ...state, ...next });
+        persistTimerSnapshot({ ...state, ...next });
         return next;
       });
     },

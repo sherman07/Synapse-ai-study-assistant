@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 import { formatFocusRoomDuration } from "../data.js";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
-import { currentScene, formatTimerClock, progressPercent } from "../utils.js";
+import { currentScene, formatTimerClock } from "../utils.js";
 import { GlassButton } from "./GlassButton.jsx";
 
 function timerActionLabel(status) {
@@ -14,6 +14,7 @@ function timerActionLabel(status) {
 export function TimerCard() {
   const elapsedSeconds = useFocusRoomStore(state => state.elapsedSeconds);
   const pomodoroDuration = useFocusRoomStore(state => state.pomodoroDuration);
+  const timerDurationSeconds = useFocusRoomStore(state => state.timerDurationSeconds);
   const timerStatus = useFocusRoomStore(state => state.timerStatus);
   const isIdle = useFocusRoomStore(state => state.isIdle);
   const studyGoal = useFocusRoomStore(state => state.studyGoal);
@@ -25,8 +26,9 @@ export function TimerCard() {
   const resetTimer = useFocusRoomStore(state => state.resetTimer);
   const skipTimer = useFocusRoomStore(state => state.skipTimer);
   const isRunning = timerStatus === "studying";
-  const remaining = Math.max(0, pomodoroDuration * 60 - elapsedSeconds);
-  const progress = progressPercent(elapsedSeconds, pomodoroDuration);
+  const totalDurationSeconds = Number(timerDurationSeconds) || pomodoroDuration * 60;
+  const remaining = Math.max(0, totalDurationSeconds - elapsedSeconds);
+  const progress = totalDurationSeconds ? Math.min(100, Math.max(0, (elapsedSeconds / totalDurationSeconds) * 100)) : 0;
   const timerScale = isIdle ? 0.96 : 1;
   const timerAnimate = timerStatus === "studying"
     ? { scale: [timerScale, timerScale + 0.012, timerScale] }

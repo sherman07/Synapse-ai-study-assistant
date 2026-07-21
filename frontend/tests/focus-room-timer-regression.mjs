@@ -88,6 +88,13 @@ try {
   store.getState().tickTimer();
   assert.equal(store.getState().elapsedSeconds, pausedElapsed, "paused time must not accrue");
 
+  store.getState().setSessionDuration(20, 30);
+  assert.equal(store.getState().pomodoroDuration, 20, "the active timer should accept a new duration");
+  assert.equal(store.getState().timerDurationSeconds, 1_230, "the active timer total should update with minutes and seconds");
+  assert.equal(store.getState().elapsedSeconds, pausedElapsed, "changing duration should preserve paused progress");
+  assert.equal(store.getState().timerState, "paused", "changing duration should not resume a paused timer");
+  store.getState().setSessionDuration(10, 0);
+
   store.getState().startTimer();
   now += 2_100;
   store.getState().tickTimer();
@@ -135,6 +142,15 @@ try {
   assert.equal(store.getState().elapsedSeconds, 5, "count-up mode should use the same timestamp clock");
   store.getState().pauseTimer();
   assert.equal(store.getState().timerState, "paused");
+
+  const dockSource = await (await import("node:fs/promises")).readFile(new URL("../src/focus-room/components/BottomControlDock.jsx", import.meta.url), "utf8");
+  assert.match(dockSource, /dock-time-input/, "the dock timer should expose a direct numeric editor");
+  assert.match(dockSource, /draftClock/, "the direct timer editor should use one combined MM:SS field");
+  assert.match(dockSource, /Focus duration in minutes and seconds/, "the direct timer editor should expose both parts in one field");
+  assert.match(dockSource, /inputMode="text"/, "the direct timer editor should allow the colon separator");
+  assert.doesNotMatch(dockSource, /dock-time-input-wrap/, "the direct timer editor should not split the timer into boxed sections");
+  assert.match(dockSource, /event\.key === \"Enter\"/, "the direct timer editor should commit from the keyboard");
+  assert.doesNotMatch(dockSource, /timer-duration-popover/, "the direct timer editor should not add a separate popover");
 
   const hookSource = await (await import("node:fs/promises")).readFile(new URL("../src/focus-room/hooks/usePomodoroTimer.js", import.meta.url), "utf8");
   assert.equal((hookSource.match(/setInterval\(/g) || []).length, 1, "the timer hook should own one interval");

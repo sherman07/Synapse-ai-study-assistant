@@ -3286,6 +3286,121 @@ body.focus-room-standalone #focusRoomRoot {
   left: max(40px, env(safe-area-inset-left));
 }
 
+/* Keep top-nav drawers in the user's visual field while reserving the center
+   for the room itself. The exit confirmation is intentionally separate and
+   remains centered below. */
+.react-focus-room .focus-utility-panel {
+  left: auto;
+  right: max(40px, env(safe-area-inset-right));
+  transform-origin: top right;
+  color: #fff9f0;
+  background: linear-gradient(145deg, rgba(24, 21, 19, .82), rgba(14, 16, 20, .72));
+  border-color: rgba(255, 248, 238, .42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 28px 70px rgba(0, 0, 0, .34), 0 0 0 1px rgba(255, 255, 255, .06);
+}
+
+.react-focus-room .focus-utility-panel .focus-kicker,
+.react-focus-room .focus-utility-panel .utility-section-title,
+.react-focus-room .focus-utility-panel .mixer-channel,
+.react-focus-room .focus-utility-panel .utility-login-state small {
+  color: rgba(255, 248, 238, .8);
+}
+
+.react-focus-room .focus-utility-panel .utility-title h2,
+.react-focus-room .focus-utility-panel h3,
+.react-focus-room .focus-utility-panel strong {
+  color: #fffaf3;
+}
+
+.react-focus-room .focus-utility-panel p,
+.react-focus-room .focus-utility-panel small {
+  color: rgba(255, 248, 238, .84);
+}
+
+.react-focus-room .focus-utility-panel .glass-button:not(.glass-button-primary),
+.react-focus-room .focus-utility-panel .mixer-preset-button {
+  color: #fffaf3;
+  border-color: rgba(255, 248, 238, .36);
+  background: rgba(255, 248, 238, .14);
+}
+
+.react-focus-room .focus-utility-panel input[type="range"] {
+  accent-color: #f2d3a7;
+}
+
+.react-focus-room .focus-room-header-actions .header-icon-button {
+  color: #fffaf3;
+  border-color: rgba(255, 248, 238, .45);
+  background: rgba(20, 18, 17, .58);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, .4);
+}
+
+.react-focus-room .focus-session-dock {
+  color: #fffaf3;
+  border-color: rgba(255, 248, 238, .38);
+}
+
+.react-focus-room .dock-eyebrow { color: rgba(255, 248, 238, .72); }
+.react-focus-room .dock-status { color: rgba(255, 248, 238, .9); }
+.react-focus-room .dock-goal-meta { color: rgba(255, 248, 238, .72); }
+
+.dock-time-edit {
+  display: block;
+  width: fit-content;
+  margin: 0;
+  padding: 0 6px 0 0;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .2s ease, filter .2s ease;
+}
+
+.react-focus-room .dock-time-edit {
+  color: var(--room-ink) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dock-time-edit:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.dock-time-edit:focus-visible { outline: 2px solid rgba(255, 248, 238, .86); outline-offset: 5px; }
+
+.dock-time-input {
+  min-width: 0;
+  padding: 0;
+  width: 170px;
+  border: 0 !important;
+  border-radius: 0;
+  color: #fffaf3 !important;
+  background: transparent !important;
+  font: inherit;
+  font-size: 40px;
+  font-weight: 360;
+  letter-spacing: .025em;
+  font-variant-numeric: tabular-nums;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] .react-focus-room .dock-time-input:focus,
+html[data-theme] .react-focus-room .dock-time-input:focus-visible {
+  border: 0 !important;
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 900px) {
+  .react-focus-room .focus-utility-panel { left: auto; right: 24px; width: min(560px, calc(100vw - 48px)); }
+}
+
+@media (max-width: 640px) {
+  .react-focus-room .focus-utility-panel { left: auto; right: 12px; width: calc(100vw - 24px); }
+  .dock-time-input { width: 132px; font-size: 28px; }
+}
+
 .react-focus-room .focus-exit-overlay {
   display: grid;
   place-items: center;

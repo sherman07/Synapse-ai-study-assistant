@@ -18,7 +18,7 @@ const MIX_CHANNELS = [
 
 function UtilityShell({ title, kicker, icon, children, onClose, className = "" }) {
   return (
-    <motion.aside className={`focus-utility-panel liquid-glass ${className}`.trim()} initial={{ opacity: 0, y: 12, x: -18 }} animate={{ opacity: 1, y: 0, x: 0 }} exit={{ opacity: 0, y: 10, x: -18 }} transition={spring} role="dialog" aria-label={title}>
+    <motion.aside className={`focus-utility-panel liquid-glass ${className}`.trim()} initial={{ opacity: 0, y: 12, x: 18 }} animate={{ opacity: 1, y: 0, x: 0 }} exit={{ opacity: 0, y: 10, x: 18 }} transition={spring} role="dialog" aria-label={title}>
       <div className="drawer-head">
         <div className="utility-title"><span className="utility-title-icon">{icon}</span><div><span className="focus-kicker">{kicker}</span><h2>{title}</h2></div></div>
         <GlassButton aria-label={`Close ${title}`} onClick={onClose}><X size={16} aria-hidden="true" /></GlassButton>
