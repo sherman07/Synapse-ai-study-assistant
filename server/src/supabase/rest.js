@@ -19,6 +19,43 @@ async function checkSupabaseStorage() {
   return true;
 }
 
+// Tables the application actively reads/writes. A missing table means a whole
+// feature silently fails in production (e.g. the learning companion), so this
+// is exposed via /health/schema for release verification.
+const REQUIRED_SUPABASE_TABLES = [
+  "users",
+  "generated_contents",
+  "learner_profiles",
+  "learning_subjects",
+  "learning_sessions",
+  "learning_messages",
+  "learning_evidence",
+  "flashcard_decks",
+  "flashcards",
+  "focus_sessions",
+  "study_rooms",
+  "study_room_members",
+  "progress_records",
+  "broadcast_jobs"
+];
+
+function tableIsMissingError(message) {
+  return /PGRST205|Could not find the table|does not exist|HTTP 404/i.test(String(message || ""));
+}
+
+async function missingSupabaseTables() {
+  if (!supabaseStorageEnabled()) return { checked: false, missing: [] };
+  const missing = [];
+  for (const table of REQUIRED_SUPABASE_TABLES) {
+    try {
+      await supabaseRequest("GET", table, { query: { limit: 1 }, timeoutMs: 4000 });
+    } catch (error) {
+      if (tableIsMissingError(error?.message)) missing.push(table);
+    }
+  }
+  return { checked: true, missing };
+}
+
 function supabaseStorageHeaders({ prefer = "", hasBody = false } = {}) {
   const headers = {
     Accept: "application/json",
@@ -93,4 +130,11 @@ function firstSupabaseRow(payload) {
   return Array.isArray(payload) ? payload[0] || null : (payload && typeof payload === "object" ? payload : null);
 }
 
-export { checkSupabaseStorage, firstSupabaseRow, supabaseRequest, supabaseStorageEnabled };
+export {
+  REQUIRED_SUPABASE_TABLES,
+  checkSupabaseStorage,
+  firstSupabaseRow,
+  missingSupabaseTables,
+  supabaseRequest,
+  supabaseStorageEnabled
+};

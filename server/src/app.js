@@ -13,7 +13,7 @@ import { learningRouter } from "./routes/learning.js";
 import { progressRouter } from "./routes/progress.js";
 import { studyRoomsRouter } from "./routes/studyRooms.js";
 import { usersRouter } from "./routes/users.js";
-import { checkSupabaseStorage, supabaseStorageEnabled } from "./supabase/rest.js";
+import { checkSupabaseStorage, missingSupabaseTables, supabaseStorageEnabled } from "./supabase/rest.js";
 
 function createApp() {
   const app = express();
@@ -87,6 +87,23 @@ function createApp() {
       supabase,
       error: "Database connection unavailable."
     });
+  });
+
+  app.get("/health/schema", async (_req, res) => {
+    if (!supabaseStorageEnabled()) {
+      return res.json({ ok: true, storage_configured: false, missing_tables: [] });
+    }
+    try {
+      const { missing } = await missingSupabaseTables();
+      return res.status(missing.length ? 503 : 200).json({
+        ok: missing.length === 0,
+        storage_configured: true,
+        schema: config.supabaseDbSchema || "public",
+        missing_tables: missing
+      });
+    } catch (error) {
+      return res.status(503).json({ ok: false, storage_configured: true, error: "Schema check failed." });
+    }
   });
 
   app.use("/api/generated-content", express.json({ limit: "12mb" }), generatedContentRouter);
