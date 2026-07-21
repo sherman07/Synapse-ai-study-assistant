@@ -1584,6 +1584,33 @@ html[data-theme="dark"] .mobile-menu-btn {
   border-color: var(--primary);
 }
 
+/* Generation job status (active / failed / cancelled): keep the header and
+   status panel top-aligned. initial-state centers upload home content, which
+   left a large empty band above FAILED / progress cards. */
+.app-layout.generation-job-state .notes-area {
+  place-items: start stretch;
+  align-content: start;
+  padding: 28px 20px 48px;
+}
+
+.app-layout.generation-job-state .analysis-stage {
+  width: min(980px, 100%);
+  margin: 0 auto;
+}
+
+.app-layout.generation-job-state .compact-header {
+  margin-bottom: 14px;
+  width: 100%;
+}
+
+.app-layout.generation-job-state .loading-box {
+  min-height: 0;
+  width: 100%;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 0;
+}
+
 .generation-job-panel {
   width: min(720px, 100%);
   margin: 0 auto;

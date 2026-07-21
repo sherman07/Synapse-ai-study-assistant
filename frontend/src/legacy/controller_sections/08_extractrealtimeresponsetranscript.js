@@ -583,7 +583,7 @@ function resetWorkspace() {
   if (typeof renderFocusRoomWorkspaceActions === "function") renderFocusRoomWorkspaceActions();
   if (typeof notifyFocusRoomMaterialsChanged === "function") notifyFocusRoomMaterialsChanged();
 
-  appLayout.classList.remove("analysis-ready", "loading-state", "generated-notes-state");
+  appLayout.classList.remove("analysis-ready", "loading-state", "generation-job-state", "generated-notes-state");
   appLayout.classList.add("initial-state", "assistant-closed");
   requestAnimationFrame(() => {
     const target = uploadStage || document.body;

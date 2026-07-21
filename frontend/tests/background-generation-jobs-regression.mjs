@@ -83,6 +83,18 @@ for (const token of [
 assert.ok(styles.includes(".generation-job-panel"), "job progress panel should be styled");
 assert.ok(styles.includes(".history-job-status"), "sidebar job status should be styled");
 assert.ok(styles.includes(".history-job-retry"), "failed sidebar retry action should be styled");
+assert.ok(
+  jobsController.includes('"generation-job-state"'),
+  "job progress view should set a dedicated layout state"
+);
+assert.ok(
+  styles.includes(".app-layout.generation-job-state .notes-area"),
+  "generation job status should top-align instead of vertically centering empty space"
+);
+assert.ok(
+  styles.includes(".app-layout.generation-job-state .loading-box"),
+  "generation job status should drop the tall centered loading-box min-height"
+);
 
 for (const token of [
   "generation-job-active-loader",

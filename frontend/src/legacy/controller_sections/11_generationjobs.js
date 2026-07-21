@@ -227,8 +227,8 @@ function renderGenerationJobProgress(jobId) {
   analysisStage.classList.remove("d-none");
   loadingBox.classList.remove("d-none");
   resultGrid.classList.add("d-none");
-  appLayout.classList.remove("loading-state", "analysis-ready");
-  appLayout.classList.add("initial-state", "assistant-closed");
+  appLayout.classList.remove("loading-state", "analysis-ready", "generated-notes-state");
+  appLayout.classList.add("initial-state", "generation-job-state", "assistant-closed");
   if (assistant) assistant.classList.add("hidden");
   if (openAssistantBtn) openAssistantBtn.style.display = "none";
 

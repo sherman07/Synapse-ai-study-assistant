@@ -1234,7 +1234,7 @@ function showAnalysisView({ scrollToTop = false } = {}) {
   if (loadingBox) loadingBox.classList.add("d-none");
   if (resultGrid) resultGrid.classList.remove("d-none");
 
-  appLayout.classList.remove("initial-state", "loading-state");
+  appLayout.classList.remove("initial-state", "loading-state", "generation-job-state");
   appLayout.classList.add("analysis-ready", "assistant-closed", "generated-notes-state");
   if (assistant) assistant.classList.add("hidden");
   if (openAssistantBtn) openAssistantBtn.style.display = "block";
