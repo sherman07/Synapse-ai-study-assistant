@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Dices, Footprints, Save, Settings2, Users, Volume2, X } from "lucide-react";
+import * as Slider from "@radix-ui/react-slider";
+import { Check, Dices, Footprints, Save, Settings2, Shuffle, Users, Volume2, Waves, X } from "lucide-react";
 import { FOCUS_ROOM_AMBIENT_SOUNDS, FOCUS_ROOM_MUSIC_TRACKS, FOCUS_ROOM_SCENES } from "../data.js";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
 import { spring } from "../utils.js";
@@ -15,6 +16,155 @@ const MIX_CHANNELS = [
   ["street", "Street"], ["forest", "Forest"], ["summer-night", "Summer night"], ["waterfall", "Waterfall"],
   ["typing", "Typing"], ["page-turning", "Page turning"], ["writing", "Writing sounds"]
 ];
+
+const FOCUS_NOISE_CHANNELS = [
+  ["white-noise", "White noise"], ["pink-noise", "Pink noise"], ["brown-noise", "Brown noise"]
+];
+
+const AMBIENT_CHANNELS = [
+  ["light-rain", "Light rain"], ["heavy-rain", "Heavy rain"], ["ocean-waves", "Ocean waves"],
+  ["wind", "Wind"], ["fireplace", "Fireplace"], ["train", "Train"],
+  ["cafe", "Café"], ["street", "Street"], ["forest", "Forest"],
+  ["summer-night", "Summer night"], ["waterfall", "Waterfall"],
+  ["typing", "Typing"], ["page-turning", "Page turning"], ["writing", "Writing sounds"]
+];
+
+function RoomChannelSlider({ id, label, value, icon = null, onChange, card = false }) {
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+  const isActive = safeValue > 0;
+  return (
+    <label className={[
+      "room-channel",
+      icon ? "room-channel-master" : "",
+      card ? "room-channel-card" : "",
+      isActive ? "is-active" : ""
+    ].filter(Boolean).join(" ")}>
+      <span className="room-channel-head">
+        <span className="room-channel-label">
+          {icon || <i className={`mixer-channel-dot mixer-${id}`} aria-hidden="true" />}
+          <span>{label}</span>
+        </span>
+        <strong>{safeValue}%</strong>
+      </span>
+      <Slider.Root
+        className="radix-slider-root"
+        value={[safeValue]}
+        min={0}
+        max={100}
+        step={1}
+        onValueChange={items => onChange(id, items[0])}
+      >
+        <Slider.Track className="radix-slider-track"><Slider.Range className="radix-slider-range" /></Slider.Track>
+        <Slider.Thumb className="radix-slider-thumb" aria-label={`${label} volume`} />
+      </Slider.Root>
+    </label>
+  );
+}
+
+function RoomControlPanel({ audioState, scene, onClose }) {
+  const channels = useFocusRoomStore(state => state.audioChannels);
+  const setSound = useFocusRoomStore(state => state.setSound);
+  const musicType = useFocusRoomStore(state => state.musicType);
+  const ambientSound = useFocusRoomStore(state => state.ambientSound);
+  const musicVolume = useFocusRoomStore(state => state.musicVolume);
+  const ambientVolume = useFocusRoomStore(state => state.ambientVolume);
+  const [saved, setSaved] = useState(false);
+
+  const setChannel = (id, value) => { setSaved(false); setSound(`audioChannel:${id}`, value); };
+  const setMusicVolume = (_, value) => setSound("musicVolume", value);
+  const setAmbientVolume = (_, value) => setSound("ambientVolume", value);
+  const randomize = () => {
+    const music = FOCUS_ROOM_MUSIC_TRACKS[Math.floor(Math.random() * FOCUS_ROOM_MUSIC_TRACKS.length)];
+    const ambient = FOCUS_ROOM_AMBIENT_SOUNDS[Math.floor(Math.random() * FOCUS_ROOM_AMBIENT_SOUNDS.length)];
+    setSound("musicType", music.label);
+    setSound("ambientSound", ambient.label);
+    setSaved(false);
+  };
+  const applySceneMix = () => {
+    setSound("musicType", scene?.musicType || "Deep Focus");
+    setSound("ambientSound", scene?.ambientSound || "Nature");
+    setSaved(true);
+  };
+
+  return (
+    <motion.aside
+      className="focus-utility-panel room-control-panel liquid-glass"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 14 }}
+      transition={spring}
+      role="dialog"
+      aria-label="Room settings"
+    >
+      <header className="room-control-head">
+        <div>
+          <span className="control-eyebrow">Control</span>
+          <h2>Room settings</h2>
+        </div>
+        <GlassButton className="room-control-close" aria-label="Close room settings" onClick={onClose}><X size={16} aria-hidden="true" /></GlassButton>
+      </header>
+      <div className="room-control-divider" aria-hidden="true" />
+      <div className="room-control-grid">
+        <section className="room-control-col room-control-scenes" aria-label="Scenes">
+          <h3 className="room-control-section-title">Scenes</h3>
+          <SceneSelector />
+        </section>
+        <section className="room-control-col room-control-audio">
+          <div className="room-control-masters">
+            <div className="room-control-block">
+              <div className="room-control-block-head">
+                <h3 className="room-control-section-title">Music</h3>
+                <GlassButton className="room-control-icon-btn" aria-label="Shuffle to a random track" onClick={randomize}><Shuffle size={15} aria-hidden="true" /></GlassButton>
+              </div>
+              <label className="room-select-field">
+                <span className="sr-only">Music track</span>
+                <select value={musicType} onChange={event => { setSaved(false); setSound("musicType", event.target.value); }}>
+                  {FOCUS_ROOM_MUSIC_TRACKS.map(track => <option key={track.label} value={track.label}>{track.label}</option>)}
+                </select>
+              </label>
+              <RoomChannelSlider id="music-volume" label="Music volume" icon={<Volume2 size={15} aria-hidden="true" />} value={musicVolume} onChange={setMusicVolume} />
+            </div>
+
+            <div className="room-control-block">
+              <div className="room-control-block-head">
+                <h3 className="room-control-section-title">Scene sound</h3>
+                <GlassButton className="room-control-icon-btn" aria-label={saved ? "Mix saved" : "Save current mix"} onClick={() => setSaved(true)}>{saved ? <Check size={15} aria-hidden="true" /> : <Save size={15} aria-hidden="true" />}</GlassButton>
+              </div>
+              <p className="room-scene-recommend">Recommended for <strong>{scene?.name}</strong><span>{scene?.musicType} · {scene?.ambientSound}</span></p>
+              <button type="button" className="room-scene-apply" onClick={applySceneMix}>Apply scene mix <span aria-hidden="true">↗</span></button>
+              <label className="room-select-field">
+                <span className="sr-only">Ambient sound</span>
+                <select value={ambientSound} onChange={event => { setSaved(false); setSound("ambientSound", event.target.value); }}>
+                  {FOCUS_ROOM_AMBIENT_SOUNDS.map(sound => <option key={sound.label} value={sound.label}>{sound.label}</option>)}
+                </select>
+              </label>
+              <RoomChannelSlider id="ambient-volume" label="Ambient volume" icon={<Waves size={15} aria-hidden="true" />} value={ambientVolume} onChange={setAmbientVolume} />
+            </div>
+          </div>
+
+          <div className="room-control-block">
+            <h3 className="room-control-section-title">Focus noise</h3>
+            <div className="room-noise-row">
+              {FOCUS_NOISE_CHANNELS.map(([id, label]) => (
+                <RoomChannelSlider key={id} id={id} label={label} value={channels?.[id]} onChange={setChannel} card />
+              ))}
+            </div>
+          </div>
+
+          <div className="room-control-block">
+            <h3 className="room-control-section-title">Ambient atmosphere</h3>
+            <div className="room-ambient-grid">
+              {AMBIENT_CHANNELS.map(([id, label]) => (
+                <RoomChannelSlider key={id} id={id} label={label} value={channels?.[id]} onChange={setChannel} card />
+              ))}
+            </div>
+          </div>
+          {audioState?.error ? <p className="audio-error">{audioState.error}</p> : null}
+        </section>
+      </div>
+    </motion.aside>
+  );
+}
 
 function UtilityShell({ title, kicker, icon, children, onClose, className = "" }) {
   return (
@@ -102,7 +252,6 @@ export function FocusRoomDrawers({ audioState, utilityPanel, onClose, onWorkspac
   const activeDrawer = useFocusRoomStore(state => state.activeDrawer);
   const closeDrawer = useFocusRoomStore(state => state.closeDrawer);
   const selectedScene = useFocusRoomStore(state => state.selectedScene);
-  const openDrawer = useFocusRoomStore(state => state.openDrawer);
   const session = useSynapseSession();
   const scene = useMemo(() => FOCUS_ROOM_SCENES.find(item => item.id === selectedScene) || FOCUS_ROOM_SCENES[0], [selectedScene]);
 
@@ -110,7 +259,7 @@ export function FocusRoomDrawers({ audioState, utilityPanel, onClose, onWorkspac
     <AnimatePresence>
       {utilityPanel === "trail" ? <UtilityShell title="Focus Trail" kicker="Your progress" icon={<Footprints size={16} />} onClose={onClose}><FocusTrailPanel onWorkspace={onWorkspace} session={session} /></UtilityShell> : null}
       {utilityPanel === "companion" ? <UtilityShell title="Companion Room" kicker="Shared focus" icon={<Users size={16} />} onClose={onClose}><CompanionPanel onWorkspace={onWorkspace} session={session} /></UtilityShell> : null}
-      {utilityPanel === "settings" ? <UtilityShell title="Room settings" kicker="Customize your atmosphere" icon={<Settings2 size={16} />} onClose={onClose} className="room-settings-utility"><div className="settings-scene-summary"><span className="settings-scene-image" style={{ backgroundImage: `url(${scene?.image || ""})` }} /><div><span className="focus-kicker">Current scene</span><strong>{scene?.name}</strong><small>{scene?.description}</small></div></div><GlassButton onClick={() => { onClose?.(); openDrawer("scene"); }}>Change scene</GlassButton><h3 className="utility-section-title">Sound mixer</h3><SoundMixer audioState={audioState} scene={scene} /></UtilityShell> : null}
+      {utilityPanel === "settings" ? <RoomControlPanel audioState={audioState} scene={scene} onClose={onClose} /> : null}
       {!utilityPanel && activeDrawer === "scene" ? <UtilityShell title="Choose scene" kicker="Scene" icon={<Settings2 size={16} />} onClose={closeDrawer}><SceneSelector /></UtilityShell> : null}
       {!utilityPanel && activeDrawer === "music" ? <UtilityShell title="Sound atmosphere" kicker="Room audio" icon={<Volume2 size={16} />} onClose={closeDrawer}><SoundMixer audioState={audioState} scene={scene} /></UtilityShell> : null}
     </AnimatePresence>
