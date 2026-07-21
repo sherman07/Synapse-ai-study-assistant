@@ -260,3 +260,34 @@ test("Supabase storage wiring is present for users and study histories", () => {
   assert.doesNotMatch(authSource, /role:\s*metadata\.role/, "Supabase roles must not come from user-editable metadata");
   assert.ok(readmeSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "server README should document Supabase server setup");
 });
+
+test("Learning Companion schema grants authenticated and service roles explicit access", () => {
+  const schemaSource = fs.readFileSync(path.join(serverRoot, "src/db/supabase-schema.sql"), "utf8");
+  const learningTables = [
+    "public.learner_profiles",
+    "public.learning_subjects",
+    "public.learning_sessions",
+    "public.learning_messages",
+    "public.learning_evidence"
+  ];
+
+  for (const table of learningTables) {
+    assert.ok(schemaSource.includes(`alter table ${table} enable row level security;`), `${table} should enable RLS`);
+  }
+  assert.match(
+    schemaSource,
+    /revoke all privileges on table\s+public\.learner_profiles,\s+public\.learning_subjects,\s+public\.learning_sessions,\s+public\.learning_messages,\s+public\.learning_evidence\s+from anon, authenticated, service_role;/s
+  );
+  assert.match(
+    schemaSource,
+    /grant select, insert, update, delete on table\s+public\.learner_profiles,\s+public\.learning_subjects,\s+public\.learning_sessions,\s+public\.learning_messages,\s+public\.learning_evidence\s+to authenticated, service_role;/s
+  );
+});
+
+test("Supabase trigger function pins an empty search path", () => {
+  const schemaSource = fs.readFileSync(path.join(serverRoot, "src/db/supabase-schema.sql"), "utf8");
+  assert.match(
+    schemaSource,
+    /create or replace function public\.synapse_set_updated_at\(\)[\s\S]+set search_path = ''[\s\S]+pg_catalog\.timezone\('utc', pg_catalog\.now\(\)\)/
+  );
+});

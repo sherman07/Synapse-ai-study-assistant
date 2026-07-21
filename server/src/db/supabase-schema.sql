@@ -1,9 +1,10 @@
 create or replace function public.synapse_set_updated_at()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
-  new.updated_at = timezone('utc', now());
+  new.updated_at = pg_catalog.timezone('utc', pg_catalog.now());
   return new;
 end;
 $$;
@@ -627,6 +628,22 @@ alter table public.learning_subjects enable row level security;
 alter table public.learning_sessions enable row level security;
 alter table public.learning_messages enable row level security;
 alter table public.learning_evidence enable row level security;
+
+revoke all privileges on table
+  public.learner_profiles,
+  public.learning_subjects,
+  public.learning_sessions,
+  public.learning_messages,
+  public.learning_evidence
+from anon, authenticated, service_role;
+
+grant select, insert, update, delete on table
+  public.learner_profiles,
+  public.learning_subjects,
+  public.learning_sessions,
+  public.learning_messages,
+  public.learning_evidence
+to authenticated, service_role;
 
 drop policy if exists learner_profiles_owner_access on public.learner_profiles;
 create policy learner_profiles_owner_access on public.learner_profiles to authenticated

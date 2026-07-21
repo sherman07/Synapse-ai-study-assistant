@@ -10,6 +10,10 @@ const jobs = read("frontend/src/legacy/controller_sections/11_generationjobs.js"
 const upload = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
 const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
 const styles = read("frontend/styles/04-section.css");
+const main = read("frontend/src/main.js");
+const controller = read("frontend/src/legacy/controller.js");
+const loader = read("frontend/src/legacy/loadLegacyController.js");
+const index = read("frontend/index.html");
 
 for (const token of [
   "analysisRequestId",
@@ -47,6 +51,14 @@ assert.ok(
 
 for (const token of [".generation-progress-meta", ".generation-progress-stage", ".generation-progress-elapsed"]) {
   assert.ok(styles.includes(token), `progress UI should style ${token}`);
+}
+
+const progressAssetVersion = "analysis-progress-20260721-01";
+for (const [label, source] of Object.entries({ main, controller, loader, index })) {
+  assert.ok(
+    source.includes(progressAssetVersion),
+    `${label} should invalidate cached controller assets for the progress release`
+  );
 }
 
 console.log("analysis progress regression passed");
