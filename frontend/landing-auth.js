@@ -183,7 +183,12 @@
   }
 
   function setSession(account) {
-    writeJSONStorage(AUTH_SESSION_KEY, publicSessionFor(account));
+    const session = publicSessionFor(account);
+    if (window.SynapseAuth?.saveSession) {
+      window.SynapseAuth.saveSession(session);
+    } else {
+      writeJSONStorage(AUTH_SESSION_KEY, session);
+    }
     try {
       window.localStorage.setItem(AUTH_LAST_EMAIL_KEY, account.email || '');
     } catch {
@@ -561,7 +566,7 @@
     return sanitizeLocalAccount(account);
   }
 
-  function continueWithGoogle(button) {
+  function continueWithGoogle(button, rememberMe = false) {
     clearSocialAuthStatus(button);
     if (!realAuthEnabled()) {
       showSocialAuthStatus(
@@ -579,6 +584,7 @@
     }
 
     window.SynapseAuth.signInWithGoogle({
+      rememberMe,
       redirectTo: window.SynapseAuth?.absoluteAppUrl?.() || new URL(appEntryUrl(), window.location.href).toString()
     }).catch(error => {
       showSocialAuthStatus(button, 'error', error.message || 'Google sign-in could not start.');
@@ -698,6 +704,11 @@
   
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
+    const rememberMeInput = loginForm.querySelector('input[name="remember"]');
+    if (rememberMeInput && window.SynapseAuth?.getRememberMePreference) {
+      rememberMeInput.checked = window.SynapseAuth.getRememberMePreference();
+    }
+
     // Toggle password visibility
     const togglePassword = document.getElementById('togglePassword');
     const loginPassword = document.getElementById('loginPassword');
@@ -724,6 +735,7 @@
 
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value;
+      const rememberMe = Boolean(rememberMeInput?.checked);
       
       let hasError = false;
 
@@ -748,7 +760,7 @@
 
       if (realAuthEnabled()) {
         setButtonLoading(loginForm, 'loginSpinner', true);
-        window.SynapseAuth.signInEmail({ email, password })
+        window.SynapseAuth.signInEmail({ email, password, rememberMe })
           .then(() => {
             redirectToApp();
           })
@@ -772,17 +784,18 @@
         return;
       }
       setButtonLoading(loginForm, 'loginSpinner', true);
+      window.SynapseAuth?.setRememberMePreference?.(rememberMe);
       setSession(account);
       redirectToApp();
     });
 
     // Google login
-    const googleLoginBtn = document.getElementById('googleLoginBtn');
-    if (googleLoginBtn) {
-      googleLoginBtn.addEventListener('click', function() {
-        continueWithGoogle(googleLoginBtn);
-      });
-    }
+      const googleLoginBtn = document.getElementById('googleLoginBtn');
+      if (googleLoginBtn) {
+        googleLoginBtn.addEventListener('click', function() {
+        continueWithGoogle(googleLoginBtn, Boolean(rememberMeInput?.checked));
+        });
+      }
   }
 
   // ==========================================

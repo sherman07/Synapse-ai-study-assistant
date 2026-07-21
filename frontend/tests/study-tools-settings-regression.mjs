@@ -31,8 +31,15 @@ for (const tool of ["mindmap", "visualguide", "timeline", "masterygraph"]) {
   assert.match(sources.settings, new RegExp(`${tool}: \\{`), `${tool} has persisted settings defaults`);
 }
 assert.match(sources.settings, /studyToolSettingsOverlay/, "Shared settings modal is rendered");
+assert.match(sources.settings, /settings-pattern-modal/, "Shared settings modal uses the compact settings pattern");
 assert.match(sources.timeline, /pace: toolSettings\.pace/, "Study Path settings reach generation");
 assert.match(sources.visualGuide, /visual_style: toolSettings\.style/, "Image Guide settings reach generation");
 assert.match(sources.flashcardState, /FLASHCARD_SETTINGS_KEY/, "Flashcard settings remain persisted");
+assert.match(sources.flashcardState, /openFlashcardSettingsModal/, "Flashcard settings open in a modal");
+assert.match(sources.flashcardState, /saveFlashcardSettingsModal\(true\)/, "Flashcard modal can save and generate");
+assert.match(sources.broadcast, /BROADCAST_SETTINGS_KEY/, "Broadcast settings remain persisted");
+assert.match(sources.broadcast, /openBroadcastSettingsModal/, "Broadcast settings open in a modal");
+assert.match(sources.broadcast, /saveBroadcastSettingsModal\(true\)/, "Broadcast modal can save and generate");
+assert.match(sources.quiz, /settings-pattern-modal/, "Quiz settings use the shared compact modal pattern");
 
 console.log("study-tools-settings-regression: passed");

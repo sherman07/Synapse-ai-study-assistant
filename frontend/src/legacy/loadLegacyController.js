@@ -12,7 +12,7 @@ export function loadLegacyController() {
   const existingController = document.querySelector("script[data-synapse-controller]");
   if (existingController) return existingController;
 
-  const version = "ai-broadcast-v19";
+  const version = "settings-modal-pattern-20260720-06";
   const controllerScript = document.createElement("script");
   controllerScript.type = "module";
   // This must remain a browser-served module URL. Vite turns import.meta-relative
@@ -21,6 +21,7 @@ export function loadLegacyController() {
   controllerScript.dataset.synapseController = "true";
   controllerScript.async = false;
   controllerScript.addEventListener("error", () => {
+    window.__synapseControllerLoadError = "The Synapse workspace controller module could not be loaded.";
     window.dispatchEvent(new CustomEvent("synapse-runtime-failed", {
       detail: { message: "The Synapse workspace controller could not be loaded." }
     }));

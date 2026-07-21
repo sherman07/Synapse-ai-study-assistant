@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js?v=ai-broadcast-v19";
+import { API_BASE } from "./apiConfig.js?v=settings-modal-pattern-20260720-06";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
@@ -14,7 +14,7 @@ import {
   patchBroadcastJobInDataApi,
   persistGeneratedContentToDataApi,
   retryBroadcastJobInDataApi
-} from "./dataApiClient.js?v=ai-broadcast-v19";
+} from "./dataApiClient.js?v=settings-modal-pattern-20260720-06";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -60,10 +60,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=ai-broadcast-v19";
-import { LegacyControllerLoader } from "./controllerLoader.js?v=ai-broadcast-v19";
+} from "./markdownRenderer.js?v=settings-modal-pattern-20260720-06";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=settings-modal-pattern-20260720-06";
 
-const CONTROLLER_VERSION = "ai-broadcast-v19";
+const CONTROLLER_VERSION = "settings-modal-pattern-20260720-06";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
@@ -180,7 +180,9 @@ controllerLoader.load()
     window.dispatchEvent(new Event("synapse-runtime-ready"));
   })
   .catch(error => {
-    console.error("Synapse controller failed to load:", error);
+    const message = `Synapse controller failed to load: ${error?.message || String(error)}${error?.stack ? `\n${error.stack}` : ""}`;
+    window.__synapseControllerError = message;
+    console.error(message);
     window.dispatchEvent(new CustomEvent("synapse-runtime-failed", {
       detail: { message: "The Synapse workspace controller could not be initialized." }
     }));

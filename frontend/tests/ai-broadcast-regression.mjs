@@ -45,6 +45,7 @@ const serverEnvExample = read("server/.env.example");
 const backendEnvExample = read("backend/.env.example");
 const geminiEnvExample = read("backend/.env.gemini.example");
 const broadcastAssetVersion = "ai-broadcast-v19";
+const legacyControllerAssetVersion = "settings-modal-pattern-20260720-06";
 
 assert.ok(rootIndex.includes("frontend/landing.html"), "root index should keep the landing page as the public entry");
 assert.ok(appShim.includes("frontend/index.html"), "app shim should open the study workspace frontend");
@@ -54,8 +55,8 @@ assert.ok(main.includes(broadcastAssetVersion), "main module should bust cached 
 assert.ok(appShellEntry.includes(broadcastAssetVersion), "React app entry should bust cached AppShell imports");
 assert.ok(appShell.includes(broadcastAssetVersion), "AppShell should bust cached child component imports");
 assert.ok(analysisStage.includes(`StudyTools.js?v=${broadcastAssetVersion}`), "AnalysisStage should bust cached StudyTools imports");
-assert.ok(loader.includes(broadcastAssetVersion), "controller script URL should bust cached controller");
-assert.ok(legacyController.includes(`CONTROLLER_VERSION = "${broadcastAssetVersion}"`), "legacy controller sections should use the broadcast cache key");
+assert.ok(loader.includes(legacyControllerAssetVersion), "controller script URL should bust cached controller");
+assert.ok(legacyController.includes(`CONTROLLER_VERSION = "${legacyControllerAssetVersion}"`), "legacy controller sections should use the settings cache key");
 assert.ok(app.includes('"/api/broadcast-jobs"'), "Express app should mount broadcast job routes");
 
 assert.ok(mysqlSchema.includes("CREATE TABLE IF NOT EXISTS broadcast_jobs"), "MySQL schema should create broadcast_jobs");

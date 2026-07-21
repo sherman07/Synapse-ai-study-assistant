@@ -31,6 +31,25 @@ const directories = [
   "styles"
 ];
 
+const legacyControllerSections = [
+  "01_uploadedfiles.js",
+  "02_openvisualmodal.js",
+  "03_rendertimeline.js",
+  "04_rendervisualguidelaunch.js",
+  "04_masterygraph.js",
+  "05_persistcurrentquiztohistory.js",
+  "06_deleteflashcarddeck.js",
+  "07_focusmindmappoint.js",
+  "08_extractrealtimeresponsetranscript.js",
+  "09_togglesourceviewer.js",
+  "10_focusroombridge.js",
+  "11_generationjobs.js",
+  "12_broadcastjobs.js",
+  "13_studytoolmemory.js",
+  "14_learningcompanion.js",
+  "99_boot.js"
+];
+
 function copyFile(relativePath) {
   const source = path.join(frontendRoot, relativePath);
   const target = path.join(distFrontendRoot, relativePath);
@@ -54,5 +73,28 @@ fs.mkdirSync(distFrontendRoot, { recursive: true });
 
 for (const file of files) copyFile(file);
 for (const directory of directories) copyDirectory(directory);
+
+const legacyControllerBody = [
+  "window.__synapseCombinedEvalStarted = true;",
+  ...legacyControllerSections.map(fileName => {
+    const source = fs.readFileSync(path.join(frontendRoot, "src/legacy/controller_sections", fileName), "utf8");
+    return `\n/* ${fileName} */\n${source}`;
+  })
+].join("\n");
+const legacyControllerSource = [
+  "window.__synapseRunCombinedController = function synapseRunCombinedController() {",
+  legacyControllerBody,
+  "  window.__synapseCombinedControllerReady = true;",
+  "  window.dispatchEvent(new Event('synapse-combined-controller-ready'));",
+  "};",
+  "if (window.__synapseRuntimeUtilitiesReady) {",
+  "  window.__synapseRunCombinedController();",
+  "} else {",
+  "  window.addEventListener('synapse-runtime-utilities-ready', window.__synapseRunCombinedController, { once: true });",
+  "}"
+].join("\n");
+const combinedControllerTarget = path.join(distFrontendRoot, "src/legacy", "synapse-legacy-controller-combined.js");
+fs.mkdirSync(path.dirname(combinedControllerTarget), { recursive: true });
+fs.writeFileSync(combinedControllerTarget, legacyControllerSource);
 
 console.log("frontend runtime assets copied");

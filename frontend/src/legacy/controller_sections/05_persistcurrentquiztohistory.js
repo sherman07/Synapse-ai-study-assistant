@@ -234,14 +234,19 @@ function openQuizSettingsModal() {
   overlay.id = "quizSettingsOverlay";
   overlay.className = "visual-modal synapse-themed-modal";
   overlay.innerHTML = `
-    <div class="visual-modal-content quiz-settings-modal">
+    <div class="visual-modal-content settings-pattern-modal quiz-settings-modal" role="dialog" aria-modal="true" aria-labelledby="quizSettingsTitle">
       <button class="visual-modal-close" type="button" aria-label="Close quiz settings" onclick="closeQuizSettingsModal()">
         <i class="bi bi-x-lg"></i>
       </button>
-      <div class="visual-modal-caption">
-        <h3 class="mb-4">Quiz settings</h3>
+      <div class="settings-pattern-header">
+        <span class="study-tool-settings-kicker">Study Tools</span>
+        <h3 id="quizSettingsTitle">Quiz settings</h3>
+        <p class="text-secondary">Choose the quiz format before you generate a new practice set.</p>
+      </div>
 
-        <div class="mb-4">
+      <div class="settings-pattern-body quiz-settings-body">
+
+        <div class="settings-pattern-section">
           <div class="fw-semibold mb-3">Quiz mode</div>
           <div class="border rounded-4 p-3 bg-light shadow-sm">
             <div class="form-check form-switch d-flex align-items-center gap-3 m-0">
@@ -255,7 +260,7 @@ function openQuizSettingsModal() {
           </div>
         </div>
 
-        <div class="border-top pt-4 mb-4">
+        <div class="settings-pattern-section">
           <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
             <label class="fw-semibold m-0" for="quizQuestionLanguage">Question language</label>
             <span class="small text-secondary">Default: English</span>
@@ -273,7 +278,7 @@ function openQuizSettingsModal() {
           </div>
         </div>
 
-        <div class="border-top pt-4 mb-4">
+        <div class="settings-pattern-section">
           <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
             <label class="fw-semibold m-0" for="quizTotalQuestions">Question count</label>
             <span class="small text-secondary">1-40 questions</span>
@@ -282,7 +287,7 @@ function openQuizSettingsModal() {
             value="${quizSettingsDraft.totalQuestions}" onchange="updateQuizDraftTotal(this.value)" oninput="updateQuizDraftTotal(this.value)">
         </div>
 
-        <div class="border-top pt-4">
+        <div class="settings-pattern-section">
           <div class="fw-semibold mb-3">Question types</div>
           <div id="quizTypeRows"></div>
           <button class="btn btn-outline-primary mt-3" type="button" onclick="addQuizTypeRow()">
@@ -291,10 +296,11 @@ function openQuizSettingsModal() {
           <div id="quizSettingsWarning" class="text-danger small mt-3"></div>
         </div>
 
-        <div class="d-flex justify-content-end gap-2 mt-4">
+      </div>
+
+      <div class="settings-pattern-footer d-flex justify-content-end gap-2">
           <button class="btn btn-outline-secondary" type="button" onclick="saveQuizSettingsFromModal(false)">Save</button>
           <button class="btn btn-primary" type="button" onclick="saveQuizSettingsFromModal(true)">Save & generate</button>
-        </div>
       </div>
     </div>
   `;

@@ -1,3 +1,24 @@
+if (window.__synapseConfigureMarkdownHooks) {
+  window.__synapseConfigureMarkdownHooks();
+}
+
+const modalSettingsExports = {};
+if (typeof openQuizSettingsModal === "function") modalSettingsExports.openQuizSettingsModal = openQuizSettingsModal;
+if (typeof closeQuizSettingsModal === "function") modalSettingsExports.closeQuizSettingsModal = closeQuizSettingsModal;
+if (typeof saveQuizSettingsFromModal === "function") modalSettingsExports.saveQuizSettingsFromModal = saveQuizSettingsFromModal;
+if (typeof openStudyToolSettingsModal === "function") modalSettingsExports.openStudyToolSettingsModal = openStudyToolSettingsModal;
+if (typeof closeStudyToolSettingsModal === "function") modalSettingsExports.closeStudyToolSettingsModal = closeStudyToolSettingsModal;
+if (typeof saveStudyToolSettingsModal === "function") modalSettingsExports.saveStudyToolSettingsModal = saveStudyToolSettingsModal;
+if (typeof openFlashcardSettingsModal === "function") modalSettingsExports.openFlashcardSettingsModal = openFlashcardSettingsModal;
+if (typeof closeFlashcardSettingsModal === "function") modalSettingsExports.closeFlashcardSettingsModal = closeFlashcardSettingsModal;
+if (typeof updateFlashcardSettingsDraft === "function") modalSettingsExports.updateFlashcardSettingsDraft = updateFlashcardSettingsDraft;
+if (typeof saveFlashcardSettingsModal === "function") modalSettingsExports.saveFlashcardSettingsModal = saveFlashcardSettingsModal;
+if (typeof openBroadcastSettingsModal === "function") modalSettingsExports.openBroadcastSettingsModal = openBroadcastSettingsModal;
+if (typeof closeBroadcastSettingsModal === "function") modalSettingsExports.closeBroadcastSettingsModal = closeBroadcastSettingsModal;
+if (typeof saveBroadcastSettingsModal === "function") modalSettingsExports.saveBroadcastSettingsModal = saveBroadcastSettingsModal;
+Object.assign(window, modalSettingsExports);
+
+try {
 Object.assign(window, {
   addLinksFromInput,
   addQuizTypeRow,
@@ -11,11 +32,13 @@ Object.assign(window, {
   checkStudyPathAnswer,
   clearChat,
   clearFlashcardsAndShowBuilder,
+  closeFlashcardSettingsModal,
   closeAssistant,
   closeFlashcardListModal,
   closeMindDetailPopup,
   closeQuizHistoryModal,
   closeQuizSettingsModal,
+  closeBroadcastSettingsModal,
   closeStudyPathCelebration,
   deleteHistoryEntry,
   deleteMemoryEngineNote,
@@ -44,6 +67,7 @@ Object.assign(window, {
   notifyFocusRoomMaterialsChanged,
   openGenerationJob,
   openAiBroadcastSetup,
+  openBroadcastSettingsModal,
   openBroadcastJob,
   openActiveMindMapSection,
   openAccountPanel,
@@ -52,6 +76,7 @@ Object.assign(window, {
   openFilePicker,
   openSynapseFocusRoom,
   openFlashcardListModal,
+  openFlashcardSettingsModal,
   openMasteryGraphSection,
   openQuizHistoryModal,
   openQuizSettingsModal,
@@ -89,6 +114,8 @@ Object.assign(window, {
   setAccountPreference,
   revealQuizAnswer,
   saveQuizSettingsFromModal,
+  saveFlashcardSettingsModal,
+  saveBroadcastSettingsModal,
   scheduleMemoryReview,
   selectMindBranch,
   selectMindChild,
@@ -119,6 +146,7 @@ Object.assign(window, {
   toggleVoiceTutorMute,
   updateFlashcardCustomCount,
   updateFlashcardLanguage,
+  updateFlashcardSettingsDraft,
   updateQuizAnswer,
   updateQuizChoiceAnswer,
   updateQuizDraftCount,
@@ -159,6 +187,12 @@ Object.assign(window, {
   persistStudyToolMemory,
   restoreStudyToolMemory,
 });
+} catch (error) {
+  const message = `Synapse legacy boot exports failed: ${error?.message || String(error)}${error?.stack ? `\n${error.stack}` : ""}`;
+  window.__synapseBootError = message;
+  console.error(message);
+  throw error;
+}
 
 initialiseAccountPreferences();
 

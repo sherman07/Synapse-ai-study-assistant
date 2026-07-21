@@ -1,5 +1,6 @@
 const BROADCAST_JOBS_STORAGE_KEY = "synapse.broadcast.jobs.v1";
 const BROADCAST_ACTIVE_JOB_KEY = "synapse.broadcast.active.job.v1";
+const BROADCAST_SETTINGS_KEY = "synapse.broadcast.settings.v1";
 const BROADCAST_SCRIPT_MODEL = "gpt-5.4-mini";
 const BROADCAST_TTS_MODEL = "gpt-4o-mini-tts";
 const BROADCAST_TTS_PROVIDER = "openai";
@@ -49,6 +50,14 @@ const BROADCAST_VOICE_OPTIONS = [
 ];
 const BROADCAST_DEPTH_OPTIONS = [["simple", "Simple"], ["standard", "Standard"], ["advanced", "Advanced"], ["exam_focused", "Exam-focused"]];
 const BROADCAST_LANGUAGE_OPTIONS = [["auto", "Auto-detect source language"], ["english", "English"], ["chinese", "Chinese"], ["bilingual", "Bilingual"]];
+const BROADCAST_SETTINGS_DEFAULTS = {
+  style: "calm_study_narrator",
+  length: "5",
+  voiceFormat: "two_ai_hosts",
+  depth: "standard",
+  language: "auto",
+  customLength: 7
+};
 
 function setupBroadcastTool() {
   const switcher = document.querySelector(".tool-switcher");
@@ -70,8 +79,8 @@ function setupBroadcastTool() {
             iconClass: "bi-broadcast-pin",
             title: "Create an AI broadcast",
             description: "Turn the current notes into a natural study episode with explanations, examples, and a guided recap.",
-            action: "generateBroadcastFromSetup()",
-            actionLabel: "Generate broadcast",
+            action: "openBroadcastSettingsModal()",
+            actionLabel: "Open broadcast settings",
             hasNotes: Boolean(fullSummary && fullSummary.trim()),
             kicker: "Listen and revise"
           })}
@@ -319,7 +328,7 @@ function refreshBroadcastViews(jobId = "") {
 
 function openAiBroadcastSetup() {
   if (typeof switchTool === "function") switchTool("broadcast", document.getElementById("toolBtnBroadcast"));
-  renderBroadcastSetupPanel();
+  openBroadcastSettingsModal();
 }
 
 function renderBroadcastSetupPanel() {
@@ -329,7 +338,7 @@ function renderBroadcastSetupPanel() {
   const hasEnoughContent = broadcastSourceText(sourcePackage).length >= 800;
   const currentBroadcast = getCurrentBroadcastJob();
   panel.innerHTML = `
-    <section class="broadcast-setup-card">
+    <section class="broadcast-setup-card broadcast-setup-summary-card">
       <div class="tool-panel-head">
         <div>
           <h3>AI Broadcast</h3>
@@ -338,23 +347,13 @@ function renderBroadcastSetupPanel() {
         <span class="broadcast-model-pill">${escapeHTML(BROADCAST_SCRIPT_MODEL)} + ${escapeHTML(BROADCAST_REALTIME_MODEL)}</span>
       </div>
       ${hasEnoughContent ? "" : `<div class="broadcast-warning">This source may not have enough content for a high-quality broadcast.</div>`}
-      <div class="broadcast-setup-grid">
-        ${broadcastSelectHTML("broadcastStyle", "Broadcast style", BROADCAST_STYLE_OPTIONS, "calm_study_narrator")}
-        ${broadcastSelectHTML("broadcastLength", "Length", BROADCAST_LENGTH_OPTIONS, "5")}
-        ${broadcastSelectHTML("broadcastVoiceFormat", "Voice format", BROADCAST_VOICE_OPTIONS, "two_ai_hosts")}
-        ${broadcastSelectHTML("broadcastDepth", "Depth", BROADCAST_DEPTH_OPTIONS, "standard")}
-        ${broadcastSelectHTML("broadcastLanguage", "Language", BROADCAST_LANGUAGE_OPTIONS, "auto")}
-        <label class="broadcast-field" id="broadcastCustomLengthWrap">
-          <span>Custom minutes</span>
-          <input id="broadcastCustomLength" type="number" min="1" max="60" value="7">
-        </label>
-      </div>
+      <div class="broadcast-settings-summary"><span class="study-tool-settings-kicker">Current setup</span><strong>Configure the episode in a focused settings window before generating.</strong></div>
       <div class="broadcast-setup-summary">
         <span>Studio pipeline</span>
         <strong>Read generated content -> Explain deeply -> Quality check -> GPT Realtime speaker -> Chapters</strong>
       </div>
       <div class="broadcast-actions">
-        <button class="btn btn-primary" type="button" onclick="generateBroadcastFromSetup()"><i class="bi bi-broadcast-pin me-1"></i>${currentBroadcast ? "Regenerate Broadcast" : "Generate Broadcast"}</button>
+        <button class="btn btn-primary" type="button" onclick="openBroadcastSettingsModal()"><i class="bi bi-sliders me-1"></i>${currentBroadcast ? "Regenerate Broadcast" : "Open broadcast settings"}</button>
         ${currentBroadcast ? `<button class="btn btn-outline-primary" type="button" onclick="openBroadcastJob('${escapeAttr(currentBroadcast.id)}')"><i class="bi bi-play-circle me-1"></i>Open Current Broadcast</button>` : ""}
       </div>
     </section>
@@ -369,16 +368,7 @@ function renderCurrentBroadcastOrSetup() {
   }
   const panel = document.getElementById("broadcastWorkspace") || document.getElementById("toolPanelBroadcast");
   if (!panel) return;
-  panel.innerHTML = renderStudyToolLaunch({
-    tool: "broadcast",
-    iconClass: "bi-broadcast-pin",
-    title: "Create an AI broadcast",
-    description: "Turn the current notes into a natural study episode with explanations, examples, and a guided recap.",
-    action: "generateBroadcastFromSetup()",
-    actionLabel: "Generate broadcast",
-    hasNotes: Boolean(fullSummary && fullSummary.trim()),
-    kicker: "Listen and revise"
-  });
+  renderBroadcastSetupPanel();
 }
 
 function broadcastSelectHTML(id, label, options, selected) {
@@ -390,6 +380,80 @@ function broadcastSelectHTML(id, label, options, selected) {
       </select>
     </label>
   `;
+}
+
+function readBroadcastSettings() {
+  const saved = safeReadJSONStorage(BROADCAST_SETTINGS_KEY, {});
+  const source = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  return {
+    ...BROADCAST_SETTINGS_DEFAULTS,
+    ...source,
+    customLength: Math.max(1, Math.min(60, Number(source.customLength || BROADCAST_SETTINGS_DEFAULTS.customLength) || 7))
+  };
+}
+
+function openBroadcastSettingsModal() {
+  const draft = readBroadcastSettings();
+  document.getElementById("broadcastSettingsOverlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "broadcastSettingsOverlay";
+  overlay.className = "visual-modal synapse-themed-modal study-tool-settings-overlay";
+  overlay.innerHTML = `
+    <div class="visual-modal-content settings-pattern-modal broadcast-settings-modal" role="dialog" aria-modal="true" aria-labelledby="broadcastSettingsTitle">
+      <button class="visual-modal-close" type="button" aria-label="Close broadcast settings" onclick="closeBroadcastSettingsModal()"><i class="bi bi-x-lg"></i></button>
+      <div class="settings-pattern-header">
+        <span class="study-tool-settings-kicker">Study Tools</span>
+        <h3 id="broadcastSettingsTitle">AI Broadcast settings</h3>
+        <p class="text-secondary">Tune the episode format, voice direction, depth, and language before generation.</p>
+      </div>
+      <div class="settings-pattern-body settings-pattern-grid">
+        ${broadcastSelectHTML("broadcastStyle", "Broadcast style", BROADCAST_STYLE_OPTIONS, draft.style)}
+        ${broadcastSelectHTML("broadcastLength", "Length", BROADCAST_LENGTH_OPTIONS, draft.length)}
+        ${broadcastSelectHTML("broadcastVoiceFormat", "Voice format", BROADCAST_VOICE_OPTIONS, draft.voiceFormat)}
+        ${broadcastSelectHTML("broadcastDepth", "Depth", BROADCAST_DEPTH_OPTIONS, draft.depth)}
+        ${broadcastSelectHTML("broadcastLanguage", "Language", BROADCAST_LANGUAGE_OPTIONS, draft.language)}
+        <label class="broadcast-field" id="broadcastCustomLengthWrap" ${draft.length === "custom" ? "" : "hidden"}>
+          <span>Custom minutes</span>
+          <input id="broadcastCustomLength" type="number" min="1" max="60" value="${draft.customLength}">
+        </label>
+      </div>
+      <div class="settings-pattern-summary"><span>Studio pipeline</span><strong>Read generated content -> Explain deeply -> Quality check -> GPT Realtime speaker -> Chapters</strong></div>
+      <div class="settings-pattern-footer">
+        <button class="btn btn-outline-secondary" type="button" onclick="closeBroadcastSettingsModal()">Cancel</button>
+        <button class="btn btn-outline-primary" type="button" onclick="saveBroadcastSettingsModal(false)">Save</button>
+        <button class="btn btn-primary" type="button" onclick="saveBroadcastSettingsModal(true)" ${fullSummary && fullSummary.trim() ? "" : "disabled"}><i class="bi bi-broadcast-pin me-1"></i>Save & generate</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay) closeBroadcastSettingsModal();
+  });
+  overlay.querySelector("#broadcastLength")?.addEventListener("change", event => {
+    const custom = overlay.querySelector("#broadcastCustomLengthWrap");
+    if (custom) custom.hidden = event.target.value !== "custom";
+  });
+  document.body.appendChild(overlay);
+}
+
+function saveBroadcastSettingsModal(shouldGenerate = false) {
+  const overlay = document.getElementById("broadcastSettingsOverlay");
+  if (!overlay) return;
+  const settings = {
+    style: overlay.querySelector("#broadcastStyle")?.value || BROADCAST_SETTINGS_DEFAULTS.style,
+    length: overlay.querySelector("#broadcastLength")?.value || BROADCAST_SETTINGS_DEFAULTS.length,
+    voiceFormat: overlay.querySelector("#broadcastVoiceFormat")?.value || BROADCAST_SETTINGS_DEFAULTS.voiceFormat,
+    depth: overlay.querySelector("#broadcastDepth")?.value || BROADCAST_SETTINGS_DEFAULTS.depth,
+    language: overlay.querySelector("#broadcastLanguage")?.value || BROADCAST_SETTINGS_DEFAULTS.language,
+    customLength: Math.max(1, Math.min(60, Number(overlay.querySelector("#broadcastCustomLength")?.value || 7) || 7))
+  };
+  safeWriteJSONStorage(BROADCAST_SETTINGS_KEY, settings);
+  closeBroadcastSettingsModal();
+  if (shouldGenerate) generateBroadcastFromSetup();
+  else renderBroadcastSetupPanel();
+}
+
+function closeBroadcastSettingsModal() {
+  document.getElementById("broadcastSettingsOverlay")?.remove();
 }
 
 function compactBroadcastValue(value, limit = 1200) {
@@ -450,15 +514,16 @@ function broadcastSourceText(sourcePackage = collectBroadcastModeContext()) {
 }
 
 function readBroadcastSetup() {
-  const lengthValue = document.getElementById("broadcastLength")?.value || "5";
-  const customLength = Math.max(1, Math.min(60, Number(document.getElementById("broadcastCustomLength")?.value || 7)));
+  const saved = readBroadcastSettings();
+  const lengthValue = document.getElementById("broadcastLength")?.value || saved.length;
+  const customLength = Math.max(1, Math.min(60, Number(document.getElementById("broadcastCustomLength")?.value || saved.customLength)));
   return {
-    style: document.getElementById("broadcastStyle")?.value || "calm_study_narrator",
+    style: document.getElementById("broadcastStyle")?.value || saved.style,
     lengthMinutes: lengthValue === "custom" ? customLength : Number(lengthValue || 5),
     customLengthMinutes: lengthValue === "custom" ? customLength : "",
-    voiceFormat: document.getElementById("broadcastVoiceFormat")?.value || "two_ai_hosts",
-    depth: document.getElementById("broadcastDepth")?.value || "standard",
-    language: document.getElementById("broadcastLanguage")?.value || "auto"
+    voiceFormat: document.getElementById("broadcastVoiceFormat")?.value || saved.voiceFormat,
+    depth: document.getElementById("broadcastDepth")?.value || saved.depth,
+    language: document.getElementById("broadcastLanguage")?.value || saved.language
   };
 }
 

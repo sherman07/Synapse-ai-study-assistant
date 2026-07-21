@@ -6,6 +6,7 @@ function deleteFlashcardDeck(historyId, sourceFingerprint = "") {
 }
 
 let flashcardBuilderOpen = false;
+let flashcardSettingsDraft = null;
 
 function resetFlashcardState() {
   currentFlashcards = [];
@@ -569,14 +570,91 @@ function updateFlashcardLanguage(value) {
 }
 
 function clearFlashcardsAndShowBuilder() {
-  currentFlashcards = [];
-  activeFlashcardIndex = 0;
-  flashcardSide = "front";
-  flashcardError = "";
-  flashcardActivityMode = "cards";
-  flashcardMatchingState = null;
-  flashcardBuilderOpen = true;
+  openFlashcardSettingsModal();
+}
+
+function openFlashcardSettingsModal() {
+  flashcardSettingsDraft = normalizeFlashcardSettings(flashcardSettings);
+  document.getElementById("flashcardSettingsOverlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "flashcardSettingsOverlay";
+  overlay.className = "visual-modal synapse-themed-modal study-tool-settings-overlay";
+  const countModes = [
+    ["auto", "Auto", "Synapse chooses the useful amount."],
+    ["30", "30", "A full short-review set."],
+    ["60", "60", "A broad exam-prep deck."],
+    ["custom", "Custom", "Pick your own count."]
+  ];
+  overlay.innerHTML = `
+    <div class="visual-modal-content settings-pattern-modal flashcard-settings-modal" role="dialog" aria-modal="true" aria-labelledby="flashcardSettingsTitle">
+      <button class="visual-modal-close" type="button" aria-label="Close flashcard settings" onclick="closeFlashcardSettingsModal()"><i class="bi bi-x-lg"></i></button>
+      <div class="settings-pattern-header">
+        <span class="study-tool-settings-kicker">Study Tools</span>
+        <h3 id="flashcardSettingsTitle">Flashcard settings</h3>
+        <p class="text-secondary">Set the language and deck size before turning your notes into active recall cards.</p>
+      </div>
+      <div class="settings-pattern-body settings-pattern-fields">
+        <label class="settings-pattern-field" for="flashcardSettingsLanguage">
+          <span>Card language</span>
+          <select id="flashcardSettingsLanguage" class="form-select" onchange="updateFlashcardSettingsDraft({ preferredLanguage: this.value })">
+            ${QUIZ_LANGUAGE_OPTIONS.map(option => `<option value="${option.value}" ${flashcardSettingsDraft.preferredLanguage === option.value ? "selected" : ""}>${escapeHTML(option.label)}</option>`).join("")}
+          </select>
+          <small>Choose the language used for prompts, answers, and hints.</small>
+        </label>
+        <div class="settings-pattern-field">
+          <span>Card count</span>
+          <div class="settings-pattern-choice-grid" role="group" aria-label="Flashcard count">
+            ${countModes.map(([value, label, helper]) => `<button class="settings-pattern-choice ${flashcardSettingsDraft.countMode === value ? "active" : ""}" type="button" data-flashcard-mode="${value}" aria-pressed="${flashcardSettingsDraft.countMode === value}" onclick="updateFlashcardSettingsDraft({ countMode: '${value}' })"><strong>${escapeHTML(label)}</strong><small>${escapeHTML(helper)}</small></button>`).join("")}
+          </div>
+          <input id="flashcardSettingsCustomCount" class="form-control settings-pattern-number" type="number" min="1" max="80" value="${flashcardSettingsDraft.customCount}" aria-label="Custom card count" ${flashcardSettingsDraft.countMode === "custom" ? "" : "hidden"} oninput="updateFlashcardSettingsDraft({ customCount: this.value, countMode: 'custom' })">
+        </div>
+      </div>
+      <div class="settings-pattern-footer">
+        <button class="btn btn-outline-secondary" type="button" onclick="closeFlashcardSettingsModal()">Cancel</button>
+        <button class="btn btn-outline-primary" type="button" onclick="saveFlashcardSettingsModal(false)">Save</button>
+        <button class="btn btn-primary" type="button" onclick="saveFlashcardSettingsModal(true)" ${fullSummary && fullSummary.trim() ? "" : "disabled"}><i class="bi bi-stars me-1"></i>Save & generate</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay) closeFlashcardSettingsModal();
+  });
+  document.body.appendChild(overlay);
+}
+
+function updateFlashcardSettingsDraft(values = {}) {
+  if (!flashcardSettingsDraft) return;
+  flashcardSettingsDraft = normalizeFlashcardSettings({ ...flashcardSettingsDraft, ...values });
+  const overlay = document.getElementById("flashcardSettingsOverlay");
+  if (!overlay) return;
+  overlay.querySelectorAll("[data-flashcard-mode]").forEach(button => {
+    const active = button.dataset.flashcardMode === flashcardSettingsDraft.countMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  const customCount = overlay.querySelector("#flashcardSettingsCustomCount");
+  if (customCount) {
+    customCount.hidden = flashcardSettingsDraft.countMode !== "custom";
+    customCount.value = String(flashcardSettingsDraft.customCount);
+  }
+}
+
+function saveFlashcardSettingsModal(shouldGenerate = false) {
+  if (!flashcardSettingsDraft) return;
+  const overlay = document.getElementById("flashcardSettingsOverlay");
+  const language = overlay?.querySelector("#flashcardSettingsLanguage")?.value || flashcardSettingsDraft.preferredLanguage;
+  const customCount = overlay?.querySelector("#flashcardSettingsCustomCount")?.value || flashcardSettingsDraft.customCount;
+  flashcardSettings = normalizeFlashcardSettings({ ...flashcardSettingsDraft, preferredLanguage: language, customCount });
+  safeSetLocalStorage(FLASHCARD_SETTINGS_KEY, JSON.stringify(flashcardSettings));
+  closeFlashcardSettingsModal();
+  flashcardBuilderOpen = false;
   renderFlashcardPanel();
+  if (shouldGenerate) generateFlashcards();
+}
+
+function closeFlashcardSettingsModal() {
+  document.getElementById("flashcardSettingsOverlay")?.remove();
+  flashcardSettingsDraft = null;
 }
 
 async function generateFlashcards() {

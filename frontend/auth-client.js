@@ -4,6 +4,7 @@
 
   const SESSION_KEY = "synapse.auth.session.v1";
   const LAST_EMAIL_KEY = "synapse.auth.lastEmail.v1";
+  const REMEMBER_ME_KEY = "synapse.auth.rememberMe.v1";
   const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   const LOCAL_INDEXED_DB_NAMES = [
     "synapse.visual.assets.v1",
@@ -179,6 +180,127 @@
     }
   }
 
+  function browserStorage(name) {
+    try {
+      return window[name] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function hasRememberMePreference() {
+    try {
+      return window.localStorage.getItem(REMEMBER_ME_KEY) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  function hasSupabaseStorageSession(storage) {
+    if (!storage) return false;
+    try {
+      return Array.from({ length: storage.length }, (_, index) => storage.key(index))
+        .some(key => /^sb-.+-auth-token$/.test(String(key || "")));
+    } catch {
+      return false;
+    }
+  }
+
+  function getRememberMePreference() {
+    try {
+      const raw = window.localStorage.getItem(REMEMBER_ME_KEY);
+      if (raw === "true") return true;
+      if (raw === "false") return false;
+    } catch {}
+
+    // Keep sessions created by older Synapse builds working. New logins still
+    // default to the unchecked checkbox unless the user explicitly opts in.
+    try {
+      return Boolean(window.localStorage.getItem(SESSION_KEY))
+        || hasSupabaseStorageSession(browserStorage("localStorage"));
+    } catch {
+      return false;
+    }
+  }
+
+  function copyStorageKey(from, to, key) {
+    if (!from || !to) return;
+    try {
+      const value = from.getItem(key);
+      if (value !== null) to.setItem(key, value);
+      from.removeItem(key);
+    } catch {}
+  }
+
+  function moveSupabaseStorage(rememberMe) {
+    const durable = browserStorage("localStorage");
+    const temporary = browserStorage("sessionStorage");
+    if (!durable || !temporary) return;
+
+    try {
+      const source = rememberMe ? temporary : durable;
+      const destination = rememberMe ? durable : temporary;
+      Array.from({ length: source.length }, (_, index) => source.key(index))
+        .filter(key => /^sb-.+-auth-token$/.test(String(key || "")))
+        .forEach(key => copyStorageKey(source, destination, key));
+    } catch {}
+  }
+
+  function setRememberMePreference(rememberMe) {
+    const next = Boolean(rememberMe);
+    try {
+      window.localStorage.setItem(REMEMBER_ME_KEY, String(next));
+    } catch {}
+
+    const durable = browserStorage("localStorage");
+    const temporary = browserStorage("sessionStorage");
+    if (durable && temporary) {
+      copyStorageKey(
+        next ? temporary : durable,
+        next ? durable : temporary,
+        SESSION_KEY
+      );
+    }
+    moveSupabaseStorage(next);
+    return next;
+  }
+
+  function preferredSessionStorage() {
+    return getRememberMePreference()
+      ? browserStorage("localStorage")
+      : browserStorage("sessionStorage");
+  }
+
+  function alternateSessionStorage() {
+    return getRememberMePreference()
+      ? browserStorage("sessionStorage")
+      : browserStorage("localStorage");
+  }
+
+  function createSupabaseStorageAdapter() {
+    return {
+      getItem(key) {
+        try {
+          return preferredSessionStorage()?.getItem(key) ?? null;
+        } catch {
+          return null;
+        }
+      },
+      setItem(key, value) {
+        try {
+          preferredSessionStorage()?.setItem(key, value);
+          alternateSessionStorage()?.removeItem(key);
+        } catch {}
+      },
+      removeItem(key) {
+        try {
+          browserStorage("localStorage")?.removeItem(key);
+          browserStorage("sessionStorage")?.removeItem(key);
+        } catch {}
+      }
+    };
+  }
+
   function removeLocalStorage(key) {
     try {
       window.localStorage.removeItem(key);
@@ -254,11 +376,17 @@
 
   function saveSession(session) {
     if (!session) {
-      removeLocalStorage(SESSION_KEY);
+      browserStorage("localStorage")?.removeItem(SESSION_KEY);
+      browserStorage("sessionStorage")?.removeItem(SESSION_KEY);
       dispatchAuthChange(null);
       return null;
     }
-    writeJSON(SESSION_KEY, session);
+    const storage = preferredSessionStorage();
+    const otherStorage = alternateSessionStorage();
+    try {
+      storage?.setItem(SESSION_KEY, JSON.stringify(session));
+      otherStorage?.removeItem(SESSION_KEY);
+    } catch {}
     if (session.email) {
       try { window.localStorage.setItem(LAST_EMAIL_KEY, session.email); } catch {}
     }
@@ -267,7 +395,11 @@
   }
 
   function getStoredSession() {
-    const session = readJSON(SESSION_KEY, null);
+    let session = null;
+    try {
+      const raw = preferredSessionStorage()?.getItem(SESSION_KEY);
+      session = raw ? JSON.parse(raw) : null;
+    } catch {}
     return session && typeof session === "object" ? session : null;
   }
 
@@ -301,7 +433,8 @@
       auth: {
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        persistSession: true
+        persistSession: true,
+        storage: createSupabaseStorageAdapter()
       }
     });
     supabaseClient.auth.onAuthStateChange((event, sessionPayload) => {
@@ -391,7 +524,8 @@
     };
   }
 
-  async function signInEmail({ email, password }) {
+  async function signInEmail({ email, password, rememberMe = false }) {
+    setRememberMePreference(rememberMe);
     const client = await getSupabaseClient();
     if (!client) throw new Error("Production auth is not configured.");
     const { data, error } = await client.auth.signInWithPassword({
@@ -402,7 +536,8 @@
     return { session: saveSession(publicSessionFromSupabase(data.session)) };
   }
 
-  async function signInWithGoogle({ redirectTo = absoluteAppUrl() } = {}) {
+  async function signInWithGoogle({ redirectTo = absoluteAppUrl(), rememberMe = false } = {}) {
+    setRememberMePreference(rememberMe);
     const client = await getSupabaseClient();
     if (!client) throw new Error("Production auth is not configured.");
     const { error } = await client.auth.signInWithOAuth({
@@ -760,6 +895,11 @@
         .filter(key => key.startsWith("synapse."))
         .forEach(key => window.localStorage.removeItem(key));
     } catch {}
+    try {
+      Object.keys(window.sessionStorage || {})
+        .filter(key => key.startsWith("synapse."))
+        .forEach(key => window.sessionStorage.removeItem(key));
+    } catch {}
     await deleteLocalDatabases();
     dispatchAuthChange(null);
   }
@@ -790,12 +930,14 @@
     fetchBillingEntitlements,
     fetchBillingPlans,
     getBillingPlans: () => readConfig().billingPlans,
+    getRememberMePreference,
     getStoredSession,
     isConfigured,
     preparePasswordRecovery,
     requestAccountDeletion,
     requestServerExport,
     resendSignupConfirmation,
+    setRememberMePreference,
     resetPassword,
     saveSession,
     signInEmail,

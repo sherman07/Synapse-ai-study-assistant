@@ -144,10 +144,10 @@ export function StudyTools() {
               type: "button",
               "data-study-tool-generate": "broadcast",
               "data-token-cost": "0",
-              onClick: legacyTargetAction("generateBroadcastFromSetup"),
+              onClick: legacyAction("openBroadcastSettingsModal"),
             },
             icon("bi-stars", "me-2"),
-            "Generate broadcast"
+            "Open broadcast settings"
           )
         )
       )

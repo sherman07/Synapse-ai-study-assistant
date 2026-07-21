@@ -19,12 +19,12 @@ const timeline = read("frontend/src/legacy/controller_sections/03_rendertimeline
 const quiz = read("frontend/src/legacy/controller_sections/05_persistcurrentquiztohistory.js");
 const styles = read("frontend/styles/07-section.css");
 const reactShellAssetVersion = "ai-broadcast-v19";
-const legacyControllerAssetVersion = "ai-broadcast-v19";
+const legacyControllerAssetVersion = "settings-modal-pattern-20260720-06";
 
 assert.ok(controller.includes('"04_masterygraph.js"'), "legacy controller should load the memory engine section");
 assert.ok(index.includes(reactShellAssetVersion), "index should bust cached React shell assets");
 assert.ok(main.includes(reactShellAssetVersion), "main should bust cached React app imports");
-assert.ok(main.includes(legacyControllerAssetVersion), "main should bust cached controller loader");
+assert.ok(main.includes(`loadLegacyController.js?v=${legacyControllerAssetVersion}`), "main should bust cached controller loader");
 assert.ok(loader.includes(legacyControllerAssetVersion), "controller script URL should bust cached controller");
 assert.ok(switchTools.includes('masterygraph: "toolPanelMasteryGraph"'), "switchTool should map masterygraph to its panel");
 assert.ok(switchTools.includes('toolName === "masterygraph"'), "switchTool should activate/render the memory engine");

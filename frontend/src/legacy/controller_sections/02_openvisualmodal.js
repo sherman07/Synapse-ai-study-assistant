@@ -633,7 +633,7 @@ function openStudyToolSettingsModal(toolName = "") {
     return;
   }
   if (tool === "flashcards") {
-    clearFlashcardsAndShowBuilder();
+    openFlashcardSettingsModal();
     return;
   }
   if (tool === "broadcast") {
@@ -648,12 +648,14 @@ function openStudyToolSettingsModal(toolName = "") {
   overlay.id = "studyToolSettingsOverlay";
   overlay.className = "visual-modal visual-modal-overlay study-tool-settings-overlay";
   overlay.innerHTML = `
-    <div class="visual-modal-content study-tool-settings-modal" role="dialog" aria-modal="true" aria-labelledby="studyToolSettingsTitle">
+    <div class="visual-modal-content settings-pattern-modal study-tool-settings-modal" role="dialog" aria-modal="true" aria-labelledby="studyToolSettingsTitle">
       <button class="visual-modal-close" type="button" aria-label="Close settings" onclick="closeStudyToolSettingsModal()"><i class="bi bi-x-lg"></i></button>
-      <span class="study-tool-settings-kicker">Study Tools</span>
-      <h3 id="studyToolSettingsTitle">${escapeHTML(meta.title)}</h3>
-      <p class="text-secondary">${escapeHTML(meta.description)}</p>
-      <div class="study-tool-settings-fields">
+      <div class="settings-pattern-header">
+        <span class="study-tool-settings-kicker">Study Tools</span>
+        <h3 id="studyToolSettingsTitle">${escapeHTML(meta.title)}</h3>
+        <p class="text-secondary">${escapeHTML(meta.description)}</p>
+      </div>
+      <div class="settings-pattern-body study-tool-settings-fields">
         ${meta.fields.map(field => `
           <label class="study-tool-settings-field" for="studyToolSetting-${escapeAttr(field.key)}">
             <span>${escapeHTML(field.label)}</span>
@@ -664,7 +666,7 @@ function openStudyToolSettingsModal(toolName = "") {
           </label>
         `).join("")}
       </div>
-      <div class="study-tool-settings-actions">
+      <div class="settings-pattern-footer study-tool-settings-actions">
         <button class="btn btn-outline-secondary" type="button" onclick="closeStudyToolSettingsModal()">Cancel</button>
         <button class="btn btn-primary" type="button" onclick="saveStudyToolSettingsModal()"><i class="bi bi-check2 me-1"></i>Save settings</button>
       </div>
