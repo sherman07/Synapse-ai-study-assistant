@@ -1,36 +1,26 @@
 import { h, icon, legacyAction } from "../runtime.js";
 
+/** Document outline panel hosted inside the unified workspace rail. */
 export function SummaryNavigation() {
   return h(
-    "aside",
-    { id: "summaryNav", className: "summary-nav hidden-before-analysis" },
+    "div",
+    {
+      id: "summaryNav",
+      className: "summary-nav workspace-outline-panel hidden-before-analysis",
+      role: "tabpanel",
+      "aria-labelledby": "workspaceNavTabOutline",
+      "data-workspace-nav-panel": "outline",
+      hidden: true,
+    },
     h(
       "div",
-      { className: "nav-header" },
+      { className: "workspace-outline-header" },
+      h("p", { className: "workspace-outline-kicker" }, "This note"),
       h(
-        "div",
-        { className: "nav-logo" },
-        h(
-          "span",
-          { className: "nav-logo-icon" },
-          h("img", { className: "nav-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
-        ),
-        h("span", { className: "nav-logo-text" }, "Synapse"),
-        h(
-          "button",
-          {
-            id: "summaryNavToggle",
-            className: "summary-nav-toggle",
-            type: "button",
-            onClick: legacyAction("toggleSummaryNav"),
-            "aria-label": "Collapse sections",
-            "aria-expanded": "true",
-            title: "Collapse sections",
-          },
-          icon("bi-chevron-double-left")
-        )
-      ),
-      h("p", { id: "summaryNavDescription" }, "Your generated study outline will appear here after analysis.")
+        "p",
+        { id: "summaryNavDescription", className: "workspace-outline-lead" },
+        "Your generated study outline will appear here after analysis."
+      )
     ),
     h("div", { id: "sections", className: "section-list" })
   );

@@ -242,7 +242,8 @@ body.mobile-assistant-open::before {
   min-height: 100vh;
   height: auto;
   display: grid;
-  grid-template-columns: clamp(200px, 15vw, 260px) minmax(0, 1fr) minmax(280px, clamp(300px, 22vw, 380px));
+  /* Unified left rail lives outside this grid; only notes + optional tutor remain. */
+  grid-template-columns: minmax(0, 1fr) minmax(280px, clamp(300px, 22vw, 380px));
   background: var(--bg);
 }
 
@@ -251,15 +252,15 @@ body.mobile-assistant-open::before {
 }
 
 .app-layout.assistant-closed {
-  grid-template-columns: clamp(200px, 15vw, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .app-layout.summary-collapsed {
-  grid-template-columns: 76px minmax(0, 1fr) minmax(280px, clamp(300px, 22vw, 380px));
+  grid-template-columns: minmax(0, 1fr) minmax(280px, clamp(300px, 22vw, 380px));
 }
 
 .app-layout.assistant-closed.summary-collapsed {
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .hidden-before-analysis {
@@ -279,18 +280,109 @@ body.mobile-assistant-open::before {
   display: none !important;
 }
 
-/* Left navigation */
+/* Left navigation — outline lives inside the unified workspace rail. */
 .summary-nav {
   width: 100%;
   min-width: 0;
-  height: 100vh;
-  position: sticky;
-  top: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #f5faff 100%);
-  border-right: 1px solid var(--border);
-  padding: 28px 20px;
-  overflow-y: auto;
-  transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
+  background: transparent;
+  border-right: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workspace-outline-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.workspace-outline-header {
+  flex: 0 0 auto;
+  padding: 4px 4px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-default) 88%, transparent);
+  margin-bottom: 8px;
+}
+
+.workspace-outline-kicker {
+  margin: 0 0 4px;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-outline-lead,
+#summaryNavDescription {
+  margin: 0;
+  color: var(--color-text-secondary, var(--muted));
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.workspace-nav-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 4px;
+  border: 1px solid var(--color-border-default, var(--border-blue));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface-secondary, #f4f7ff) 92%, white);
+}
+
+.workspace-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--muted));
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.workspace-nav-tab i {
+  font-size: 0.95rem;
+}
+
+.workspace-nav-tab:hover,
+.workspace-nav-tab:focus-visible {
+  color: var(--color-text-primary, var(--text));
+  background: color-mix(in srgb, white 70%, transparent);
+  outline: none;
+}
+
+.workspace-nav-tab.is-active {
+  color: var(--primary);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(74, 124, 255, 0.12);
+}
+
+.workspace-nav-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-nav-panel[hidden],
+#summaryNav[hidden] {
+  display: none !important;
+}
+
+.workspace-library-panel .history-list {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .nav-header { margin-bottom: 22px; }
@@ -463,13 +555,12 @@ body.mobile-assistant-open::before {
   margin-left: 0;
 }
 
-/* Generated-note outline: keep the rail stable while the document itself
-   scrolls, and make nested headings feel like a real document outline. */
-.app-layout.generated-notes-state #summaryNav:not(.collapsed) {
+/* Generated-note outline: scroll inside the unified rail, not a second column. */
+.app-layout.generated-notes-state #summaryNav:not(.collapsed):not([hidden]) {
   display: flex !important;
   flex-direction: column;
   overflow: hidden;
-  padding: 24px 16px 16px;
+  padding: 2px 2px 8px;
 }
 
 .app-layout.generated-notes-state #summaryNav .nav-header {
@@ -488,7 +579,7 @@ body.mobile-assistant-open::before {
   min-height: 0;
   overflow-y: auto;
   align-content: start;
-  padding: 16px 2px 12px;
+  padding: 8px 2px 12px;
   margin-top: 0;
   scrollbar-gutter: stable;
 }
@@ -1818,8 +1909,8 @@ body.mobile-assistant-open::before {
   display: flex !important;
 }
 
-.app-layout.generated-notes-state #summaryNav {
-  display: block !important;
+.app-layout.generated-notes-state #summaryNav:not([hidden]) {
+  display: flex !important;
 }
 
 .app-layout.generated-notes-state .learning-experience-shell {

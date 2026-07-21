@@ -1,7 +1,6 @@
 import { Fragment, h, icon, legacyAction } from "../runtime.js";
 import { MobileNavigation } from "./MobileNavigation.js?v=ai-broadcast-v19";
 import { HistoryNavigation } from "./HistoryNavigation.js?v=ai-broadcast-v19";
-import { SummaryNavigation } from "./SummaryNavigation.js?v=ai-broadcast-v19";
 import { UploadStage } from "./UploadStage.js?v=ai-broadcast-v19";
 import { CompanionWorkspace } from "./CompanionWorkspace.js?v=ai-broadcast-v19";
 import { AnalysisStage } from "./AnalysisStage.js?v=ai-broadcast-v19";
@@ -15,8 +14,7 @@ export function AppShell() {
     h(
       "div",
       { className: "workspace-shell", id: "workspaceShell" },
-      /* Keep the learning rail outside the notes/summary/tutor grid so it can
-         hide/show without stealing CSS grid tracks or squashing content. */
+      /* One fixed workspace rail (Library | Outline). Notes + tutor stay in the grid. */
       h(HistoryNavigation),
       h(
         "div",
@@ -24,8 +22,8 @@ export function AppShell() {
           id: "appLayout",
           className: "app-layout initial-state has-learning-rail",
           "data-learning-experience-mode": "materials",
+          "data-workspace-nav-tab": "library",
         },
-        h(SummaryNavigation),
         h(
           "main",
           { id: "mainNotes", className: "notes-area" },
@@ -49,9 +47,9 @@ export function AppShell() {
         type: "button",
         hidden: true,
         onClick: legacyAction("toggleHistoryNav", false),
-        "aria-label": "Show learning navigation",
+        "aria-label": "Show workspace navigation",
         "aria-expanded": "false",
-        title: "Show learning navigation",
+        title: "Show workspace navigation",
       },
       icon("bi-chevron-double-right")
     )

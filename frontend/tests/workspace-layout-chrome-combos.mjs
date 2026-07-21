@@ -18,11 +18,11 @@ const artifactDir = "/opt/cursor/artifacts";
 fs.mkdirSync(artifactDir, { recursive: true });
 
 const MIN_NOTES_WIDTH = {
-  default: 360,
-  sources: 280,
-  tutor: 300,
-  sourcesTutor: 280,
-  historyCollapsed: 420,
+  default: 520,
+  sources: 320,
+  tutor: 360,
+  sourcesTutor: 320,
+  historyCollapsed: 640,
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -126,7 +126,9 @@ async function prepareGeneratedNotes(page) {
       `;
     }
 
-    if (typeof window.applyHistoryNavCollapsed === "function") {
+    if (typeof window.setWorkspaceNavTab === "function") {
+      window.setWorkspaceNavTab("outline", { persist: false, expandRail: true });
+    } else if (typeof window.applyHistoryNavCollapsed === "function") {
       window.applyHistoryNavCollapsed();
     } else if (typeof window.toggleHistoryNav === "function") {
       window.toggleHistoryNav(false);
@@ -341,6 +343,20 @@ async function run() {
         assert.ok(m.notesLeft >= 250, `${combo.name}: notes should clear open history (left=${m.notesLeft})`);
       }
     }
+
+    // Unified rail: Library ↔ Outline should not change notes width.
+    await setHistoryCollapsed(page, false);
+    await setTutor(page, false);
+    await setSources(page, false);
+    await page.evaluate(() => window.setWorkspaceNavTab?.("outline", { persist: false, expandRail: true }));
+    await sleep(180);
+    const outlineMeasure = await measure(page, "tab-outline");
+    await page.click("#workspaceNavTabLibrary");
+    await sleep(180);
+    const libraryMeasure = await measure(page, "tab-library");
+    await screenshot(page, "tab-library");
+    assert.equal(outlineMeasure.notesWidth, libraryMeasure.notesWidth, "Library/Outline tabs must share one rail width");
+    assert.ok(libraryMeasure.notesWidth >= MIN_NOTES_WIDTH.default, "unified rail should keep notes wide");
 
     // Click-path smoke: hide via left chevron, show via right chevron.
     await setHistoryCollapsed(page, false);

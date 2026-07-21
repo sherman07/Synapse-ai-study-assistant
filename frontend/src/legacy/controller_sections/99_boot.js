@@ -143,6 +143,7 @@ Object.assign(window, {
   toggleSourceViewer,
   toggleSummaryNav,
   toggleHistoryNav,
+  setWorkspaceNavTab,
   toggleTimelineComplete,
   toggleVoiceTutorMute,
   updateFlashcardCustomCount,
