@@ -113,3 +113,16 @@ services:
         sync: false
       - key: STRIPE_PRICE_PRO_YEARLY
         sync: false
+
+  - type: cron
+    runtime: node
+    name: synapse-analysis-keep-warm
+    plan: starter
+    branch: main
+    buildCommand: "true"
+    startCommand: node scripts/keep_render_warm.mjs
+    schedule: "*/10 * * * *"
+    autoDeployTrigger: commit
+    envVars:
+      - key: SYNAPSE_KEEP_WARM_URL
+        value: https://synapse-ai-backend-idnc.onrender.com/healthz

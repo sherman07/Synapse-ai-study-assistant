@@ -338,10 +338,6 @@ SUPABASE_SERVICE_ROLE_KEY = (
     auth_env_value("SUPABASE_SERVICE_ROLE_KEY", "SYNAPSE_SUPABASE_SERVICE_ROLE_KEY")
 )
 STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
-STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
-SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK = (
-    os.getenv("SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK", "false").lower() not in {"0", "false", "no"}
-)
 SYNAPSE_FRONTEND_BASE_URL = (
     os.getenv("SYNAPSE_FRONTEND_BASE_URL")
     or os.getenv("SYNAPSE_PUBLIC_FRONTEND_URL")
@@ -357,12 +353,6 @@ SYNAPSE_SMTP_PASSWORD = auth_env_value("SYNAPSE_SMTP_PASSWORD")
 SYNAPSE_SMTP_FROM_EMAIL = auth_env_value("SYNAPSE_SMTP_FROM_EMAIL") or SYNAPSE_SMTP_USERNAME
 SYNAPSE_SMTP_FROM_NAME = auth_env_value("SYNAPSE_SMTP_FROM_NAME") or "Synapse"
 SYNAPSE_SMTP_SECURITY = (auth_env_value("SYNAPSE_SMTP_SECURITY") or "starttls").lower()
-STRIPE_PRICE_IDS = {
-    "starter": (os.getenv("STRIPE_PRICE_STARTER") or os.getenv("SYNAPSE_STRIPE_PRICE_STARTER") or "").strip(),
-    "student": (os.getenv("STRIPE_PRICE_STUDENT") or os.getenv("SYNAPSE_STRIPE_PRICE_STUDENT") or "").strip(),
-    "pro": (os.getenv("STRIPE_PRICE_PRO") or os.getenv("SYNAPSE_STRIPE_PRICE_PRO") or "").strip(),
-}
-
 if stripe and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
@@ -987,21 +977,6 @@ def persist_generated_analysis_result(
         return {}
 
 
-def price_id_for_plan(plan_id: str, explicit_price_id: str = "") -> str:
-    clean_plan = re.sub(r"[^a-z0-9_-]", "", str(plan_id or "").lower())
-    clean_explicit = str(explicit_price_id or "").strip()
-    configured_values = {value for value in STRIPE_PRICE_IDS.values() if value}
-    if clean_explicit and clean_explicit in configured_values:
-        return clean_explicit
-    return STRIPE_PRICE_IDS.get(clean_plan, "")
-
-
-def require_stripe_ready() -> Optional[Response]:
-    if not stripe or not STRIPE_SECRET_KEY:
-        return json_error("Stripe billing is not configured. Set STRIPE_SECRET_KEY and Stripe price IDs.", 503)
-    return None
-
-
 def billing_store() -> Dict[str, Any]:
     store = read_runtime_json("billing_customers.json", {})
     return store if isinstance(store, dict) else {}
@@ -1026,29 +1001,6 @@ def get_billing_profile(user: Dict[str, Any]) -> Dict[str, Any]:
     store[user["id"]] = profile
     save_billing_store(store)
     return profile
-
-
-def save_billing_profile(user_id: str, profile: Dict[str, Any]) -> None:
-    store = billing_store()
-    profile["updated_at"] = utc_timestamp()
-    store[user_id] = profile
-    save_billing_store(store)
-
-
-def get_or_create_stripe_customer(user: Dict[str, Any]) -> str:
-    profile = get_billing_profile(user)
-    if profile.get("stripe_customer_id"):
-        return profile["stripe_customer_id"]
-    customer = stripe.Customer.create(
-        email=user.get("email"),
-        metadata={
-            "synapse_user_id": user["id"],
-            "source": "synapse",
-        },
-    )
-    profile["stripe_customer_id"] = customer.id
-    save_billing_profile(user["id"], profile)
-    return customer.id
 
 
 def _clean_contact_text(value: Any, limit: int) -> str:
@@ -1431,115 +1383,6 @@ async def delete_generated_content_record(content_id: str, request: Request) -> 
         return {"ok": True, "deleted": True, "id": content_id}
     except Exception as error:
         return json_error(f"Could not delete generated content: {error}", 500)
-
-
-@app.post("/billing/checkout")
-async def create_billing_checkout(request: Request) -> Any:
-    user_or_response = require_verified_user(request)
-    if isinstance(user_or_response, Response):
-        return user_or_response
-    stripe_error = require_stripe_ready()
-    if stripe_error:
-        return stripe_error
-    user = user_or_response
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = {}
-
-    plan_id = _clean_contact_text(payload.get("plan_id"), 40) or "student"
-    price_id = price_id_for_plan(plan_id, _clean_contact_text(payload.get("price_id"), 120))
-    if not price_id:
-        return json_error(f"No Stripe price is configured for the {plan_id} plan.", 422)
-
-    success_url = _clean_contact_text(payload.get("success_url"), 500) or f"{SYNAPSE_FRONTEND_BASE_URL}/index.html?billing=success"
-    cancel_url = _clean_contact_text(payload.get("cancel_url"), 500) or f"{SYNAPSE_FRONTEND_BASE_URL}/index.html?billing=cancelled"
-    customer_id = get_or_create_stripe_customer(user)
-    session = stripe.checkout.Session.create(
-        customer=customer_id,
-        client_reference_id=user["id"],
-        line_items=[{"price": price_id, "quantity": 1}],
-        mode="payment",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata={
-            "synapse_user_id": user["id"],
-            "synapse_plan_id": plan_id,
-            "synapse_price_id": price_id,
-        },
-        customer_update={"name": "auto"},
-    )
-    return {
-        "ok": True,
-        "id": session.id,
-        "url": session.url,
-        "customer_id": customer_id,
-    }
-
-
-@app.post("/billing/portal")
-async def create_billing_portal(request: Request) -> Any:
-    user_or_response = require_verified_user(request)
-    if isinstance(user_or_response, Response):
-        return user_or_response
-    stripe_error = require_stripe_ready()
-    if stripe_error:
-        return stripe_error
-    user = user_or_response
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = {}
-    profile = get_billing_profile(user)
-    customer_id = profile.get("stripe_customer_id")
-    if not customer_id:
-        return json_error("No Stripe customer exists for this account yet. Buy a credit pack first.", 404)
-    return_url = _clean_contact_text(payload.get("return_url"), 500) or f"{SYNAPSE_FRONTEND_BASE_URL}/index.html"
-    session = stripe.billing_portal.Session.create(
-        customer=customer_id,
-        return_url=return_url,
-    )
-    return {
-        "ok": True,
-        "url": session.url,
-        "customer_id": customer_id,
-    }
-
-
-@app.post("/billing/webhook")
-async def stripe_billing_webhook(request: Request) -> Any:
-    body = await request.body()
-    try:
-        if STRIPE_WEBHOOK_SECRET:
-            if not stripe:
-                return json_error("Stripe package is not installed.", 503)
-            signature = request.headers.get("stripe-signature", "")
-            event = stripe.Webhook.construct_event(body, signature, STRIPE_WEBHOOK_SECRET)
-        elif not SYNAPSE_ALLOW_UNSIGNED_STRIPE_WEBHOOK:
-            return json_error("Stripe webhook signing is not configured.", 503)
-        else:
-            event = json.loads(body.decode("utf-8") or "{}")
-    except Exception:
-        return json_error("Invalid Stripe webhook payload.", 400)
-
-    event_type = event.get("type", "")
-    event_object = (event.get("data") or {}).get("object") or {}
-    record = {
-        "received_at": utc_timestamp(),
-        "event_id": event.get("id"),
-        "type": event_type,
-        "object_id": event_object.get("id"),
-        "customer_id": event_object.get("customer"),
-        "synapse_user_id": (event_object.get("metadata") or {}).get("synapse_user_id")
-            or event_object.get("client_reference_id"),
-        "plan_id": (event_object.get("metadata") or {}).get("synapse_plan_id"),
-        "price_id": (event_object.get("metadata") or {}).get("synapse_price_id"),
-        "payment_status": event_object.get("payment_status"),
-        "amount_total": event_object.get("amount_total"),
-        "currency": event_object.get("currency"),
-    }
-    append_runtime_jsonl("billing_ledger.jsonl", record)
-    return {"ok": True, "received": True}
 
 
 @app.get("/account/export")
