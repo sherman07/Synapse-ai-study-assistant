@@ -20,6 +20,7 @@ import {
   PANEL_TABS,
   buildPlanForState,
   clampDuration,
+  clampDurationSeconds,
   clampInteger,
   clampVolume,
   coerceQuizAnswer,
@@ -69,6 +70,7 @@ function persistDraftFromState(source) {
     ambientVolume: clampVolume(source.ambientVolume),
     audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(source.audioChannels || {}) },
     durationMinutes: clampDuration(source.pomodoroDuration),
+    durationSeconds: clampDurationSeconds(source.pomodoroDurationSeconds, durationSeconds(source.pomodoroDuration)),
     studyGoal: source.studyGoal,
     studyPlan: normalizeStudyPlanItems(source.studyPlan),
     completedTasks: Array.isArray(source.completedTasks) ? source.completedTasks.filter(Boolean) : [],
@@ -116,12 +118,23 @@ function timerStateFor(source = {}) {
   return normalizeFocusRoomTimerState(source.timerState || source.timerPhase || source.status || source.timerStatus);
 }
 
+// The configured block length in seconds. pomodoroDurationSeconds is the
+// canonical, second-precise value; pomodoroDuration (whole minutes) is kept in
+// sync for presets, labels, and study-plan sizing.
+function configuredDurationSeconds(source = {}) {
+  const seconds = Number(source.pomodoroDurationSeconds);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return clampDurationSeconds(seconds, durationSeconds(source.pomodoroDuration));
+  }
+  return durationSeconds(source.pomodoroDuration);
+}
+
 function timerTotalSeconds(source = {}) {
   if (source.timerMode === "countup") return 0;
   const persistedDuration = Number(source.timerDurationSeconds);
   return Number.isFinite(persistedDuration) && persistedDuration > 0
     ? persistedDuration
-    : durationSeconds(source.pomodoroDuration);
+    : configuredDurationSeconds(source);
 }
 
 function elapsedSecondsAt(source = {}, now = clockNowMs()) {
@@ -157,6 +170,7 @@ function timerSnapshot(source = {}) {
     timerRestoredAtMs: Number.isFinite(Number(source.timerRestoredAtMs)) ? Number(source.timerRestoredAtMs) : null,
     timerDurationSeconds: timerTotalSeconds(source),
     pomodoroDuration: source.pomodoroDuration,
+    pomodoroDurationSeconds: configuredDurationSeconds(source),
     elapsedSeconds: Math.max(0, Number(source.elapsedSeconds) || 0),
     startedAt: source.startedAt || null,
     currentSession: source.currentSession || null,
@@ -194,6 +208,10 @@ function hydratedMaterialState(material, previous = {}) {
   const musicVolume = clampVolume(draft?.musicVolume, previous.musicVolume ?? 60);
   const ambientVolume = clampVolume(draft?.ambientVolume, previous.ambientVolume ?? 50);
   const pomodoroDuration = clampDuration(draft?.durationMinutes, previous.pomodoroDuration ?? DEFAULT_DURATION_MINUTES);
+  const pomodoroDurationSeconds = clampDurationSeconds(
+    draft?.durationSeconds,
+    previous.pomodoroDurationSeconds ?? pomodoroDuration * 60
+  );
   const studyGoal = String(draft?.studyGoal || `Study ${material?.materialTitle || "this material"}`);
   const draftPlan = normalizeStudyPlanItems(draft?.studyPlan);
   const studyPlan = draftPlan.length ? draftPlan : buildPlanForState(material, studyGoal, pomodoroDuration);
@@ -209,6 +227,7 @@ function hydratedMaterialState(material, previous = {}) {
     ambientVolume,
     audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(draft?.audioChannels || previous.audioChannels || {}) },
     pomodoroDuration,
+    pomodoroDurationSeconds,
     studyGoal,
     studyPlan,
     completedTasks,
@@ -247,6 +266,9 @@ function restoreActiveSessionState(materialId) {
     timerPausedAtMs: needsRestoring ? null : (Number(snapshot.timerPausedAtMs) || null),
     timerRestoredAtMs: needsRestoring ? null : now,
     timerDurationSeconds: total,
+    ...(Number(snapshot.pomodoroDurationSeconds) > 0
+      ? { pomodoroDurationSeconds: clampDurationSeconds(snapshot.pomodoroDurationSeconds) }
+      : {}),
     elapsedSeconds: total > 0 ? Math.min(total, runningElapsed) : runningElapsed,
     startedAt: snapshot.startedAt || null,
     currentSession: snapshot.currentSession || null,
@@ -369,6 +391,7 @@ export const useFocusRoomStore = create((set, get) => {
     ambientVolume: 50,
     audioChannels: { ...DEFAULT_AUDIO_CHANNELS },
     pomodoroDuration: DEFAULT_DURATION_MINUTES,
+    pomodoroDurationSeconds: durationSeconds(DEFAULT_DURATION_MINUTES),
     timerStatus: "idle",
     timerState: "idle",
     timerPhase: "idle",
@@ -497,7 +520,10 @@ export const useFocusRoomStore = create((set, get) => {
         timerPausedAtMs: null,
         timerUpdatedAtMs: null,
         timerRestoredAtMs: null,
-        timerDurationSeconds: durationSeconds(hydrated.pomodoroDuration || DEFAULT_DURATION_MINUTES),
+        timerDurationSeconds: configuredDurationSeconds({
+          pomodoroDuration: hydrated.pomodoroDuration || DEFAULT_DURATION_MINUTES,
+          pomodoroDurationSeconds: hydrated.pomodoroDurationSeconds
+        }),
         elapsedSeconds: 0,
         startedAt: null,
         currentSession: null,
@@ -577,20 +603,27 @@ export const useFocusRoomStore = create((set, get) => {
       });
     },
 
-    setPomodoroDuration(value) {
+    setPomodoroDurationSeconds(value) {
       set(state => {
-        const pomodoroDuration = clampDuration(value, state.pomodoroDuration);
+        const pomodoroDurationSeconds = clampDurationSeconds(value, state.pomodoroDurationSeconds);
+        const pomodoroDuration = Math.max(1, Math.round(pomodoroDurationSeconds / 60));
         const studyPlan = state.selectedMaterial
           ? buildPlanForState(state.selectedMaterial, state.studyGoal, pomodoroDuration)
           : [];
         const next = {
           pomodoroDuration,
+          pomodoroDurationSeconds,
           studyPlan,
-          timerDurationSeconds: state.timerMode === "countup" ? 0 : durationSeconds(pomodoroDuration)
+          timerDurationSeconds: state.timerMode === "countup" ? 0 : pomodoroDurationSeconds
         };
         persistDraftFromState({ ...state, ...next });
         return next;
       });
+    },
+
+    setPomodoroDuration(value) {
+      const minutes = clampDuration(value, get().pomodoroDuration);
+      get().setPomodoroDurationSeconds(minutes * 60);
     },
 
     setStudyGoal(value) {
@@ -700,7 +733,7 @@ export const useFocusRoomStore = create((set, get) => {
         timerPausedAtMs: null,
         timerUpdatedAtMs: clockNowMs(),
         timerRestoredAtMs: null,
-        timerDurationSeconds: durationSeconds(state.pomodoroDuration),
+        timerDurationSeconds: configuredDurationSeconds(state),
         elapsedSeconds: 0,
         startedAt: null,
         summaryRecord: null,
@@ -783,7 +816,7 @@ export const useFocusRoomStore = create((set, get) => {
         timerAnchorAtMs: null,
         timerPausedAtMs: null,
         timerRestoredAtMs: null,
-        timerDurationSeconds: durationSeconds(get().pomodoroDuration),
+        timerDurationSeconds: configuredDurationSeconds(get()),
         audioPlaying: false,
         startedAt: null,
         elapsedSeconds: 0,
@@ -837,7 +870,7 @@ export const useFocusRoomStore = create((set, get) => {
       const timerMode = mode === "countup" ? "countup" : "countdown";
       const next = {
         timerMode,
-        timerDurationSeconds: timerMode === "countup" ? 0 : durationSeconds(get().pomodoroDuration)
+        timerDurationSeconds: timerMode === "countup" ? 0 : configuredDurationSeconds(get())
       };
       set(next);
       persistTimerSnapshot({ ...get(), ...next });

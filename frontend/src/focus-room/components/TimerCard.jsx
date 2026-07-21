@@ -2,7 +2,8 @@ import { motion } from "motion/react";
 import { Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 import { formatFocusRoomDuration } from "../data.js";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
-import { currentScene, formatTimerClock, progressPercent } from "../utils.js";
+import { currentScene, formatTimerClock } from "../utils.js";
+import { EditableTimer } from "./EditableTimer.jsx";
 import { GlassButton } from "./GlassButton.jsx";
 
 function timerActionLabel(status) {
@@ -14,6 +15,7 @@ function timerActionLabel(status) {
 export function TimerCard() {
   const elapsedSeconds = useFocusRoomStore(state => state.elapsedSeconds);
   const pomodoroDuration = useFocusRoomStore(state => state.pomodoroDuration);
+  const pomodoroDurationSeconds = useFocusRoomStore(state => state.pomodoroDurationSeconds);
   const timerStatus = useFocusRoomStore(state => state.timerStatus);
   const isIdle = useFocusRoomStore(state => state.isIdle);
   const studyGoal = useFocusRoomStore(state => state.studyGoal);
@@ -24,9 +26,12 @@ export function TimerCard() {
   const pauseTimer = useFocusRoomStore(state => state.pauseTimer);
   const resetTimer = useFocusRoomStore(state => state.resetTimer);
   const skipTimer = useFocusRoomStore(state => state.skipTimer);
+  const setPomodoroDurationSeconds = useFocusRoomStore(state => state.setPomodoroDurationSeconds);
   const isRunning = timerStatus === "studying";
-  const remaining = Math.max(0, pomodoroDuration * 60 - elapsedSeconds);
-  const progress = progressPercent(elapsedSeconds, pomodoroDuration);
+  const canEditTime = timerStatus === "idle";
+  const totalSeconds = Number(pomodoroDurationSeconds) || pomodoroDuration * 60;
+  const remaining = Math.max(0, totalSeconds - elapsedSeconds);
+  const progress = totalSeconds ? Math.min(100, Math.max(0, (elapsedSeconds / totalSeconds) * 100)) : 0;
   const timerScale = isIdle ? 0.96 : 1;
   const timerAnimate = timerStatus === "studying"
     ? { scale: [timerScale, timerScale + 0.012, timerScale] }
@@ -50,7 +55,17 @@ export function TimerCard() {
           <span className="focus-pill">Quiet room</span>
         </div>
       </div>
-      <div className="timer-value" aria-live="polite">{formatTimerClock(remaining)}</div>
+      {canEditTime ? (
+        <EditableTimer
+          className="timer-value-editor"
+          valueSeconds={pomodoroDurationSeconds}
+          onChange={setPomodoroDurationSeconds}
+          size="hero"
+          ariaLabel="Set focus block length before starting"
+        />
+      ) : (
+        <div className="timer-value" aria-live="polite">{formatTimerClock(remaining)}</div>
+      )}
       <div className="timer-meta-grid">
         <div className="timer-meta-card">
           <span>Focused</span>

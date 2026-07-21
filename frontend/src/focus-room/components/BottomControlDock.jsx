@@ -1,12 +1,19 @@
 import { Pause, Play, RotateCcw, SkipForward, SlidersHorizontal, Volume2 } from "lucide-react";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
-import { formatTimerClock, progressPercent } from "../utils.js";
+import { formatDuration } from "../timerInput.js";
+import { formatTimerClock } from "../utils.js";
 import { GlassButton } from "./GlassButton.jsx";
+
+function blockProgress(elapsedSeconds, totalSeconds) {
+  if (!totalSeconds) return 0;
+  return Math.min(100, Math.max(0, (elapsedSeconds / totalSeconds) * 100));
+}
 
 export function BottomControlDock({ onFocusMode, audioState }) {
   const timerStatus = useFocusRoomStore(state => state.timerStatus);
   const elapsedSeconds = useFocusRoomStore(state => state.elapsedSeconds);
   const pomodoroDuration = useFocusRoomStore(state => state.pomodoroDuration);
+  const pomodoroDurationSeconds = useFocusRoomStore(state => state.pomodoroDurationSeconds);
   const timerMode = useFocusRoomStore(state => state.timerMode);
   const studyGoal = useFocusRoomStore(state => state.studyGoal);
   const currentSession = useFocusRoomStore(state => state.currentSession);
@@ -16,7 +23,8 @@ export function BottomControlDock({ onFocusMode, audioState }) {
   const skipTimer = useFocusRoomStore(state => state.skipTimer);
   const toggleAudio = useFocusRoomStore(state => state.toggleAudio);
   const audioPlaying = useFocusRoomStore(state => state.audioPlaying);
-  const remaining = timerMode === "countup" ? elapsedSeconds : Math.max(0, (Number(pomodoroDuration) || 0) * 60 - elapsedSeconds);
+  const totalSeconds = Number(pomodoroDurationSeconds) || (Number(pomodoroDuration) || 0) * 60;
+  const remaining = timerMode === "countup" ? elapsedSeconds : Math.max(0, totalSeconds - elapsedSeconds);
   const isPaused = timerStatus === "paused";
   const isRunning = timerStatus === "studying";
   const isComplete = timerStatus === "completed";
@@ -30,12 +38,12 @@ export function BottomControlDock({ onFocusMode, audioState }) {
         <div className="dock-eyebrow">POMODORO #{currentSession?.pomodoroNumber || 1}</div>
         <div className="dock-status"><span className={`dock-status-dot ${isPaused ? "is-paused" : ""}`} />{statusLabel}</div>
         <strong className="dock-time" aria-live="off">{timerLabel}</strong>
-        <div className="dock-progress" aria-hidden="true"><span style={{ width: `${progressPercent(elapsedSeconds, pomodoroDuration)}%` }} /></div>
+        <div className="dock-progress" aria-hidden="true"><span style={{ width: `${blockProgress(elapsedSeconds, totalSeconds)}%` }} /></div>
       </div>
       <div className="dock-goal-block">
         <span className="dock-eyebrow">TODAY'S GOAL</span>
         <strong>{studyGoal || "A quiet block for meaningful progress"}</strong>
-        <span className="dock-goal-meta">{timerMode === "countup" ? "Count-up" : `${pomodoroDuration} minutes`} · {formatTimerClock(elapsedSeconds)} focused</span>
+        <span className="dock-goal-meta">{timerMode === "countup" ? "Count-up" : `${formatDuration(totalSeconds)} block`} · {formatTimerClock(elapsedSeconds)} focused</span>
       </div>
       <div className="dock-action-block">
         <GlassButton className="dock-action-button" onClick={toggleAudio} aria-label={audioPlaying ? "Pause room audio" : "Play room audio"}>{audioPlaying ? <Pause size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}<span>{audioState?.playing ? "Pause audio" : "Audio"}</span></GlassButton>

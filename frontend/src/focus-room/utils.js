@@ -8,6 +8,8 @@ export const DEFAULT_SCENE_ID = FOCUS_ROOM_SCENES[0]?.id || "morning-window";
 export const DEFAULT_DURATION_MINUTES = FOCUS_ROOM_DURATIONS[0] || 25;
 export const MIN_DURATION_MINUTES = 10;
 export const MAX_DURATION_MINUTES = 180;
+export const MIN_DURATION_SECONDS = 60;
+export const MAX_DURATION_SECONDS = MAX_DURATION_MINUTES * 60;
 export const SOUND_MIN = 0;
 export const SOUND_MAX = 100;
 export const PANEL_TAB_LIST = ["materials", "notes", "sources", "chat", "quiz", "flashcards", "mindmap", "plan", "workspace", "history"];
@@ -36,6 +38,10 @@ export function clampVolume(value, fallback = 50) {
 
 export function clampDuration(value, fallback = DEFAULT_DURATION_MINUTES) {
   return clampInteger(value, fallback, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES);
+}
+
+export function clampDurationSeconds(value, fallback = DEFAULT_DURATION_MINUTES * 60) {
+  return clampInteger(value, fallback, MIN_DURATION_SECONDS, MAX_DURATION_SECONDS);
 }
 
 export function sceneById(sceneId) {
