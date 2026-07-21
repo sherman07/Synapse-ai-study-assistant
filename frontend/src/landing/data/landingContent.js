@@ -24,10 +24,16 @@ export const heroBadges = [
   "Teach-Back Feedback"
 ];
 
+// Honest, verifiable product signals rather than fabricated performance
+// metrics (PRODUCT.md lists "fake metrics" as an anti-reference):
+//  - 6 accepted source types: PDFs, slides, videos, images, links, notes
+//  - 7 generated study formats: notes, mind maps, questions, flashcards,
+//    timelines, source previews, tutor feedback
+//  - 24/7 always-available revision
 export const heroStats = [
-  { label: "mastery lift", value: 38, suffix: "%" },
-  { label: "study outputs", value: 6, suffix: "x" },
-  { label: "revision queue", value: 24, suffix: "/7" }
+  { label: "source types", value: 6, suffix: "" },
+  { label: "study formats", value: 7, suffix: "" },
+  { label: "always-on revision", value: 24, suffix: "/7" }
 ];
 
 export const demoNotes = [
