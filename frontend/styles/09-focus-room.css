@@ -3898,3 +3898,124 @@ body.focus-room-standalone #focusRoomRoot {
     gap: 14px;
   }
 }
+
+/* ============================================================
+   Floating POMODORO hero — the reference glass timer card, with
+   editable MM:SS digits when the session is not running.
+   ============================================================ */
+.react-focus-room .focus-session-grid {
+  width: auto;
+  opacity: 1;
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+}
+
+.react-focus-room .focus-session-stage.is-focus-mode .focus-session-grid {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.react-focus-room .timer-card.floating-pomodoro {
+  width: min(320px, calc(100vw - 48px));
+  justify-items: start;
+  gap: 0;
+  padding: 22px 24px 20px;
+  border-radius: 26px;
+  text-align: left;
+  background: var(--fr-glass);
+}
+
+.floating-pomodoro-top {
+  width: 100%;
+}
+
+.floating-pomodoro-status {
+  margin-top: 10px;
+}
+
+.floating-pomodoro-time,
+.floating-pomodoro-editor {
+  display: block;
+  margin-top: 8px;
+  color: var(--room-ink);
+  font-size: clamp(3.2rem, 8vw, 4.2rem);
+  font-weight: 360;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+}
+
+.timer-editor-float {
+  font-size: clamp(3.2rem, 8vw, 4.2rem);
+  font-weight: 360;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.timer-editor-dock {
+  font-size: 40px;
+  font-weight: 360;
+  justify-content: flex-start;
+  gap: 2px;
+  line-height: 0.95;
+}
+
+.floating-pomodoro-editor .timer-editor-digits,
+.dock-time-editor .timer-editor-digits {
+  min-width: 1.7ch;
+  padding: 0.02em 0.08em;
+  background: transparent;
+  border-radius: 0.18em;
+}
+
+.floating-pomodoro-editor .timer-editor-digits:hover,
+.dock-time-editor .timer-editor-digits:hover,
+.floating-pomodoro-editor .timer-editor-segment.is-active .timer-editor-digits,
+.dock-time-editor .timer-editor-segment.is-active .timer-editor-digits,
+.floating-pomodoro-editor .timer-editor-digits:focus-visible,
+.dock-time-editor .timer-editor-digits:focus-visible {
+  background: rgba(250, 245, 237, 0.12);
+  border-color: rgba(250, 229, 199, 0.45);
+  box-shadow: none;
+}
+
+.floating-pomodoro-editor .timer-editor-step,
+.dock-time-editor .timer-editor-step {
+  width: 1.1em;
+  height: 0.7em;
+  color: rgba(250, 245, 237, 0.55);
+}
+
+.dock-time-editor {
+  display: flex;
+  margin-top: 0;
+}
+
+.floating-pomodoro-progress {
+  width: 100%;
+  height: 2px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(250, 245, 237, 0.14);
+}
+
+.floating-pomodoro-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(247, 223, 188, 0.82);
+  transition: width 0.35s linear;
+}
+
+@media (max-width: 640px) {
+  .react-focus-room .timer-card.floating-pomodoro {
+    width: min(280px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+  }
+
+  .timer-editor-dock {
+    font-size: 30px;
+  }
+}

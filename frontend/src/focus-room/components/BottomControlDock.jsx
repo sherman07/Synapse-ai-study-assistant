@@ -2,6 +2,7 @@ import { Pause, Play, RotateCcw, SkipForward, SlidersHorizontal, Volume2 } from 
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
 import { formatDuration } from "../timerInput.js";
 import { formatTimerClock } from "../utils.js";
+import { EditableTimer } from "./EditableTimer.jsx";
 import { GlassButton } from "./GlassButton.jsx";
 
 function blockProgress(elapsedSeconds, totalSeconds) {
@@ -23,21 +24,33 @@ export function BottomControlDock({ onFocusMode, audioState }) {
   const skipTimer = useFocusRoomStore(state => state.skipTimer);
   const toggleAudio = useFocusRoomStore(state => state.toggleAudio);
   const audioPlaying = useFocusRoomStore(state => state.audioPlaying);
+  const setPomodoroDurationSeconds = useFocusRoomStore(state => state.setPomodoroDurationSeconds);
   const totalSeconds = Number(pomodoroDurationSeconds) || (Number(pomodoroDuration) || 0) * 60;
   const remaining = timerMode === "countup" ? elapsedSeconds : Math.max(0, totalSeconds - elapsedSeconds);
   const isPaused = timerStatus === "paused";
   const isRunning = timerStatus === "studying";
   const isComplete = timerStatus === "completed";
+  const canEditTime = timerStatus === "idle" && timerMode !== "countup";
   const timerLabel = isComplete && timerMode !== "countup" ? "00:00" : formatTimerClock(remaining);
-  const statusLabel = isPaused ? "Paused" : isComplete ? "Complete" : "In focus";
+  const statusLabel = isPaused ? "Paused" : isComplete ? "Complete" : isRunning ? "In focus" : "Ready";
   const timerActionLabel = isPaused ? "Resume timer" : isRunning ? "Pause timer" : "Start timer";
 
   return (
     <div className="focus-session-dock liquid-glass" aria-label="Focus session controls">
       <div className="dock-timer-block">
         <div className="dock-eyebrow">POMODORO #{currentSession?.pomodoroNumber || 1}</div>
-        <div className="dock-status"><span className={`dock-status-dot ${isPaused ? "is-paused" : ""}`} />{statusLabel}</div>
-        <strong className="dock-time" aria-live="off">{timerLabel}</strong>
+        <div className="dock-status"><span className={`dock-status-dot ${isPaused || !isRunning ? "is-paused" : ""}`} />{statusLabel}</div>
+        {canEditTime ? (
+          <EditableTimer
+            className="dock-time-editor"
+            valueSeconds={totalSeconds}
+            onChange={setPomodoroDurationSeconds}
+            size="dock"
+            ariaLabel="Set focus block length"
+          />
+        ) : (
+          <strong className="dock-time" aria-live="off">{timerLabel}</strong>
+        )}
         <div className="dock-progress" aria-hidden="true"><span style={{ width: `${blockProgress(elapsedSeconds, totalSeconds)}%` }} /></div>
       </div>
       <div className="dock-goal-block">
