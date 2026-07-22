@@ -117,19 +117,20 @@ class Hy {
     return o;
   }
   async fetch(n, i = {}) {
-    var l;
     const o = this.endpoint(n), { timeoutMs: a, ...c } = i || {};
     c.headers = await this.requestHeaders(c.headers || {});
     const d = Number(a || 0);
-    let f = null, y = null, g = null;
-    const v = c.signal;
-    d > 0 && typeof AbortController < "u" && (f = new AbortController(), g = () => f.abort(), v && (v.aborted ? f.abort() : v.addEventListener("abort", g, { once: !0 })), y = On().setTimeout(() => f.abort(), d), c.signal = f.signal);
+    let f = null, y = null, g = null, v = !1;
+    const l = c.signal;
+    d > 0 && typeof AbortController < "u" && (f = new AbortController(), g = () => f.abort(), l && (l.aborted ? f.abort() : l.addEventListener("abort", g, { once: !0 })), y = On().setTimeout(() => {
+      v = !0, f.abort();
+    }, d), c.signal = f.signal);
     try {
       return await this.fetchImpl(o, c);
     } catch (h) {
-      throw (l = f == null ? void 0 : f.signal) != null && l.aborted ? new Ds(this.timeoutMessage(d), { cause: h }) : new Ds(this.connectionMessage(), { cause: h });
+      throw v ? new Ds(this.timeoutMessage(d), { cause: h }) : l != null && l.aborted ? h : new Ds(this.connectionMessage(), { cause: h });
     } finally {
-      y && On().clearTimeout(y), v && g && v.removeEventListener("abort", g);
+      y && On().clearTimeout(y), l && g && l.removeEventListener("abort", g);
     }
   }
   async warmup({ attempts: n = 2, retryDelayMs: i = 1500, timeoutMs: o = 6e4, maxWaitMs: a = 0, signal: c } = {}) {

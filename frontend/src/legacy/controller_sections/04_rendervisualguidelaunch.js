@@ -15,6 +15,7 @@ function renderVisualGuideLaunch() {
 }
 
 async function generateVisualGuide(force = false) {
+  if (isVisualGuideGenerating) return;
   if (!fullSummary || !fullSummary.trim()) {
     alert("Generate notes first, then create a visual image guide.");
     return;

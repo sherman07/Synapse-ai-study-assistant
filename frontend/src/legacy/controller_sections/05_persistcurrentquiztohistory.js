@@ -415,6 +415,7 @@ function saveQuizSettingsFromModal(shouldGenerate) {
 }
 
 async function generateQuiz() {
+  if (isQuizGenerating) return;
   if (!fullSummary || !fullSummary.trim()) {
     alert("Generate visual notes first, then create a quiz.");
     return;

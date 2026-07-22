@@ -126,6 +126,7 @@ class SynapseApiClient {
     let controller = null;
     let timeoutId = null;
     let abortFromCaller = null;
+    let timedOut = false;
     const callerSignal = fetchOptions.signal;
     if (timeoutLimit > 0 && typeof AbortController !== "undefined") {
       controller = new AbortController();
@@ -137,15 +138,19 @@ class SynapseApiClient {
           callerSignal.addEventListener("abort", abortFromCaller, { once: true });
         }
       }
-      timeoutId = browserWindow().setTimeout(() => controller.abort(), timeoutLimit);
+      timeoutId = browserWindow().setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutLimit);
       fetchOptions.signal = controller.signal;
     }
     try {
       return await this.fetchImpl(url, fetchOptions);
     } catch (error) {
-      if (controller?.signal?.aborted) {
+      if (timedOut) {
         throw new ApiConnectionError(this.timeoutMessage(timeoutLimit), { cause: error });
       }
+      if (callerSignal?.aborted) throw error;
       throw new ApiConnectionError(this.connectionMessage(), { cause: error });
     } finally {
       if (timeoutId) browserWindow().clearTimeout(timeoutId);

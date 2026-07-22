@@ -23,4 +23,26 @@ await assert.rejects(
   error => error instanceof ApiConnectionError && /did not respond within/.test(error.message)
 );
 
+const callerAbortController = new AbortController();
+const callerAbortClient = new SynapseApiClient("http://127.0.0.1:8001", {
+  fetchImpl: (_url, options = {}) => new Promise((_resolve, reject) => {
+    const rejectAbort = () => {
+      const error = new Error("caller cancelled");
+      error.name = "AbortError";
+      reject(error);
+    };
+    if (options.signal?.aborted) rejectAbort();
+    else options.signal.addEventListener("abort", rejectAbort, { once: true });
+  })
+});
+const callerAbortRequest = callerAbortClient.fetch("/analyze", {
+  signal: callerAbortController.signal,
+  timeoutMs: 1000
+});
+callerAbortController.abort();
+await assert.rejects(
+  () => callerAbortRequest,
+  error => error?.name === "AbortError" && !(error instanceof ApiConnectionError)
+);
+
 console.log("api client timeout regression passed");

@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiConfig.js?v=analysis-progress-20260721-01";
+import { API_BASE } from "./apiConfig.js?v=study-tools-20260722-01";
 import { ApiConnectionError, SynapseApiClient } from "./apiClient.js";
 import {
   DATA_API_BASE,
@@ -14,7 +14,7 @@ import {
   patchBroadcastJobInDataApi,
   persistGeneratedContentToDataApi,
   retryBroadcastJobInDataApi
-} from "./dataApiClient.js?v=analysis-progress-20260721-01";
+} from "./dataApiClient.js?v=study-tools-20260722-01";
 import {
   safeGetLocalStorage,
   safeReadJSONStorage,
@@ -60,10 +60,10 @@ import {
   renderMath,
   shorten,
   typeInto
-} from "./markdownRenderer.js?v=analysis-progress-20260721-01";
-import { LegacyControllerLoader } from "./controllerLoader.js?v=analysis-progress-20260721-01";
+} from "./markdownRenderer.js?v=study-tools-20260722-01";
+import { LegacyControllerLoader } from "./controllerLoader.js?v=study-tools-20260722-01";
 
-const CONTROLLER_VERSION = "analysis-progress-20260721-01";
+const CONTROLLER_VERSION = "study-tools-20260722-01";
 const CONTROLLER_DEFINITION_FILES = [
   "01_uploadedfiles.js",
   "02_openvisualmodal.js",
