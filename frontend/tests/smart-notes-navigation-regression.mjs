@@ -42,12 +42,12 @@ assert.deepEqual(
 
 assert.match(
   layoutCss,
-  /grid-template-columns:\s*clamp\(200px, 15vw, 260px\) minmax\(0, 1fr\) minmax\(280px, clamp\(300px, 22vw, 380px\)\)/,
-  "the desktop workspace should reserve a readable main column while both side panels are open"
+  /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(280px, clamp\(300px, 22vw, 380px\)\)/,
+  "the desktop workspace should keep a readable main column with a single unified left rail"
 );
 assert.match(
   responsiveCss,
-  /@media \(max-width: 1479px\) and \(min-width: 851px\)[\s\S]*?\.app-layout:not\(\.assistant-closed\)\s*\{\s*grid-template-columns: clamp\(200px, 15vw, 260px\) minmax\(0, 1fr\);/,
+  /@media \(max-width: 1479px\) and \(min-width: 851px\)[\s\S]*?\.app-layout:not\(\.assistant-closed\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/,
   "at laptop widths, an open tutor should become a drawer instead of shrinking the generated notes"
 );
 assert.match(entries[0].markdown, /A useful distinction/, "each navigation item should retain its generated section content");
@@ -125,8 +125,8 @@ assert.match(
 );
 assert.match(
   layoutCss,
-  /\.app-layout\.generated-notes-state #summaryNav\s*\{\s*display: block !important;/,
-  "the generated-note title rail must remain visible in a generated class"
+  /\.app-layout\.generated-notes-state #summaryNav:not\(\[hidden\]\)[\s\S]*?display: flex !important;/,
+  "the generated-note outline remains available inside the unified rail"
 );
 assert.match(
   resetController,

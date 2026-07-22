@@ -585,6 +585,9 @@ function resetWorkspace() {
 
   appLayout.classList.remove("analysis-ready", "loading-state", "generation-job-state", "generated-notes-state");
   appLayout.classList.add("initial-state", "assistant-closed");
+  if (typeof setWorkspaceNavTab === "function") {
+    setWorkspaceNavTab("library", { persist: true, expandRail: false });
+  }
   requestAnimationFrame(() => {
     const target = uploadStage || document.body;
     target.scrollIntoView?.({ behavior: "smooth", block: "start" });

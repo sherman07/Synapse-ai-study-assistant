@@ -1,42 +1,48 @@
 import { h, icon, legacyAction } from "../runtime.js";
+import { SummaryNavigation } from "./SummaryNavigation.js?v=ai-broadcast-v19";
 
 export function HistoryNavigation() {
   return h(
     "aside",
-    { id: "historyNav", className: "history-nav dark-learning-rail", "aria-label": "Synapse learning navigation" },
+    {
+      id: "historyNav",
+      className: "history-nav dark-learning-rail workspace-nav",
+      "aria-label": "Synapse workspace navigation",
+      "data-workspace-nav-tab": "library",
+    },
+    h(
+      "div",
+      { className: "history-header" },
       h(
         "div",
-        { className: "history-header" },
+        { className: "nav-logo" },
         h(
-          "div",
-          { className: "nav-logo" },
-          h(
-            "span",
-            { className: "nav-logo-icon" },
-            h("img", { className: "nav-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
-          ),
-          h("span", { className: "nav-logo-text" }, "Synapse")
+          "span",
+          { className: "nav-logo-icon" },
+          h("img", { className: "nav-logo-img", src: "/logos/synapse.png", alt: "Synapse logo" })
         ),
-        h(
-          "button",
-          {
-            id: "historyNavToggle",
-            className: "history-nav-toggle",
-            type: "button",
-            onClick: legacyAction("toggleHistoryNav"),
-            "aria-label": "Hide learning navigation",
-            "aria-expanded": "true",
-            title: "Hide learning navigation",
-          },
-          icon("bi-chevron-double-left")
-        ),
-        h(
-          "div",
-          {
-            className: "account-menu history-account-rail",
-            onMouseEnter: legacyAction("renderAccountMenu"),
-            onFocus: legacyAction("renderAccountMenu"),
-          },
+        h("span", { className: "nav-logo-text" }, "Synapse")
+      ),
+      h(
+        "button",
+        {
+          id: "historyNavToggle",
+          className: "history-nav-toggle",
+          type: "button",
+          onClick: legacyAction("toggleHistoryNav"),
+          "aria-label": "Hide workspace navigation",
+          "aria-expanded": "true",
+          title: "Hide workspace navigation",
+        },
+        icon("bi-chevron-double-left")
+      ),
+      h(
+        "div",
+        {
+          className: "account-menu history-account-rail",
+          onMouseEnter: legacyAction("renderAccountMenu"),
+          onFocus: legacyAction("renderAccountMenu"),
+        },
         h(
           "button",
           {
@@ -77,19 +83,34 @@ export function HistoryNavigation() {
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("openAccountPanel", "profile") },
+            {
+              className: "account-menu-item account-signed-in-only",
+              type: "button",
+              style: { display: "none" },
+              onClick: legacyAction("openAccountPanel", "profile"),
+            },
             icon("bi-person-circle"),
             h("span", null, "Profile")
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("openAccountPanel", "billing") },
+            {
+              className: "account-menu-item account-signed-in-only",
+              type: "button",
+              style: { display: "none" },
+              onClick: legacyAction("openAccountPanel", "billing"),
+            },
             icon("bi-credit-card"),
             h("span", null, "Billing & credits")
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("openAccountPanel", "settings") },
+            {
+              className: "account-menu-item account-signed-in-only",
+              type: "button",
+              style: { display: "none" },
+              onClick: legacyAction("openAccountPanel", "settings"),
+            },
             icon("bi-gear"),
             h("span", null, "Settings")
           ),
@@ -102,13 +123,22 @@ export function HistoryNavigation() {
           h("div", { className: "account-menu-divider" }),
           h(
             "button",
-            { className: "account-menu-item account-signed-in-only", type: "button", style: { display: "none" }, onClick: legacyAction("signOutAccount") },
+            {
+              className: "account-menu-item account-signed-in-only",
+              type: "button",
+              style: { display: "none" },
+              onClick: legacyAction("signOutAccount"),
+            },
             icon("bi-box-arrow-right"),
             h("span", null, "Sign out")
           ),
           h(
             "button",
-            { className: "account-menu-item account-signed-out-only", type: "button", onClick: legacyAction("goToAuthPage", "login") },
+            {
+              className: "account-menu-item account-signed-out-only",
+              type: "button",
+              onClick: legacyAction("goToAuthPage", "login"),
+            },
             icon("bi-box-arrow-in-right"),
             h("span", null, "Login")
           )
@@ -170,26 +200,71 @@ export function HistoryNavigation() {
     ),
     h(
       "div",
-      { className: "learning-mode-status", role: "status", "aria-live": "polite" },
-      icon("bi-collection", "learning-mode-status-icon"),
-      h("span", { id: "learningModeStatusText" }, "Materials mode")
+      { className: "workspace-nav-tabs", role: "tablist", "aria-label": "Workspace navigation" },
+      h(
+        "button",
+        {
+          id: "workspaceNavTabLibrary",
+          className: "workspace-nav-tab is-active",
+          type: "button",
+          role: "tab",
+          "aria-selected": "true",
+          "aria-controls": "workspaceNavLibrary",
+          "data-workspace-nav-tab": "library",
+          onClick: legacyAction("setWorkspaceNavTab", "library"),
+        },
+        icon("bi-journal-bookmark"),
+        h("span", null, "Library")
+      ),
+      h(
+        "button",
+        {
+          id: "workspaceNavTabOutline",
+          className: "workspace-nav-tab",
+          type: "button",
+          role: "tab",
+          "aria-selected": "false",
+          "aria-controls": "summaryNav",
+          "data-workspace-nav-tab": "outline",
+          onClick: legacyAction("setWorkspaceNavTab", "outline"),
+        },
+        icon("bi-list-nested"),
+        h("span", null, "Outline")
+      )
     ),
     h(
       "div",
-      { className: "history-search-wrap" },
-      icon("bi-search"),
-      h("input", {
-        id: "historySearch",
-        type: "search",
-        placeholder: "Search generated notes...",
-        "aria-label": "Search generated notes history",
-      })
+      {
+        id: "workspaceNavLibrary",
+        className: "workspace-nav-panel workspace-library-panel",
+        role: "tabpanel",
+        "aria-labelledby": "workspaceNavTabLibrary",
+        "data-workspace-nav-panel": "library",
+      },
+      h(
+        "div",
+        { className: "learning-mode-status", role: "status", "aria-live": "polite" },
+        icon("bi-collection", "learning-mode-status-icon"),
+        h("span", { id: "learningModeStatusText" }, "Materials mode")
+      ),
+      h(
+        "div",
+        { className: "history-search-wrap" },
+        icon("bi-search"),
+        h("input", {
+          id: "historySearch",
+          type: "search",
+          placeholder: "Search generated notes...",
+          "aria-label": "Search generated notes history",
+        })
+      ),
+      h("div", { className: "history-section-title" }, "Recent learning"),
+      h(
+        "div",
+        { id: "historyList", className: "history-list" },
+        h("p", { className: "history-empty" }, "No generated notes yet.")
+      )
     ),
-    h("div", { className: "history-section-title" }, "Recent learning"),
-    h(
-      "div",
-      { id: "historyList", className: "history-list" },
-      h("p", { className: "history-empty" }, "No generated notes yet.")
-    )
+    h(SummaryNavigation)
   );
 }

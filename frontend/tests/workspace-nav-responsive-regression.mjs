@@ -7,26 +7,31 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
 const historyNav = read("frontend/src/react/components/HistoryNavigation.js");
+const summaryNav = read("frontend/src/react/components/SummaryNavigation.js");
 const appShell = read("frontend/src/react/components/AppShell.js");
 const uploaded = read("frontend/src/legacy/controller_sections/01_uploadedfiles.js");
 const boot = read("frontend/src/legacy/controller_sections/99_boot.js");
 const layoutCss = read("frontend/styles/01-section.css");
 const sectionCss = read("frontend/styles/02-section.css");
 
-assert.match(historyNav, /historyNavToggle/, "learning rail should expose a hide/show toggle");
-assert.match(historyNav, /toggleHistoryNav/, "learning rail toggle should call toggleHistoryNav");
-assert.match(historyNav, /bi-chevron-double-left/, "expanded rail should show a left chevron to hide");
-assert.match(appShell, /workspace-shell/, "learning rail should live outside the notes/tutor grid shell");
-assert.match(appShell, /has-learning-rail/, "app layout should advertise the learning rail for spacing");
-assert.match(appShell, /historyNavExpand/, "collapsed rail should expose a floating expand control");
-assert.match(appShell, /bi-chevron-double-right/, "expand control should show a right chevron");
+assert.match(historyNav, /workspace-nav-tabs/, "unified rail should expose Library/Outline tabs");
+assert.match(historyNav, /setWorkspaceNavTab/, "tab clicks should call setWorkspaceNavTab");
+assert.match(historyNav, /SummaryNavigation/, "outline panel should live inside the learning rail");
+assert.match(historyNav, /historyNavToggle/, "unified rail should keep a single hide control");
+assert.match(summaryNav, /workspace-outline-panel/, "outline should render as an in-rail panel");
+assert.doesNotMatch(summaryNav, /nav-logo-text/, "outline should not duplicate Synapse branding");
+assert.doesNotMatch(appShell, /h\(SummaryNavigation\)/, "summary must not be a separate grid column in AppShell");
 
-assert.match(uploaded, /HISTORY_NAV_COLLAPSED_KEY/, "history collapse preference should persist");
-assert.match(uploaded, /function toggleHistoryNav/, "toggleHistoryNav should exist");
-assert.match(uploaded, /function applyHistoryNavCollapsed/, "history collapse should sync layout classes");
-assert.match(uploaded, /history-collapsed/, "layout should use a history-collapsed class");
-assert.match(boot, /toggleHistoryNav/, "boot should expose toggleHistoryNav");
+assert.match(uploaded, /function setWorkspaceNavTab/, "setWorkspaceNavTab should exist");
+assert.match(uploaded, /WORKSPACE_NAV_TAB_KEY/, "workspace tab preference should persist");
+assert.match(uploaded, /setWorkspaceNavTab\("outline"/, "opening notes should switch to Outline");
+assert.match(boot, /setWorkspaceNavTab/, "boot should expose setWorkspaceNavTab");
 
+assert.match(
+  layoutCss,
+  /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(280px, clamp\(300px, 22vw, 380px\)\)/,
+  "desktop grid should only include notes + tutor after unifying the left rail"
+);
 assert.match(
   layoutCss,
   /\.app-layout\.has-learning-rail:not\(\.history-collapsed\)\s*\{[\s\S]*?padding-left: 280px;/,
@@ -34,8 +39,8 @@ assert.match(
 );
 assert.match(
   layoutCss,
-  /\.workspace-shell:has\(\.app-layout\.history-collapsed\) \.history-nav\.dark-learning-rail[\s\S]*?transform: translateX\(-100%\);/,
-  "collapsed learning rail should slide off-canvas"
+  /\.workspace-nav-tabs/,
+  "unified rail tab strip styles should exist"
 );
 assert.match(
   layoutCss,

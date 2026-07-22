@@ -80,6 +80,7 @@ const MAX_SOURCE_PREVIEW_BYTES = 80 * 1024 * 1024;
 const ANALYSIS_TIMEOUT_MS = Number(window.SYNAPSE_ANALYSIS_TIMEOUT_MS || 8 * 60 * 1000);
 const SUMMARY_NAV_COLLAPSED_KEY = "synapse.summary.nav.collapsed.v1";
 const HISTORY_NAV_COLLAPSED_KEY = "synapse.history.nav.collapsed.v1";
+const WORKSPACE_NAV_TAB_KEY = "synapse.workspace.nav.tab.v1";
 const AI_PROVIDER_STORAGE_KEY = "synapse.ai.provider.v1";
 const VISUAL_STORE_CONFIG = {
   dbName: VISUAL_DB_NAME,
@@ -167,6 +168,7 @@ let activeSourceItemId = "";
 let sourceViewerZoom = 100;
 let summaryNavCollapsed = false;
 let historyNavCollapsed = false;
+let workspaceNavTab = "library";
 let voiceTutorHistory = [];
 let voiceTutorLastState = null;
 let voiceTutorBusy = false;
@@ -195,17 +197,78 @@ function readHistoryNavPreference() {
   return safeGetLocalStorage(HISTORY_NAV_COLLAPSED_KEY, "") === "true";
 }
 
-function applySummaryNavCollapsed() {
-  if (!appLayout || !summaryNav) return;
-  appLayout.classList.toggle("summary-collapsed", summaryNavCollapsed);
-  summaryNav.classList.toggle("collapsed", summaryNavCollapsed);
+function readWorkspaceNavTabPreference() {
+  const stored = String(safeGetLocalStorage(WORKSPACE_NAV_TAB_KEY, "") || "").toLowerCase();
+  return stored === "outline" ? "outline" : "library";
+}
 
-  if (!summaryNavToggle) return;
+function syncWorkspaceNavTabUi(tab = workspaceNavTab) {
+  const desired = tab === "outline" ? "outline" : "library";
+  const layout = document.getElementById("appLayout") || appLayout;
+  const rail = document.getElementById("historyNav") || historyNav;
+  const libraryPanel = document.getElementById("workspaceNavLibrary");
+  const outlinePanel = document.getElementById("summaryNav") || summaryNav;
+  const libraryTab = document.getElementById("workspaceNavTabLibrary");
+  const outlineTab = document.getElementById("workspaceNavTabOutline");
+  const notesReady = Boolean(layout?.classList.contains("generated-notes-state"));
+
+  if (layout) layout.setAttribute("data-workspace-nav-tab", desired);
+  if (rail) rail.setAttribute("data-workspace-nav-tab", desired);
+
+  if (libraryPanel) libraryPanel.hidden = desired !== "library";
+  if (outlinePanel) {
+    outlinePanel.hidden = desired !== "outline";
+    // Unified rail owns visibility via the Outline tab; do not keep the old
+    // pre-analysis hard-hide that blanked the whole second sidebar.
+    outlinePanel.classList.remove("hidden-before-analysis");
+  }
+
+  if (libraryTab) {
+    const active = desired === "library";
+    libraryTab.classList.toggle("is-active", active);
+    libraryTab.setAttribute("aria-selected", String(active));
+  }
+  if (outlineTab) {
+    const active = desired === "outline";
+    outlineTab.classList.toggle("is-active", active);
+    outlineTab.setAttribute("aria-selected", String(active));
+    outlineTab.disabled = false;
+    outlineTab.title = notesReady
+      ? "Show this note's outline"
+      : "Outline appears after you open generated notes";
+  }
+}
+
+function setWorkspaceNavTab(tab = "library", { persist = true, expandRail = true } = {}) {
+  const desired = tab === "outline" ? "outline" : "library";
+  workspaceNavTab = desired;
+  if (persist) safeSetLocalStorage(WORKSPACE_NAV_TAB_KEY, desired);
+  if (expandRail && historyNavCollapsed) {
+    historyNavCollapsed = false;
+    safeSetLocalStorage(HISTORY_NAV_COLLAPSED_KEY, "false");
+    applyHistoryNavCollapsed();
+  }
+  // Keep legacy summary-collapsed in sync: outline visible == not collapsed.
+  summaryNavCollapsed = desired !== "outline";
+  if (persist) safeSetLocalStorage(SUMMARY_NAV_COLLAPSED_KEY, String(summaryNavCollapsed));
+  syncWorkspaceNavTabUi(desired);
+  applySummaryNavCollapsed();
+}
+
+function applySummaryNavCollapsed() {
+  const layout = document.getElementById("appLayout") || appLayout;
+  const outlinePanel = document.getElementById("summaryNav") || summaryNav;
+  if (!layout) return;
+  // Unified rail: summary-collapsed no longer shrinks a second grid column.
+  layout.classList.remove("summary-collapsed");
+  if (outlinePanel) outlinePanel.classList.toggle("collapsed", summaryNavCollapsed);
+  const toggle = document.getElementById("summaryNavToggle") || summaryNavToggle;
+  if (!toggle) return;
   const expanded = !summaryNavCollapsed;
-  summaryNavToggle.setAttribute("aria-expanded", String(expanded));
-  summaryNavToggle.setAttribute("aria-label", expanded ? "Collapse sections" : "Expand sections");
-  summaryNavToggle.title = expanded ? "Collapse sections" : "Expand sections";
-  const icon = summaryNavToggle.querySelector("i");
+  toggle.setAttribute("aria-expanded", String(expanded));
+  toggle.setAttribute("aria-label", expanded ? "Collapse sections" : "Expand sections");
+  toggle.title = expanded ? "Collapse sections" : "Expand sections";
+  const icon = toggle.querySelector("i");
   if (icon) {
     icon.className = expanded ? "bi bi-chevron-double-left" : "bi bi-chevron-double-right";
   }
@@ -222,8 +285,8 @@ function applyHistoryNavCollapsed() {
   const expanded = !historyNavCollapsed;
   if (historyNavToggle) {
     historyNavToggle.setAttribute("aria-expanded", String(expanded));
-    historyNavToggle.setAttribute("aria-label", expanded ? "Hide learning navigation" : "Show learning navigation");
-    historyNavToggle.title = expanded ? "Hide learning navigation" : "Show learning navigation";
+    historyNavToggle.setAttribute("aria-label", expanded ? "Hide workspace navigation" : "Show workspace navigation");
+    historyNavToggle.title = expanded ? "Hide workspace navigation" : "Show workspace navigation";
     const icon = historyNavToggle.querySelector("i");
     if (icon) {
       icon.className = expanded ? "bi bi-chevron-double-left" : "bi bi-chevron-double-right";
@@ -236,9 +299,9 @@ function applyHistoryNavCollapsed() {
 }
 
 function toggleSummaryNav(force = null) {
-  summaryNavCollapsed = typeof force === "boolean" ? force : !summaryNavCollapsed;
-  safeSetLocalStorage(SUMMARY_NAV_COLLAPSED_KEY, String(summaryNavCollapsed));
-  applySummaryNavCollapsed();
+  // Legacy API: treat "expanded summary" as Outline tab, collapsed as Library.
+  const wantOutline = typeof force === "boolean" ? !force : workspaceNavTab !== "outline";
+  setWorkspaceNavTab(wantOutline ? "outline" : "library");
 }
 
 function toggleHistoryNav(force = null) {
@@ -249,10 +312,14 @@ function toggleHistoryNav(force = null) {
 
 summaryNavCollapsed = readSummaryNavPreference();
 historyNavCollapsed = readHistoryNavPreference();
+workspaceNavTab = readWorkspaceNavTabPreference();
+if (summaryNavCollapsed && workspaceNavTab === "outline") workspaceNavTab = "library";
 applySummaryNavCollapsed();
 applyHistoryNavCollapsed();
+syncWorkspaceNavTabUi(workspaceNavTab);
 requestAnimationFrame(() => {
   applyHistoryNavCollapsed();
+  syncWorkspaceNavTabUi(workspaceNavTab);
 });
 
 function updateNoteLengthDescription() {
@@ -1279,6 +1346,11 @@ function showAnalysisView({ scrollToTop = false } = {}) {
   appLayout.classList.add("analysis-ready", "assistant-closed", "generated-notes-state");
   if (assistant) assistant.classList.add("hidden");
   if (openAssistantBtn) openAssistantBtn.style.display = "block";
+  if (typeof setWorkspaceNavTab === "function") {
+    setWorkspaceNavTab("outline", { persist: true, expandRail: true });
+  } else {
+    syncWorkspaceNavTabUi("outline");
+  }
   renderSourceViewer();
   if (typeof renderFocusRoomWorkspaceActions === "function") {
     renderFocusRoomWorkspaceActions();
