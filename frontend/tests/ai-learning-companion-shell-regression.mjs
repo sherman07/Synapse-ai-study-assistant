@@ -25,7 +25,12 @@ assert.ok(controller.includes('"14_learningcompanion.js"'));
 assert.ok(modeSection.includes("const LEARNING_EXPERIENCE_STORAGE_KEY"));
 assert.ok(modeSection.includes("function setLearningExperienceMode(mode)"));
 assert.ok(modeSection.includes('mode !== "materials" && mode !== "companion"'));
-assert.ok(modeSection.includes("appLayout.dataset.learningExperienceMode"));
+assert.ok(
+  modeSection.includes("layout.dataset.learningExperienceMode") ||
+    modeSection.includes("appLayout.dataset.learningExperienceMode"),
+  "learning mode should be stored on the app layout dataset"
+);
+assert.ok(modeSection.includes("openWorkspaceHome"), "rail jumps should leave generated notes via openWorkspaceHome");
 assert.ok(styles.includes('[data-learning-experience-mode="companion"]'));
 assert.ok(companionWorkspace.includes("data-learning-companion-send"));
 assert.ok(companionWorkspace.includes("data-learning-companion-new-chat"));
