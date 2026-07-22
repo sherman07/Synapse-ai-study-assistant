@@ -95,7 +95,7 @@ assert.match(
 );
 assert.match(
   navigationController,
-  /mainButton\.addEventListener\("click", \(\) => \{[\s\S]*?navigateToGeneratedHeading\(entry, isMobile\)[\s\S]*?childList\.hidden = !expanded/,
+  /mainButton\.addEventListener\("click", \(\) => \{[\s\S]*?navigateToGeneratedHeading\(entry, isMobile\)[\s\S]*?setExpanded\(!group\.classList\.contains\("expanded"\)\)/,
   "the parent section button should navigate and control its nested headings"
 );
 assert.doesNotMatch(

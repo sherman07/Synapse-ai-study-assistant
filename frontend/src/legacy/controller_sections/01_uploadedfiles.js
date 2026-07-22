@@ -203,36 +203,47 @@ function readWorkspaceNavTabPreference() {
 }
 
 function syncWorkspaceNavTabUi(tab = workspaceNavTab) {
-  const desired = tab === "outline" ? "outline" : "library";
   const layout = document.getElementById("appLayout") || appLayout;
   const rail = document.getElementById("historyNav") || historyNav;
   const libraryPanel = document.getElementById("workspaceNavLibrary");
   const outlinePanel = document.getElementById("summaryNav") || summaryNav;
   const libraryTab = document.getElementById("workspaceNavTabLibrary");
   const outlineTab = document.getElementById("workspaceNavTabOutline");
+  const tablist = document.querySelector(".workspace-nav-tabs");
   const notesReady = Boolean(layout?.classList.contains("generated-notes-state"));
+  // Outline exists only for generated notes; otherwise stay on Library.
+  const desired = notesReady && tab === "outline" ? "outline" : "library";
+  workspaceNavTab = desired;
 
   if (layout) layout.setAttribute("data-workspace-nav-tab", desired);
-  if (rail) rail.setAttribute("data-workspace-nav-tab", desired);
+  if (rail) {
+    rail.setAttribute("data-workspace-nav-tab", desired);
+    rail.classList.toggle("has-outline-nav", notesReady);
+  }
+
+  if (tablist) {
+    tablist.hidden = !notesReady;
+    tablist.setAttribute("aria-hidden", String(!notesReady));
+  }
 
   if (libraryPanel) libraryPanel.hidden = desired !== "library";
   if (outlinePanel) {
-    outlinePanel.hidden = desired !== "outline";
-    // Unified rail owns visibility via the Outline tab; do not keep the old
-    // pre-analysis hard-hide that blanked the whole second sidebar.
-    outlinePanel.classList.remove("hidden-before-analysis");
+    outlinePanel.hidden = !(notesReady && desired === "outline");
+    outlinePanel.classList.toggle("hidden-before-analysis", !notesReady);
   }
 
   if (libraryTab) {
     const active = desired === "library";
     libraryTab.classList.toggle("is-active", active);
     libraryTab.setAttribute("aria-selected", String(active));
+    libraryTab.hidden = !notesReady;
   }
   if (outlineTab) {
     const active = desired === "outline";
     outlineTab.classList.toggle("is-active", active);
     outlineTab.setAttribute("aria-selected", String(active));
-    outlineTab.disabled = false;
+    outlineTab.hidden = !notesReady;
+    outlineTab.disabled = !notesReady;
     outlineTab.title = notesReady
       ? "Show this note's outline"
       : "Outline appears after you open generated notes";
@@ -240,7 +251,9 @@ function syncWorkspaceNavTabUi(tab = workspaceNavTab) {
 }
 
 function setWorkspaceNavTab(tab = "library", { persist = true, expandRail = true } = {}) {
-  const desired = tab === "outline" ? "outline" : "library";
+  const layout = document.getElementById("appLayout") || appLayout;
+  const notesReady = Boolean(layout?.classList.contains("generated-notes-state"));
+  const desired = notesReady && tab === "outline" ? "outline" : "library";
   workspaceNavTab = desired;
   if (persist) safeSetLocalStorage(WORKSPACE_NAV_TAB_KEY, desired);
   if (expandRail && historyNavCollapsed) {

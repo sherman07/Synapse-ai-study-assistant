@@ -214,42 +214,57 @@ function renderSectionNotes(title, options = {}) {
 function createSectionButton(entry, isMobile = false, depth = 0) {
   const title = String(entry?.title || "").trim();
   const children = Array.isArray(entry?.children) ? entry.children : [];
+  const hasChildren = children.length > 0;
   const group = document.createElement("div");
-  group.className = `section-nav-group${depth ? " nested" : ""}`;
+  group.className = `section-nav-group${depth ? " nested" : ""}${hasChildren ? " section-nav-group--branch" : ""}`;
   group.dataset.sectionDepth = String(depth);
+  group.dataset.hasChildren = String(hasChildren);
   const row = document.createElement("div");
   row.className = "section-nav-row";
   const targetId = entry?.anchor || "";
   const listId = targetId ? `${targetId}-children` : "";
   const mainButton = document.createElement("button");
   mainButton.type = "button";
-  mainButton.className = "section-btn section-nav-main";
-  mainButton.title = title;
+  mainButton.className = `section-btn section-nav-main${hasChildren ? " has-children" : " is-leaf"}`;
+  mainButton.title = hasChildren ? `${title} (click to open and expand subsections)` : title;
   mainButton.dataset.sectionTitle = title;
   mainButton.dataset.sectionAnchor = targetId;
-  mainButton.dataset.hasChildren = String(Boolean(children.length));
+  mainButton.dataset.hasChildren = String(hasChildren);
   mainButton.style.setProperty("--section-depth", String(depth));
-  mainButton.innerHTML = `<i class="bi bi-chevron-right" aria-hidden="true"></i><span>${escapeHTML(title)}</span>`;
+  mainButton.innerHTML = hasChildren
+    ? `<i class="bi bi-chevron-right section-nav-caret" aria-hidden="true"></i><span>${escapeHTML(title)}</span>`
+    : `<span class="section-nav-leaf" aria-hidden="true"></span><span>${escapeHTML(title)}</span>`;
+
+  let childList = null;
+  const setExpanded = (expanded) => {
+    if (!hasChildren || !childList) return;
+    group.classList.toggle("expanded", expanded);
+    childList.hidden = !expanded;
+    mainButton.setAttribute("aria-expanded", String(expanded));
+    const caret = mainButton.querySelector(".section-nav-caret");
+    if (caret) {
+      caret.className = expanded
+        ? "bi bi-chevron-down section-nav-caret"
+        : "bi bi-chevron-right section-nav-caret";
+    }
+  };
+
   mainButton.addEventListener("click", () => {
     navigateToGeneratedHeading(entry, isMobile);
-    if (children.length) {
-      const expanded = group.classList.toggle("expanded");
-      childList.hidden = !expanded;
-      mainButton.setAttribute("aria-expanded", String(expanded));
-    }
+    if (hasChildren) setExpanded(!group.classList.contains("expanded"));
   });
   row.appendChild(mainButton);
 
   group.appendChild(row);
-  if (!children.length) return group;
+  if (!hasChildren) return group;
 
   mainButton.setAttribute("aria-haspopup", "tree");
   mainButton.setAttribute("aria-expanded", "false");
   if (listId) mainButton.setAttribute("aria-controls", listId);
-  const childList = document.createElement("div");
+  childList = document.createElement("div");
   childList.className = "section-subnav";
-  if (listId) childList.id = listId;
   childList.hidden = true;
+  if (listId) childList.id = listId;
   children.forEach(child => {
     childList.appendChild(createSectionButton(child, isMobile, depth + 1));
   });
@@ -266,6 +281,22 @@ function navigateToGeneratedHeading(entry, isMobile = false) {
   renderFullNotes();
   document.querySelectorAll(".section-nav-main").forEach(button => {
     button.classList.toggle("active", button.dataset.sectionTitle === entry.title);
+  });
+  // Keep ancestor dropdowns open when a nested subsection is selected.
+  document.querySelectorAll(".section-nav-group--branch").forEach(group => {
+    const activeBtn = group.querySelector(".section-nav-main.active");
+    if (!activeBtn) return;
+    const rootBtn = group.querySelector(":scope > .section-nav-row > .section-nav-main");
+    // Do not force-open the clicked parent itself; its own click handler toggles.
+    if (rootBtn === activeBtn) return;
+    const childList = group.querySelector(":scope > .section-subnav");
+    if (childList) childList.hidden = false;
+    group.classList.add("expanded");
+    if (rootBtn) {
+      rootBtn.setAttribute("aria-expanded", "true");
+      const caret = rootBtn.querySelector(".section-nav-caret");
+      if (caret) caret.className = "bi bi-chevron-down section-nav-caret";
+    }
   });
   requestAnimationFrame(() => {
     const target = document.getElementById(targetId);

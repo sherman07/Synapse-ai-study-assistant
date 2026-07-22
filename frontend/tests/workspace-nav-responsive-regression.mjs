@@ -25,6 +25,7 @@ assert.doesNotMatch(appShell, /h\(SummaryNavigation\)/, "summary must not be a s
 assert.match(uploaded, /function setWorkspaceNavTab/, "setWorkspaceNavTab should exist");
 assert.match(uploaded, /WORKSPACE_NAV_TAB_KEY/, "workspace tab preference should persist");
 assert.match(uploaded, /setWorkspaceNavTab\("outline"/, "opening notes should switch to Outline");
+assert.match(uploaded, /notesReady && tab === "outline"/, "Outline should require generated-notes-state");
 assert.match(boot, /setWorkspaceNavTab/, "boot should expose setWorkspaceNavTab");
 
 assert.match(
