@@ -6,7 +6,7 @@ export function SummaryNavigation() {
     "div",
     {
       id: "summaryNav",
-      className: "summary-nav workspace-outline-panel hidden-before-analysis",
+      className: "summary-nav workspace-nav-panel workspace-outline-panel hidden-before-analysis",
       role: "tabpanel",
       "aria-labelledby": "workspaceNavTabOutline",
       "data-workspace-nav-panel": "outline",

@@ -173,6 +173,7 @@ Object.assign(window, {
   toggleBroadcastPlayback,
   setBroadcastPlaybackRate,
   setLearningExperienceMode,
+  openWorkspaceHome,
   toggleGeneratedHistorySections,
   restartBroadcastPlayback,
   seekBroadcastSection,

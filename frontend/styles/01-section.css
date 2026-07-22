@@ -378,7 +378,8 @@ body.mobile-assistant-open::before {
   box-shadow: 0 8px 18px rgba(74, 124, 255, 0.12);
 }
 
-.workspace-nav-panel {
+.workspace-nav-panel,
+.workspace-outline-panel {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -391,9 +392,21 @@ body.mobile-assistant-open::before {
   display: none !important;
 }
 
-.workspace-library-panel .history-list {
+.workspace-outline-header {
+  flex: 0 0 auto;
+}
+
+.workspace-library-panel .history-list,
+.workspace-outline-panel .section-list,
+#summaryNav .section-list {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Clear the absolute account footer pinned to the rail bottom. */
+  padding-bottom: 88px;
 }
 
 .nav-header { margin-bottom: 22px; }
@@ -569,14 +582,17 @@ body.mobile-assistant-open::before {
 /* Generated-note outline: scroll inside the unified rail, not a second column. */
 .app-layout.generated-notes-state #summaryNav:not(.collapsed):not([hidden]) {
   display: flex !important;
+  flex: 1 1 auto;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   padding: 2px 2px 8px;
 }
 
+.app-layout.generated-notes-state #summaryNav .workspace-outline-header,
 .app-layout.generated-notes-state #summaryNav .nav-header {
   flex: 0 0 auto;
-  padding: 0 2px 16px;
+  padding: 0 2px 12px;
   margin-bottom: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
 }
@@ -588,9 +604,12 @@ body.mobile-assistant-open::before {
 .app-layout.generated-notes-state #summaryNav .section-list {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   align-content: start;
-  padding: 8px 2px 12px;
+  padding: 8px 2px 88px;
   margin-top: 0;
   scrollbar-gutter: stable;
 }
@@ -1593,6 +1612,15 @@ body.mobile-assistant-open::before {
   height: 100dvh;
   z-index: 30;
   transition: transform 0.22s ease, width 0.22s ease, padding 0.22s ease, border-color 0.22s ease;
+}
+
+.history-nav.dark-learning-rail > .history-header,
+.history-nav.dark-learning-rail > .learning-rail-actions,
+.history-nav.dark-learning-rail > .workspace-nav-tabs,
+.history-nav.dark-learning-rail > .learning-mode-status,
+.history-nav.dark-learning-rail > .history-search-wrap,
+.history-nav.dark-learning-rail > .history-section-title {
+  flex: 0 0 auto;
 }
 
 .workspace-shell {
