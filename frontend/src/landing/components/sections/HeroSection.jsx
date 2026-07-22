@@ -42,8 +42,10 @@ export function HeroSection({ onGetStarted, onViewDemo }) {
           </div>
           <div className="hero-stats" aria-label="Synapse product signals">
             {heroStats.map((stat) => (
-              <GlassSurface className="hero-stat" key={stat.label}>
-                <strong><CountUp value={stat.value} suffix={stat.suffix} /></strong>
+              <GlassSurface className="hero-stat hero-stat-copy" key={stat.label}>
+                {stat.value !== "" && stat.value != null ? (
+                  <strong><CountUp value={stat.value} suffix={stat.suffix} /></strong>
+                ) : null}
                 <span>{stat.label}</span>
               </GlassSurface>
             ))}

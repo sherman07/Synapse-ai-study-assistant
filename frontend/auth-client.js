@@ -101,8 +101,12 @@
     return `${protocol}//${window.location.host}`;
   }
 
+  function isFrontendAppPath(pathname = window.location.pathname || "") {
+    return /\/frontend(?:\/|$)/i.test(String(pathname || ""));
+  }
+
   function appEntryUrl() {
-    return (window.location.pathname || "").includes("/frontend/") ? "index.html" : "frontend/index.html";
+    return isFrontendAppPath() ? "index.html" : "frontend/index.html";
   }
 
   function publicAppOrigin() {
@@ -120,7 +124,7 @@
   }
 
   function verificationUrl() {
-    return (window.location.pathname || "").includes("/frontend/") ? "verify.html" : "frontend/verify.html";
+    return isFrontendAppPath() ? "verify.html" : "frontend/verify.html";
   }
 
   function absoluteVerificationUrl() {
@@ -128,7 +132,7 @@
   }
 
   function passwordResetUrl() {
-    return (window.location.pathname || "").includes("/frontend/") ? "reset-password.html" : "frontend/reset-password.html";
+    return isFrontendAppPath() ? "reset-password.html" : "frontend/reset-password.html";
   }
 
   function absolutePasswordResetUrl() {

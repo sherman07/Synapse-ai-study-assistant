@@ -81,7 +81,7 @@ async function prepareGeneratedNotes(page) {
     const summaryNav = document.getElementById("summaryNav");
     const sectionList = document.getElementById("sectionList");
     const learningShell = document.querySelector(".learning-experience-shell");
-    const openAssistantBtn = document.getElementById("openAssistant");
+    const openAssistantBtn = document.getElementById("openAssistantFab");
     const sourcePanel = document.getElementById("sourceViewerPanel");
 
     appLayout.className =
@@ -215,7 +215,7 @@ async function setTutor(page, open) {
       else {
         document.getElementById("appLayout")?.classList.remove("assistant-closed");
         document.getElementById("assistant")?.classList.remove("hidden");
-        const fab = document.getElementById("openAssistant");
+        const fab = document.getElementById("openAssistantFab");
         if (fab) fab.style.display = "none";
       }
     } else if (typeof window.closeAssistant === "function") {
@@ -223,7 +223,7 @@ async function setTutor(page, open) {
     } else {
       document.getElementById("appLayout")?.classList.add("assistant-closed");
       document.getElementById("assistant")?.classList.add("hidden");
-      const fab = document.getElementById("openAssistant");
+      const fab = document.getElementById("openAssistantFab");
       if (fab) fab.style.display = "block";
     }
   }, open);

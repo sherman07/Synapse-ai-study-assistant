@@ -1867,6 +1867,34 @@ body.mobile-assistant-open::before {
   color: var(--color-text-tertiary);
 }
 
+.history-empty-state {
+  display: grid;
+  gap: 10px;
+  padding: 8px 6px 12px;
+}
+
+.history-empty-state .history-empty {
+  margin: 0;
+}
+
+.history-empty-cta {
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--color-border-default, #d7e3f8));
+  background: color-mix(in srgb, var(--primary) 8%, #fff);
+  color: var(--primary);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.history-empty-cta:hover,
+.history-empty-cta:focus-visible {
+  background: color-mix(in srgb, var(--primary) 14%, #fff);
+  outline: none;
+}
+
 .dark-learning-rail .history-account-rail {
   background: var(--color-sidebar-background);
   border-top: 1px solid var(--color-border-default);

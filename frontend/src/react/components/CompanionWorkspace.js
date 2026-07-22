@@ -194,12 +194,6 @@ export function CompanionWorkspace() {
         h(
           "div",
           null,
-          h(
-            "div",
-            { className: "learning-mode-status-badge", "data-learning-mode-status": "companion", "data-active": "false" },
-            icon("bi-chat-dots"),
-            h("span", null, "Learning companion mode")
-          ),
           h("p", { className: "learning-mode-switcher-eyebrow" }, "Learning companion"),
           h("h1", { id: "companionWorkspaceTitle" }, "Synapse"),
           h("p", { className: "companion-workspace-intro" }, "A local-first conversation workspace for focused tutoring."),

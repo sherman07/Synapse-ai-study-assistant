@@ -750,14 +750,24 @@ function renderHistory(filter = "") {
     ? getVisibleBroadcastJobs(query)
     : [];
 
-  const html = renderHistoryItemsHTML(items, jobs, broadcastJobs);
+  const html = renderHistoryItemsHTML(items, jobs, broadcastJobs, query);
   if (historyList) historyList.innerHTML = html;
   if (mobileHistoryList) mobileHistoryList.innerHTML = html;
 }
 
-function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = []) {
+function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = [], filter = "") {
   if (!items.length && !jobs.length && !broadcastJobs.length) {
-    return `<p class="history-empty">No matching generated notes yet.</p>`;
+    if (String(filter || "").trim()) {
+      return `<p class="history-empty">No matching generated notes yet.</p>`;
+    }
+    return `
+      <div class="history-empty-state">
+        <p class="history-empty">No generated notes yet.</p>
+        <button class="history-empty-cta" type="button" onclick="setLearningExperienceMode('materials')">
+          Upload material to start
+        </button>
+      </div>
+    `;
   }
 
   const jobHtml = jobs.map(job => renderGenerationJobHistoryItemHTML(job)).join("");

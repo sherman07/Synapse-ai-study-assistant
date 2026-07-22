@@ -200,7 +200,7 @@ export function HistoryNavigation() {
     ),
     h(
       "div",
-      { className: "workspace-nav-tabs", role: "tablist", "aria-label": "Workspace navigation" },
+      { className: "workspace-nav-tabs", role: "tablist", "aria-label": "Workspace navigation", hidden: true },
       h(
         "button",
         {
@@ -243,12 +243,6 @@ export function HistoryNavigation() {
       },
       h(
         "div",
-        { className: "learning-mode-status", role: "status", "aria-live": "polite" },
-        icon("bi-collection", "learning-mode-status-icon"),
-        h("span", { id: "learningModeStatusText" }, "Materials mode")
-      ),
-      h(
-        "div",
         { className: "history-search-wrap" },
         icon("bi-search"),
         h("input", {
@@ -262,9 +256,31 @@ export function HistoryNavigation() {
       h(
         "div",
         { id: "historyList", className: "history-list" },
-        h("p", { className: "history-empty" }, "No generated notes yet.")
+        h(
+          "div",
+          { className: "history-empty-state" },
+          h("p", { className: "history-empty" }, "No generated notes yet."),
+          h(
+            "button",
+            {
+              className: "history-empty-cta",
+              type: "button",
+              onClick: legacyAction("setLearningExperienceMode", "materials"),
+            },
+            "Upload material to start"
+          )
+        )
       )
     ),
-    h(SummaryNavigation)
+    h(SummaryNavigation),
+    h(
+      "p",
+      {
+        id: "learningModeStatusText",
+        className: "visually-hidden",
+        "aria-live": "polite",
+      },
+      "Materials mode"
+    )
   );
 }

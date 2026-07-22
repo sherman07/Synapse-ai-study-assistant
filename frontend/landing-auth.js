@@ -97,7 +97,7 @@
 
   function appEntryUrl() {
     const path = window.location.pathname || '';
-    if (path.includes('/frontend/')) {
+    if (/\/frontend(?:\/|$)/i.test(path)) {
       return 'index.html';
     }
     return 'frontend/index.html';

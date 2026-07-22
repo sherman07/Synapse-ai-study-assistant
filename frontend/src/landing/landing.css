@@ -716,6 +716,20 @@ html[data-theme="light"] .atmosphere-particle {
   margin-top: 5px;
 }
 
+.hero-stat-copy {
+  display: grid;
+  align-content: center;
+  min-height: 74px;
+}
+
+.hero-stat-copy span {
+  margin-top: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  font-weight: 750;
+}
+
 .hero-visual {
   min-width: 0;
 }

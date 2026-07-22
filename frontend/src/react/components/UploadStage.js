@@ -45,12 +45,6 @@ export function UploadStage() {
       "div",
       { className: "hero-copy text-center" },
       h("div", { className: "brand-pill mx-auto mb-4" }, icon("bi-stars"), "AI Academic Tutor"),
-      h(
-        "div",
-        { className: "learning-mode-status-badge", "data-learning-mode-status": "materials", "data-active": "true" },
-        icon("bi-collection"),
-        h("span", null, "Materials mode")
-      ),
       h("h1", null, "Study Smarter"),
       h("p", null, "Your private tutor for readings, notes, images, and links.")
     ),

@@ -1,8 +1,8 @@
 function frontendRuntimeBaseUrl(pageUrl = window.location.href) {
   const page = new URL(pageUrl, window.location.origin);
-
-  if (page.pathname.includes("/frontend/")) {
-    return new URL("./", page);
+  const match = page.pathname.match(/^(.*?\/frontend)(?:\/|$)/i);
+  if (match) {
+    return new URL(`${match[1]}/`, page.origin);
   }
 
   return new URL("frontend/", page);

@@ -236,7 +236,7 @@ export function OpenAssistantButton() {
   return h(
     "button",
     {
-      id: "openAssistant",
+      id: "openAssistantFab",
       className: "open-assistant-fab",
       type: "button",
       onClick: legacyAction("openAssistant"),

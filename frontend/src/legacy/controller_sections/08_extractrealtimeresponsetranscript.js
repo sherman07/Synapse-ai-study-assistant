@@ -856,7 +856,7 @@ async function refreshAccountSessionFromProvider() {
 
 function authPageUrl(page = "login") {
   const file = page === "signup" ? "signup.html" : "login.html";
-  return (window.location.pathname || "").includes("/frontend/") ? file : `frontend/${file}`;
+  return /\/frontend(?:\/|$)/i.test(window.location.pathname || "") ? file : `frontend/${file}`;
 }
 
 function goToAuthPage(page = "login") {

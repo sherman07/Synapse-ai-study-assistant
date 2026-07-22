@@ -1339,7 +1339,7 @@ html[data-theme="dark"] .mobile-menu-btn {
 
 .loading-state #summaryNav,
 .loading-state #assistant,
-.loading-state #openAssistant {
+.loading-state #openAssistantFab {
   display: none !important;
 }
 

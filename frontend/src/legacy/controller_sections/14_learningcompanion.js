@@ -57,7 +57,7 @@ function openWorkspaceHome(mode = "materials", { persistMode = true } = {}) {
   const loading = document.getElementById("loadingBox");
   const upload = document.getElementById("uploadStage");
   const tutor = document.getElementById("assistant");
-  const tutorFab = document.getElementById("openAssistant");
+  const tutorFab = document.getElementById("openAssistantFab");
   const sourcePanel = document.getElementById("sourceViewerPanel");
 
   analysis?.classList.add("d-none");
