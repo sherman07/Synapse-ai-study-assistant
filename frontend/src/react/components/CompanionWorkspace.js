@@ -5,6 +5,7 @@ import {
   loadLearningCompanionThread,
   saveLearningCompanionThread,
   startNewLearningCompanionThread,
+  updateLearningCompanionThreadContext,
   titleFromCompanionThread,
 } from "../../legacy/learningCompanionChatStore.js?v=ai-learning-companion-v2";
 import { requestLearningCompanionDecision } from "../../legacy/learningCompanionClient.js?v=ai-learning-companion-v1";
@@ -281,7 +282,7 @@ export function CompanionWorkspace() {
     focusComposer(composerRef);
   }, [persistThread]);
 
-  const sendContent = React.useCallback(async content => {
+  const sendContent = React.useCallback(async (content, { topic } = {}) => {
     const trimmed = String(content || "").trim();
     if (!trimmed || busy) return;
 
@@ -296,7 +297,13 @@ export function CompanionWorkspace() {
     setPendingMessage(null);
 
     try {
-      const active = loadLearningCompanionThread(getLocalStorage());
+      let active = loadLearningCompanionThread(getLocalStorage());
+      if (topic) {
+        active = updateLearningCompanionThreadContext(active, {
+          ...(active.learningContext || {}),
+          topic: String(topic).slice(0, 58),
+        });
+      }
       const nextThread = appendLearningCompanionMessage(active, learnerMessage);
       if (!persistThread(nextThread)) {
         throw new Error("Synapse could not save your message locally. Please retry.");
@@ -465,7 +472,7 @@ export function CompanionWorkspace() {
                   type: "button",
                   className: "companion-starter-card",
                   disabled: busy,
-                  onClick: () => void sendContent(starter.prompt),
+                  onClick: () => void sendContent(starter.prompt, { topic: starter.label }),
                   "data-learning-companion-starter": starter.id,
                 },
                 h("span", { className: "companion-starter-icon", "aria-hidden": "true" }, icon(starter.icon)),
