@@ -16,8 +16,10 @@ globalThis.localStorage = {
 const data = await import("../src/focus-room/data.js");
 
 assert.equal(data.FOCUS_ROOM_SESSION_KEY, "synapse.focusRoom.sessions.v1");
-assert.equal(data.FOCUS_ROOM_SCENES.length, 6);
+assert.equal(data.FOCUS_ROOM_SCENES.length, 13);
 assert.ok(data.FOCUS_ROOM_SCENES.every(scene => scene.id && scene.name && scene.image), "each scene should have an image-backed identity");
+assert.equal(data.FOCUS_ROOM_GALLERY_SCENES.length, 8, "the Innook-style setup gallery should have a complete two-row scene set");
+assert.equal(data.FOCUS_ROOM_GALLERY_SCENES[0].name, "清晨窗边");
 
 globalThis.getSynapseFocusRoomMaterials = () => [];
 globalThis.getSynapseFocusRoomCurrentMaterial = () => null;

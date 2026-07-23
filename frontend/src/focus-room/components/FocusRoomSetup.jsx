@@ -1,57 +1,76 @@
-import { Clock, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coffee, History, Music2, Piano, Radio, Target, Waves } from "lucide-react";
 import { FOCUS_ROOM_DURATIONS } from "../data.js";
 import { useFocusRoomStore } from "../hooks/useFocusRoomStore.js";
-import { GlassButton } from "./GlassButton.jsx";
-import { LiquidGlass } from "./LiquidGlass.jsx";
 import { SceneSelector } from "./SceneSelector.jsx";
-import { SoundControlPanel } from "./SoundControlPanel.jsx";
+import { useState } from "react";
 
-export function FocusRoomSetup({ audioState }) {
+const MUSIC_MOODS = [
+  { label: "Piano", icon: Piano, musicType: "Piano", ambientSound: "Nature" },
+  { label: "Lo-fi", icon: Music2, musicType: "Lo-fi", ambientSound: "Cafe Rain" },
+  { label: "Nature", icon: Waves, musicType: "Deep Focus", ambientSound: "Nature" },
+  { label: "Ambient", icon: Coffee, musicType: "Minimal", ambientSound: "White Noise" },
+  { label: "Deep Focus", icon: Radio, musicType: "Deep Focus", ambientSound: "White Noise" }
+];
+
+export function FocusRoomSetup() {
   const pomodoroDuration = useFocusRoomStore(state => state.pomodoroDuration);
+  const timerMode = useFocusRoomStore(state => state.timerMode);
   const studyGoal = useFocusRoomStore(state => state.studyGoal);
   const setPomodoroDuration = useFocusRoomStore(state => state.setPomodoroDuration);
+  const setTimerMode = useFocusRoomStore(state => state.setTimerMode);
   const setStudyGoal = useFocusRoomStore(state => state.setStudyGoal);
+  const setSound = useFocusRoomStore(state => state.setSound);
+  const openLanding = useFocusRoomStore(state => state.openLanding);
   const startSession = useFocusRoomStore(state => state.startSession);
+  const [goalEditorOpen, setGoalEditorOpen] = useState(false);
+
+  const selectMood = mood => {
+    setSound("musicType", mood.musicType);
+    setSound("ambientSound", mood.ambientSound);
+  };
+
+  const selectDuration = minutes => {
+    setTimerMode("countdown");
+    setPomodoroDuration(minutes);
+  };
 
   return (
-    <section className="focus-setup-stage" aria-label="Focus Room setup">
-      <LiquidGlass className="focus-setup-scenes">
-        <span className="focus-step-label">Step 01</span>
-        <h1>Choose your study scene</h1>
-        <p>Pick the cinematic atmosphere that helps you settle into this focus block.</p>
-        <SceneSelector />
-      </LiquidGlass>
-
-      <LiquidGlass className="focus-setup-controls">
-        <span className="focus-step-label">Step 02</span>
-        <h2>Set sound atmosphere</h2>
-        <SoundControlPanel audioState={audioState} />
-        <span className="focus-step-label">Step 03</span>
-        <h2>Set Pomodoro</h2>
-        <div className="duration-grid" aria-label="Pomodoro duration">
-          {FOCUS_ROOM_DURATIONS.map(minutes => (
-            <GlassButton
-              key={minutes}
-              variant={minutes === pomodoroDuration ? "primary" : "ghost"}
-              aria-pressed={minutes === pomodoroDuration}
-              onClick={() => setPomodoroDuration(minutes)}
-            >
-              <Clock size={16} aria-hidden="true" /> {minutes}m
-            </GlassButton>
-          ))}
+    <section className="focus-setup-stage innook-scene-setup" aria-label="Focus Room setup">
+      <header className="innook-setup-header">
+        <div className="innook-setup-brand" aria-label="Synapse Focus Room"><span className="innook-brand-mark">S</span><span><strong>synapse</strong><small>Focus Room</small></span></div>
+        <div className="innook-setup-header-actions">
+          <button type="button" className="innook-header-action" aria-label="Focus Room history" title="Focus Room history"><History size={18} aria-hidden="true" /></button>
+          <button type="button" className="innook-header-action" onClick={openLanding} aria-label="Back to Focus Room welcome" title="Back to Focus Room welcome"><ArrowLeft size={20} aria-hidden="true" /></button>
         </div>
-        <label className="focus-field">
-          Custom duration
-          <input type="number" min="10" max="180" step="5" value={pomodoroDuration} onChange={event => setPomodoroDuration(event.target.value)} />
-        </label>
-        <label className="focus-field">
-          Focus intention
-          <textarea value={studyGoal} onChange={event => setStudyGoal(event.target.value)} />
-        </label>
-        <GlassButton className="enter-focus-btn" variant="primary" onClick={startSession}>
-          <Sparkles size={18} aria-hidden="true" /> Enter Focus Room
-        </GlassButton>
-      </LiquidGlass>
+      </header>
+
+      <div className="innook-setup-layout">
+        <section className="innook-scene-panel" aria-labelledby="innook-scene-title">
+          <div className="innook-panel-heading">
+            <span>Step 01</span>
+            <h1 id="innook-scene-title">选择学习场景</h1>
+          </div>
+          <SceneSelector variant="gallery" />
+        </section>
+
+        <aside className="innook-control-rail" aria-label="Study settings">
+          <div className="innook-rail-group" aria-label="Music atmosphere">
+            {MUSIC_MOODS.map(mood => {
+              const Icon = mood.icon;
+              return <button key={mood.label} type="button" className="innook-rail-icon" onClick={() => selectMood(mood)} aria-label={`Use ${mood.label} atmosphere`} title={mood.label}><Icon size={16} aria-hidden="true" /></button>;
+            })}
+          </div>
+          <div className="innook-rail-divider" />
+          <div className="innook-duration-list" aria-label="Focus duration">
+            {FOCUS_ROOM_DURATIONS.map(minutes => <button key={minutes} type="button" className={`innook-duration ${timerMode !== "countup" && minutes === pomodoroDuration ? "is-active" : ""}`.trim()} onClick={() => selectDuration(minutes)} aria-pressed={timerMode !== "countup" && minutes === pomodoroDuration}>{minutes}</button>)}
+            <button type="button" className={`innook-duration innook-duration-infinity ${timerMode === "countup" ? "is-active" : ""}`.trim()} onClick={() => setTimerMode("countup")} aria-label="Count up timer" aria-pressed={timerMode === "countup"}>∞</button>
+          </div>
+          <div className="innook-rail-divider" />
+          <button type="button" className={`innook-rail-icon ${goalEditorOpen ? "is-active" : ""}`.trim()} onClick={() => setGoalEditorOpen(open => !open)} aria-label="Edit focus intention" title="Edit focus intention"><Target size={16} aria-hidden="true" /></button>
+          <button type="button" className="innook-enter-button" onClick={startSession} aria-label="Enter Focus Room" title="Enter Focus Room"><ArrowRight size={22} aria-hidden="true" /></button>
+          {goalEditorOpen ? <label className="innook-goal-popover">今日目标<textarea value={studyGoal} onChange={event => setStudyGoal(event.target.value)} autoFocus /></label> : null}
+        </aside>
+      </div>
     </section>
   );
 }

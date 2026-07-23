@@ -329,21 +329,18 @@ html[data-theme="dark"] .source-slide-text h4 {
   color: var(--color-text-primary);
 }
 
-/* Keep the generated-note outline available on laptop widths. The home
-   history rail can become a drawer, but generated notes need their document
-   outline to remain discoverable while the tutor panel is closed or open. */
+/* Generated notes stay document-first on laptop widths as well. Section
+   navigation remains available from the mobile menu below 851px. */
 @media (max-width: 1180px) and (min-width: 851px) {
   .app-layout.generated-notes-state.analysis-ready {
     display: grid !important;
-    grid-template-columns: minmax(220px, 28vw) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) clamp(320px, 32vw, 380px);
     min-height: 100dvh;
   }
 
-  .app-layout.generated-notes-state.analysis-ready #summaryNav {
-    display: flex !important;
-    position: sticky;
-    top: 0;
-    height: 100dvh;
+  .app-layout.generated-notes-state.analysis-ready.assistant-closed,
+  .app-layout.generated-notes-state.analysis-ready.assistant-closed.summary-collapsed {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-layout.generated-notes-state.analysis-ready .notes-area {

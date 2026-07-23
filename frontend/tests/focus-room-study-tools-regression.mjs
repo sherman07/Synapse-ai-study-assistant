@@ -14,10 +14,15 @@ const { useFocusRoomStore } = await import(`../src/focus-room/hooks/useFocusRoom
 const store = useFocusRoomStore;
 
 store.getState().initializeFocusRoom();
-assert.equal(store.getState().view, "session");
+assert.equal(store.getState().view, "landing");
 assert.equal(store.getState().selectedMaterial, null);
 assert.equal(store.getState().selectedMaterialId, "focus-room");
 assert.deepEqual(store.getState().studyPlan, []);
+
+store.getState().openSetup();
+assert.equal(store.getState().view, "setup");
+store.getState().startSession();
+assert.equal(store.getState().view, "session");
 
 store.getState().setStudyGoal("Read and write without interruptions");
 store.getState().startTimer();

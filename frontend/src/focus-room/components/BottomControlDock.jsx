@@ -19,8 +19,11 @@ export function BottomControlDock({ onFocusMode, audioState }) {
   const setSessionDuration = useFocusRoomStore(state => state.setSessionDuration);
   const toggleAudio = useFocusRoomStore(state => state.toggleAudio);
   const audioPlaying = useFocusRoomStore(state => state.audioPlaying);
+  const setStudyGoal = useFocusRoomStore(state => state.setStudyGoal);
   const [editingDuration, setEditingDuration] = useState(false);
   const [draftClock, setDraftClock] = useState("25:00");
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [draftGoal, setDraftGoal] = useState("");
   const totalDurationSeconds = timerMode === "countup" ? 0 : Number(timerDurationSeconds) || (Number(pomodoroDuration) || 0) * 60;
   const remaining = timerMode === "countup" ? elapsedSeconds : Math.max(0, totalDurationSeconds - elapsedSeconds);
   const isPaused = timerStatus === "paused";
@@ -39,6 +42,17 @@ export function BottomControlDock({ onFocusMode, audioState }) {
     const [minutesText = "", secondsText = "0"] = String(draftClock).split(":");
     setSessionDuration(minutesText, secondsText);
     setEditingDuration(false);
+  };
+
+  const openGoalEditor = () => {
+    setDraftGoal(studyGoal || "");
+    setEditingGoal(true);
+  };
+
+  const applyGoal = () => {
+    const nextGoal = draftGoal.trim();
+    if (nextGoal) setStudyGoal(nextGoal);
+    setEditingGoal(false);
   };
 
   return (
@@ -81,7 +95,42 @@ export function BottomControlDock({ onFocusMode, audioState }) {
       </div>
       <div className="dock-goal-block">
         <span className="dock-eyebrow">TODAY'S GOAL</span>
-        <strong>{studyGoal || "A quiet block for meaningful progress"}</strong>
+        {editingGoal ? (
+          <input
+            autoFocus
+            className="dock-goal-input"
+            type="text"
+            value={draftGoal}
+            maxLength={140}
+            aria-label="Edit today's goal"
+            onChange={event => setDraftGoal(event.target.value)}
+            onFocus={event => event.currentTarget.select()}
+            onKeyDown={event => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                applyGoal();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.currentTarget.dataset.cancel = "true";
+                setEditingGoal(false);
+              }
+            }}
+            onBlur={event => {
+              if (event.currentTarget.dataset.cancel !== "true") applyGoal();
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="dock-goal-edit"
+            onClick={openGoalEditor}
+            aria-label={`Edit today's goal, currently ${studyGoal || "a quiet block for meaningful progress"}`}
+            title="Click to edit today's goal"
+          >
+            <strong>{studyGoal || "A quiet block for meaningful progress"}</strong>
+          </button>
+        )}
         <span className="dock-goal-meta">{timerMode === "countup" ? "Count-up" : `${formatTimerClock(totalDurationSeconds)} session`} · {formatTimerClock(elapsedSeconds)} focused</span>
       </div>
       <div className="dock-action-block">

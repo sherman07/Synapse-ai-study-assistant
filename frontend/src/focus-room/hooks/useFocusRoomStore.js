@@ -356,8 +356,8 @@ export const useFocusRoomStore = create((set, get) => {
   const scene = initialScene();
 
   return {
-    route: "session",
-    view: "session",
+    route: "landing",
+    view: "landing",
     materials: [],
     materialsStatus: "idle",
     materialsError: "",
@@ -423,11 +423,11 @@ export const useFocusRoomStore = create((set, get) => {
 
     initializeFocusRoom() {
       const state = get();
-      if (state.view === "session" && state.selectedMaterialId === "focus-room" && state.currentSession) return;
+      if (["landing", "setup", "session"].includes(state.view) && state.selectedMaterialId === "focus-room") return;
       const activeScene = currentScene(state.selectedScene);
       set({
-        route: "session",
-        view: "session",
+        route: "landing",
+        view: "landing",
         selectedMaterialId: "focus-room",
         selectedMaterial: null,
         studyGoal: state.studyGoal || "Deep work block",
@@ -445,6 +445,26 @@ export const useFocusRoomStore = create((set, get) => {
           pomodoroDuration: state.pomodoroDuration,
           startedAt: null
         }
+      });
+    },
+
+    openSetup() {
+      set({
+        route: "setup",
+        view: "setup",
+        aiPanelOpen: false,
+        activeDrawer: "",
+        summaryRecord: null
+      });
+    },
+
+    openLanding() {
+      set({
+        route: "landing",
+        view: "landing",
+        aiPanelOpen: false,
+        activeDrawer: "",
+        summaryRecord: null
       });
     },
 

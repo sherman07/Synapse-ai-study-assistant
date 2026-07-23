@@ -466,7 +466,6 @@ body.mobile-assistant-open::before {
 /* Generated-note outline: keep the rail stable while the document itself
    scrolls, and make nested headings feel like a real document outline. */
 .app-layout.generated-notes-state #summaryNav:not(.collapsed) {
-  display: flex !important;
   flex-direction: column;
   overflow: hidden;
   padding: 24px 16px 16px;
@@ -1693,11 +1692,22 @@ body.mobile-assistant-open::before {
 }
 
 .app-layout.generated-notes-state .history-nav {
-  display: flex !important;
+  display: none !important;
 }
 
 .app-layout.generated-notes-state #summaryNav {
-  display: block !important;
+  display: none !important;
+}
+
+/* Generated notes are the primary workspace. Keep both desktop navigation
+   rails off this view and give their width back to the document. */
+.app-layout.generated-notes-state {
+  grid-template-columns: minmax(0, 1fr) clamp(330px, 22vw, 400px);
+}
+
+.app-layout.generated-notes-state.assistant-closed,
+.app-layout.generated-notes-state.assistant-closed.summary-collapsed {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .app-layout.generated-notes-state .learning-experience-shell {

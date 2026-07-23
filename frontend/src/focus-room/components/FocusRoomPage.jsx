@@ -3,6 +3,8 @@ import { useShallow } from "zustand/react/shallow";
 import { AnimatePresence, motion } from "motion/react";
 import { clearFocusRoomActiveSession, saveFocusRoomActiveSession } from "../data.js";
 import { FocusBackground } from "./FocusBackground.jsx";
+import { FocusRoomLanding } from "./FocusRoomLanding.jsx";
+import { FocusRoomSetup } from "./FocusRoomSetup.jsx";
 import { PomodoroTimer } from "./PomodoroTimer.jsx";
 import { TopFocusNav } from "./TopFocusNav.jsx";
 import { BottomControlDock } from "./BottomControlDock.jsx";
@@ -58,6 +60,8 @@ export function FocusRoomPage() {
   const summaryRecord = useFocusRoomStore(state => state.summaryRecord);
   const endSession = useFocusRoomStore(state => state.endSession);
   const initializeFocusRoom = useFocusRoomStore(state => state.initializeFocusRoom);
+  const openSetup = useFocusRoomStore(state => state.openSetup);
+  const showStudyHistory = useFocusRoomStore(state => state.showStudyHistory);
 
   useEffect(() => {
     initializeFocusRoom();
@@ -112,12 +116,34 @@ export function FocusRoomPage() {
   return (
     <main
       id="focusRoomSurface"
-      className={`focus-room-surface react-focus-room ${isIdle ? "is-idle" : ""}`.trim()}
+      className={`focus-room-surface react-focus-room ${isIdle ? "is-idle" : ""} ${view === "setup" ? "is-innook-setup" : ""}`.trim()}
       aria-live="polite"
     >
       <FocusBackground scene={scene} />
       <AnimatePresence mode="wait">
-        {view === "session" ? (
+        {view === "landing" ? (
+          <motion.div
+            key="landing"
+            className="focus-room-view focus-landing-view"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={spring}
+          >
+            <FocusRoomLanding onStart={openSetup} onWorkspace={showWorkspace} onHistory={showStudyHistory} />
+          </motion.div>
+        ) : view === "setup" ? (
+          <motion.div
+            key="setup"
+            className="focus-room-view focus-setup-view"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={spring}
+          >
+            <FocusRoomSetup />
+          </motion.div>
+        ) : (
           <motion.div
             key="session"
             className="focus-room-view focus-session-view"
@@ -137,7 +163,7 @@ export function FocusRoomPage() {
             <SessionSummaryModal />
             <FocusRoomExitDialog open={exitDialog} onClose={() => setExitDialog(false)} onConfirm={finishSession} />
           </motion.div>
-        ) : null}
+        )}
       </AnimatePresence>
     </main>
   );
