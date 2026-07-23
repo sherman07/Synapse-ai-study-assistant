@@ -45,6 +45,12 @@ assert.ok(!companionClient.includes('"/api/learning/subjects"'));
 assert.ok(companionClient.includes("body?.reply"));
 assert.ok(companionClient.includes('"/learning-companion/respond"'));
 assert.ok(styles.includes('[data-learning-experience-mode="companion"] .learning-experience-shell'));
+assert.ok(
+  styles.includes('app-layout[data-learning-experience-mode="companion"] .notes-area')
+    || styles.includes('.app-layout[data-learning-experience-mode="companion"] .notes-area'),
+  "companion mode should take over the notes pane"
+);
+assert.ok(styles.includes("border-radius: 0"), "fullscreen companion should drop the floating card radius");
 assert.ok(styles.includes(".companion-chat-thread"));
 assert.ok(styles.includes(".companion-composer"));
 assert.ok(styles.includes(".companion-starter-grid"));

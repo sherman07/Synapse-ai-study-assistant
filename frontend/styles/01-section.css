@@ -903,6 +903,11 @@ body.mobile-assistant-open::before {
   padding: 22px 22px 16px;
 }
 
+.app-layout[data-learning-experience-mode="companion"] .companion-chat {
+  min-height: 0;
+  padding: 0;
+}
+
 .companion-chat--rich {
   gap: 12px;
 }
@@ -1359,7 +1364,76 @@ body.mobile-assistant-open::before {
 }
 
 [data-learning-experience-mode="companion"] #companionWorkspace {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* Companion fills the workspace pane beside the left nav. */
+.app-layout[data-learning-experience-mode="companion"],
+.app-layout.initial-state[data-learning-experience-mode="companion"] {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-layout[data-learning-experience-mode="companion"] .notes-area,
+.app-layout.initial-state[data-learning-experience-mode="companion"] .notes-area {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  place-items: stretch;
+  padding: 0;
+  margin: 0 !important;
+  width: 100% !important;
+  min-height: 0;
+  height: auto;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--color-page-background, var(--bg));
+}
+
+.app-layout[data-learning-experience-mode="companion"] .learning-experience-shell,
+.app-layout.initial-state.has-learning-rail[data-learning-experience-mode="companion"] .learning-experience-shell,
+.app-layout:not(.initial-state)[data-learning-experience-mode="companion"] .learning-experience-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 0;
+}
+
+.app-layout[data-learning-experience-mode="companion"] .companion-workspace,
+.app-layout[data-learning-experience-mode="companion"] .companion-workspace-card,
+.app-layout[data-learning-experience-mode="companion"] .companion-chat {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.app-layout[data-learning-experience-mode="companion"] .companion-workspace-card {
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  background: var(--color-surface-primary, #fff);
+  padding: 20px 24px 14px;
+}
+
+.app-layout.history-collapsed[data-learning-experience-mode="companion"] .notes-area {
+  padding: 0;
 }
 
 .app-layout:not(.initial-state) .learning-experience-shell {
@@ -1367,7 +1441,7 @@ body.mobile-assistant-open::before {
 }
 
 .app-layout:not(.initial-state)[data-learning-experience-mode="companion"] .learning-experience-shell {
-  display: grid;
+  display: flex;
 }
 
 .hero-copy h1 {
@@ -1742,6 +1816,14 @@ body.mobile-assistant-open::before {
     padding: 16px;
     border-radius: 24px;
     gap: 12px;
+  }
+
+  .app-layout[data-learning-experience-mode="companion"] .companion-chat,
+  .app-layout[data-learning-experience-mode="companion"] .companion-workspace-card {
+    min-height: 0;
+    height: 100%;
+    border-radius: 0;
+    padding: 14px 14px 10px;
   }
 
   .companion-chat-header,
@@ -2310,12 +2392,22 @@ body.mobile-assistant-open::before {
   width: min(920px, 100%);
 }
 
+.app-layout.initial-state.has-learning-rail[data-learning-experience-mode="companion"] .learning-experience-shell {
+  width: 100%;
+}
+
 .app-layout.initial-state.has-learning-rail .companion-workspace-card,
 .app-layout.initial-state.has-learning-rail .premium-upload-card {
   background: var(--color-surface-primary);
   border-color: var(--color-border-default);
   box-shadow: var(--shadow-card);
   color: var(--color-text-primary);
+}
+
+.app-layout.initial-state.has-learning-rail[data-learning-experience-mode="companion"] .companion-workspace-card {
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .app-layout.initial-state.has-learning-rail .companion-workspace-intro,
