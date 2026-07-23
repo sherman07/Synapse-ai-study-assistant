@@ -102,15 +102,15 @@ export function MobileNavigation() {
           h("input", {
             id: "mobileHistorySearch",
             type: "search",
-            placeholder: "Search generated notes...",
-            "aria-label": "Search generated notes history",
+            placeholder: "Search notes and companion chats...",
+            "aria-label": "Search recent learning history",
           })
         ),
-        h("div", { className: "history-section-title mobile-history-title" }, "Recent Generated Notes"),
+        h("div", { className: "history-section-title mobile-history-title" }, "Recent learning"),
         h(
           "div",
           { id: "mobileHistoryList", className: "history-list mobile-history-list" },
-          h("p", { className: "history-empty" }, "No generated notes yet.")
+          h("p", { className: "history-empty" }, "No notes or companion chats yet.")
         ),
         h("div", { className: "mobile-nav-divider" }),
         h("p", { className: "mobile-nav-caption" }, "Current note sections"),

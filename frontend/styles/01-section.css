@@ -782,6 +782,64 @@ body.mobile-assistant-open::before {
   text-transform: uppercase;
 }
 
+.workspace-surface-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border-blue, #d8e6ff));
+  background: color-mix(in srgb, var(--primary) 8%, #fff);
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workspace-surface-badge i {
+  font-size: 0.95rem;
+}
+
+.workspace-surface-badge--companion {
+  border-color: color-mix(in srgb, #5b4bff 30%, var(--border-blue, #d8e6ff));
+  background: color-mix(in srgb, #5b4bff 8%, #fff);
+  color: #4338ca;
+}
+
+.workspace-surface-badge.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.history-item-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.history-item-kind--materials {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, #fff);
+}
+
+.history-item-kind--companion {
+  color: #4338ca;
+  background: color-mix(in srgb, #5b4bff 10%, #fff);
+}
+
+.companion-history-item-wrap .history-item {
+  padding-right: 42px;
+}
+
 .companion-workspace {
   width: min(980px, 100%);
 }

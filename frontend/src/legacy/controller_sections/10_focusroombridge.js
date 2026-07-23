@@ -239,7 +239,15 @@ function focusRoomMaterialFromHistoryItem(item) {
 }
 
 function getSynapseFocusRoomMaterials() {
-  const historyMaterials = getHistory().map(focusRoomMaterialFromHistoryItem);
+  const historyMaterials = getHistory()
+    .filter(item => {
+      if (!item) return false;
+      if (typeof isCompanionHistoryItem === "function") return !isCompanionHistoryItem(item);
+      return item.kind !== "companion"
+        && !item.companionThreadId
+        && !String(item.id || "").startsWith("companion:");
+    })
+    .map(focusRoomMaterialFromHistoryItem);
   const currentMaterial = getSynapseFocusRoomCurrentMaterial();
   if (!currentMaterial) return historyMaterials;
   return [

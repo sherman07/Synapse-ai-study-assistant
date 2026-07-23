@@ -1,11 +1,12 @@
 import { React, h, icon } from "../runtime.js";
 import {
   appendLearningCompanionMessage,
-  createLearningCompanionThread,
+  companionThreadHasUserContent,
   loadLearningCompanionThread,
-  resetLearningCompanionThread,
   saveLearningCompanionThread,
-} from "../../legacy/learningCompanionChatStore.js?v=ai-learning-companion-v1";
+  startNewLearningCompanionThread,
+  titleFromCompanionThread,
+} from "../../legacy/learningCompanionChatStore.js?v=ai-learning-companion-v2";
 import { requestLearningCompanionDecision } from "../../legacy/learningCompanionClient.js?v=ai-learning-companion-v1";
 
 const MAX_CONTEXT_MESSAGES = 24;
@@ -45,6 +46,12 @@ function sourceCountText(decision) {
   return count ? `Used ${count} current source${count === 1 ? "" : "s"}.` : "This answer needed current sources, but none were available.";
 }
 
+function syncThreadToHistory(thread) {
+  if (typeof globalThis.syncCompanionThreadToHistory === "function") {
+    globalThis.syncCompanionThreadToHistory(thread);
+  }
+}
+
 function messageBubble(message) {
   const isLearner = message.role === "user";
   return h(
@@ -72,13 +79,34 @@ export function CompanionWorkspace() {
   React.useEffect(() => {
     setThread(loadLearningCompanionThread(getLocalStorage()));
     focusComposer(composerRef);
+
+    const onActivate = event => {
+      const threadId = String(event?.detail?.threadId || "").trim();
+      if (!threadId) return;
+      const next = globalThis.__synapseCompanionChat?.activate?.(threadId)
+        || loadLearningCompanionThread(getLocalStorage());
+      setThread(next);
+      setDraft("");
+      setPendingMessage(null);
+      setFailure("");
+      focusComposer(composerRef);
+    };
+
+    globalThis.window?.addEventListener?.("synapse-companion-thread-activate", onActivate);
+    return () => globalThis.window?.removeEventListener?.("synapse-companion-thread-activate", onActivate);
   }, []);
 
   const visibleMessages = thread.messages.length ? thread.messages : [WELCOME_MESSAGE];
+  const sessionTitle = companionThreadHasUserContent(thread)
+    ? titleFromCompanionThread(thread)
+    : "New conversation";
 
   const persistThread = React.useCallback(nextThread => {
     const saved = saveLearningCompanionThread(nextThread, getLocalStorage());
-    if (saved) setThread(nextThread);
+    if (saved) {
+      setThread(nextThread);
+      syncThreadToHistory(nextThread);
+    }
     return saved;
   }, []);
 
@@ -170,11 +198,14 @@ export function CompanionWorkspace() {
 
   const handleNewChat = () => {
     if (busy) return;
-    const confirmReset = typeof globalThis.window?.confirm === "function"
-      ? globalThis.window.confirm("Start a new chat? Your current local conversation will be cleared.")
-      : true;
-    if (!confirmReset) return;
-    const nextThread = resetLearningCompanionThread(createLearningCompanionThread(), getLocalStorage());
+    if (companionThreadHasUserContent(thread)) {
+      syncThreadToHistory(thread);
+      const confirmReset = typeof globalThis.window?.confirm === "function"
+        ? globalThis.window.confirm("Start a new chat? Your current conversation will stay in Recent learning.")
+        : true;
+      if (!confirmReset) return;
+    }
+    const nextThread = startNewLearningCompanionThread(getLocalStorage());
     setThread(nextThread);
     setDraft("");
     setPendingMessage(null);
@@ -194,9 +225,15 @@ export function CompanionWorkspace() {
         h(
           "div",
           null,
-          h("p", { className: "learning-mode-switcher-eyebrow" }, "Learning companion"),
-          h("h1", { id: "companionWorkspaceTitle" }, "Synapse"),
-          h("p", { className: "companion-workspace-intro" }, "A local-first conversation workspace for focused tutoring."),
+          h(
+            "div",
+            { className: "workspace-surface-badge workspace-surface-badge--companion", "data-workspace-kind": "companion" },
+            icon("bi-chat-dots"),
+            h("span", null, "Learning companion")
+          ),
+          h("p", { className: "learning-mode-switcher-eyebrow" }, "Conversation"),
+          h("h1", { id: "companionWorkspaceTitle" }, sessionTitle),
+          h("p", { className: "companion-workspace-intro" }, "Saved in Recent learning so you can reopen this chat later."),
         ),
         h(
           "button",

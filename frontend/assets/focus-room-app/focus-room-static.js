@@ -17679,7 +17679,7 @@ function FM(e = {}) {
   };
 }
 function DS() {
-  return MS().filter((e) => e && (e.id || e.summary)).map(FM);
+  return MS().filter((e) => e && (e.id || e.summary) && e.kind !== "companion" && !String(e.id || "").startsWith("companion:")).map(FM);
 }
 function NS(e = "") {
   const n = String(e || "");

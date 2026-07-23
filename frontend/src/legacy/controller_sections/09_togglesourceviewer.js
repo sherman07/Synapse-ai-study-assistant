@@ -529,12 +529,93 @@ function cleanTitle(title, fallback = "Generated Study Notes") {
   return shorten(sliced || fallback, 58);
 }
 
+function isCompanionHistoryItem(item = {}) {
+  return item?.kind === "companion"
+    || Boolean(item?.companionThreadId)
+    || String(item?.id || "").startsWith("companion:");
+}
+
+function companionThreadIdFromHistoryItem(item = {}) {
+  const explicit = String(item?.companionThreadId || "").trim();
+  if (explicit) return explicit;
+  const id = String(item?.id || "").trim();
+  return id.startsWith("companion:") ? id.slice("companion:".length) : id;
+}
+
+function syncCompanionThreadToHistory(thread) {
+  if (!thread || typeof thread !== "object") return null;
+  const hasUser = typeof window.__synapseCompanionChat?.hasUserContent === "function"
+    ? window.__synapseCompanionChat.hasUserContent(thread)
+    : Array.isArray(thread.messages) && thread.messages.some(message => message?.role === "user" && String(message?.content || "").trim());
+  if (!hasUser) return null;
+
+  const threadId = String(thread.id || "").trim();
+  if (!threadId) return null;
+  const title = typeof window.__synapseCompanionChat?.titleFrom === "function"
+    ? window.__synapseCompanionChat.titleFrom(thread)
+    : "Learning companion chat";
+  const historyId = typeof window.__synapseCompanionChat?.historyId === "function"
+    ? window.__synapseCompanionChat.historyId(threadId)
+    : `companion:${threadId}`;
+
+  return saveHistoryEntry({
+    kind: "companion",
+    id: historyId,
+    companionThreadId: threadId,
+    title,
+    summary: title,
+    sections: {},
+    createdAt: thread.createdAt || undefined,
+    updatedAt: thread.updatedAt || new Date().toISOString(),
+  });
+}
+
 function saveHistoryEntry(payload) {
   const items = getHistory();
+  const isCompanion = payload?.kind === "companion" || Boolean(payload?.companionThreadId) || String(payload?.id || "").startsWith("companion:");
+
+  if (isCompanion) {
+    const companionThreadId = companionThreadIdFromHistoryItem(payload);
+    const historyId = String(payload.id || "").trim() || `companion:${companionThreadId}`;
+    const existingIndex = items.findIndex(item =>
+      isCompanionHistoryItem(item)
+      && (
+        item.id === historyId
+        || companionThreadIdFromHistoryItem(item) === companionThreadId
+      )
+    );
+    const rawTitle = String(payload.title || payload.summary || "Learning companion chat").replace(/\s+/g, " ").trim();
+    const entry = {
+      ...payload,
+      kind: "companion",
+      id: existingIndex >= 0 ? items[existingIndex].id : historyId,
+      companionThreadId,
+      title: shorten(rawTitle, 72) || "Learning companion chat",
+      summary: payload.summary || payload.title || "",
+      sections: {},
+      createdAt: existingIndex >= 0
+        ? items[existingIndex].createdAt
+        : (payload.createdAt || new Date().toISOString()),
+      updatedAt: payload.updatedAt || new Date().toISOString(),
+      sourceFingerprint: "",
+      clientFingerprint: "",
+      databaseRecord: null,
+    };
+    const nextItems = existingIndex >= 0
+      ? [entry, ...items.filter((_, index) => index !== existingIndex)]
+      : [entry, ...items];
+    setHistory(nextItems);
+    currentHistoryId = entry.id;
+    safeSetLocalStorage(ACTIVE_HISTORY_KEY, entry.id);
+    renderHistory();
+    return entry;
+  }
+
   const sourceFingerprint = payload.sourceFingerprint || payload.clientFingerprint || currentSourceFingerprint || "";
   const databaseRecord = payload.databaseRecord || payload.database_record || null;
   const databaseId = String(databaseRecord?.id || "").trim();
   const existingIndex = items.findIndex(item => {
+    if (isCompanionHistoryItem(item)) return false;
     const itemDatabaseId = String(item?.databaseRecord?.id || item?.database_record?.id || "").trim();
     if (databaseId && itemDatabaseId === databaseId) return true;
     return Boolean(
@@ -548,6 +629,7 @@ function saveHistoryEntry(payload) {
 
   const entry = {
     ...payload,
+    kind: payload.kind || "materials",
     id: historyId,
     title: makeHistoryTitle(payload.title || payload.summary),
     createdAt: existingIndex >= 0 ? items[existingIndex].createdAt : new Date().toISOString(),
@@ -603,6 +685,7 @@ function normalizeRemoteHistoryEntry(item = {}) {
   };
   const entry = {
     id: String(item.id || "").trim(),
+    kind: "materials",
     title: makeHistoryTitle(item.title || item.summary),
     summary: item.summary || "",
     sections: item.sections || {},
@@ -707,13 +790,14 @@ async function syncHistoryWithDataApi(limit = 50) {
       });
 
     localItems.forEach((item, index) => {
+      // Keep local-only companion chats and any unmatched materials entries.
       if (!usedLocalIndices.has(index)) mergedItems.push(item);
     });
 
     const nextItems = mergedItems
       .filter(item => item && item.id)
       .sort((left, right) => historyTimestampValue(right.updatedAt || right.createdAt) - historyTimestampValue(left.updatedAt || left.createdAt))
-      .slice(0, 20);
+      .slice(0, 30);
 
     setHistory(nextItems);
     renderHistory(historySearch ? historySearch.value : "");
@@ -740,7 +824,8 @@ function findHistoryByFingerprint(fingerprint) {
 function renderHistory(filter = "") {
   const query = String(filter || "").toLowerCase().trim();
   const items = getHistory().filter(item => {
-    const haystack = `${item.title || ""} ${item.summary || ""}`.toLowerCase();
+    const kindLabel = isCompanionHistoryItem(item) ? "companion chat learning companion" : "materials generated notes";
+    const haystack = `${item.title || ""} ${item.summary || ""} ${kindLabel}`.toLowerCase();
     return !query || haystack.includes(query);
   });
   const jobs = typeof getVisibleGenerationJobs === "function"
@@ -758,11 +843,11 @@ function renderHistory(filter = "") {
 function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = [], filter = "") {
   if (!items.length && !jobs.length && !broadcastJobs.length) {
     if (String(filter || "").trim()) {
-      return `<p class="history-empty">No matching generated notes yet.</p>`;
+      return `<p class="history-empty">No matching notes or companion chats yet.</p>`;
     }
     return `
       <div class="history-empty-state">
-        <p class="history-empty">No generated notes yet.</p>
+        <p class="history-empty">No notes or companion chats yet.</p>
         <button class="history-empty-cta" type="button" onclick="setLearningExperienceMode('materials')">
           Upload material to start
         </button>
@@ -772,28 +857,43 @@ function renderHistoryItemsHTML(items, jobs = [], broadcastJobs = [], filter = "
 
   const jobHtml = jobs.map(job => renderGenerationJobHistoryItemHTML(job)).join("");
   const broadcastJobHtml = broadcastJobs.map(job => renderBroadcastJobHistoryItemHTML(job)).join("");
-  const itemHtml = items.map(item => `
-    <div class="history-item-wrap generated-history-item-wrap">
-      <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
-        <div class="history-item-title">${escapeHTML(makeHistoryTitle(item))}</div>
-        <div class="history-item-meta">${formatHistoryDate(item.createdAt)}</div>
-      </button>
+  const itemHtml = items.map(item => {
+    const companion = isCompanionHistoryItem(item);
+    const kindLabel = companion ? "Companion" : "Materials";
+    const kindClass = companion ? "companion" : "materials";
+    const displayTitle = companion
+      ? (String(item.title || item.summary || "Learning companion chat").trim() || "Learning companion chat")
+      : makeHistoryTitle(item);
+    const expandControls = companion ? "" : `
       <button class="history-item-expand-btn" type="button" aria-expanded="false"
               aria-controls="${historySectionsDomId(item.id)}"
               title="Show generated sections"
-              aria-label="Show generated sections for ${escapeAttr(makeHistoryTitle(item))}"
+              aria-label="Show generated sections for ${escapeAttr(displayTitle)}"
               onclick="toggleGeneratedHistorySections(event, '${escapeAttr(item.id)}')">
         <i class="bi bi-chevron-down"></i>
       </button>
+      <div id="${historySectionsDomId(item.id)}" class="generated-history-sections" hidden></div>
+    `;
+    return `
+    <div class="history-item-wrap ${companion ? "companion-history-item-wrap" : "generated-history-item-wrap"}" data-history-kind="${kindClass}">
+      <button class="history-item" type="button" onclick="loadHistoryEntry('${escapeAttr(item.id)}')">
+        <div class="history-item-kind history-item-kind--${kindClass}">
+          <i class="bi ${companion ? "bi-chat-dots" : "bi-collection"}" aria-hidden="true"></i>
+          <span>${kindLabel}</span>
+        </div>
+        <div class="history-item-title">${escapeHTML(displayTitle)}</div>
+        <div class="history-item-meta">${formatHistoryDate(item.updatedAt || item.createdAt)}</div>
+      </button>
+      ${expandControls}
       <button class="history-delete-btn" type="button"
               title="Delete this history item"
-              aria-label="Delete ${escapeAttr(makeHistoryTitle(item))}"
+              aria-label="Delete ${escapeAttr(displayTitle)}"
               onclick="deleteHistoryEntry(event, '${escapeAttr(item.id)}')">
         <i class="bi bi-trash3"></i>
       </button>
-      <div id="${historySectionsDomId(item.id)}" class="generated-history-sections" hidden></div>
     </div>
-  `).join("");
+  `;
+  }).join("");
   return `${jobHtml}${broadcastJobHtml}${itemHtml}`;
 }
 
@@ -890,6 +990,20 @@ async function deleteHistoryEntry(event, id) {
 async function destroyHistoryEntry(id) {
   const items = getHistory();
   const target = items.find(item => item.id === id);
+
+  if (isCompanionHistoryItem(target)) {
+    const threadId = companionThreadIdFromHistoryItem(target);
+    if (threadId && typeof window.__synapseCompanionChat?.delete === "function") {
+      window.__synapseCompanionChat.delete(threadId);
+    }
+    setHistory(items.filter(item => item.id !== id));
+    if (currentHistoryId === id) {
+      currentHistoryId = "";
+      safeRemoveLocalStorage(ACTIVE_HISTORY_KEY);
+    }
+    renderHistory(historySearch ? historySearch.value : "");
+    return;
+  }
 
   const remoteId = String(target?.databaseRecord?.id || target?.database_record?.id || target?.id || "").trim();
   if (remoteId && typeof deleteGeneratedContentFromDataApi === "function") {
@@ -993,6 +1107,34 @@ async function hydrateGeneratedContentSections(entry, { preserveScroll = false }
 async function loadHistoryEntry(id, options = {}) {
   const item = getHistory().find(entry => entry.id === id);
   if (!item) return;
+
+  if (isCompanionHistoryItem(item)) {
+    if (typeof clearActiveGenerationJob === "function") clearActiveGenerationJob();
+    closeMobileNavIfOpen();
+    const threadId = companionThreadIdFromHistoryItem(item);
+    if (typeof setWorkspaceNavTab === "function") {
+      setWorkspaceNavTab("library", { persist: true, expandRail: true });
+    }
+    if (typeof setLearningExperienceMode === "function") {
+      setLearningExperienceMode("companion");
+    } else if (typeof applyLearningExperienceMode === "function") {
+      applyLearningExperienceMode("companion");
+    }
+    currentHistoryId = item.id;
+    safeSetLocalStorage(ACTIVE_HISTORY_KEY, item.id);
+    if (threadId && typeof window.__synapseCompanionChat?.activate === "function") {
+      window.__synapseCompanionChat.activate(threadId);
+    }
+    window.dispatchEvent(new CustomEvent("synapse-companion-thread-activate", {
+      detail: { threadId, historyId: item.id },
+    }));
+    requestAnimationFrame(() => {
+      document.getElementById("companionWorkspace")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    });
+    renderHistory(historySearch ? historySearch.value : "");
+    return;
+  }
+
   if (typeof clearActiveGenerationJob === "function") clearActiveGenerationJob();
   closeMobileNavIfOpen();
 

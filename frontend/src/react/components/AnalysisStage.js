@@ -13,6 +13,12 @@ export function AnalysisStage() {
       h(
         "div",
         null,
+        h(
+          "div",
+          { className: "workspace-surface-badge workspace-surface-badge--materials", "data-workspace-kind": "materials" },
+          icon("bi-collection"),
+          h("span", null, "Materials")
+        ),
         h("h1", null, "Generated Study Notes"),
         h("p", null, "Synapse analysed your materials and built a guided study overview.")
       ),

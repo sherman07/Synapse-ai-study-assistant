@@ -135,7 +135,7 @@ function focusRoomMaterialFromHistoryItem(item = {}) {
 
 function getSynapseFocusRoomMaterials() {
   return getHistory()
-    .filter(item => item && (item.id || item.summary))
+    .filter(item => item && (item.id || item.summary) && item.kind !== "companion" && !String(item.id || "").startsWith("companion:"))
     .map(focusRoomMaterialFromHistoryItem);
 }
 

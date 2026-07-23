@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import {
+  activateLearningCompanionThread,
   appendLearningCompanionMessage,
+  companionHistoryId,
+  companionThreadHasUserContent,
   createLearningCompanionThread,
+  deleteLearningCompanionThread,
+  listLearningCompanionThreads,
   loadLearningCompanionThread,
   resetLearningCompanionThread,
   saveLearningCompanionThread,
+  startNewLearningCompanionThread,
+  titleFromCompanionThread,
   updateLearningCompanionThreadContext,
 } from "../src/legacy/learningCompanionChatStore.js";
 
@@ -29,12 +36,16 @@ assert.equal(typeof loadedWithNonStringId.id, "string");
 assert.notEqual(loadedWithNonStringId.id.trim().length, 0);
 
 const migrated = loadLearningCompanionThread({
-  getItem: () => JSON.stringify({
-    version: 1,
-    id: "old",
-    updatedAt: "2026-07-16T00:00:00.000Z",
-    messages: [],
-  }),
+  getItem: key => (key.includes("chat.v1")
+    ? JSON.stringify({
+      version: 1,
+      id: "old",
+      updatedAt: "2026-07-16T00:00:00.000Z",
+      messages: [],
+    })
+    : null),
+  setItem() {},
+  removeItem() {},
 });
 assert.equal(migrated.version, 2);
 assert.deepEqual(migrated.learningContext, {});
@@ -54,6 +65,9 @@ assert.equal(typeof saved.id, "string");
 assert.notEqual(saved.id.trim().length, 0);
 saveLearningCompanionThread(saved, storage);
 assert.deepEqual(loadLearningCompanionThread(storage), saved);
+assert.equal(companionThreadHasUserContent(saved), true);
+assert.equal(titleFromCompanionThread(saved), "Teach me photography");
+assert.equal(companionHistoryId(saved.id), `companion:${saved.id}`);
 
 const contextualized = updateLearningCompanionThreadContext(
   saved,
@@ -85,7 +99,7 @@ const contextualized = updateLearningCompanionThreadContext(
 );
 assert.equal(contextualized.version, 2);
 assert.equal(contextualized.updatedAt, "2026-07-16T00:03:00.000Z");
-assert.equal(contextualized.messages, saved.messages);
+assert.deepEqual(contextualized.messages, saved.messages);
 assert.deepEqual(contextualized.learningContext, {
   topic: "calculus",
   goal: "pass my test",
@@ -126,9 +140,26 @@ assert.ok(excessive.learningContext.misconceptions.length <= 8);
 assert.ok(excessive.learningContext.review_candidates.length <= 8);
 assert.ok(excessive.learningContext.selected_source_ids.length <= 8);
 assert.ok(JSON.stringify(excessive.learningContext).length <= 2048);
+
+saveLearningCompanionThread(saved, storage);
+const next = startNewLearningCompanionThread(storage, {
+  id: "thread-2",
+  now: () => "2026-07-16T00:02:00.000Z",
+});
+assert.equal(next.id, "thread-2");
+assert.deepEqual(next.messages, []);
+const listed = listLearningCompanionThreads(storage);
+assert.ok(listed.some(item => item.id === saved.id));
+assert.ok(listed.some(item => item.id === "thread-2"));
+const reactivated = activateLearningCompanionThread(saved.id, storage);
+assert.equal(reactivated.id, saved.id);
+assert.equal(loadLearningCompanionThread(storage).id, saved.id);
+deleteLearningCompanionThread(saved.id, storage);
+assert.equal(listLearningCompanionThreads(storage).some(item => item.id === saved.id), false);
+
 assert.deepEqual(
   resetLearningCompanionThread(
-    { id: "thread-2", now: () => "2026-07-16T00:02:00.000Z" },
+    { id: "thread-reset", now: () => "2026-07-16T00:04:00.000Z" },
     storage,
   ).messages,
   [],

@@ -174,6 +174,7 @@ Object.assign(window, {
   setBroadcastPlaybackRate,
   setLearningExperienceMode,
   openWorkspaceHome,
+  syncCompanionThreadToHistory,
   toggleGeneratedHistorySections,
   restartBroadcastPlayback,
   seekBroadcastSection,

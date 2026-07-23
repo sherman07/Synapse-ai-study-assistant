@@ -1,5 +1,16 @@
 import { App } from "./react/App.js?v=ai-broadcast-v19";
 import { loadLegacyController } from "./legacy/loadLegacyController.js?v=settings-modal-pattern-20260720-06";
+import {
+  activateLearningCompanionThread,
+  companionHistoryId,
+  companionThreadHasUserContent,
+  deleteLearningCompanionThread,
+  listLearningCompanionThreads,
+  loadLearningCompanionThread,
+  saveLearningCompanionThread,
+  startNewLearningCompanionThread,
+  titleFromCompanionThread,
+} from "./legacy/learningCompanionChatStore.js?v=ai-learning-companion-v2";
 
 const root = document.getElementById("root");
 
@@ -17,6 +28,36 @@ if (!window.React || !window.ReactDOM) {
   ].join("");
   throw new Error("React runtime was not loaded before Synapse booted.");
 }
+
+window.__synapseCompanionChat = {
+  activate(id) {
+    return activateLearningCompanionThread(id, window.localStorage);
+  },
+  delete(id) {
+    return deleteLearningCompanionThread(id, window.localStorage);
+  },
+  load() {
+    return loadLearningCompanionThread(window.localStorage);
+  },
+  list() {
+    return listLearningCompanionThreads(window.localStorage);
+  },
+  save(thread) {
+    return saveLearningCompanionThread(thread, window.localStorage);
+  },
+  startNew() {
+    return startNewLearningCompanionThread(window.localStorage);
+  },
+  hasUserContent(thread) {
+    return companionThreadHasUserContent(thread);
+  },
+  titleFrom(thread) {
+    return titleFromCompanionThread(thread);
+  },
+  historyId(threadId) {
+    return companionHistoryId(threadId);
+  },
+};
 
 const reactRoot = window.ReactDOM.createRoot(root);
 const renderApp = () => reactRoot.render(window.React.createElement(App));

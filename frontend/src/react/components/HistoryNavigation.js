@@ -248,8 +248,8 @@ export function HistoryNavigation() {
         h("input", {
           id: "historySearch",
           type: "search",
-          placeholder: "Search generated notes...",
-          "aria-label": "Search generated notes history",
+          placeholder: "Search notes and companion chats...",
+          "aria-label": "Search recent learning history",
         })
       ),
       h("div", { className: "history-section-title" }, "Recent learning"),
@@ -259,7 +259,7 @@ export function HistoryNavigation() {
         h(
           "div",
           { className: "history-empty-state" },
-          h("p", { className: "history-empty" }, "No generated notes yet."),
+          h("p", { className: "history-empty" }, "No notes or companion chats yet."),
           h(
             "button",
             {

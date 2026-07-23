@@ -926,12 +926,17 @@ function openSynapseConfirmation({ eyebrow = "Confirm action", title, descriptio
 
 function openHistoryDeletionDialog(id) {
   const target = getHistory().find(item => item.id === id);
-  const title = target ? makeHistoryTitle(target) : "this saved note";
+  const title = target ? makeHistoryTitle(target) : "this saved item";
+  const companion = target?.kind === "companion"
+    || Boolean(target?.companionThreadId)
+    || String(target?.id || "").startsWith("companion:");
   openSynapseConfirmation({
     eyebrow: "Remove from recent learning",
-    title: "Remove this study note?",
-    description: `“${title}” and its saved study tools will be removed from this workspace. This cannot be undone.`,
-    confirmLabel: "Remove note",
+    title: companion ? "Remove this companion chat?" : "Remove this study note?",
+    description: companion
+      ? `“${title}” will be removed from Recent learning and deleted from this browser. This cannot be undone.`
+      : `“${title}” and its saved study tools will be removed from this workspace. This cannot be undone.`,
+    confirmLabel: companion ? "Remove chat" : "Remove note",
     onConfirm: () => destroyHistoryEntry(id)
   });
 }
@@ -1275,7 +1280,7 @@ function getHistory() {
 }
 
 function setHistory(items) {
-  return safeWriteJSONStorage(HISTORY_STORAGE_KEY, items.slice(0, 20));
+  return safeWriteJSONStorage(HISTORY_STORAGE_KEY, items.slice(0, 30));
 }
 
 function visualRecordKeys(historyId, sourceFingerprint) {
