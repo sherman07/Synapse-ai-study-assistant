@@ -38,6 +38,10 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: 93.75%;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   color: var(--text);
@@ -631,11 +635,11 @@ body::before {
 }
 
 .landing-hero-title {
-  font-size: clamp(2.8rem, 5.5vw, 5rem);
+  font-size: clamp(2.15rem, 4.2vw, 3.55rem);
   font-weight: 950;
-  line-height: 1.05;
-  letter-spacing: -0.045em;
-  margin-bottom: 24px;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  margin-bottom: 20px;
   color: var(--text);
 }
 
@@ -695,7 +699,7 @@ body::before {
 }
 
 .landing-stat strong {
-  font-size: 2.2rem;
+  font-size: 1.7rem;
   font-weight: 950;
   background: linear-gradient(135deg, #4a7cff, #667eea);
   -webkit-background-clip: text;
@@ -851,12 +855,12 @@ body::before {
 }
 
 .landing-section-title {
-  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-size: clamp(1.65rem, 3.2vw, 2.45rem);
   font-weight: 950;
-  letter-spacing: -0.04em;
-  margin-bottom: 16px;
+  letter-spacing: -0.035em;
+  margin-bottom: 14px;
   color: var(--text);
-  line-height: 1.1;
+  line-height: 1.12;
 }
 
 .landing-section-subtitle {
@@ -1233,10 +1237,10 @@ body::before {
 }
 
 .landing-usp-card h2 {
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-size: clamp(1.45rem, 2.4vw, 1.9rem);
   font-weight: 950;
   letter-spacing: -0.03em;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   color: var(--text);
 }
 
@@ -1478,7 +1482,7 @@ body::before {
 }
 
 .landing-price-amount {
-  font-size: 3.8rem;
+  font-size: 2.75rem;
   font-weight: 950;
   background: linear-gradient(135deg, #4a7cff, #667eea);
   -webkit-background-clip: text;
@@ -1763,18 +1767,18 @@ body::before {
 }
 
 .landing-cta-card h2 {
-  font-size: clamp(2.2rem, 4vw, 3.2rem);
+  font-size: clamp(1.7rem, 3.2vw, 2.45rem);
   font-weight: 950;
   color: #ffffff;
-  margin-bottom: 16px;
-  letter-spacing: -0.04em;
+  margin-bottom: 14px;
+  letter-spacing: -0.035em;
   text-shadow: 0 3px 18px rgba(15, 23, 42, 0.36);
 }
 
 .landing-cta-card p {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   color: rgba(255, 255, 255, 0.94);
-  margin-bottom: 32px;
+  margin-bottom: 28px;
   text-shadow: 0 2px 12px rgba(15, 23, 42, 0.3);
 }
 
@@ -2097,7 +2101,7 @@ body::before {
 }
 
 .auth-header h1 {
-  font-size: 2.2rem;
+  font-size: 1.7rem;
   font-weight: 950;
   color: var(--text);
   margin-bottom: 8px;
@@ -2784,10 +2788,10 @@ body::before {
 
 .legal-card h1,
 .not-found-card h1 {
-  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-size: clamp(1.7rem, 3.8vw, 2.65rem);
   font-weight: 950;
   color: var(--text);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.035em;
   margin: 12px 0;
 }
 
@@ -2908,7 +2912,7 @@ body::before {
   }
   
   .landing-hero-title {
-    font-size: 2.5rem;
+    font-size: 1.9rem;
   }
   
   .landing-hero-actions {

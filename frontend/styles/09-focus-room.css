@@ -83,7 +83,7 @@ body.focus-room-standalone #focusRoomRoot {
   background:
     radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.16), transparent 32%),
     linear-gradient(135deg, #08111c, #111d30 52%, #08111c);
-  font-size: clamp(2rem, 6vw, 4.5rem);
+  font-size: clamp(1.65rem, 4.5vw, 3.2rem);
   letter-spacing: -0.03em;
   text-align: center;
 }
@@ -291,12 +291,12 @@ body.focus-room-standalone #focusRoomRoot {
 }
 
 .focus-setup-scenes h1 {
-  font-size: clamp(2.25rem, 3.5vw, 3.35rem);
+  font-size: clamp(1.75rem, 2.8vw, 2.55rem);
   letter-spacing: -0.04em;
 }
 
 .focus-setup-controls > h2 {
-  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  font-size: clamp(1.2rem, 1.7vw, 1.55rem);
   letter-spacing: -0.035em;
 }
 
@@ -710,7 +710,7 @@ body.focus-room-standalone #focusRoomRoot {
 
 .timer-value {
   color: var(--text-primary);
-  font-size: clamp(4rem, 13vw, 8rem);
+  font-size: clamp(3.1rem, 10vw, 6rem);
   font-weight: 920;
   line-height: 0.95;
   letter-spacing: 0;
@@ -729,12 +729,12 @@ body.focus-room-standalone #focusRoomRoot {
 }
 
 .timer-editor-hero {
-  font-size: clamp(4rem, 13vw, 8rem);
+  font-size: clamp(3.1rem, 10vw, 6rem);
   font-weight: 920;
 }
 
 .timer-editor-setup {
-  font-size: clamp(2.6rem, 8vw, 3.6rem);
+  font-size: clamp(2rem, 6vw, 2.8rem);
   font-weight: 860;
 }
 
@@ -1261,7 +1261,7 @@ body.focus-room-standalone #focusRoomRoot {
 
   .timer-value,
   .timer-editor-hero {
-    font-size: clamp(3.3rem, 22vw, 5.2rem);
+    font-size: clamp(2.6rem, 16vw, 4rem);
   }
 
   .bottom-dock {
@@ -1555,7 +1555,7 @@ body.focus-room-standalone #focusRoomRoot {
 
 .react-focus-room .focus-landing-hero { display: flex; flex: 1; min-height: 39dvh; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0 28px; text-align: center; }
 .react-focus-room .focus-landing-eyebrow { margin: 0 0 20px; color: var(--innook-soft); font-size: 14px; letter-spacing: .42em; text-transform: uppercase; }
-.react-focus-room .focus-landing-hero h1 { margin: 0; color: var(--innook-ink); font: 400 clamp(3.2rem, 7.2vw, 5.2rem)/1.08 "Innook Songti Subset", "Songti SC", STSong, Georgia, serif; letter-spacing: .05em; }
+.react-focus-room .focus-landing-hero h1 { margin: 0; color: var(--innook-ink); font: 400 clamp(2.4rem, 5.2vw, 3.8rem)/1.08 "Innook Songti Subset", "Songti SC", STSong, Georgia, serif; letter-spacing: .05em; }
 .react-focus-room .focus-landing-subtitle { max-width: 720px; margin: 24px 0 0; color: var(--innook-soft); font-size: 18px; line-height: 1.55; letter-spacing: .12em; }
 .react-focus-room .focus-landing-enter { display: inline-flex; align-items: center; gap: 14px; min-height: 52px; margin-top: 32px; padding: 14px 32px; border: 1px solid rgba(244, 231, 211, .28); border-radius: 999px; color: #fff; background: rgba(244, 231, 211, .08); box-shadow: inset 0 1px 1px rgba(255,255,255,.16), 0 18px 60px rgba(0,0,0,.2); backdrop-filter: blur(18px) saturate(1.25); font: 500 16px/24px Arial, sans-serif; letter-spacing: .04em; cursor: pointer; transition: background .25s ease, border-color .25s ease, transform .25s ease; }
 .react-focus-room .focus-landing-enter:hover { border-color: rgba(244, 231, 211, .56); background: rgba(244, 231, 211, .15); transform: translateY(-2px); }
@@ -1626,7 +1626,7 @@ body.focus-room-standalone #focusRoomRoot {
   .react-focus-room .focus-landing-language span { font-size: 16px; }
   .react-focus-room .focus-landing-hero { min-height: 50dvh; padding: 20px 0; }
   .react-focus-room .focus-landing-eyebrow { margin-bottom: 14px; font-size: 10px; letter-spacing: .34em; }
-  .react-focus-room .focus-landing-hero h1 { font-size: clamp(2.7rem, 12vw, 4.4rem); }
+  .react-focus-room .focus-landing-hero h1 { font-size: clamp(2.1rem, 9vw, 3.2rem); }
   .react-focus-room .focus-landing-subtitle { max-width: 330px; font-size: 13px; letter-spacing: .06em; }
   .react-focus-room .focus-landing-footer { padding: 18px; border-radius: 20px; }
   .react-focus-room .focus-landing-footer-grid { grid-template-columns: 1fr; gap: 18px; }
@@ -1964,7 +1964,7 @@ body.focus-room-standalone #focusRoomRoot {
 
 .timer-value,
 .timer-editor-hero {
-  font-size: clamp(3.65rem, 11vw, 6.4rem);
+  font-size: clamp(2.85rem, 8.5vw, 4.8rem);
   line-height: 0.88;
   text-align: center;
 }
@@ -2429,7 +2429,7 @@ body.focus-room-standalone #focusRoomRoot {
 
   .timer-value,
   .timer-editor-hero {
-    font-size: clamp(3rem, 22vw, 4.8rem);
+    font-size: clamp(2.4rem, 16vw, 3.7rem);
   }
 
   .session-mini-grid,

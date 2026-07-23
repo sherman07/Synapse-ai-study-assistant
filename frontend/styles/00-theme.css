@@ -111,6 +111,9 @@ html[data-theme] {
   --shadow-panel: var(--shadow-large);
 }
 
+/* Tighter site-wide type: 15px when the browser default is 16px. */
+html { font-size: 93.75%; }
+
 html, body { background: var(--color-page-background); color: var(--color-text-primary); }
 body { transition: background-color .18s ease, color .18s ease; }
 
