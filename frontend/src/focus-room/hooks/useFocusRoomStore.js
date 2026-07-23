@@ -375,23 +375,30 @@ async function requestFocusAssistantAnswer(question, chatHistory, material, assi
 
 export const useFocusRoomStore = create((set, get) => {
   const scene = initialScene();
+  const draft = readDraftForMaterial("focus-room");
+  const draftScene = sceneById(draft?.selectedScene) ? currentScene(draft.selectedScene) : scene;
+  const draftDurationMinutes = clampDuration(draft?.durationMinutes, DEFAULT_DURATION_MINUTES);
+  const draftDurationSeconds = clampDurationSeconds(
+    draft?.durationSeconds,
+    durationSeconds(draftDurationMinutes)
+  );
 
   return {
-    route: "session",
-    view: "session",
+    route: "setup",
+    view: "setup",
     materials: [],
     materialsStatus: "idle",
     materialsError: "",
     selectedMaterialId: "focus-room",
     selectedMaterial: null,
-    selectedScene: scene.id,
-    musicType: scene.musicType || "Deep Focus",
-    ambientSound: scene.ambientSound || "Nature",
-    musicVolume: 60,
-    ambientVolume: 50,
-    audioChannels: { ...DEFAULT_AUDIO_CHANNELS },
-    pomodoroDuration: DEFAULT_DURATION_MINUTES,
-    pomodoroDurationSeconds: durationSeconds(DEFAULT_DURATION_MINUTES),
+    selectedScene: draftScene.id,
+    musicType: String(draft?.musicType || draftScene.musicType || "Deep Focus"),
+    ambientSound: String(draft?.ambientSound || draftScene.ambientSound || "Nature"),
+    musicVolume: clampVolume(draft?.musicVolume, 60),
+    ambientVolume: clampVolume(draft?.ambientVolume, 50),
+    audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(draft?.audioChannels || {}) },
+    pomodoroDuration: draftDurationMinutes,
+    pomodoroDurationSeconds: draftDurationSeconds,
     timerStatus: "idle",
     timerState: "idle",
     timerPhase: "idle",
@@ -402,23 +409,12 @@ export const useFocusRoomStore = create((set, get) => {
     timerPausedAtMs: null,
     timerUpdatedAtMs: null,
     timerRestoredAtMs: null,
-    timerDurationSeconds: durationSeconds(DEFAULT_DURATION_MINUTES),
-    studyGoal: "Deep work block",
+    timerDurationSeconds: draftDurationSeconds,
+    studyGoal: String(draft?.studyGoal || "Deep work block"),
     studyPlan: [],
     aiPanelOpen: false,
     isIdle: false,
-    currentSession: {
-      sessionId: `focus-${Date.now()}`,
-      materialId: "focus-room",
-      studyGoal: "Deep work block",
-      selectedScene: scene.id,
-      musicType: scene.musicType || "Deep Focus",
-      ambientSound: scene.ambientSound || "Nature",
-      musicVolume: 60,
-      ambientVolume: 50,
-      pomodoroDuration: DEFAULT_DURATION_MINUTES,
-      startedAt: null
-    },
+    currentSession: null,
     sessionHistory: [],
     activeDrawer: "",
     audioPlaying: false,
@@ -432,8 +428,8 @@ export const useFocusRoomStore = create((set, get) => {
     flashcardProgress: {},
     quizAnswers: {},
     quizChecked: {},
-    workspaceNotes: "",
-    workspaceUpdatedAt: "",
+    workspaceNotes: String(draft?.workspaceNotes || ""),
+    workspaceUpdatedAt: draft?.workspaceUpdatedAt || "",
     activeNoteSection: "",
     activeSourceHighlight: null,
     assistantContext: { sectionTitle: "", excerpt: "" },
@@ -445,28 +441,93 @@ export const useFocusRoomStore = create((set, get) => {
 
     initializeFocusRoom() {
       const state = get();
-      if (state.view === "session" && state.selectedMaterialId === "focus-room" && state.currentSession) return;
-      const activeScene = currentScene(state.selectedScene);
+      const snapshot = readFocusRoomActiveSessionForMaterial("focus-room");
+      const restored = restoreActiveSessionState("focus-room");
+      if (restored?.view === "session" && restored.currentSession) {
+        const activeScene = currentScene(snapshot?.selectedScene || state.selectedScene);
+        set({
+          selectedMaterialId: "focus-room",
+          selectedMaterial: null,
+          studyPlan: Array.isArray(snapshot?.studyPlan) ? snapshot.studyPlan : [],
+          selectedScene: activeScene.id,
+          musicType: snapshot?.musicType || state.musicType,
+          ambientSound: snapshot?.ambientSound || state.ambientSound,
+          musicVolume: clampVolume(snapshot?.musicVolume, state.musicVolume),
+          ambientVolume: clampVolume(snapshot?.ambientVolume, state.ambientVolume),
+          audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(snapshot?.audioChannels || state.audioChannels || {}) },
+          pomodoroDuration: clampDuration(snapshot?.pomodoroDuration, state.pomodoroDuration),
+          pomodoroDurationSeconds: clampDurationSeconds(
+            snapshot?.pomodoroDurationSeconds,
+            state.pomodoroDurationSeconds
+          ),
+          studyGoal: String(snapshot?.studyGoal || state.studyGoal || "Deep work block"),
+          summaryRecord: null,
+          ...restored,
+          route: "session",
+          view: "session",
+        });
+        return;
+      }
+
+      const draftSettings = readDraftForMaterial("focus-room");
+      const activeScene = currentScene(draftSettings?.selectedScene || state.selectedScene);
+      const pomodoroDuration = clampDuration(draftSettings?.durationMinutes, state.pomodoroDuration || DEFAULT_DURATION_MINUTES);
+      const pomodoroDurationSeconds = clampDurationSeconds(
+        draftSettings?.durationSeconds,
+        state.pomodoroDurationSeconds || durationSeconds(pomodoroDuration)
+      );
       set({
-        route: "session",
-        view: "session",
+        route: "setup",
+        view: "setup",
         selectedMaterialId: "focus-room",
         selectedMaterial: null,
-        studyGoal: state.studyGoal || "Deep work block",
+        selectedScene: activeScene.id,
+        musicType: String(draftSettings?.musicType || activeScene.musicType || state.musicType || "Deep Focus"),
+        ambientSound: String(draftSettings?.ambientSound || activeScene.ambientSound || state.ambientSound || "Nature"),
+        musicVolume: clampVolume(draftSettings?.musicVolume, state.musicVolume ?? 60),
+        ambientVolume: clampVolume(draftSettings?.ambientVolume, state.ambientVolume ?? 50),
+        audioChannels: { ...DEFAULT_AUDIO_CHANNELS, ...(draftSettings?.audioChannels || state.audioChannels || {}) },
+        pomodoroDuration,
+        pomodoroDurationSeconds,
+        timerDurationSeconds: pomodoroDurationSeconds,
+        studyGoal: String(draftSettings?.studyGoal || state.studyGoal || "Deep work block"),
         studyPlan: [],
         completedTasks: [],
-        currentSession: {
-          sessionId: `focus-${Date.now()}`,
-          materialId: "focus-room",
-          studyGoal: state.studyGoal || "Deep work block",
-          selectedScene: activeScene.id,
-          musicType: state.musicType,
-          ambientSound: state.ambientSound,
-          musicVolume: state.musicVolume,
-          ambientVolume: state.ambientVolume,
-          pomodoroDuration: state.pomodoroDuration,
-          startedAt: null
-        }
+        currentSession: null,
+        summaryRecord: null,
+        audioPlaying: false,
+        elapsedSeconds: 0,
+        startedAt: null,
+        ...timerStateFields("idle", clockNowMs()),
+        timerAnchorAtMs: null,
+        timerPausedAtMs: null,
+        timerRestoredAtMs: null,
+        timerRestoreTarget: null,
+        workspaceNotes: String(draftSettings?.workspaceNotes || state.workspaceNotes || ""),
+        workspaceUpdatedAt: draftSettings?.workspaceUpdatedAt || state.workspaceUpdatedAt || "",
+      });
+    },
+
+    returnToSetup() {
+      const state = get();
+      persistDraftFromState(state);
+      clearFocusRoomActiveSession("focus-room");
+      set({
+        route: "setup",
+        view: "setup",
+        currentSession: null,
+        summaryRecord: null,
+        audioPlaying: false,
+        aiPanelOpen: false,
+        activeDrawer: "",
+        elapsedSeconds: 0,
+        startedAt: null,
+        ...timerStateFields("idle", clockNowMs()),
+        timerAnchorAtMs: null,
+        timerPausedAtMs: null,
+        timerRestoredAtMs: null,
+        timerRestoreTarget: null,
+        timerDurationSeconds: configuredDurationSeconds(state),
       });
     },
 
@@ -760,15 +821,19 @@ export const useFocusRoomStore = create((set, get) => {
 
     startTimer() {
       const state = get();
+      if (!state.currentSession || state.view !== "session") {
+        get().startSession();
+      }
+      const live = get();
       const now = clockNowMs();
-      const currentState = timerStateFor(state);
+      const currentState = timerStateFor(live);
       if (currentState === "running") {
         get().tickTimer();
         return;
       }
-      const total = timerTotalSeconds(state);
-      const shouldRestart = currentState === "completed" || currentState === "break" || total > 0 && state.elapsedSeconds >= total;
-      const elapsedSeconds = shouldRestart ? 0 : Math.max(0, Number(state.elapsedSeconds) || 0);
+      const total = timerTotalSeconds(live);
+      const shouldRestart = currentState === "completed" || currentState === "break" || total > 0 && live.elapsedSeconds >= total;
+      const elapsedSeconds = shouldRestart ? 0 : Math.max(0, Number(live.elapsedSeconds) || 0);
       const next = {
         view: "session",
         route: "session",
@@ -776,7 +841,7 @@ export const useFocusRoomStore = create((set, get) => {
         audioPlaying: true,
         summaryRecord: null,
         elapsedSeconds,
-        startedAt: !state.startedAt || shouldRestart ? new Date(now).toISOString() : state.startedAt,
+        startedAt: !live.startedAt || shouldRestart ? new Date(now).toISOString() : live.startedAt,
         timerAnchorAtMs: now - elapsedSeconds * 1000,
         timerPausedAtMs: null,
         timerRestoredAtMs: null,
@@ -785,7 +850,7 @@ export const useFocusRoomStore = create((set, get) => {
         ...(shouldRestart ? resetProgressState() : {})
       };
       set(next);
-      persistTimerSnapshot({ ...state, ...next });
+      persistTimerSnapshot({ ...live, ...next });
     },
 
     pauseTimer({ pauseAudio = true } = {}) {

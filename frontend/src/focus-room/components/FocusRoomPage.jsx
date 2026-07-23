@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { AnimatePresence, motion } from "motion/react";
 import { clearFocusRoomActiveSession, saveFocusRoomActiveSession } from "../data.js";
 import { FocusBackground } from "./FocusBackground.jsx";
+import { FocusRoomSetup } from "./FocusRoomSetup.jsx";
 import { TopFocusNav } from "./TopFocusNav.jsx";
 import { BottomControlDock } from "./BottomControlDock.jsx";
 import { SessionSummaryModal } from "./SessionSummaryModal.jsx";
@@ -111,11 +112,24 @@ export function FocusRoomPage() {
   return (
     <main
       id="focusRoomSurface"
-      className={`focus-room-surface react-focus-room ${isIdle ? "is-idle" : ""}`.trim()}
+      className={`focus-room-surface react-focus-room ${isIdle ? "is-idle" : ""} ${view === "setup" ? "is-setup" : "is-session"}`.trim()}
       aria-live="polite"
+      data-focus-room-view={view}
     >
       <FocusBackground scene={scene} />
       <AnimatePresence mode="wait">
+        {view === "setup" ? (
+          <motion.div
+            key="setup"
+            className="focus-room-view focus-setup-view"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={spring}
+          >
+            <FocusRoomSetup audioState={audioState} onWorkspace={showWorkspace} />
+          </motion.div>
+        ) : null}
         {view === "session" ? (
           <motion.div
             key="session"

@@ -64,6 +64,7 @@ function RoomChannelSlider({ id, label, value, icon = null, onChange, card = fal
 function RoomControlPanel({ audioState, scene, onClose }) {
   const channels = useFocusRoomStore(state => state.audioChannels);
   const setSound = useFocusRoomStore(state => state.setSound);
+  const returnToSetup = useFocusRoomStore(state => state.returnToSetup);
   const musicType = useFocusRoomStore(state => state.musicType);
   const ambientSound = useFocusRoomStore(state => state.ambientSound);
   const musicVolume = useFocusRoomStore(state => state.musicVolume);
@@ -104,6 +105,18 @@ function RoomControlPanel({ audioState, scene, onClose }) {
         <GlassButton className="room-control-close" aria-label="Close room settings" onClick={onClose}><X size={16} aria-hidden="true" /></GlassButton>
       </header>
       <div className="room-control-divider" aria-hidden="true" />
+      <div className="room-control-setup-actions">
+        <GlassButton
+          className="room-control-setup-btn"
+          onClick={() => {
+            onClose?.();
+            returnToSetup();
+          }}
+          data-focus-return-setup="true"
+        >
+          Change scene &amp; setup
+        </GlassButton>
+      </div>
       <div className="room-control-grid">
         <section className="room-control-col room-control-scenes" aria-label="Scenes">
           <h3 className="room-control-section-title">Scenes</h3>

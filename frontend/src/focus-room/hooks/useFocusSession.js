@@ -34,6 +34,7 @@ export function useFocusSession() {
       checkFocusQuizQuestion: store.checkQuizQuestion,
       closeFocusSummary: store.closeSummary,
       endFocusRoomSession: store.endSession,
+      returnToFocusRoomSetup: store.returnToSetup,
       flipFocusFlashcard: store.flipFlashcard,
       pauseFocusRoomTimer: store.pauseTimer,
       rateFocusFlashcard: store.rateFlashcard,

@@ -1714,6 +1714,24 @@ body.focus-room-standalone #focusRoomRoot {
 .focus-setup-stage { width: min(928px, 100%); min-height: calc(100svh - 52px); margin: 0 auto; padding-top: 11px; }
 .focus-setup-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .focus-setup-heading-actions { display: flex; gap: 7px; }
+.focus-setup-scene-preview {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.focus-setup-scene-preview .focus-pill { width: fit-content; }
+.focus-setup-scene-preview strong { font-size: 0.95rem; }
+.focus-setup-scene-preview > span:last-child { color: var(--room-soft, rgba(255,255,255,.72)); font-size: 0.78rem; }
+.room-control-setup-actions {
+  padding: 0 0 14px;
+}
+.room-control-setup-btn {
+  width: 100%;
+}
 .setup-quiet-action { min-height: 38px; padding: 0 13px; border-radius: 999px; color: var(--room-soft); border-color: rgba(255,255,255,.16); background: rgba(25,21,18,.28); }
 .focus-setup-layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 21px; align-items: stretch; }
 .focus-setup-scenes, .focus-setup-controls { min-width: 0; border: 1px solid rgba(244,231,211,.24); border-radius: 27px; background: linear-gradient(130deg, rgba(62,52,44,.55), rgba(30,26,23,.49)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 24px 64px rgba(0,0,0,.28); backdrop-filter: blur(22px) saturate(120%); }

@@ -10,16 +10,22 @@ function makeLocalStorage() {
 }
 
 globalThis.localStorage = makeLocalStorage();
-const { useFocusRoomStore } = await import(`../src/focus-room/hooks/useFocusRoomStore.js?pure-room=${Date.now()}`);
+const { useFocusRoomStore } = await import(`../src/focus-room/hooks/useFocusRoomStore.js?setup-first=${Date.now()}`);
 const store = useFocusRoomStore;
 
 store.getState().initializeFocusRoom();
-assert.equal(store.getState().view, "session");
+assert.equal(store.getState().view, "setup", "Focus Room should open on setup first");
 assert.equal(store.getState().selectedMaterial, null);
 assert.equal(store.getState().selectedMaterialId, "focus-room");
+assert.equal(store.getState().currentSession, null);
 assert.deepEqual(store.getState().studyPlan, []);
 
 store.getState().setStudyGoal("Read and write without interruptions");
+store.getState().selectScene(store.getState().selectedScene);
+store.getState().startSession();
+assert.equal(store.getState().view, "session", "Enter Focus Room should open the immersive session");
+assert.ok(store.getState().currentSession);
+
 store.getState().startTimer();
 assert.equal(store.getState().timerStatus, "studying");
 assert.equal(store.getState().audioPlaying, true);
@@ -39,5 +45,9 @@ store.getState().endSession();
 assert.equal(store.getState().summaryRecord.materialTitle, "Focus Room");
 assert.equal(store.getState().summaryRecord.quizScore, null);
 assert.deepEqual(store.getState().summaryRecord.completedTasks, []);
+
+store.getState().returnToSetup();
+assert.equal(store.getState().view, "setup", "Users can return to setup to change scene and settings");
+assert.equal(store.getState().currentSession, null);
 
 console.log("focus room pure session regression passed");

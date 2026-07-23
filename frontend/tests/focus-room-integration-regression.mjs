@@ -170,7 +170,7 @@ assert.ok(
   "Standalone Focus Room page should redirect direct visitors to the workspace while disabled"
 );
 assert.ok(
-  focusRoomHtml.includes('import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v9")'),
+  focusRoomHtml.includes('import("./src/focus-room/static-compatible-loader.js?v=focus-room-loader-v10")'),
   "Standalone Focus Room page should only import the loader after the feature flag allows it"
 );
 assert.ok(
@@ -182,18 +182,18 @@ assert.ok(
   "Standalone Focus Room page should not boot the loader unconditionally while disabled"
 );
 assert.ok(
-  focusRoomHtml.includes("styles/09-focus-room.css?v=type-scale-v1"),
+  focusRoomHtml.includes("styles/09-focus-room.css?v=setup-first-v1"),
   "Focus Room HTML should cache-bust the CSS after portal stacking fixes"
 );
 assert.ok(
-  focusRoomHtml.includes("static-compatible-loader.js?v=focus-room-loader-v9"),
+  focusRoomHtml.includes("static-compatible-loader.js?v=focus-room-loader-v10"),
   "Focus Room HTML should cache-bust the standalone loader after boot fixes"
 );
 assert.ok(focusRoomHtml.includes("styles/09-focus-room.css"), "Standalone Focus Room page should load Focus Room styles directly");
 assert.ok(!focusRoomHtml.includes("react@18"), "Standalone Focus Room should rely on Vite/npm React, not CDN React");
 assert.ok(focusRoomStaticLoader.includes("focus-room-static.js"), "Focus Room static loader should import the prebuilt static bundle");
 assert.ok(
-  focusRoomStaticLoader.includes("focus-room-static.js?v=focus-room-static-v9"),
+  focusRoomStaticLoader.includes("focus-room-static.js?v=focus-room-static-v10"),
   "Focus Room loader should cache-bust the static bundle after portal stacking fixes"
 );
 assert.ok(
