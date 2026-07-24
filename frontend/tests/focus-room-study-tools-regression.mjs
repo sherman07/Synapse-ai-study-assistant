@@ -20,6 +20,30 @@ assert.equal(store.getState().selectedMaterialId, "focus-room");
 assert.equal(store.getState().currentSession, null);
 assert.deepEqual(store.getState().studyPlan, []);
 
+// Stale idle session snapshots must not skip setup on re-entry.
+store.getState().setStudyGoal("Read and write without interruptions");
+store.getState().startSession();
+assert.equal(store.getState().view, "session");
+globalThis.localStorage.setItem(
+  "synapse.focusRoom.active-session.v1",
+  JSON.stringify({
+    "focus-room": {
+      materialId: "focus-room",
+      view: "session",
+      selectedScene: store.getState().selectedScene,
+      studyGoal: "Read and write without interruptions",
+      timerState: "idle",
+      timerStatus: "idle",
+      currentSession: store.getState().currentSession,
+      elapsedSeconds: 0,
+      startedAt: null,
+    }
+  })
+);
+store.getState().initializeFocusRoom();
+assert.equal(store.getState().view, "setup", "Idle leftover sessions must reopen on setup");
+assert.equal(store.getState().currentSession, null);
+
 store.getState().setStudyGoal("Read and write without interruptions");
 store.getState().selectScene(store.getState().selectedScene);
 store.getState().startSession();

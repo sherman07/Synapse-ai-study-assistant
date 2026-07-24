@@ -443,7 +443,15 @@ export const useFocusRoomStore = create((set, get) => {
       const state = get();
       const snapshot = readFocusRoomActiveSessionForMaterial("focus-room");
       const restored = restoreActiveSessionState("focus-room");
-      if (restored?.view === "session" && restored.currentSession) {
+      const snapshotTimerState = timerStateFor(snapshot || {});
+      // Only resume the immersive room when a focus block was actively running.
+      // Idle leftovers from a previous visit must never skip the setup page.
+      const shouldResumeRunningSession = Boolean(
+        restored?.view === "session"
+        && restored.currentSession
+        && snapshotTimerState === "running"
+      );
+      if (shouldResumeRunningSession) {
         const activeScene = currentScene(snapshot?.selectedScene || state.selectedScene);
         set({
           selectedMaterialId: "focus-room",
@@ -469,6 +477,8 @@ export const useFocusRoomStore = create((set, get) => {
         return;
       }
 
+      // Always land on setup for a fresh Focus Room visit.
+      clearFocusRoomActiveSession("focus-room");
       const draftSettings = readDraftForMaterial("focus-room");
       const activeScene = currentScene(draftSettings?.selectedScene || state.selectedScene);
       const pomodoroDuration = clampDuration(draftSettings?.durationMinutes, state.pomodoroDuration || DEFAULT_DURATION_MINUTES);

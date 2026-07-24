@@ -22,6 +22,6 @@ assert.match(styles, /\.focus-setup-scenes/, "Focus Room scene panel is styled")
 assert.match(styles, /\.scene-card/, "Focus Room scene cards are styled");
 assert.match(styles, /\.focus-setup-scene-preview/, "Setup should preview the selected scene");
 assert.match(html, /auth-client\.js/, "Standalone Focus Room loads the shared Synapse auth client");
-assert.match(html, /focus-room-loader-v10/, "Standalone Focus Room loads the cache-busted runtime");
+assert.match(html, /focus-room-loader-v11/, "Standalone Focus Room loads the cache-busted runtime");
 
 console.log("focus-room-navigation-regression: passed");
